@@ -11,8 +11,16 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const tags = git('for-each-ref', '--sort=-creatordate', '--format=%(refname:short)|%(creatordate:short)', 'refs/tags')
   .split('\n').filter((l) => /^v\d/.test(l)).map((l) => { const [tag, date] = l.split('|'); return { tag, date }; });
 
-const subjects = (range) => git('log', '--format=%s', range).split('\n')
-  .filter((s) => s && !/^Version \d/.test(s) && !/^Merge /.test(s));
+// What the page lists: what a player can notice. Work on the site, the repository, the scripts and the
+// packaging stays out, and a line that names another mod is said without the name.
+const INTERNAL = /^(Site:|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:)/;
+const REWRITE = [
+  [/ from Smooth Frames' console lines/i, " from the game's console lines"],
+  [/Smooth Frames/gi, 'the frame report']
+];
+const subjects = (range) => git('log', '--format=%s', range).split(/\r?\n/)
+  .filter((s) => s && !INTERNAL.test(s))
+  .map((s) => REWRITE.reduce((t, [re, to]) => t.replace(re, to), s));
 
 const releases = [];
 const head = subjects(tags[0].tag + '..HEAD');
