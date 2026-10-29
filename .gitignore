@@ -65,3 +65,7 @@ __pycache__/
 /workshop/Z_StudioLink/recordings/
 /workshop/Z_StudioLink/preview.html
 dist-local/
+
+# Private notes and the public repo's working copy
+private/
+publish-repo/
