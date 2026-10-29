@@ -1,9 +1,9 @@
 {
- "latest": "1.7.12",
+ "latest": "1.7.13",
  "built": "2026-10-29",
  "releases": [
   {
-   "version": null,
+   "version": "1.7.13",
    "date": "2026-10-29",
    "notes": [
     "Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished"
@@ -129,14 +129,6 @@
    "notes": [
     "Update now: the app updates itself from a signed release; checks every 6 hours",
     "Join a server: it goes into the game's Favorites too (Link 1.17.0)"
-   ]
-  },
-  {
-   "version": "1.7.1",
-   "date": "2026-10-23",
-   "notes": [
-    "Workflows: the five Dependabot updates (setup-node 7.1.0, attest-build-provenance 4.2.2, configure-pages 6.0.0, upload-pages-artifact 5.0.0, deploy-pages 5.0.1)",
-    "Join a server: a kept server password reads as kept"
    ]
   }
  ]
