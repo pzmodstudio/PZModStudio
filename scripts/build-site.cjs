@@ -1,0 +1,31 @@
+// Fills site/ with the data its pages read, so the folder can be uploaded as it is (no git needed
+// at the host): releases.json from the git tags, the community index beside the pages. Run: node scripts/build-site.cjs
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+const site = path.join(root, 'site');
+const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+
+const tags = git('for-each-ref', '--sort=-creatordate', '--format=%(refname:short)|%(creatordate:short)', 'refs/tags')
+  .split('\n').filter((l) => /^v\d/.test(l)).map((l) => { const [tag, date] = l.split('|'); return { tag, date }; });
+
+const subjects = (range) => git('log', '--format=%s', range).split('\n')
+  .filter((s) => s && !/^Version \d/.test(s) && !/^Merge /.test(s));
+
+const releases = [];
+const head = subjects(tags[0].tag + '..HEAD');
+if (head.length) releases.push({ version: null, date: git('log', '-1', '--format=%ad', '--date=short'), notes: head });
+tags.slice(0, 12).forEach((t, i) => {
+  const prev = tags[i + 1];
+  releases.push({ version: t.tag.replace(/^v/, ''), date: t.date, notes: subjects(prev ? prev.tag + '..' + t.tag : t.tag) });
+});
+
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+fs.writeFileSync(path.join(site, 'releases.json'), JSON.stringify({ latest: pkg.version, built: new Date().toISOString().slice(0, 10), releases }, null, 1));
+
+for (const f of ['index.json', 'rules.json', 'lists.json']) fs.copyFileSync(path.join(root, 'community', f), path.join(site, f));
+
+
+console.log('site/ ready: version ' + pkg.version + ', ' + releases.length + ' release entries');

@@ -1,0 +1,66 @@
+{
+  "id": "B42FRUsedCarsAnimAlpha",
+  "name": "Filibuster Rhymes' Certified Used Cars!",
+  "workshop_id": "3683878228",
+  "builds": [
+    "42"
+  ],
+  "issues": [
+    {
+      "title": "Requires \"Vehicle/ISVehiclePartMenu\", which Build 42 moved",
+      "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISUI/ISVehiclePartMenu\".",
+      "file": "media/lua/client/Vehicles/ISUI/FR_PropaneTank_ISVehiclePartMenu.lua",
+      "fix": {
+        "kind": "require_path",
+        "from": "Vehicle/ISVehiclePartMenu",
+        "to": "Vehicles/ISUI/ISVehiclePartMenu"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    },
+    {
+      "title": "Requires \"ISUI/ISVehicleMechanics\", which Build 42 moved",
+      "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISUI/ISVehicleMechanics\".",
+      "file": "media/lua/client/Vehicles/ISUI/FR_VehicleMechanics.lua",
+      "fix": {
+        "kind": "require_path",
+        "from": "ISUI/ISVehicleMechanics",
+        "to": "Vehicles/ISUI/ISVehicleMechanics"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    },
+    {
+      "title": "Requires \"Vehicles/ISUI/ISVehicleTrailerUtils\", which Build 42 moved",
+      "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISVehicleTrailerUtils\".",
+      "file": "media/lua/client/Vehicles/ISUI/FR_VehicleTrailerUtils.lua",
+      "fix": {
+        "kind": "require_path",
+        "from": "Vehicles/ISUI/ISVehicleTrailerUtils",
+        "to": "Vehicles/ISVehicleTrailerUtils"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    },
+    {
+      "title": "Requires \"ISUnlockVehicleDoor\", which Build 42 moved",
+      "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/TimedActions/ISUnlockVehicleDoor\".",
+      "file": "media/lua/client/Vehicles/TimedActions/FR_UnlockedVehicleDoor.lua",
+      "fix": {
+        "kind": "require_path",
+        "from": "ISUnlockVehicleDoor",
+        "to": "Vehicles/TimedActions/ISUnlockVehicleDoor"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    }
+  ]
+}

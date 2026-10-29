@@ -1,0 +1,278 @@
+{
+  "version": 1,
+  "updated": "2026-10-18",
+  "mods": {
+    "2858201402/dailystatisticsandgains": {
+      "id": "2858201402/dailystatisticsandgains",
+      "name": "Daily Statistics and Gains",
+      "workshop_id": "2858201402",
+      "builds": [
+        "41",
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "The daily report breaks on Build 42",
+          "note": "The shim's patch daily_report mends it.",
+          "fix": {
+            "kind": "shim_patch",
+            "name": "daily_report"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "B42FRUsedCarsAnimAlpha": {
+      "id": "B42FRUsedCarsAnimAlpha",
+      "name": "Filibuster Rhymes' Certified Used Cars!",
+      "workshop_id": "3683878228",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "Requires \"Vehicle/ISVehiclePartMenu\", which Build 42 moved",
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISUI/ISVehiclePartMenu\".",
+          "file": "media/lua/client/Vehicles/ISUI/FR_PropaneTank_ISVehiclePartMenu.lua",
+          "fix": {
+            "kind": "require_path",
+            "from": "Vehicle/ISVehiclePartMenu",
+            "to": "Vehicles/ISUI/ISVehiclePartMenu"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        },
+        {
+          "title": "Requires \"ISUI/ISVehicleMechanics\", which Build 42 moved",
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISUI/ISVehicleMechanics\".",
+          "file": "media/lua/client/Vehicles/ISUI/FR_VehicleMechanics.lua",
+          "fix": {
+            "kind": "require_path",
+            "from": "ISUI/ISVehicleMechanics",
+            "to": "Vehicles/ISUI/ISVehicleMechanics"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        },
+        {
+          "title": "Requires \"Vehicles/ISUI/ISVehicleTrailerUtils\", which Build 42 moved",
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISVehicleTrailerUtils\".",
+          "file": "media/lua/client/Vehicles/ISUI/FR_VehicleTrailerUtils.lua",
+          "fix": {
+            "kind": "require_path",
+            "from": "Vehicles/ISUI/ISVehicleTrailerUtils",
+            "to": "Vehicles/ISVehicleTrailerUtils"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        },
+        {
+          "title": "Requires \"ISUnlockVehicleDoor\", which Build 42 moved",
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/TimedActions/ISUnlockVehicleDoor\".",
+          "file": "media/lua/client/Vehicles/TimedActions/FR_UnlockedVehicleDoor.lua",
+          "fix": {
+            "kind": "require_path",
+            "from": "ISUnlockVehicleDoor",
+            "to": "Vehicles/TimedActions/ISUnlockVehicleDoor"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "ExhaustivePowerRework": {
+      "id": "ExhaustivePowerRework",
+      "name": "Exhaustive Power Rework",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "Needs the shim's exhaustive_power_rework patch on Build 42.21",
+          "fix": {
+            "kind": "shim_patch",
+            "name": "exhaustive_power_rework"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "FancyHandworkB42_19": {
+      "id": "FancyHandworkB42_19",
+      "name": "Fancy Handwork",
+      "workshop_id": "3771638611",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "getKey(nil) when the keybinds load",
+          "note": "FHbindings[1] is a header with no value and core:getKey(nil) throws, so the mod's handwork stops after the first error. The Studio's shim carries a patch for it (fancy_handwork); the same file patched line by line also works.",
+          "file": "media/lua/shared/aFancyHandwork.lua",
+          "line": 126,
+          "log": "ERROR: ... aFancyHandwork.lua:126: attempted index: getKey of non-table",
+          "fix": {
+            "kind": "shim_patch",
+            "name": "fancy_handwork"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        },
+        {
+          "title": "Clashes with O.C.D. Inventory on the inventory pane",
+          "note": "Both rewrite the inventory pane; the shim's patch fancy_handwork_ocd keeps both working when both are on.",
+          "fix": {
+            "kind": "shim_patch",
+            "name": "fancy_handwork_ocd"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "NeatLockpicking": {
+      "id": "NeatLockpicking",
+      "name": "Neat Lockpicking",
+      "workshop_id": "3783535220",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "ISPathFindAction is nil when unlocking a vehicle",
+          "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
+          "file": "media/lua/shared/NeatLockpicking/NeatLockpick_Unlock.lua",
+          "line": 171,
+          "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
+          "fix": {
+            "kind": "compatible_copy"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "NoLighterNeeded": {
+      "id": "NoLighterNeeded",
+      "name": "I Don't Need A Lighter",
+      "workshop_id": "2714198296",
+      "builds": [
+        "41",
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "Requires \"shared/IDNALUtils\" with the folder in the path",
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"IDNALUtils\".",
+          "file": "media/lua/client/IDNAL_DisableVanillaSmoke.lua",
+          "fix": {
+            "kind": "require_path",
+            "from": "shared/IDNALUtils",
+            "to": "IDNALUtils"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "OCDInventory": {
+      "id": "OCDInventory",
+      "name": "O.C.D. Inventory",
+      "workshop_id": "3773985930",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "Needs the shim's ocd_inventory patch on Build 42.21",
+          "fix": {
+            "kind": "shim_patch",
+            "name": "ocd_inventory"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "ReactiveSE": {
+      "id": "ReactiveSE",
+      "name": "Reactive Sound Events",
+      "workshop_id": "3656190498",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "Requires \"ISUI/ISWorldMap\", which Build 42 moved",
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"ISUI/Maps/ISWorldMap\".",
+          "file": "media/lua/client/ReactiveSE/ReactiveSE_RadioMarkers.lua",
+          "fix": {
+            "kind": "require_path",
+            "from": "ISUI/ISWorldMap",
+            "to": "ISUI/Maps/ISWorldMap"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        },
+        {
+          "title": "Formatting \"Sandbox_Reac...\" warns in the log",
+          "note": "A WARN from Translator.reportMissingArgumentsFromPastAbuse about a sandbox option's text with a stray format sign. The game carries on; nothing to fix on the player's side.",
+          "fix": {
+            "kind": "none"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    },
+    "SaucedCarts": {
+      "id": "SaucedCarts",
+      "name": "SaucedCarts - Pushable Carts",
+      "workshop_id": "3651954650",
+      "builds": [
+        "42"
+      ],
+      "issues": [
+        {
+          "title": "Needs the shim's sauced_carts patch on Build 42.21",
+          "fix": {
+            "kind": "shim_patch",
+            "name": "sauced_carts"
+          },
+          "build": "42.21",
+          "date": "2026-10-18",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "status": "verified"
+        }
+      ]
+    }
+  }
+}

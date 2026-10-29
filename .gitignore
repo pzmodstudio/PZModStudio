@@ -1,0 +1,67 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node / Frontend Build Outputs
+node_modules
+dist
+dist-ssr
+*.local
+
+# Tauri / Rust Build Outputs
+src-tauri/target
+target
+
+# Standalone Portable Binaries (Tracked for direct repository download)
+# PZ-Mod-Studio-Portable/*.exe
+
+# Scratch & Temporary Folders
+scratch/
+tools/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.tmp
+*.zip
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+
+# Local backups of replaced executables
+*.old-*.exe
+
+# Preset exports the app writes next to the exe (the player's own)
+*.pzpack
+
+# Release signing: only the public half belongs in the repository.
+*.pem
+!keys/*.pub.pem
+
+# Reference media from another project (PZMM), kept locally only
+/[1-8].jpg
+/9.gif
+/autosort.gif
+/join.gif
+/maps.gif
+/updates.gif
+/viewpoint.gif
+/workshop.gif
+
+# Raw screen recordings for the Workshop GIFs (scripts/make-workshop-gifs.cjs)
+/workshop/Z_StudioLink/recordings/
+/workshop/Z_StudioLink/preview.html
+dist-local/

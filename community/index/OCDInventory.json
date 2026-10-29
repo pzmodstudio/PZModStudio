@@ -1,0 +1,21 @@
+{
+  "id": "OCDInventory",
+  "name": "O.C.D. Inventory",
+  "workshop_id": "3773985930",
+  "builds": [
+    "42"
+  ],
+  "issues": [
+    {
+      "title": "Needs the shim's ocd_inventory patch on Build 42.21",
+      "fix": {
+        "kind": "shim_patch",
+        "name": "ocd_inventory"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    }
+  ]
+}

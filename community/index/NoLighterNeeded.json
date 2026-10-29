@@ -1,0 +1,25 @@
+{
+  "id": "NoLighterNeeded",
+  "name": "I Don't Need A Lighter",
+  "workshop_id": "2714198296",
+  "builds": [
+    "41",
+    "42"
+  ],
+  "issues": [
+    {
+      "title": "Requires \"shared/IDNALUtils\" with the folder in the path",
+      "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"IDNALUtils\".",
+      "file": "media/lua/client/IDNAL_DisableVanillaSmoke.lua",
+      "fix": {
+        "kind": "require_path",
+        "from": "shared/IDNALUtils",
+        "to": "IDNALUtils"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    }
+  ]
+}

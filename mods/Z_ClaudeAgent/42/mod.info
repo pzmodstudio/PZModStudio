@@ -1,0 +1,5 @@
+name=Claude Agent
+id=Z_ClaudeAgent
+description=Lets an outside agent drive menus, sandbox setup and gameplay through files in Zomboid/Lua.
+modversion=1.0.0
+versionMin=42.0.0

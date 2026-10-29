@@ -1,0 +1,24 @@
+{
+  "id": "NeatLockpicking",
+  "name": "Neat Lockpicking",
+  "workshop_id": "3783535220",
+  "builds": [
+    "42"
+  ],
+  "issues": [
+    {
+      "title": "ISPathFindAction is nil when unlocking a vehicle",
+      "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
+      "file": "media/lua/shared/NeatLockpicking/NeatLockpick_Unlock.lua",
+      "line": 171,
+      "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
+      "fix": {
+        "kind": "compatible_copy"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    }
+  ]
+}
