@@ -51,6 +51,13 @@ const notes = arg('--notes', `**Portable:** download \`${zipName}\`, extract it 
 
 (async () => {
   let rel = await api('GET', `https://api.github.com/repos/${repo}/releases/tags/${tag}`);
+  if (rel.status === 200 && process.argv.includes('--recreate')) {
+    // The tag is made from the branch head when the release is created, so a release made before the
+    // sources were pushed has the tag on older code: drop both and make them again.
+    await api('DELETE', `https://api.github.com/repos/${repo}/releases/${rel.json.id}`);
+    await api('DELETE', `https://api.github.com/repos/${repo}/git/refs/tags/${tag}`);
+    rel = { status: 404 };
+  }
   if (rel.status === 404) {
     rel = await api('POST', `https://api.github.com/repos/${repo}/releases`, JSON.stringify({ tag_name: tag, target_commitish: 'main', name: 'PZ Mod Studio ' + tag, body: notes, draft: false, prerelease: false }));
     if (rel.status !== 201) { console.error('Could not create the release:', rel.status, rel.json && rel.json.message); process.exit(1); }
