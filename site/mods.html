@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mod index - PZ Mod Studio</title>
+<meta name="description" content="The PZ community mod index: what the community knows about Project Zomboid mods: builds they run on, what they clash with, known issues and the fixes PZ Mod Studio applies. The same data the Studio downloads.">
+<style>
+  :root {
+    --bg: #0f172a; --panel: #111827; --panel2: #0b1220; --line: #1f2937; --text: #e2e8f0; --muted: #94a3b8; --dim: #64748b;
+    --green: #10b981; --amber: #f59e0b; --red: #f87171; --sky: #38bdf8; --violet: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  a { color: var(--sky); text-decoration: none; } a:hover { text-decoration: underline; }
+  code { font-family: Consolas, Menlo, monospace; font-size: 12px; background: var(--panel2); padding: 1px 4px; border-radius: 4px; }
+  header { border-bottom: 1px solid var(--line); padding: 20px 16px; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header h1 { margin: 0; font-size: 20px; } header p { margin: 4px 0 0; color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+  input[type=search] { flex: 1; min-width: 220px; background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  .chip { display: inline-block; font: 600 11px/1.6 Consolas, Menlo, monospace; padding: 0 7px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); margin-right: 4px; }
+  .chip.green { border-color: #065f46; color: #6ee7b7; } .chip.amber { border-color: #92400e; color: #fcd34d; } .chip.sky { border-color: #0c4a6e; color: #7dd3fc; } .chip.violet { border-color: #4c1d95; color: #c4b5fd; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+  .card:hover { border-color: #334155; } .card h3 { margin: 0 0 2px; font-size: 15px; } .card .id { color: var(--dim); font-family: Consolas, Menlo, monospace; font-size: 11px; }
+  .card p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+  .detail { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 16px 0; }
+  .detail h2 { margin: 0; font-size: 18px; text-transform: none; letter-spacing: normal; color: var(--text); } .detail .close { float: right; color: var(--muted); cursor: pointer; }
+  .issue { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: var(--panel2); }
+  .issue b { color: var(--text); } .issue .meta { color: var(--dim); font-size: 11px; } .issue .fix { color: #7dd3fc; font-size: 12px; }
+  .muted { color: var(--muted); } .dim { color: var(--dim); font-size: 12px; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 24px 0 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; } td, th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; } th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  footer { color: var(--dim); font-size: 12px; padding: 24px 16px; border-top: 1px solid var(--line); margin-top: 32px; }
+  .btn { display: inline-block; background: #065f46; color: #d1fae5; border: 1px solid #047857; border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; }
+  .btn:hover { background: #047857; text-decoration: none; }
+  .btn.quiet { background: var(--panel2); color: var(--text); border-color: var(--line); }
+  .empty { color: var(--dim); padding: 24px 0; text-align: center; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+  nav.top { border-bottom: 1px solid var(--line); background: var(--panel2); } nav.top .wrap { display: flex; gap: 18px; align-items: center; height: 44px; } nav.top a { color: var(--muted); font-weight: 600; } nav.top a.on, nav.top a:hover { color: var(--text); text-decoration: none; } nav.top .brand { color: var(--text); margin-right: auto; }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap"><a href="./" class="brand">PZ Mod Studio</a><a href="./#download">Download</a><a href="./#updates">Updates</a><a href="mods.html" class="on">Mod index</a><a href="resources.html">Resources</a></div></nav>
+<header>
+  <div class="wrap">
+    <h1>PZ Mod Index</h1>
+    <p>What the community knows about Project Zomboid mods: the builds they run on, what they clash with, their known issues and the fixes <a href="./">PZ Mod Studio</a> applies. Every line says the build it was seen on and whether the Studio <b>verified</b> it or a person <b>reported</b> it. The Studio downloads this same data once a day.</p>
+  </div>
+</header>
+<main class="wrap">
+  <div class="bar">
+    <input id="q" type="search" placeholder="Search a mod by name or id…" autocomplete="off">
+    <select id="build" title="Only mods known to run on this build"><option value="">Any build</option><option value="42">Build 42</option><option value="41">Build 41</option></select>
+    <label class="dim"><input id="onlyIssues" type="checkbox"> with known issues</label>
+    <span id="count" class="dim"></span>
+  </div>
+  <div id="detail"></div>
+  <div id="grid" class="grid"></div>
+  <section id="rulesSection" hidden>
+    <h2>Load-order rules and incompatible pairs</h2>
+    <div class="dim" style="margin-bottom:8px">From <code>community/rules.json</code>: what mod.info does not say. The Studio's Auto-Sort follows the rules and Mod Health warns when both of a pair are on.</div>
+    <table id="rules"></table>
+  </section>
+  <section id="lists">
+    <h2>Players' lists</h2>
+    <div class="dim" style="margin-bottom:8px">Mod lists other players shared, each read by a person before it is published. In PZ Mod Studio: Browse → My lists → <i>From the community</i> copies one into your lists (nothing is installed until you press Subscribe to all missing), and <i>Share with the community</i> on one of yours proposes it here. Without the Studio, <a href="https://pichu66.itch.io/pz-mod-studio#comments">tell me on the itch.io page</a> and I will add it.</div>
+    <div id="listGrid" class="grid"></div>
+    <div id="listDetail"></div>
+    <p><a class="btn" href="https://pichu66.itch.io/pz-mod-studio#comments">Suggest a list</a> <a class="btn quiet" href="./#download">Get PZ Mod Studio</a></p>
+  </section>
+  <section>
+    <h2>Add what you know</h2>
+    <p class="muted">Know that a mod clashes with another, or runs on a build the index does not say? Tell me on the itch.io page: write the mod, the build and what happened, and a person adds it. From the Studio: right-click a mod → <i>Share what the Studio saw of this mod…</i> prepares the text for you.</p>
+    <p><a class="btn" href="https://pichu66.itch.io/pz-mod-studio#comments">Report a mod or an issue</a> <a class="btn quiet" id="rawLink" href="#">index.json</a></p>
+  
+</main>
+<footer>
+  <div class="wrap">Data: CC-0, free to reuse; the raw file is <code>index.json</code>. <span id="updated"></span></div>
+</footer>
+<script>
+(async () => {
+
+  // Read from the repository's main branch first: the workflow that rebuilds the JSON commits as
+  // the Actions bot, which does not publish this page again, so the copy beside the page can be
+  // older. Beside the page (deployed) and one folder up (in the repository) when that fails.
+  const RAW = 'https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/community/';
+  const fetchFirst = async (paths) => { for (const p of paths) { try { const r = await fetch(p, { cache: 'no-cache' }); if (r.ok) return { json: await r.json(), url: p }; } catch (e) { /* next */ } } return null; };
+  const data = (file) => fetchFirst(['./' + file, RAW + file, '../community/' + file]);
+  const [idx, rules, shared] = await Promise.all([data('index.json'), data('rules.json'), data('lists.json')]);
+  const grid = document.getElementById('grid'), detail = document.getElementById('detail'), count = document.getElementById('count');
+  if (!idx) { grid.innerHTML = '<div class="empty">The index could not be read.</div>'; return; }
+  document.getElementById('rawLink').href = idx.url;
+  document.getElementById('updated').textContent = idx.json.updated ? 'Index updated ' + idx.json.updated + '.' : '';
+  const mods = Object.values(idx.json.mods || {}).sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const nameOf = (id) => (idx.json.mods[id] && idx.json.mods[id].name) || id;
+  const seen = (e) => (e.status === 'verified' ? 'verified' : 'reported') + (e.build ? ' on ' + e.build : '') + (e.date ? ', ' + e.date : '');
+  const fixText = (f) => !f || f.kind === 'none' ? 'nothing to fix, or no fix known yet' : f.kind === 'shim_patch' ? "the Studio's shim patches it (" + f.name + ')' : f.kind === 'require_path' ? 'a compatible copy rewrites the require (' + f.from + ' → ' + f.to + '), or Fix the path in the Monitor Center' : 'a compatible copy fixes it';
+
+  const card = (m) => {
+    const fixable = (m.issues || []).filter((i) => i.fix && i.fix.kind !== 'none').length;
+    return '<div class="card" data-id="' + esc(m.id) + '"><h3>' + esc(m.name || m.id) + '</h3><div class="id">' + esc(m.id) + (m.workshop_id ? ' · Workshop ' + esc(m.workshop_id) : '') + '</div><p>'
+      + (m.builds || []).map((b) => '<span class="chip green">Build ' + esc(b) + '</span>').join('')
+      + ((m.incompatible || []).length ? '<span class="chip amber">' + m.incompatible.length + ' incompatible</span>' : '')
+      + ((m.issues || []).length ? '<span class="chip ' + (fixable ? 'sky' : '') + '">' + m.issues.length + ' known issue' + (m.issues.length === 1 ? '' : 's') + (fixable ? ', ' + fixable + ' the Studio fixes' : '') + '</span>' : '')
+      + (m.successor ? '<span class="chip violet">has a Build 42 version</span>' : '') + '</p></div>';
+  };
+  const show = (m) => {
+    const rel = (list, verb) => (list || []).map((r) => '<div class="issue">' + verb + ' <b>' + esc(nameOf(r.id)) + '</b>' + (r.note ? ': ' + esc(r.note) : '') + '<div class="meta">' + seen(r) + (r.source ? ' · ' + esc(r.source) : '') + '</div></div>').join('');
+    detail.innerHTML = '<div class="detail"><span class="close" id="close">✕ close</span><h2>' + esc(m.name || m.id) + '</h2><div class="id dim">' + esc(m.id)
+      + (m.workshop_id ? ' · <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=' + esc(m.workshop_id) + '">Workshop page</a>' : '')
+      + '</div>'
+      + '<p>' + (m.builds || []).map((b) => '<span class="chip green">Build ' + esc(b) + '</span>').join('') + (m.authors && m.authors.length ? '<span class="muted">by ' + esc(m.authors.join(', ')) + '</span>' : '') + '</p>'
+      + ((m.requires || []).length ? '<p class="muted">Requires: ' + m.requires.map(esc).join(', ') + '</p>' : '')
+      + (m.successor ? '<div class="issue">There is a version for Build 42: <b>' + esc(nameOf(m.successor.id)) + '</b>' + (m.successor.workshop_id ? ' (<a href="https://steamcommunity.com/sharedfiles/filedetails/?id=' + esc(m.successor.workshop_id) + '">Workshop</a>)' : '') + (m.successor.note ? ' — ' + esc(m.successor.note) : '') + '</div>' : '')
+      + rel(m.incompatible, 'Does not go with') + rel(m.load_after, 'Loads after')
+      + ((m.issues || []).map((i) => '<div class="issue"><b>' + esc(i.title) + '</b>' + (i.file ? ' <code>' + esc(i.file) + (i.line ? ':' + i.line : '') + '</code>' : '') + (i.note ? '<div>' + esc(i.note) + '</div>' : '') + (i.log ? '<div class="dim"><code>' + esc(i.log) + '</code></div>' : '') + '<div class="fix">Fix: ' + esc(fixText(i.fix)) + '</div><div class="meta">' + seen(i) + (i.source ? ' · ' + esc(i.source) : '') + '</div></div>').join(''))
+      + ((m.issues || []).length === 0 && (m.incompatible || []).length === 0 ? '<p class="dim">No known issue or clash recorded.</p>' : '') + '</div>';
+    document.getElementById('close').onclick = () => { detail.innerHTML = ''; history.replaceState(null, '', location.pathname); };
+    history.replaceState(null, '', '#' + encodeURIComponent(m.id));
+    detail.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  const render = () => {
+    const q = document.getElementById('q').value.trim().toLowerCase();
+    const b = document.getElementById('build').value;
+    const only = document.getElementById('onlyIssues').checked;
+    const list = mods.filter((m) => (!q || (m.name || '').toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || (m.workshop_id || '') === q) && (!b || (m.builds || []).includes(b)) && (!only || (m.issues || []).length));
+    grid.innerHTML = list.length ? list.map(card).join('') : '<div class="empty">No mod matches.</div>';
+    count.textContent = list.length + ' of ' + mods.length + ' mods';
+    grid.querySelectorAll('.card').forEach((c) => { c.onclick = () => show(idx.json.mods[c.dataset.id]); });
+  };
+  ['q', 'build', 'onlyIssues'].forEach((id) => document.getElementById(id).addEventListener('input', render));
+  render();
+  const wanted = decodeURIComponent(location.hash.slice(1));
+  if (wanted && wanted !== 'lists' && idx.json.mods[wanted]) show(idx.json.mods[wanted]);
+
+  if (rules && ((rules.json.load_after || []).length || (rules.json.incompatible || []).length)) {
+    document.getElementById('rulesSection').hidden = false;
+    document.getElementById('rules').innerHTML = '<tr><th>Rule</th><th>Why</th><th>Source</th></tr>'
+      + (rules.json.load_after || []).map((r) => '<tr><td><b>' + esc(nameOf(r.mod_id)) + '</b> loads after <b>' + esc(nameOf(r.after)) + '</b></td><td>' + esc(r.note || '') + '</td><td class="dim">' + esc(r.source || '') + '</td></tr>').join('')
+      + (rules.json.incompatible || []).map((p) => '<tr><td><b>' + esc(nameOf(p.a)) + '</b> and <b>' + esc(nameOf(p.b)) + '</b> do not go together</td><td>' + esc(p.note || '') + '</td><td class="dim">' + esc(p.source || '') + '</td></tr>').join('');
+  }
+
+  // Players' lists: a card each; the detail lists every mod with its Workshop page.
+  const lists = (shared && shared.json.lists) || [];
+  const listGrid = document.getElementById('listGrid'), listDetail = document.getElementById('listDetail');
+  listGrid.innerHTML = lists.length
+    ? lists.map((l) => '<div class="card" data-list="' + esc(l.id) + '"><h3>' + esc(l.name) + '</h3><div class="id">by ' + esc(l.author) + ' · ' + (l.items || []).length + ' mod' + ((l.items || []).length === 1 ? '' : 's') + (l.build ? ' · Build ' + esc(l.build) : '') + (l.updated ? ' · ' + esc(l.updated) : '') + '</div>'
+      + (l.description ? '<p>' + esc(l.description) + '</p>' : '') + '<p class="dim">' + esc((l.items || []).slice(0, 6).map((i) => i.name).join(' · ')) + ((l.items || []).length > 6 ? ' …' : '') + '</p></div>').join('')
+    : '<div class="empty">No one has shared a list yet. Share yours from PZ Mod Studio (Browse → My lists → Share with the community), or <a href="https://pichu66.itch.io/pz-mod-studio#comments">tell me on the itch.io page</a>.</div>';
+  const showList = (l) => {
+    listDetail.innerHTML = '<div class="detail"><span class="close" id="listClose">✕ close</span><h2>' + esc(l.name) + '</h2><div class="id dim">by ' + esc(l.author) + (l.build ? ' · Build ' + esc(l.build) : '') + (l.updated ? ' · ' + esc(l.updated) : '')
+      + '</div>'
+      + (l.description ? '<p class="muted">' + esc(l.description) + '</p>' : '')
+      + '<table><tr><th>Mod</th><th>Where</th></tr>' + (l.items || []).map((i) => '<tr><td>' + esc(i.name) + '</td><td>' + (i.workshop_id ? '<a href="https://steamcommunity.com/sharedfiles/filedetails/?id=' + esc(i.workshop_id) + '">Workshop</a>' : '<span class="dim">' + esc(i.mod_id || 'not on the Workshop') + '</span>') + '</td></tr>').join('') + '</table>'
+      + '<p class="dim">To use it: in PZ Mod Studio, Browse → My lists → From the community → <i>Copy to my lists</i>, then Subscribe to all missing or Make a profile.</p></div>';
+    document.getElementById('listClose').onclick = () => { listDetail.innerHTML = ''; };
+    listDetail.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  listGrid.querySelectorAll('.card').forEach((c) => { c.onclick = () => showList(lists.find((l) => l.id === c.dataset.list)); });
+  // The page's links to #lists land here once the lists are drawn (the browser jumped before).
+  if (location.hash === '#lists') document.getElementById('lists').scrollIntoView();
+})();
+</script>
+</body>
+</html>

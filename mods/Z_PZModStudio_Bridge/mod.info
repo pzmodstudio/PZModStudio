@@ -1,0 +1,5 @@
+name=PZ Mod Studio Live Bridge
+id=Z_PZModStudio_Bridge
+description=Companion IPC Bridge for PZ Mod Studio and AI Agents to execute real-time game commands, equip items, and debug live sessions.
+poster=poster.png
+versionMin=41.00

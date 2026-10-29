@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PZ Mod Studio - the mod manager for Project Zomboid</title>
+<meta name="description" content="PZ Mod Studio: a portable Windows app to manage Project Zomboid mods. Load order, conflicts, crash cards, profiles, a server runner and a community mod index. Free download.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top"><div class="wrap"><a href="./" class="brand">PZ Mod Studio</a><a href="#download">Download</a><a href="#updates">Updates</a><a href="mods.html">Mod index</a><a href="resources.html">Resources</a></div></nav>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Your Project Zomboid mods, in order.</h1>
+    <p class="lead">A portable Windows app (about 17 MB, no installer) that sorts your load order the way the game reads it, finds the mod that breaks your game, and keeps your lists, profiles and servers in one place. Build 42 and Build 41.</p>
+    <p><a class="btn big" href="https://github.com/pzmodstudio/PZModStudio/releases/latest" id="dl">Download <span id="ver"></span></a> <a class="btn quiet big" href="mods.html">Browse the mod index</a></p>
+    <p class="dim">Windows 10 / 11 · free · portable zip on GitHub Releases</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="features">
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card"><h3>Load order, sorted</h3><p>Autosort follows every <code>require</code>, <code>loadModAfter</code> and <code>loadModBefore</code> exactly like the game, and Ctrl+Z puts your order back.</p></div>
+      <div class="card"><h3>Mod Health</h3><p>Missing or disabled requirements, wrong order, incompatible pairs, mods that do not load on your build, and a security scan as heuristics.</p></div>
+      <div class="card"><h3>Crash cards</h3><p>The game's <code>console.txt</code> read for you: which mod threw, the lines around it, the Lua file that failed, and a fix when one is known.</p></div>
+      <div class="card"><h3>Conflicts and merges</h3><p>Finds mods that overwrite the same file and merges Lua with a real syntax tree, into a patch package that loads last. Your mods stay untouched.</p></div>
+      <div class="card"><h3>Profiles and lists</h3><p>Solo, co-op, server: switch mod sets in one click, share a <code>.pzpack</code>, join a modded server with exactly its mods.</p></div>
+      <div class="card"><h3>Run your server</h3><p>Console, players, backups and restart warnings for the dedicated server you run.</p></div>
+      <div class="card"><h3>Memory and performance</h3><p>How much memory the game may use, which mods cost the most frame time, and when Windows itself ran out of memory with the game open.</p></div>
+      <div class="card"><h3>AI assistants (MCP)</h3><p>A built-in Model Context Protocol server lets Claude, Cursor or other assistants read logs and manage the load order.</p></div>
+    </div>
+  </section>
+
+  <section id="download">
+    <h2>Download</h2>
+    <p>Get the portable zip from GitHub Releases, unzip it anywhere and run <code>Project-Zomboid-Mod-Studio.exe</code>. It finds your game, the Workshop and your <code>Zomboid</code> folder by itself. Nothing is installed and no admin rights are needed.</p>
+    <p><a class="btn" href="https://github.com/pzmodstudio/PZModStudio/releases/latest">Download on GitHub</a> <a class="btn quiet" href="https://pichu66.itch.io/pz-mod-studio">Also on itch.io</a> <a class="btn quiet" href="https://github.com/pzmodstudio/PZModStudio">Source code</a></p>
+    <p class="dim">Each release has <code>SHA256SUMS.txt</code> and a signature to check the file. The zip also holds <code>pz-mcp-server.exe</code> (about 3 MB), the console server for AI assistants. Windows SmartScreen may warn about an app it has not seen often: the build is not code-signed, which needs a paid certificate.</p>
+  </section>
+
+  <section id="updates">
+    <h2>Updates</h2>
+    <p class="dim" id="updatesNote">Latest version: <b id="latest"></b>. The app checks for a new version on its own.</p>
+    <div id="releases"></div>
+  </section>
+</main>
+
+<footer><div class="wrap">PZ Mod Studio is a fan-made tool and is not affiliated with The Indie Stone. Project Zomboid is theirs. <a href="mods.html">Mod index</a> · <a href="resources.html">Resources</a></div></footer>
+
+<script>
+(async () => {
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let data;
+  try { data = await (await fetch('releases.json', { cache: 'no-cache' })).json(); } catch (e) { document.getElementById('releases').innerHTML = '<div class="empty">The update list could not be read.</div>'; return; }
+  document.getElementById('ver').textContent = 'v' + data.latest;
+  document.getElementById('latest').textContent = data.latest;
+  document.getElementById('releases').innerHTML = (data.releases || []).map((r, i) => {
+    const title = r.version ? 'Version ' + esc(r.version) : 'In development (not released yet)';
+    return '<details class="rel"' + (i < 2 ? ' open' : '') + '><summary><b>' + title + '</b> <span class="dim">' + esc(r.date) + ' · ' + r.notes.length + ' change' + (r.notes.length === 1 ? '' : 's') + '</span></summary><ul>'
+      + r.notes.map((n) => '<li>' + esc(n) + '</li>').join('') + '</ul></details>';
+  }).join('');
+})();
+</script>
+</body>
+</html>

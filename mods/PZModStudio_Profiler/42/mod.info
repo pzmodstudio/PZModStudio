@@ -1,0 +1,5 @@
+name=PZ Mod Studio Profiler
+id=PZModStudio_Profiler
+description=Measures how much time each mod's event handlers take, for PZ Mod Studio. The Studio turns it on while you measure and off after.
+modversion=1.0.0
+versionMin=42.0.0

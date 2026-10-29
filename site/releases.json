@@ -1,0 +1,150 @@
+{
+ "latest": "1.7.11",
+ "built": "2026-10-29",
+ "releases": [
+  {
+   "version": null,
+   "date": "2026-10-29",
+   "notes": [
+    "Repo moved to pzmodstudio/PZModStudio: URLs, new signing key, site on GitHub Pages, release and sync scripts",
+    "Developer: a header with the mod being worked on, and a tab per tool",
+    "Developer picker: mods grouped by where they come from, no \"yours\"",
+    "Translation drafts: each language by name, missing and complete apart, the intro in two sentences",
+    "Developer: the file check's verdict right under the picker, scrolled to",
+    "Publish: not other people's mods, and items can be taken off the list",
+    "Developer: publish a mod to the Steam Workshop from the Studio",
+    "Site: mod index buttons point to the itch.io page, not GitHub",
+    "Site: home with download and updates, mod index page, resources; build-site.cjs fills it",
+    "Compatible copy: Build 41 recipes written as Build 42 craftRecipe blocks",
+    "Developer: a mod's Lua checked against the installed build (MCP check_mod_api)",
+    "Developer: translation drafts of a mod's own texts",
+    "What's New: one chip per profile that has the mod on, no on/off chip",
+    "What's New: no risk chips; the date, on or off, and which profiles have it on",
+    "What's New: no verdict from a word match",
+    "Maps: the \"only mods on in my list\" tick is remembered, and only a clicked map takes the wheel",
+    "Disk: the measurement is kept while the app runs, not taken again on every return to the tab",
+    "Mod Health: no reloads for nothing, Performance in sub-tabs, Disk with the game's folders",
+    "Mod Health: a Security tab of its own, and sections that fold",
+    "Security: a capability is good to know; only a red-flag pattern is a warning",
+    "Low memory: a Monitor card the moment the game closes, a quiet log line in Memory",
+    "Memory: the Windows low-memory notice fades after three days and can be dismissed",
+    "Frames panel: no mod named; the profiler is the source, console measurements an extra",
+    "Mod Health: a security scan of the active mods, as heuristics",
+    "Update check: itch.io answers when GitHub does not",
+    "Download from itch.io: README and site point there first",
+    "Memory: a program's processes are one line, nameless entries none",
+    "Memory: when Windows itself ran out with the game open, from the event log",
+    "Saves: the build a save was made on, from its world version",
+    "Monitor: each card says whether its error is new or seen in earlier sessions",
+    "Ignore dist-local, where a portable zip is packed by hand",
+    "Profiler: frames, hitches and chunks counted by the Studio's own mod",
+    "Saves: what a save holds, character and vehicles, read from its databases",
+    "Health: frames and hitches per mod, read from Smooth Frames' console lines",
+    "What's New: reloads on mod changes only and keeps its list on screen while it reads",
+    "Mod Health: a package copy that is not what the only mod shipping it has is reported",
+    "Claude Agent: Kahlua has no next(); a pairs loop says whether a task runs",
+    "Settings: the kept translations are counted and can be deleted",
+    "Explore Mods: the translated title takes the header, the original moves under it",
+    "Explore Mods: titles are translated too, and the script names the source language",
+    "Explore Mods: mod descriptions and summaries translated on demand",
+    "Explore Mods: Workshop videos play inside the mod page",
+    "Bridge and Claude Agent poll their files slowly while nobody is talking to them"
+   ]
+  },
+  {
+   "version": "1.7.11",
+   "date": "2026-10-28",
+   "notes": [
+    "A package copy the mod has changed since is reported, with a way out",
+    "Explore Mods: the requirements dialog shows above the mod detail window",
+    "Mod List: the unsubscribe confirm names the mods that need what is going",
+    "Mod List: unsubscribe from a mod's Workshop item from its right-click menu"
+   ]
+  },
+  {
+   "version": "1.7.10",
+   "date": "2026-10-28",
+   "notes": [
+    "Explore Mods: a copy the game ignores still counts as a subscribed item"
+   ]
+  },
+  {
+   "version": "1.7.9",
+   "date": "2026-10-28",
+   "notes": [
+    "Shim: the network shield runs on multiplayer clients only and leaves the action in its callback arguments",
+    "Rest works again: the shim's B42.20 rest block is gone, and packages take this build's shim at launch"
+   ]
+  },
+  {
+   "version": "1.7.8",
+   "date": "2026-10-28",
+   "notes": [
+    "Diagnostics: a window drawing during the Lua reload is a warning with nothing to do",
+    "Saves: the mod maps a save does not load, with a fix; the door error no longer offers the Merger"
+   ]
+  },
+  {
+   "version": "1.7.7",
+   "date": "2026-10-27",
+   "notes": [
+    "Screens refresh right after a change, without leaving the tab",
+    "Multiplayer check: does the list work in MP, with the mods that would not",
+    "Link: named PZ Mod Manager Studio Link on the Workshop and in the Mods list"
+   ]
+  },
+  {
+   "version": "1.7.6",
+   "date": "2026-10-27",
+   "notes": [
+    "Link 1.18.1: a new game no longer inherits a refused save's empty mod list"
+   ]
+  },
+  {
+   "version": "1.7.5",
+   "date": "2026-10-27",
+   "notes": [
+    "Profiles: deleting one offers to unsubscribe the Workshop items only it uses"
+   ]
+  },
+  {
+   "version": "1.7.4",
+   "date": "2026-10-26",
+   "notes": [
+    "Mod List: sort by newest or oldest install"
+   ]
+  },
+  {
+   "version": "1.7.3",
+   "date": "2026-10-24",
+   "notes": [
+    "Launcher: Custom start, straight into a save or onto a server (Link 1.18.0)"
+   ]
+  },
+  {
+   "version": "1.7.2",
+   "date": "2026-10-24",
+   "notes": [
+    "Update now: the app updates itself from a signed release; checks every 6 hours",
+    "Join a server: it goes into the game's Favorites too (Link 1.17.0)"
+   ]
+  },
+  {
+   "version": "1.7.1",
+   "date": "2026-10-23",
+   "notes": [
+    "Workflows: the five Dependabot updates (setup-node 7.1.0, attest-build-provenance 4.2.2, configure-pages 6.0.0, upload-pages-artifact 5.0.0, deploy-pages 5.0.1)",
+    "Join a server: a kept server password reads as kept"
+   ]
+  },
+  {
+   "version": "1.7.0",
+   "date": "2026-10-23",
+   "notes": [
+    "Roadmap: report for the author kept for a possible future",
+    "Welcome tour: every screen, once on the first run and again from Help",
+    "Saves: servers' saves and missing mods; Mod Health > Disk"
+   ]
+  }
+ ]
+}

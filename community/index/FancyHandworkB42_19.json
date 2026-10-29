@@ -1,0 +1,37 @@
+{
+  "id": "FancyHandworkB42_19",
+  "name": "Fancy Handwork",
+  "workshop_id": "3771638611",
+  "builds": [
+    "42"
+  ],
+  "issues": [
+    {
+      "title": "getKey(nil) when the keybinds load",
+      "note": "FHbindings[1] is a header with no value and core:getKey(nil) throws, so the mod's handwork stops after the first error. The Studio's shim carries a patch for it (fancy_handwork); the same file patched line by line also works.",
+      "file": "media/lua/shared/aFancyHandwork.lua",
+      "line": 126,
+      "log": "ERROR: ... aFancyHandwork.lua:126: attempted index: getKey of non-table",
+      "fix": {
+        "kind": "shim_patch",
+        "name": "fancy_handwork"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    },
+    {
+      "title": "Clashes with O.C.D. Inventory on the inventory pane",
+      "note": "Both rewrite the inventory pane; the shim's patch fancy_handwork_ocd keeps both working when both are on.",
+      "fix": {
+        "kind": "shim_patch",
+        "name": "fancy_handwork_ocd"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    }
+  ]
+}

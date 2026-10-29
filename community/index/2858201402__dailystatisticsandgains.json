@@ -1,0 +1,23 @@
+{
+  "id": "2858201402/dailystatisticsandgains",
+  "name": "Daily Statistics and Gains",
+  "workshop_id": "2858201402",
+  "builds": [
+    "41",
+    "42"
+  ],
+  "issues": [
+    {
+      "title": "The daily report breaks on Build 42",
+      "note": "The shim's patch daily_report mends it.",
+      "fix": {
+        "kind": "shim_patch",
+        "name": "daily_report"
+      },
+      "build": "42.21",
+      "date": "2026-10-18",
+      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+      "status": "verified"
+    }
+  ]
+}
