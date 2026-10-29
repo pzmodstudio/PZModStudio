@@ -15,8 +15,8 @@ const FRESH_FOR_SECS: i64 = 6 * 60 * 60;
 const LATEST_URL: &str = "https://api.github.com/repos/pzmodstudio/PZModStudio/releases/latest";
 /// itch.io's answer for the `windows` channel the releases are pushed to with butler: the version
 /// alone, no key needed. Asked when GitHub does not answer (down, suspended, offline for it).
-const ITCH_LATEST_URL: &str = "https://itch.io/api/1/x/wharf/latest?target=pichu66/pz-mod-studio&channel_name=windows";
-const ITCH_PAGE: &str = "https://pichu66.itch.io/pz-mod-studio";
+const ITCH_LATEST_URL: &str = "https://itch.io/api/1/x/wharf/latest?target=pichu66/pzmodstudio&channel_name=windows";
+const ITCH_PAGE: &str = "https://pichu66.itch.io/pzmodstudio";
 /// The setting, the last answer and the version the player said "not now" to.
 const STATE_FILE: &str = "PZModStudio_UpdateCheck.json";
 

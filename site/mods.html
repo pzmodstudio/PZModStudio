@@ -65,15 +65,15 @@
   </section>
   <section id="lists">
     <h2>Players' lists</h2>
-    <div class="dim" style="margin-bottom:8px">Mod lists other players shared, each read by a person before it is published. In PZ Mod Studio: Browse → My lists → <i>From the community</i> copies one into your lists (nothing is installed until you press Subscribe to all missing), and <i>Share with the community</i> on one of yours proposes it here. Without the Studio, <a href="https://pichu66.itch.io/pz-mod-studio#comments">tell me on the itch.io page</a> and I will add it.</div>
+    <div class="dim" style="margin-bottom:8px">Mod lists other players shared, each read by a person before it is published. In PZ Mod Studio: Browse → My lists → <i>From the community</i> copies one into your lists (nothing is installed until you press Subscribe to all missing), and <i>Share with the community</i> on one of yours proposes it here. Without the Studio, <a href="https://pichu66.itch.io/pzmodstudio#comments">tell me on the itch.io page</a> and I will add it.</div>
     <div id="listGrid" class="grid"></div>
     <div id="listDetail"></div>
-    <p><a class="btn" href="https://pichu66.itch.io/pz-mod-studio#comments">Suggest a list (no GitHub account)</a> <a class="btn quiet" href="https://github.com/pzmodstudio/PZModStudio/blob/main/community/lists/README.md">Suggest on GitHub</a> <a class="btn quiet" href="./#download">Get PZ Mod Studio</a></p>
+    <p><a class="btn" href="https://pichu66.itch.io/pzmodstudio#comments">Suggest a list (no GitHub account)</a> <a class="btn quiet" href="https://github.com/pzmodstudio/PZModStudio/blob/main/community/lists/README.md">Suggest on GitHub</a> <a class="btn quiet" href="./#download">Get PZ Mod Studio</a></p>
   </section>
   <section>
     <h2>Add what you know</h2>
     <p class="muted">Know that a mod clashes with another, or runs on a build the index does not say? Tell me on the itch.io page: write the mod, the build and what happened, and a person adds it. From the Studio: right-click a mod → <i>Share what the Studio saw of this mod…</i> prepares the text for you.</p>
-    <p><a class="btn" href="https://github.com/pzmodstudio/PZModStudio/issues/new?template=mod-report.yml">Report on GitHub (form)</a> <a class="btn quiet" href="https://pichu66.itch.io/pz-mod-studio#comments">No GitHub account? Tell me on itch.io</a> <a class="btn quiet" id="rawLink" href="#">index.json</a></p>
+    <p><a class="btn" href="https://github.com/pzmodstudio/PZModStudio/issues/new?template=mod-report.yml">Report on GitHub (form)</a> <a class="btn quiet" href="https://pichu66.itch.io/pzmodstudio#comments">No GitHub account? Tell me on itch.io</a> <a class="btn quiet" id="rawLink" href="#">index.json</a></p>
   
 </main>
 <footer>
@@ -149,7 +149,7 @@
   listGrid.innerHTML = lists.length
     ? lists.map((l) => '<div class="card" data-list="' + esc(l.id) + '"><h3>' + esc(l.name) + '</h3><div class="id">by ' + esc(l.author) + ' · ' + (l.items || []).length + ' mod' + ((l.items || []).length === 1 ? '' : 's') + (l.build ? ' · Build ' + esc(l.build) : '') + (l.updated ? ' · ' + esc(l.updated) : '') + '</div>'
       + (l.description ? '<p>' + esc(l.description) + '</p>' : '') + '<p class="dim">' + esc((l.items || []).slice(0, 6).map((i) => i.name).join(' · ')) + ((l.items || []).length > 6 ? ' …' : '') + '</p></div>').join('')
-    : '<div class="empty">No one has shared a list yet. Share yours from PZ Mod Studio (Browse → My lists → Share with the community), or <a href="https://pichu66.itch.io/pz-mod-studio#comments">tell me on the itch.io page</a>.</div>';
+    : '<div class="empty">No one has shared a list yet. Share yours from PZ Mod Studio (Browse → My lists → Share with the community), or <a href="https://pichu66.itch.io/pzmodstudio#comments">tell me on the itch.io page</a>.</div>';
   const showList = (l) => {
     listDetail.innerHTML = '<div class="detail"><span class="close" id="listClose">✕ close</span><h2>' + esc(l.name) + '</h2><div class="id dim">by ' + esc(l.author) + (l.build ? ' · Build ' + esc(l.build) : '') + (l.updated ? ' · ' + esc(l.updated) : '')
       + '</div>'

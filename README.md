@@ -13,7 +13,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-purple.svg)]()
 [![GitHub release](https://img.shields.io/github/v/release/pzmodstudio/PZModStudio?color=emerald)](https://github.com/pzmodstudio/PZModStudio/releases)
 
-[**Download (GitHub Releases)**](https://github.com/pzmodstudio/PZModStudio/releases/latest) • [**Website**](https://pzmodstudio.github.io/PZModStudio/) • [**itch.io**](https://pichu66.itch.io/pz-mod-studio) • [**Technical Wiki (docs/)**](docs/INDEX.md) • [**AI Agent Guide (AGENTS.md)**](AGENTS.md)
+[**Download (GitHub Releases)**](https://github.com/pzmodstudio/PZModStudio/releases/latest) • [**Website**](https://pzmodstudio.github.io/PZModStudio/) • [**itch.io**](https://pichu66.itch.io/pzmodstudio) • [**Technical Wiki (docs/)**](docs/INDEX.md) • [**AI Agent Guide (AGENTS.md)**](AGENTS.md)
 
 </div>
 
@@ -44,7 +44,7 @@ Unlike basic file combiners, PZ Mod Studio parses Lua scripts into a true **Abst
 
 No installer or administrative rights required:
 
-1. Download `PZ-Mod-Studio-Portable-v*.zip` from [**GitHub Releases**](https://github.com/pzmodstudio/PZModStudio/releases/latest) (or from [**itch.io**](https://pichu66.itch.io/pz-mod-studio)) and extract it. It holds:
+1. Download `PZ-Mod-Studio-Portable-v*.zip` from [**GitHub Releases**](https://github.com/pzmodstudio/PZModStudio/releases/latest) (or from [**itch.io**](https://pichu66.itch.io/pzmodstudio)) and extract it. It holds:
    - **`Project-Zomboid-Mod-Studio.exe`** — The main desktop application (~17 MB).
    - **`pz-mcp-server.exe`** — The standalone console MCP server for AI agents (~3 MB).
 2. Launch **`Project-Zomboid-Mod-Studio.exe`**.
