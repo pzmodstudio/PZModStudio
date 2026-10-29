@@ -13,8 +13,9 @@ const tags = git('for-each-ref', '--sort=-creatordate', '--format=%(refname:shor
 
 // What the page lists: what a player can notice. Work on the site, the repository, the scripts and the
 // packaging stays out, and a line that names another mod is said without the name.
-const INTERNAL = /^(Site:|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:)/;
+const INTERNAL = /^(Site:|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:)/;
 const REWRITE = [
+  [/^Workshop publish: read the upload.*/i, 'Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished'],
   [/ from Smooth Frames' console lines/i, " from the game's console lines"],
   [/Smooth Frames/gi, 'the frame report']
 ];
