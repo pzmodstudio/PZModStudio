@@ -1,20 +1,17 @@
 {
- "latest": "1.7.11",
+ "latest": "1.7.12",
  "built": "2026-10-29",
  "releases": [
   {
-   "version": null,
+   "version": "1.7.12",
    "date": "2026-10-29",
    "notes": [
-    "Repo moved to pzmodstudio/PZModStudio: URLs, new signing key, site on GitHub Pages, release and sync scripts",
     "Developer: a header with the mod being worked on, and a tab per tool",
     "Developer picker: mods grouped by where they come from, no \"yours\"",
     "Translation drafts: each language by name, missing and complete apart, the intro in two sentences",
     "Developer: the file check's verdict right under the picker, scrolled to",
     "Publish: not other people's mods, and items can be taken off the list",
     "Developer: publish a mod to the Steam Workshop from the Studio",
-    "Site: mod index buttons point to the itch.io page, not GitHub",
-    "Site: home with download and updates, mod index page, resources; build-site.cjs fills it",
     "Compatible copy: Build 41 recipes written as Build 42 craftRecipe blocks",
     "Developer: a mod's Lua checked against the installed build (MCP check_mod_api)",
     "Developer: translation drafts of a mod's own texts",
@@ -31,15 +28,13 @@
     "Frames panel: no mod named; the profiler is the source, console measurements an extra",
     "Mod Health: a security scan of the active mods, as heuristics",
     "Update check: itch.io answers when GitHub does not",
-    "Download from itch.io: README and site point there first",
     "Memory: a program's processes are one line, nameless entries none",
     "Memory: when Windows itself ran out with the game open, from the event log",
     "Saves: the build a save was made on, from its world version",
     "Monitor: each card says whether its error is new or seen in earlier sessions",
-    "Ignore dist-local, where a portable zip is packed by hand",
     "Profiler: frames, hitches and chunks counted by the Studio's own mod",
     "Saves: what a save holds, character and vehicles, read from its databases",
-    "Health: frames and hitches per mod, read from Smooth Frames' console lines",
+    "Health: frames and hitches per mod, read from the game's console lines",
     "What's New: reloads on mod changes only and keeps its list on screen while it reads",
     "Mod Health: a package copy that is not what the only mod shipping it has is reported",
     "Claude Agent: Kahlua has no next(); a pairs loop says whether a task runs",
@@ -135,15 +130,6 @@
    "notes": [
     "Workflows: the five Dependabot updates (setup-node 7.1.0, attest-build-provenance 4.2.2, configure-pages 6.0.0, upload-pages-artifact 5.0.0, deploy-pages 5.0.1)",
     "Join a server: a kept server password reads as kept"
-   ]
-  },
-  {
-   "version": "1.7.0",
-   "date": "2026-10-23",
-   "notes": [
-    "Roadmap: report for the author kept for a possible future",
-    "Welcome tour: every screen, once on the first run and again from Help",
-    "Saves: servers' saves and missing mods; Mod Health > Disk"
    ]
   }
  ]
