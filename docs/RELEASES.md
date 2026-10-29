@@ -1,40 +1,35 @@
-# Releases: how they are built, and how to check one
+# Releases: how they are made, and how to check one
 
-A release is built by `.github/workflows/release.yml` when a `v*` tag is pushed. The workflow:
+PZ Mod Studio is distributed as a **portable zip** only, in [GitHub Releases](https://github.com/pzmodstudio/PZModStudio/releases) (and on itch.io). There is no installer. Releases are made on the maintainer's PC with the scripts in `scripts/`: no CI runs in this repository.
 
-1. **Checks the version.** It stops unless the tag is the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (`scripts/check-release-version.cjs`).
-2. **Runs the tests.** It type-checks and builds the frontend, then runs the frontend tests and `cargo test --lib`. Nothing is built for release if any of them fails.
-3. **Builds from the tagged sources only.** There is no build cache in this job, so nothing another run left can end up in what is published.
-4. **Writes `SHA256SUMS.txt`** with the SHA-256 of every published file: the portable zip, the NSIS installer and the MSI.
-5. **Signs the sums with the project key** (ed25519), as `SHA256SUMS.txt.sig`. The public key is `keys/release-signing.pub.pem` in this repository.
-6. **Asks GitHub to attest every file** (Sigstore). This is a signed record of which workflow, commit and runner built it, and it needs no key of ours.
-7. **Publishes** the files, the sums and the signature.
+## What a release holds
 
-Every Action in every workflow is pinned to a commit, with the tag it was on in a comment, because a tag can be moved and a commit cannot. Each workflow reads only, unless a job needs more: the release job can write the release and the attestations, and the community index job commits `index.json` on `main` only, after its check passed. Dependabot proposes newer versions of the pinned Actions every week.
+- `PZ-Mod-Studio-Portable-v<version>.zip`: `Project-Zomboid-Mod-Studio.exe`, `pz-mcp-server.exe`, `README_PORTABLE.txt` and `LICENSE`.
+- `SHA256SUMS.txt`: the SHA-256 of the zip.
+- `SHA256SUMS.txt.sig`: the project's ed25519 signature of that list (base64). The public key is `keys/release-signing.pub.pem`, and the same key is built into the app.
+
+## How one is made (maintainer)
+
+1. Raise the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json` and `package-lock.json`, and check it with `node scripts/check-release-version.cjs v<version>`.
+2. `npm run build:portable` builds both executables.
+3. `node scripts/sync-public.cjs "message"` checks and rebuilds the community index, mirrors the sources into the public repository and publishes the website branch.
+4. `node scripts/publish-release.cjs` packs the zip, writes and signs the sums, checks the signature, and creates the GitHub release (or `--recreate` to make it again from the pushed sources).
 
 ## Checking a download
 
-With Node.js, put the files you downloaded in one folder together with `SHA256SUMS.txt` and `SHA256SUMS.txt.sig`, then run:
+With Node.js, put the zip, `SHA256SUMS.txt` and `SHA256SUMS.txt.sig` in one folder and run:
 
 ```
 node scripts/verify-release.cjs <folder>
 ```
 
-It says whether the sums are signed by the project key and whether every file matches its sum.
-
-With the GitHub CLI, for any one file:
-
-```
-gh attestation verify <file> --repo pzmodstudio/PZModStudio
-```
+It says whether the sums are signed by the project key and whether the file matches its sum. The app's **Update now** does the same before it replaces anything: it takes only what the signed list proves, and stops before touching a file otherwise.
 
 ## The signing key (maintainer)
 
-- **Private key.** It never goes in the repository, and `.gitignore` refuses `*.pem` except `keys/*.pub.pem`. The release job reads it from the repository secret `RELEASE_SIGNING_KEY`: the whole PEM text, including the `BEGIN`/`END` lines. Add it under *Settings → Secrets and variables → Actions → New repository secret*.
-- **Without the secret,** a release still goes out with its sums and GitHub's attestations. The run shows a warning that the sums are not signed with the project key.
-- **To replace the key,** generate a new ed25519 pair, put the public half in `keys/release-signing.pub.pem` and the private half in the secret. Releases made before the change still verify against the old public key, which remains in the repository history.
+- The private key never goes in the repository (`.gitignore` refuses `*.pem` except `keys/*.pub.pem`). `publish-release.cjs` reads it from `~/pz-release-signing-key-2026.pem`, or from the file named by `RELEASE_SIGNING_KEY_FILE`, and never prints it.
+- To replace the key, generate a new ed25519 pair and put the public half in `keys/release-signing.pub.pem`. Apps built before the change keep verifying against the old public key, so they cannot update to a release signed with the new one: make that release by hand (download the zip) and say so in the notes.
 
-## Not done yet
+## Not done
 
-- **The Windows build is not Authenticode code-signed.** That needs a code-signing certificate, which costs money, so SmartScreen may still warn about the installer.
-- **There is no in-app updater.** One would download a release, check `SHA256SUMS.txt.sig` against the public key built into the app, check the file's sum, and only then replace the exe.
+- **The Windows build is not Authenticode code-signed.** That needs a code-signing certificate, which costs money, so SmartScreen may warn about the exe.

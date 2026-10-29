@@ -7,7 +7,7 @@
 //! one) is written next to the running one, the running exe is renamed aside (Windows lets a
 //! running exe be renamed, not replaced) and the new one takes its name. The old copy is removed
 //! the next time the app starts. A folder the app cannot write to (an install for every user, in
-//! Program Files) is refused before downloading: that one updates with the installer.
+//! Program Files) is refused before downloading: download the new zip from the release page instead.
 
 use base64::Engine;
 use sha2::{Digest, Sha256};
@@ -127,7 +127,7 @@ pub fn install(version: &str) -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let dir = exe.parent().ok_or("The app's folder is not known.")?.to_path_buf();
     if !writable(&dir) {
-        return Err(format!("The app cannot write to its own folder ({}): update it with the installer from the release page.", dir.display()));
+        return Err(format!("The app cannot write to its own folder ({}): move the app to a folder you can write to, or download the new zip from the release page.", dir.display()));
     }
     let sums = download(&asset_url(version, SUMS))?;
     let sig = download(&asset_url(version, &format!("{}.sig", SUMS)))?;

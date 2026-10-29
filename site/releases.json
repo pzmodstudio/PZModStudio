@@ -6,8 +6,7 @@
    "version": null,
    "date": "2026-10-29",
    "notes": [
-    "Tidy: private notes in private/, public copy in publish-repo/, build leftovers removed",
-    "Workshop publish: read the upload's result with the UGC callback ids (3403, 3404)"
+    "Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished"
    ]
   },
   {
