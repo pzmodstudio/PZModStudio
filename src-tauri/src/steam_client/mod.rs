@@ -319,6 +319,7 @@ fn e_result_text(n: i32) -> String {
 
 impl SteamSession {
     /// The result struct of a completed call, `size` bytes of it.
+    /// `callback_id` is the result struct's own k_iCallback (ISteamUGC: k_iClientUGCCallbacks 3400 + n: CreateItemResult_t 3403, SubmitItemUpdateResult_t 3404).
     fn call_result(&self, call: u64, callback_id: i32, size: usize) -> Result<Vec<u8>, String> {
         let get: CallResult = unsafe { std::mem::transmute(ffi::symbol(self.module, "SteamAPI_ISteamUtils_GetAPICallResult")?) };
         let mut buf = vec![0u8; size];
@@ -382,7 +383,7 @@ pub fn publish_item(pz_install_dir: &str, req: PublishRequest, on_created: &mut 
             let call = unsafe { create(session.ugc, APP_ID, 0) };
             session.wait_for(call)?;
             // CreateItemResult_t: EResult, (pad), PublishedFileId_t at 8, legal-agreement bool at 16 (pack 8).
-            let r = session.call_result(call, 1303, 24)?;
+            let r = session.call_result(call, 3403, 24)?;
             let e = i32::from_le_bytes([r[0], r[1], r[2], r[3]]);
             if e != 1 {
                 return Err(format!("Steam would not create the item: {}.", e_result_text(e)));
@@ -446,7 +447,7 @@ pub fn publish_item(pz_install_dir: &str, req: PublishRequest, on_created: &mut 
         progress(stage, done, total);
     })?;
     // SubmitItemUpdateResult_t: EResult, legal-agreement bool at 4, PublishedFileId_t at 8 (pack 8).
-    let r = session.call_result(call, 1304, 16)?;
+    let r = session.call_result(call, 3404, 16)?;
     let e = i32::from_le_bytes([r[0], r[1], r[2], r[3]]);
     legal |= r[4] != 0;
     if e != 1 {

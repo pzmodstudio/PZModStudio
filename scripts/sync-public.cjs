@@ -1,7 +1,7 @@
 // Mirrors the app (without the private notes, binaries and workflows) into the public repo's
 // working folder, commits it on main, puts site/ on the gh-pages branch, and pushes both.
 //   node scripts/sync-public.cjs "commit message" [--no-push]
-// The public folder is PUBLIC_REPO_DIR (default D:/Proyectos/PZModStudio-publish); its git login is
+// The public folder is PUBLIC_REPO_DIR (default publish-repo/ inside the project, ignored by git); its git login is
 // the one Git Credential Manager already holds. Nothing here reads a token.
 const { execFileSync } = require('child_process');
 const fs = require('fs');
@@ -9,14 +9,14 @@ const os = require('os');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const dest = process.env.PUBLIC_REPO_DIR || 'D:/Proyectos/PZModStudio-publish';
+const dest = process.env.PUBLIC_REPO_DIR || path.join(root, 'publish-repo');
 const message = process.argv[2] || 'Update';
 const push = !process.argv.includes('--no-push');
 const run = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
 
 // What stays private or goes elsewhere: research notes, forum posts, the exes (they are Release files),
 // the workflows (no Actions here), loose error reports and scratch files.
-const EXCLUDE = /^(docs\/(RESEARCH|COMPETITORS|AUDIT|ROADMAP|BRIEF)|docs\/forum\/|\.github\/|dist-local\/|pz-error-|PZ MODDING AGENT GUIDE\.md$|DOCUMENTACION_SISTEMA\.md$)|\.exe$|\.exe\.old|\.old-/;
+const EXCLUDE = /^(private\/|publish-repo\/|docs\/(RESEARCH|COMPETITORS|AUDIT|ROADMAP|BRIEF)|docs\/forum\/|\.github\/|dist-local\/|pz-error-|PZ MODDING AGENT GUIDE\.md$|DOCUMENTACION_SISTEMA\.md$)|\.exe$|\.exe\.old|\.old-/;
 
 execFileSync('node', [path.join(__dirname, 'build-site.cjs')], { cwd: root, stdio: 'inherit' });
 
