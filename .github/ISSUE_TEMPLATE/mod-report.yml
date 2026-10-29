@@ -1,0 +1,54 @@
+name: Report a mod issue or clash
+description: For the community index, without git. A maintainer turns it into a registry entry.
+title: "[index] <mod name>: <what happens>"
+labels: ["community-index"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        What you saw, on which build, with the log line when there is one. Mod ids are the `id=` line of the mod's `mod.info`; PZ Mod Studio shows them under every mod's name.
+  - type: input
+    id: mod_id
+    attributes:
+      label: Mod id
+      placeholder: FancyHandworkB42_19
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Game build it was seen on
+      placeholder: "42.21"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of thing
+      options:
+        - A known issue (an error or warning in the log)
+        - Incompatible with another mod
+        - Has to load after another mod
+        - Runs on a build the index does not say
+        - Has a Build 42 version elsewhere
+    validations:
+      required: true
+  - type: input
+    id: other_mod
+    attributes:
+      label: The other mod's id, when it is about two mods
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, in a sentence a player can act on
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: The log line(s), from Zomboid/console.txt
+      render: text
+  - type: input
+    id: source
+    attributes:
+      label: Where it was reported or discussed, if anywhere (a link)

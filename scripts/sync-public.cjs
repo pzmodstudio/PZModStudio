@@ -16,9 +16,19 @@ const run = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8',
 
 // What stays private or goes elsewhere: research notes, forum posts, the exes (they are Release files),
 // the workflows (no Actions here), loose error reports and scratch files.
-const EXCLUDE = /^(private\/|publish-repo\/|docs\/(RESEARCH|COMPETITORS|AUDIT|ROADMAP|BRIEF)|docs\/forum\/|\.github\/|dist-local\/|pz-error-|PZ MODDING AGENT GUIDE\.md$|DOCUMENTACION_SISTEMA\.md$)|\.exe$|\.exe\.old|\.old-/;
+const EXCLUDE = /^(private\/|publish-repo\/|docs\/(RESEARCH|COMPETITORS|AUDIT|ROADMAP|BRIEF)|docs\/forum\/|\.github\/(?!ISSUE_TEMPLATE\/)|dist-local\/|pz-error-|PZ MODDING AGENT GUIDE\.md$|DOCUMENTACION_SISTEMA\.md$)|\.exe$|\.exe\.old|\.old-/;
 
-execFileSync('node', [path.join(__dirname, 'build-site.cjs')], { cwd: root, stdio: 'inherit' });
+// What the community workflow used to do on every merge: the registries and lists are checked and
+// index.json / lists.json rebuilt from them, so a sync never ships a stale or malformed index.
+const node = (...args) => execFileSync('node', args, { cwd: root, stdio: 'inherit' });
+node(path.join(__dirname, 'community-index.js'), 'build');
+node(path.join(__dirname, 'community-lists.js'), 'build');
+const rules = JSON.parse(fs.readFileSync(path.join(root, 'community', 'rules.json'), 'utf8'));
+for (const x of rules.load_after || []) if (!x.mod_id || !x.after || x.mod_id === x.after) throw new Error('bad load_after rule ' + JSON.stringify(x));
+for (const x of rules.incompatible || []) if (!x.a || !x.b || x.a === x.b) throw new Error('bad incompatible pair ' + JSON.stringify(x));
+console.log('rules.json ok');
+
+node(path.join(__dirname, 'build-site.cjs'));
 
 const files = run(root, 'ls-files', '-co', '--exclude-standard').split('\n').filter((f) => f && !EXCLUDE.test(f) && fs.existsSync(path.join(root, f)));
 const keep = new Set(files);
