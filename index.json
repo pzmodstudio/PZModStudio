@@ -264,6 +264,17 @@
           "fix": {
             "kind": "none"
           },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = 'l' at Formatter$FormatSpecifier.conversion(null:-1).",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "7 warnings in the last session (the game carried on)"
+        },
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
           "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): TimedActions/ISPathFindAction -> Vehicles/TimedActions/ISPathFindAction.",
           "source": "PZ Mod Studio, the compatible copy it made",
           "status": "verified",
