@@ -1,0 +1,28 @@
+{
+  "id": "PropaneExplosion",
+  "name": "Propane Explosion",
+  "workshop_id": "3822723785",
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "title": "findAimTarget calls getMaxRange on an item that is not a weapon",
+      "note": "Its OnPlayerUpdate handler keeps looking for a tank to shoot while an attack is under way, even when the item in the hand is not a firearm; findAimTarget then calls weapon:getMaxRange(), which only weapons have. The Studio's shim answers no target when the hand holds no ranged weapon (patch propane_explosion). Reproduced and checked in the game on 42.21, 2026-10-30.",
+      "file": "media/lua/shared/PropaneExplosion_Utils.lua",
+      "line": 632,
+      "log": "ERROR: General f:188498> Lua((MOD:Propane Explosion)).findAimTarget> Exception thrown java.lang.RuntimeException: Object tried to call nil in findAimTarget",
+      "fix": {
+        "kind": "shim_patch",
+        "name": "propane_explosion"
+      },
+      "build": "42.21",
+      "date": "2026-10-30",
+      "source": "PZ Mod Studio, checked in the game on 42.21 (2026-10-30)",
+      "status": "verified"
+    }
+  ]
+}

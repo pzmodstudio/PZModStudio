@@ -715,8 +715,9 @@ ${report}`);
                     </div>
                   )}
                 </div>
-              ) : card.mod_name || card.code === 'translator_text' || card.code === 'save_item_missing' || card.code === 'connection_lost' || card.code === 'windows_low_memory' ? (
-                /* The game named a mod, or it is a mod's text: say what to do, not what the shim covers. */
+              ) : card.mod_name || card.recommended_action ? (
+                /* What the card itself says to do. "The shim covers this" only when it says nothing:
+                   it used to be the default, and the game's own door code (no Lua on its path) got it. */
                 <div className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-400">
                   {cardText(card, 'action')}
                 </div>
