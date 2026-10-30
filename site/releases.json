@@ -7,6 +7,7 @@
    "version": null,
    "date": "2026-10-30",
    "notes": [
+    "Mod List: a mod that is not installed shows one 'not installed' chip, the health check's (with its fix), not two",
     "Mod Health: a mod whose author changed its id in an update is no longer 'unsubscribed or deleted'. When an installed folder is named like the missing id but holds another, the issue says so and offers to put the new id in the old one's place, switched on (RadioVoices became RadioVoicesLocal today; checked on the real list)",
     "Mod List: the mod panel scrolls instead of squeezing its sections (a flex column shrank 'Mod data' to a sliver, so the scroll never appeared)",
     "Steam downloads on every screen: a bar shows what Steam is downloading for the game (the items, queued / preparing / downloading / installing, MB and speed) and says when it is done, reading the mods again so the Mod List has them. Read from Steam's own logs and the bytes its process has written since the job started (Steam logs no progress and preallocates the files); no Steam API, so the player is never shown as in-game. Checked on a real download: 9.9 MB written for a 9.8 MB job",
