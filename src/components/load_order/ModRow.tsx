@@ -123,6 +123,8 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   // A compatible copy is meant to win over the Workshop original it was made from; its source
   // tag says so, so "another copy is ignored" is no news on its row.
   const shownIssues = source.kind === 'compat' ? rowIssues.filter((i) => i.code !== 'shadowed_copy') : rowIssues;
+  // The index already says what is wrong with it ("Known issue"): "In the index" would say it twice.
+  const indexKnows = shownIssues.some((i) => i.code === 'community_known_issue');
   return (
   <>
     {/* Fixed Line Number (Original Load Order Index) */}
@@ -202,63 +204,56 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-1 max-w-[78%]">
-          {isBridge && (
-            <Tip content={<TipBody title={t('modList.row.bridge')} tone="cyan">{t('modList.row.bridgeTitle')}</TipBody>}>
-              <span className="flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-950/90 text-cyan-300 border border-cyan-700 shrink-0 shadow-sm">
-                <Package className="w-3 h-3 text-cyan-400" />
-                <span>{t('modList.row.bridge')}</span>
-              </span>
-            </Tip>
-          )}
-
-          {isOpenedPackage && (
-            <Tip content={<TipBody title={t('modList.row.openDraftHead', { id: mod.mod_id })} tone="amber"><RichText text={t('modList.row.openDraftBody')} /></TipBody>}>
-              <span className="flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-950/90 text-amber-300 border border-amber-600 shrink-0 shadow-sm cursor-help animate-pulse">
-                <Package className="w-3 h-3 text-amber-400" />
-                <span>{t('modList.row.openDraft')}</span>
-              </span>
-            </Tip>
-          )}
-
-          {isClosedPackage && (
-            <Tip content={<TipBody title={t('modList.row.packagedHead', { id: mod.mod_id })} tone="emerald">{t('modList.row.packagedBody')}</TipBody>}>
-              <span className="flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-600 shrink-0 shadow-sm cursor-help">
-                <Package className="w-3 h-3 text-emerald-400" />
-                <span>{t('modList.row.packaged')}</span>
-              </span>
-            </Tip>
-          )}
-
-          {!mod.enabled && (
-            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-900 text-slate-600 border border-slate-800 shrink-0">
-              {t('modList.row.off')}
-            </span>
-          )}
-
-          {mod.not_installed && (
-            <Tip content={<TipBody title={t('modList.row.notInstalled')} tone="red"><RichText text={t('modList.row.notInstalledBody')} /></TipBody>}>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/50 shrink-0">
-                {t('modList.row.notInstalled')}
-              </span>
-            </Tip>
-          )}
-
-          {mod.loadable_on_installed_build === false && !mod.enabled && (
-            <Tip content={<TipBody title={t('modList.row.notForBuild')} tone="amber"><RichText text={t('modList.row.notForBuildTitle')} /></TipBody>}>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/50 shrink-0">
-                {t('modList.row.notForBuild')}
-              </span>
-            </Tip>
-          )}
-
+        {/* Right to left: the origin stays in the last column and a chip a row gains goes to the
+            left of the ones it has, so the same chips line up from row to row. */}
+        <div className="flex flex-row-reverse flex-wrap items-center justify-start gap-1 max-w-[78%]">
           {/* A mod that is not installed came from nowhere yet: no origin to show ("Local" said it was on disk). */}
           {!mod.not_installed && <SourceBadge modId={mod.mod_id} entry={entry} />}
+
+          {/* Every problem the health check found for this mod, with its fix. */}
+          <RowHealthChips
+            paths={paths}
+            issues={shownIssues}
+            onNote={showToast}
+            mods={mods}
+            onApplyList={triggerReorder}
+            onJumpToMod={handleJumpToMod}
+            onOpenMerger={onOpenMerger}
+            onGoToHealth={onGoToHealth}
+            onOpenInBrowser={onOpenInBrowser}
+            onSearchInBrowser={onSearchInBrowser}
+          />
+
+          {/* Whether what the Studio saw of it is in the community index yet. */}
+          {shareState && !(shareState === 'shared' && indexKnows) && (
+            <Tip
+              content={
+                <TipBody title={t(`modList.row.index.${shareState}Head`)} tone={shareState === 'shared' ? 'emerald' : 'cyan'}>
+                  <RichText text={t(`modList.row.index.${shareState}Body`, { when: sharedAt ? ` (${sharedAt})` : '' })} />
+                </TipBody>
+              }
+            >
+              <span
+                className={`flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                  shareState === 'shared'
+                    ? 'bg-slate-900 text-emerald-400/80 border-emerald-900/70'
+                    : shareState === 'newer'
+                    ? 'bg-amber-950/60 text-amber-300 border-amber-700/70'
+                    : 'bg-sky-950/60 text-sky-300 border-sky-700/70'
+                }`}
+              >
+                {shareState === 'shared' ? <Check className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                {t(`modList.row.index.${shareState}`)}
+              </span>
+            </Tip>
+          )}
 
           {/* What the game laid at this mod's door last session, counted from console.txt. */}
           {(() => {
             const stat = errorStats?.get(mod.name);
             if (!stat || (stat.exceptions === 0 && stat.warnings === 0)) return null;
+            // Once all of it is in the index the count is old news: it shows again with something new to share.
+            if (shareState === 'shared') return null;
             const threw = stat.exceptions > 0;
             const line = stat.last_exception ?? stat.last_warning ?? '';
             return (
@@ -295,30 +290,6 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
               </Tip>
             );
           })()}
-
-          {/* Whether what the Studio saw of it is in the community index yet. */}
-          {shareState && (
-            <Tip
-              content={
-                <TipBody title={t(`modList.row.index.${shareState}Head`)} tone={shareState === 'shared' ? 'emerald' : 'cyan'}>
-                  <RichText text={t(`modList.row.index.${shareState}Body`, { when: sharedAt ? ` (${sharedAt})` : '' })} />
-                </TipBody>
-              }
-            >
-              <span
-                className={`flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                  shareState === 'shared'
-                    ? 'bg-slate-900 text-emerald-400/80 border-emerald-900/70'
-                    : shareState === 'newer'
-                    ? 'bg-amber-950/60 text-amber-300 border-amber-700/70'
-                    : 'bg-sky-950/60 text-sky-300 border-sky-700/70'
-                }`}
-              >
-                {shareState === 'shared' ? <Check className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
-                {t(`modList.row.index.${shareState}`)}
-              </span>
-            </Tip>
-          )}
 
           {/* Its files' share of the loading screen last session, when it is worth a word. */}
           {(() => {
@@ -398,19 +369,54 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
             );
           })()}
 
-          {/* Every problem the health check found for this mod, with its fix. */}
-          <RowHealthChips
-            paths={paths}
-            issues={shownIssues}
-            onNote={showToast}
-            mods={mods}
-            onApplyList={triggerReorder}
-            onJumpToMod={handleJumpToMod}
-            onOpenMerger={onOpenMerger}
-            onGoToHealth={onGoToHealth}
-            onOpenInBrowser={onOpenInBrowser}
-            onSearchInBrowser={onSearchInBrowser}
-          />
+          {mod.loadable_on_installed_build === false && !mod.enabled && (
+            <Tip content={<TipBody title={t('modList.row.notForBuild')} tone="amber"><RichText text={t('modList.row.notForBuildTitle')} /></TipBody>}>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/50 shrink-0">
+                {t('modList.row.notForBuild')}
+              </span>
+            </Tip>
+          )}
+
+          {mod.not_installed && (
+            <Tip content={<TipBody title={t('modList.row.notInstalled')} tone="red"><RichText text={t('modList.row.notInstalledBody')} /></TipBody>}>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/50 shrink-0">
+                {t('modList.row.notInstalled')}
+              </span>
+            </Tip>
+          )}
+
+          {!mod.enabled && (
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-900 text-slate-600 border border-slate-800 shrink-0">
+              {t('modList.row.off')}
+            </span>
+          )}
+
+          {isClosedPackage && (
+            <Tip content={<TipBody title={t('modList.row.packagedHead', { id: mod.mod_id })} tone="emerald">{t('modList.row.packagedBody')}</TipBody>}>
+              <span className="flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-600 shrink-0 shadow-sm cursor-help">
+                <Package className="w-3 h-3 text-emerald-400" />
+                <span>{t('modList.row.packaged')}</span>
+              </span>
+            </Tip>
+          )}
+
+          {isOpenedPackage && (
+            <Tip content={<TipBody title={t('modList.row.openDraftHead', { id: mod.mod_id })} tone="amber"><RichText text={t('modList.row.openDraftBody')} /></TipBody>}>
+              <span className="flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-950/90 text-amber-300 border border-amber-600 shrink-0 shadow-sm cursor-help animate-pulse">
+                <Package className="w-3 h-3 text-amber-400" />
+                <span>{t('modList.row.openDraft')}</span>
+              </span>
+            </Tip>
+          )}
+
+          {isBridge && (
+            <Tip content={<TipBody title={t('modList.row.bridge')} tone="cyan">{t('modList.row.bridgeTitle')}</TipBody>}>
+              <span className="flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-950/90 text-cyan-300 border border-cyan-700 shrink-0 shadow-sm">
+                <Package className="w-3 h-3 text-cyan-400" />
+                <span>{t('modList.row.bridge')}</span>
+              </span>
+            </Tip>
+          )}
         </div>
       </div>
     </div>

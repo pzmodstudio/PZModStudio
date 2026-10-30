@@ -7,6 +7,7 @@
    "version": null,
    "date": "2026-10-30",
    "notes": [
+    "Mod List: chips laid right to left so the origin keeps the last column and the same chips line up; the warning count and In the index give way once the index knows the mod",
     "Settings: Fetch now for the community files; the index and lists links open the site's mods page, not its home (also on the Workshop page)",
     "Share: a registry the index's own check accepts (a compatible copy with no file named is fix none, mod.info incompatibilities say their source); the registries merged tonight brought in",
     "Share: off while everything seen is in the index or a pull request; an issue proposed again replaces its entry in the registry instead of standing twice",
