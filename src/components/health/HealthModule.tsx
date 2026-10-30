@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, G
 import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, HealthSeverity, ModInfo } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
-import { COMMUNITY_SITE } from '../../utils/communityIndex';
+import { COMMUNITY_MODS } from '../../utils/communityIndex';
 import { loadCommunityIndex } from '../../services/communityIndex';
 import { applyFix } from '../../utils/healthFix';
 import { useTranslation } from 'react-i18next';
@@ -546,7 +546,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                 </button>
                 <button
                   type="button"
-                  onClick={() => TauriService.openExternalUrl(COMMUNITY_SITE)}
+                  onClick={() => TauriService.openExternalUrl(COMMUNITY_MODS)}
                   title={t('health.communitySiteTitle')}
                   className="flex items-center gap-1 px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer"
                 >
