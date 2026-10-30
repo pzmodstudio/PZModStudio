@@ -1,0 +1,25 @@
+{
+  "authors": [],
+  "builds": [
+    "42"
+  ],
+  "id": "B42FRUsedCarsAnimAlpha",
+  "incompatible": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "note": "The copy changed: Rewrote 5 item(s) in 1 script file(s) from the Build 41 \"Type =\" field to Build 42's \"ItemType =\" with its namespaced value (Clothing -> base:clothing).; Rewrote 5 require path(s) Build 42 moved, in 5 file(s): ISUI/ISVehicleMechanics -> Vehicles/ISUI/ISVehicleMechanics, ISUnlockVehicleDoor -> Vehicles/TimedActions/ISUnlockVehicleDoor, Vehicle/ISVehiclePartMenu -> Vehicles/ISUI/ISVehiclePartMenu, Vehicle/Vehicles -> Vehicles/Vehicles, Vehicles/ISUI/ISVehicleTrailerUtils -> Vehicles/ISVehicleTrailerUtils.",
+      "source": "PZ Mod Studio, the compatible copy it made",
+      "status": "verified",
+      "title": "Needed a compatible copy on this build"
+    }
+  ],
+  "load_after": [],
+  "name": "Filibuster Rhymes' Certified Used Cars!",
+  "requires": [],
+  "workshop_id": "3683878228"
+}
