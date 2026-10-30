@@ -1,0 +1,31 @@
+{
+  "authors": [],
+  "builds": [
+    "42"
+  ],
+  "id": "ImmersiveSnowWeatherPatch",
+  "incompatible": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.FormatFlagsConversionMismatchException: Conversion = s, Flags =   at Formatter$FormatSpecifier.failM",
+      "source": "PZ Mod Studio, from the game's console.txt",
+      "status": "verified",
+      "title": "6 warnings in the last session (the game carried on)"
+    }
+  ],
+  "load_after": [],
+  "name": "Whiteout - [Compatibility & Gameplay Patch]",
+  "requires": [
+    "ZombieBuddy",
+    "Viewpoint",
+    "ViewpointImmersiveWeathers",
+    "ImmersiveSnow",
+    "ImmersiveSnowViewpoint"
+  ],
+  "workshop_id": "3827201530"
+}
