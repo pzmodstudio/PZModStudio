@@ -322,6 +322,7 @@ Poly.patchDefaults = {
     fancy_handwork = true,          -- Fancy Handwork multiplayer bounds
     sauced_carts = true,            -- SaucedCarts / Pushable Carts
     exhaustive_power_rework = true, -- Exhaustive Power Rework server start
+    modern_status = true,           -- ModernStatus hidden indicators off the screen
 }
 
 function Poly.modActive(ids)
@@ -1883,6 +1884,38 @@ local function initModPatches()
         end
     end
 
+    end
+
+    if Poly.patchOn("modern_status", { "ModernStatus" }) then
+    -- ----------------------------------------------------------------------------
+    -- ModernStatus: auto-hidden indicators really off the screen (42.21)
+    -- ----------------------------------------------------------------------------
+    -- The mod hides an indicator by moving it to -20000 and keeping it visible, so its render
+    -- can tell when to come back. 42.21 keeps every top-level element on the screen
+    -- (ISUIElement:setX clamps to 0), so the hidden ones pile up at 0,0: drawn as nothing, still
+    -- taking the mouse, over the equipped-item icons (no right-click on the primary hand: 22 of
+    -- them were there, checked in the game). Off the screen while hidden, kept on it again when
+    -- shown, at the place the mod saved.
+    if MS_StatusIndicator and MS_StatusIndicator.setRuntimeAutoHidden and not MS_StatusIndicator.__pzms_offscreen then
+        MS_StatusIndicator.__pzms_offscreen = true
+        local orig_setRuntimeAutoHidden = MS_StatusIndicator.setRuntimeAutoHidden
+        MS_StatusIndicator.setRuntimeAutoHidden = function(self, autoHidden)
+            if autoHidden == true then
+                self.keepOnScreen = false
+                -- Hidden before this patch: the mod will not move it again, so it is moved here.
+                if self._runtimeAutoHidden == true and self:getX() > -1000 then
+                    local offset = ((self.playerIndex or 0) * 100) + (self.matrixLinkOrder or 0)
+                    self:setX(-20000 - offset)
+                    self:setY(-20000 - offset)
+                    return
+                end
+                return orig_setRuntimeAutoHidden(self, autoHidden)
+            end
+            local result = orig_setRuntimeAutoHidden(self, autoHidden)
+            if self._runtimeAutoHidden ~= true then self.keepOnScreen = nil end
+            return result
+        end
+    end
     end
 
     if Poly.patchOn("sauced_carts", { "SaucedCarts" }) then

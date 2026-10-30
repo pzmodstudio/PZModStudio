@@ -1,0 +1,26 @@
+{
+  "id": "ModernStatus",
+  "name": "ModernStatus [Legacy B42]",
+  "workshop_id": "3451167732",
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "title": "Hidden indicators take the clicks at the top-left of the screen",
+      "note": "Auto-hidden indicators are moved to -20000 and kept visible; 42.21 keeps top-level UI on the screen (ISUIElement:setX clamps to 0), so they pile up at 0,0, invisible, over the equipped-item icons: right-clicking the primary hand does nothing. The Studio's shim lets them leave the screen while hidden (patch modern_status). Checked in the game on 42.21, 2026-10-30: 22 indicators at 0,0, none after the patch.",
+      "file": "media/lua/client/MS/MS_StatusIndicator.lua",
+      "fix": {
+        "kind": "shim_patch",
+        "name": "modern_status"
+      },
+      "build": "42.21",
+      "date": "2026-10-30",
+      "source": "PZ Mod Studio, checked in the game on 42.21 (2026-10-30)",
+      "status": "verified"
+    }
+  ]
+}
