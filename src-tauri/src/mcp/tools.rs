@@ -1008,8 +1008,11 @@ fn handle_get_crash_diagnostics(args: Value) -> ToolCallResult {
                             card.mod_name = blame.of(&line);
                         }
                         let shape = error_shape(&card.raw_error);
+                        // One card per problem and mod, as the Monitor shows them; a mod's bare %
+                        // signs are one problem whichever exception each text threw.
                         match error_cards.iter().position(|c: &TranslatedErrorPayload| {
-                            c.title == card.title && error_shape(&c.raw_error) == shape
+                            c.mod_name == card.mod_name
+                                && ((c.title == card.title && error_shape(&c.raw_error) == shape) || (c.code == "translator_text" && card.code == "translator_text"))
                         }) {
                             Some(at) => times[at] += 1,
                             None => {

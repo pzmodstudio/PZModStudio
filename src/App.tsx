@@ -316,6 +316,8 @@ export const App: React.FC = () => {
         const isDuplicate = prev.some(
           (c) =>
             (c.title === card.title && errorShape(c.raw_error) === shape && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
+            // A mod's bare % signs are one problem, whichever of Java's exceptions each text threw.
+            (c.code === 'translator_text' && card.code === 'translator_text' && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
             (c.polyfill_rule_id_suggestion && c.polyfill_rule_id_suggestion === card.polyfill_rule_id_suggestion)
         );
         if (isDuplicate) return prev;

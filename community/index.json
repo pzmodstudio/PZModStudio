@@ -136,18 +136,18 @@
       ],
       "issues": [
         {
-          "title": "getKey(nil) when the keybinds load",
-          "note": "FHbindings[1] is a header with no value and core:getKey(nil) throws, so the mod's handwork stops after the first error. The Studio's shim carries a patch for it (fancy_handwork); the same file patched line by line also works.",
+          "title": "getKey(nil) on every key press",
+          "note": "FHbindings[1] is a header with no value, and FHhandleKeybinds asks core:getKey for every entry on each key press: Java throws a NullPointerException (\"keybindID\" is null) and logs it, hundreds of times a session (holding the right mouse button adds more). The Studio's shim answers getKey(nil) with nil without asking Java (part 6, the guards on the game's own code), as the game would after logging; the mod works the same. Checked in the game on 42.21, 2026-10-30.",
           "file": "media/lua/shared/aFancyHandwork.lua",
           "line": 126,
-          "log": "ERROR: ... aFancyHandwork.lua:126: attempted index: getKey of non-table",
+          "log": "java.lang.NullPointerException: Cannot invoke \"zombie.input.KeybindId.getId()\" because \"keybindID\" is null at zombie.core.Core.getKey(Core.java:3023)",
           "fix": {
             "kind": "shim_patch",
             "name": "fancy_handwork"
           },
           "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "date": "2026-10-30",
+          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-30)",
           "status": "verified"
         },
         {

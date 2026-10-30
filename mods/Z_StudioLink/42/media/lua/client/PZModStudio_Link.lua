@@ -35,6 +35,28 @@ require "OptionScreens/ModSelector/ModListPanel"
 require "OptionScreens/ModSelector/ModListBox"
 require "OptionScreens/MainScreen"
 require "OptionScreens/LoadGameScreen"
+require "ISUI/ISToolTip"
+
+-- The game's own tooltips without a ghost (42.21): ten controls (tick boxes, lists, combos, radio
+-- buttons, text entries, spin boxes, volume controls) put their tooltip at the mouse position
+-- relative to themselves every frame, so it starts each frame near the top-left of the screen and
+-- render moves it next to the mouse only after prerender drew it there: a dim box the size of the
+-- tooltip stays at the top-left (sandbox options, a new character's traits). Seen in the game: the
+-- "Barefoot prints" tick box's tooltip started each frame at 42,44 and ended at 1445,635. Moved
+-- first, it is drawn once, where it ends up.
+if ISToolTip and ISToolTip.prerender and not ISToolTip.pzmsDrawnOnce then
+    local prerender = ISToolTip.prerender
+    ISToolTip.prerender = function(self)
+        local owner = self.owner
+        if self.followMouse and not (self.desiredX and self.desiredY) and not self.contextMenu
+            and not (owner and (owner.isButton or owner.Type == "ISSkillProgressBar")) then
+            self:setX(getMouseX() + 32)
+            self:setY(getMouseY() + 10)
+        end
+        return prerender(self)
+    end
+    ISToolTip.pzmsDrawnOnce = true
+end
 
 local SELF_ID = "Z_StudioLink"
 local FILE = "PZModStudio_Link.txt"
