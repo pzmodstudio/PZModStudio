@@ -1,7 +1,15 @@
 {
- "latest": "1.7.13",
- "built": "2026-10-29",
+ "latest": "1.7.14",
+ "built": "2026-10-30",
  "releases": [
+  {
+   "version": "1.7.14",
+   "date": "2026-10-29",
+   "notes": [
+    "Help: every page checked against the screens and brought up to date; the Workshop remove button and Mod Health's \"Take out of the package\" no longer show a raw text key",
+    "Developer: no New mod button in the header, the tab is enough"
+   ]
+  },
   {
    "version": "1.7.13",
    "date": "2026-10-29",
@@ -121,14 +129,6 @@
    "date": "2026-10-24",
    "notes": [
     "Launcher: Custom start, straight into a save or onto a server (Link 1.18.0)"
-   ]
-  },
-  {
-   "version": "1.7.2",
-   "date": "2026-10-24",
-   "notes": [
-    "Update now: the app updates itself from a signed release; checks every 6 hours",
-    "Join a server: it goes into the game's Favorites too (Link 1.17.0)"
    ]
   }
  ]

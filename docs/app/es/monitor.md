@@ -15,10 +15,10 @@ Si todavía no configuraste la carpeta del juego, la pantalla solo muestra **Con
 
 Siempre hay dos pestañas:
 
-- **console.txt (Cliente)**: el log del juego en vivo. El Studio empieza a leer desde el final del archivo, así que ves lo que pasa desde que el Studio está abierto. Cuando empieza una sesión nueva del juego, el archivo arranca de cero y la pestaña también.
-- **Servidor dedicado (en vivo)**: el log del servidor dedicado, mientras está corriendo uno que iniciaste en **Servidores**.
+- **console.txt (Cliente)**: el log del juego en vivo. El Studio empieza a leer desde el final del archivo, así que ves lo que pasa desde que el Studio está abierto. Cuando empieza una sesión nueva del juego, el archivo arranca de cero y el Studio lo lee desde su primera línea. La pestaña guarda las últimas 1.500 líneas, también mientras estás en otra pantalla.
+- **Servidor dedicado (en vivo)**: el log del servidor dedicado, mientras está corriendo uno que iniciaste en **Servidores**. Muestra sus últimas 1.500 líneas y se vuelve a leer cada 2 segundos.
 
-Para leer otros logs, apretá **Cargar log**. El menú lista los logs que encuentra en tu carpeta Zomboid (con su tamaño); elegí uno para abrirlo en una pestaña nueva. **📂 Buscar otro archivo (.txt)...** abre cualquier archivo de texto. Estas pestañas se cierran con su X; las dos pestañas en vivo no.
+Para leer otros logs, apretá **Cargar log**. El menú lista los logs que encuentra en tu carpeta Zomboid (con su tamaño); elegí uno para abrirlo en una pestaña nueva. **📂 Buscar otro archivo (.txt)...** abre cualquier archivo de texto. Un log cargado muestra sus últimas 2.000 líneas. Estas pestañas se cierran con su X; las dos pestañas en vivo no.
 
 Debajo de las pestañas:
 
@@ -38,6 +38,8 @@ Las líneas de error se ven en rojo y los avisos en ámbar.
 
 Aparece una tarjeta cuando el juego lanza un error, o cuando escribe un aviso y nombra un mod. Todo lo demás queda en el log de la izquierda. Primero van las tarjetas de errores (rojas) y después los avisos (ámbar, marcados **aviso · el juego siguió**). El mismo problema aparece una sola vez, aunque el juego lo repita muchas veces; el número tipo **600×** dice cuántas veces está en el log, y los que se repiten son los que conviene arreglar primero.
 
+Arriba de las tarjetas, una etiqueta cuenta las excepciones (**Requiere acción**) y otra los avisos, con una línea que resume el log. Cuando el Studio recuerda sesiones anteriores, cada tarjeta dice **nuevo** o **visto en N sesiones desde** una fecha, y **Solo los nuevos** oculta el resto.
+
 Una tarjeta puede mostrar:
 
 - **El nombre del mod**, cuando el juego lo nombró en la línea del error o en el stack trace de abajo.
@@ -45,6 +47,7 @@ Una tarjeta puede mostrar:
 - **Fragmento del log**: la línea en sí.
 - Para un `require` que falló, dónde está ahora ese módulo, cuando el Studio lo encuentra.
 - Qué hacer, o un aviso de que el shim de Build 42 ya lo cubre.
+- Cuando el error está en una copia que tiene tu paquete del Studio: un aviso si el mod cambió ese archivo después de hacerse la copia, o si ningún mod de tu lista trae ya ese archivo.
 
 Cuando empieza una sesión nueva del juego, se borran las tarjetas de la anterior. **Descartar** las borra a mano.
 
@@ -73,7 +76,7 @@ Para problemas que el log no nombra: un congelamiento, una receta que nunca apar
 4. Respondé **Sigue pasando** o **Ya no pasa**. La lista se vuelve a partir. La etiqueta muestra la ronda y cuántos inicios quedan (unos 8 para cien mods).
 5. Cuando queda un solo mod, jugá una vez más para confirmarlo.
 
-Al final el panel nombra el mod, muestra las líneas que el log tenga sobre él y ofrece **Parchear un archivo suyo**, **Apagarlo** o **Dejarlo activo**. Tu lista original se restaura termine como termine la búsqueda. **Parar y restaurar mi lista** la corta antes.
+Al final el panel nombra el mod, muestra las líneas que el log tenga sobre él (con **Parchear Archivo.lua** cuando una línea nombra un archivo, y **Mostrar sus líneas en la consola**) y ofrece **Parchear un archivo suyo**, **Apagarlo** o **Dejarlo activo**. Tu lista original se restaura termine como termine la búsqueda. **Parar y restaurar mi lista** la corta antes.
 
 Si ningún mod solo tiene la culpa, el panel explica por qué: pueden ser dos mods juntos, uno de los mods requeridos, o algo que no es un mod.
 

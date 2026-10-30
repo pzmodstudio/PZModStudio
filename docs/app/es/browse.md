@@ -6,15 +6,16 @@ Explorar mods es donde encontrás y conseguís mods nuevos: buscás en el Steam 
 
 - Cuatro pestañas arriba: **Steam Workshop**, **Nexus Mods**, **Mis mods** (con cuántos tenés) y **Mis listas**. Cada pestaña conserva su página y sus filtros cuando cambiás de pestaña.
 - A la derecha, los botones para instalar: **Instalar .zip / .7z**, **Carpeta** y **Desde un enlace**.
-- Cada mod es una tarjeta con su imagen, etiquetas de build (como **Build 42**), si está **Instalado**, y etiquetas como **Actualización pendiente** o **Nuevo desde la última partida**. Dejá el puntero sobre una tarjeta para ver más; hacé clic para abrir su vista de detalle; clic derecho para un menú.
+- Cada mod es una tarjeta con su imagen, etiquetas de build (como **B42**, o **build ?** cuando la página no lo dice), si está **Instalado**, y etiquetas como **Actualización pendiente** o **Nuevo desde la última partida**. Dejá el puntero sobre una tarjeta para ver más; hacé clic para abrir su vista de detalle; clic derecho para un menú (suscribirse, su página, copiar su enlace o id, favoritos, listas y perfiles).
 
 ## Steam Workshop
 
 - Escribí en el buscador y apretá **Buscar**. También podés pegar uno o más enlaces del Workshop, ids o el enlace de una colección: el Studio muestra justo esos ítems y cuántos todavía no tenés.
 - **Orden**: **Más populares**, **Mejor valorados**, **Más recientes** o **Última actualización**. Con Más populares también elegís el período (**Hoy**, **Una semana**, **Tres meses**, **Un año**). Una búsqueda por texto siempre se ordena por relevancia.
 - **Build del juego**: **Build 42**, **Build 41** o **Cualquier build**.
-- **Mods** o **Colecciones**: qué listar. Con Mods también podés elegir una categoría.
+- **Mods** o **Colecciones**: qué listar. Con Mods también podés elegir una categoría; el filtro de build es solo para Mods.
 - **Web** abre el Workshop en tu navegador.
+- **Traducir títulos y resúmenes** muestra los títulos y resúmenes de los resultados en el idioma de la app. No se envía nada al servicio de traducción hasta que lo apretás.
 
 Si Steam rechaza la búsqueda, un recuadro explica por qué. Si Steam solo está ocupado, apretá **Probar de nuevo**. Si no, podés pegar una clave personal de la Steam Web API y apretar **Verificar y guardar**; se guarda en el Administrador de credenciales de Windows, solo en esta PC, y **Quitarla** la borra. Pegar enlaces funciona sin clave.
 
@@ -26,18 +27,21 @@ Las descargas de Nexus se hacen en el sitio de Nexus. En la vista de detalle de 
 
 ## Mis mods
 
-Todo lo que tenés instalado: suscripciones del Workshop, mods de Nexus y mods locales. Filtrá por nombre o id, elegí un **Origen**, ordená por **Actualizados hace poco** o **Nombre**, y usá las etiquetas **Nuevos desde la última partida** y **Actualización pendiente en Steam** para ver solo esos. Clic derecho en un mod del Workshop para **Desuscribirse**.
+Todo lo que tenés instalado: suscripciones del Workshop, mods de Nexus y mods locales. Filtrá por nombre o id, elegí un **Origen**, ordená por **Actualizados hace poco** o **Nombre**, elegí una categoría, y usá las etiquetas **Nuevos desde la última partida** y **Actualización pendiente en Steam** para ver solo esos. Clic derecho en un mod del Workshop para **Desuscribirse**.
 
 ## La vista de detalle
 
 Hacer clic en una tarjeta abre una vista grande con imágenes, la descripción, información y requisitos. **Volver** regresa a la anterior, y Esc o la X la cierran.
 
-- **Suscribirse** / **Desuscribirse**: se hace a través del cliente de Steam, así que Steam tiene que estar abierto. Steam descarga los archivos; el mod aparece en tu Lista de mods cuando termina. Sin Steam, el botón dice **Abrir la página para suscribirse**.
+- **Suscribirse** / **Desuscribirse**: se hace a través del cliente de Steam, así que Steam tiene que estar abierto. Steam descarga los archivos; el mod aparece en tu Lista de mods cuando termina. Sin Steam no hay botón para suscribirse, y **Abrir página del Workshop** dice **Abrir la página para suscribirse**.
 - **Ítems requeridos**: lo que el mod necesita del Workshop, marcado **Instalado** o **Falta**. Hacé clic en uno para abrirlo.
 - **Índice comunitario**: lo que sabe el índice de la comunidad sobre el mod: builds en las que funciona, mods con los que no va, problemas conocidos y si el Studio los arregla, y una versión más nueva para tu build si existe.
 - La estrella del encabezado lo agrega a tus **Favoritos**.
+- **Traducir al ...** pone la descripción en el idioma de la app; **Ver original** vuelve a ella. El texto va a un servicio de traducción solo cuando lo apretás.
+- Un video entre las imágenes se reproduce en la vista. Si su autor no lo permite, **Ver en YouTube (navegador)** lo abre.
+- **Apoyar al autor** muestra los enlaces que dejó el autor para eso, cuando los hay.
 
-En una colección tenés **Suscribirse a los N que faltan**, **Crear un perfil con esto** (un perfil con los mods de la colección que tenés instalados) y la lista de lo que te falta.
+En una colección tenés **Suscribirse a los N que faltan** (o **Desuscribirse de todo** cuando ya los tenés todos), **Crear un perfil con esto** (un perfil con los mods de la colección que tenés instalados) y la lista de lo que te falta.
 
 ## Suscribirte a lo que necesita un mod
 
@@ -56,7 +60,7 @@ Tus propias listas de mods, guardadas en esta PC. **Favoritos** siempre está.
 
 ## Listas de la comunidad
 
-**De la comunidad** (al lado de **Mis listas**) muestra las listas que compartieron otros jugadores. Cada una la leyó una persona antes de publicarse en el repositorio del Studio; el Studio las trae una vez por día (las flechas las traen ahora). **Todas las listas en la web** abre la página de la comunidad con cada lista y sus mods.
+**De la comunidad** (al lado de **Mis listas**) muestra las listas que compartieron otros jugadores. Cada una la leyó una persona antes de publicarse en el repositorio del Studio; el Studio las trae una vez por día (las flechas las traen ahora). **Todas las listas en la web** abre la página de la comunidad con cada lista y sus mods. El buscador deja las listas cuyo nombre, autor, descripción o mods coinciden con lo que escribís.
 
 - Cada tarjeta dice quién la hizo, cuántos mods tiene y cuántos de sus mods del Workshop ya tenés.
 - **Copiar a mis listas** la hace una de tus listas, con el nombre de su autor. No se instala nada: desde ahí, **Suscribirse a todo lo que falta** y **Crear un perfil** funcionan como con cualquier lista.

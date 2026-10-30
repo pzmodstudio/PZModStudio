@@ -37,7 +37,7 @@ El número de cada fila es el lugar del mod entre los mods **prendidos**: el ord
 
 - El buscador busca en el nombre, el ID del mod, el ID del Workshop y tus notas.
 - Los botones de filtro: **Todos**, **Activos**, **Desactivados**, **Favoritos**, **Actualizados**, **Problemas**, **Mapas**, **Librerías**, **No cargan**. Cada uno muestra su cantidad.
-- Debajo: **Orden: de carga**, **Orden: nombre**, **Orden: instalados más nuevos** u **Orden: instalados más viejos** (por cuándo se instaló cada mod: cuando se creó su carpeta; para uno del Workshop, la primera descarga, que las actualizaciones no cambian; cada fila muestra la fecha y los que no están instalados van al final), el menú de **Grupos**, uno de tus grupos, el origen (**Steam Workshop**, **Tus subidas al Workshop**, **Instalados a mano**, **Copias compatibles**...), una etiqueta (errores o avisos de la última sesión, carga lenta, un problema de Salud de mods) y **Mods del perfil** / **Todos los instalados**.
+- Debajo: **Orden: de carga**, **Orden: nombre**, **Orden: instalados más nuevos** u **Orden: instalados más viejos** (por cuándo se instaló cada mod: cuando se creó su carpeta; para uno del Workshop, la primera descarga, que las actualizaciones no cambian; cada fila muestra la fecha y los que no están instalados van al final), el menú de **Grupos**, uno de tus grupos, el origen (**Steam Workshop**, **Tus subidas al Workshop**, **Instalados a mano**, **Copias compatibles**...), una etiqueta (errores o avisos de la última sesión, carga lenta, pesado para el juego, un problema de Salud de mods) y **Mods del perfil** / **Todos los instalados**.
 - La pantalla de Mods del juego (mod Studio Link) tiene los mismos filtros en el mismo orden. Actualizados, Librerías, el grupo, el origen y la etiqueta necesitan PZ Mod Studio; sin la app, el juego lo dice donde irían.
 - Arrastrar funciona también ordenado por nombre: el mod va al lugar del mod sobre el que lo soltás.
 - **quitar filtros** vuelve a mostrar todos los mods.
@@ -53,18 +53,18 @@ El número de cada fila es el lugar del mod entre los mods **prendidos**: el ord
 
 ## Los mods del perfil
 
-Con un perfil activo, la lista muestra los mods de ese perfil. El botón **Solo (perfil)** cambia a **Mostrando todo**, que lista todos los mods instalados y marca en qué perfiles está cada uno. Los mods instalados que no están en ningún perfil (suscriptos desde la web de Steam, por ejemplo) muestran una barra azul con **Agregar al perfil** (entran apagados), **Mostrarlos**, o la X para ocultarla.
+Con un perfil activo, la lista muestra los mods de ese perfil. El botón **Mods del perfil** cambia a **Todos los instalados**, que lista todos los mods instalados y marca en qué perfiles está cada uno. Los mods instalados que no están en ningún perfil (suscriptos desde la web de Steam, por ejemplo) muestran una barra azul con **Agregar al perfil** (entran apagados), **Mostrarlos**, o la X para ocultarla.
 
 ## El menú del clic derecho
 
-**Activar/Desactivar**, **Agregar al perfil** / **Sacar del perfil** (sacarlo también lo apaga), **Mover al principio**, **Mover al final**, **Abrir en Explorar mods**, **Abrir su carpeta**, **Agregar una nota…**, **Grupos…**, **Reglas de orden de carga…**, **Guardar esta versión**, **Versiones guardadas…**, **Favorito**, **Agregar a una lista…**, **Agregar a un perfil…**, **Compartir lo que el Studio vio de este mod…** y **Copiar el id del mod**.
+**Activar/Desactivar**, **Agregar al perfil** / **Sacar del perfil** (sacarlo también lo apaga), **Mover al principio**, **Mover al final**, **Abrir en Explorar mods** (**Buscarlo en Explorar mods** para un mod que no está instalado), **Abrir su carpeta**, **Agregar una nota…** (**Editar la nota…** cuando ya tiene una), **Grupos…**, **Reglas de orden de carga…**, **Guardar esta versión**, **Versiones guardadas…**, **Favorito**, **Agregar a una lista…**, **Agregar a un perfil…**, **Compartir lo que el Studio vio de este mod…**, **Copiar el id del mod** y **Desuscribirse de su ítem del Workshop** (Steam borra sus archivos; los otros mods del mismo ítem se van también).
 
 - **Reglas de orden de carga…**: decí que un mod debe cargar después de otro (lo que descubriste jugando). Ordenar sigue la regla y Salud de mods avisa cuando la lista la rompe. **Compartir esta regla** la ofrece a la comunidad en GitHub.
 - **Guardar esta versión** copia el mod tal como está hoy en `Zomboid/PZModStudio_Snapshots`. **Versiones guardadas…** lista las copias: **Usar esta versión** repone una como copia local que el juego lee en vez de la del Workshop.
 
 ## Etiquetas de las filas
 
-Las etiquetas de una fila vienen de la última sesión y de Salud de mods: errores o avisos que el juego registró del mod, cuánto tardó en cargar, y problemas como **Necesita un mod apagado** o **Carga demasiado temprano**. Hacé clic en una etiqueta para ir al mod relacionado o a Salud de mods; el botón de la llave al lado aplica el arreglo.
+Las etiquetas de una fila vienen de la última sesión y de Salud de mods: errores o avisos que el juego registró del mod, cuánto tardó en cargar (desde 250 ms), su parte del tiempo del juego cuando lo mediste en Salud de mods (desde 1 %, ámbar desde 5 %), y problemas como **Necesita un mod apagado** o **Carga demasiado temprano**. Hacé clic en una etiqueta para ir al mod relacionado o a Salud de mods; el botón de la llave al lado aplica el arreglo.
 
 ## Listas anteriores y presets
 

@@ -6,7 +6,7 @@ La pantalla Servidores tiene dos lados: **Unirse a un servidor**, para encontrar
 
 En **Servidores públicos**, apretá **Buscar servidores**. El Studio le pide a Steam todos los servidores de Project Zomboid, como el buscador del propio juego, a través del cliente de Steam abierto en esta PC (no hace falta clave; mientras pregunta, Steam te muestra jugando a Project Zomboid). Los servidores aparecen a medida que responden; todos tardan alrededor de un minuto y medio. **Detener** corta la búsqueda, **Buscar de nuevo** empieza otra vez.
 
-Achicá la lista con el cuadro (**Nombre o mapa**) y los filtros: **Solo mi versión**, **Con jugadores**, **No llenos**, **Sin contraseña**, **Con y sin mods** / **Con mods** / **Sin mods**, y ordená por **Más jugadores**, **Menor ping** o **Nombre**. Hacé clic derecho en un servidor para ver un menú: **Ver lo que dice**, **Entrar**, **Marcar con estrella**, **Copiar la dirección** y crear un perfil con sus mods.
+Achicá la lista con el cuadro (**Nombre o mapa**) y los filtros: **Solo mi versión**, **Con jugadores**, **No llenos**, **Sin contraseña**, **Con y sin mods** / **Con mods** / **Sin mods**, y ordená por **Más jugadores**, **Menor ping** o **Nombre**. Hacé clic derecho en un servidor para ver un menú: **Ver lo que dice**, **Entrar**, **Marcar con estrella**, **Copiar la dirección**, crear un perfil con sus mods y, para un servidor de **Mis servidores**, **Olvidar este servidor**.
 
 **Mis servidores** guarda los servidores que marcaste con estrella (**Con estrella**) y aquellos a los que entraste desde acá (**Entraste desde acá**). Para agregar un servidor privado o de un amigo, escribí su dirección en **Agregar un servidor por su dirección** (`ip:puerto`; 16261 si no ponés el puerto), un nombre opcional y la contraseña, y apretá **Agregar**. La contraseña se guarda en el almacén de credenciales de Windows, nunca en un archivo.
 
@@ -46,7 +46,7 @@ Esto compara tus mods activos con lo que tiene el `.ini` del servidor. Un servid
 
 Un paquete de PZ Mod Studio (`Z_PZModStudio_*`) activo también entra en `Mods=`, pero es un mod local, no un ítem del Workshop: el servidor en esta PC lo tiene, los jugadores no lo reciben al descargar, y el juego no los deja entrar sin él. Compartiles el paquete, o apagalo antes de escribir la lista.
 
-**Chequeo multijugador de los mods activos** (**Chequear**) lista llamadas que el código de cliente de un mod hace directamente donde el juego las pasa por el servidor; en multijugador cambian solo el mundo de ese jugador, o se rechazan.
+**¿Esta lista funciona en multijugador?** (**Chequear**) da un veredicto para la lista y uno por mod. Lee lo que la descripción de cada mod dice sobre multijugador, y lista llamadas que el código de cliente de un mod hace directamente donde el juego las pasa por el servidor; en multijugador cambian solo el mundo de ese jugador, o se rechazan.
 
 ## Jugadores
 

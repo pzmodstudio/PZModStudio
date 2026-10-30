@@ -6,7 +6,7 @@ The Servers screen has two sides: **Join a server**, to find a multiplayer serve
 
 Under **Public servers**, press **Find servers**. The Studio asks Steam for every Project Zomboid server, the way the game's own browser does, through the Steam client running on this PC (no key needed; Steam shows you as in Project Zomboid while it asks). Servers appear as they answer; all of them take about a minute and a half. **Stop** ends the search, **Search again** starts over.
 
-Narrow the list with the box (**Name or map**) and the filters: **Only my build**, **With players**, **Not full**, **No password**, **Modded and vanilla** / **Modded** / **Vanilla**, and sort by **Most players**, **Lowest ping** or **Name**. Right-click a server for a menu: **See what it says**, **Join**, **Star it**, **Copy the address** and making a profile with its mods.
+Narrow the list with the box (**Name or map**) and the filters: **Only my build**, **With players**, **Not full**, **No password**, **Modded and vanilla** / **Modded** / **Vanilla**, and sort by **Most players**, **Lowest ping** or **Name**. Right-click a server for a menu: **See what it says**, **Join**, **Star it**, **Copy the address**, making a profile with its mods and, for a server in **My servers**, **Forget this server**.
 
 **My servers** holds the servers you star (**Starred**) and the ones you joined from here (**Joined from here**). To add a private or a friend's server, type its address under **Add a server by its address** (`ip:port`; port 16261 if left out), an optional name and the password, and press **Add**. The password is kept in Windows' credential store, never in a file.
 
@@ -46,7 +46,7 @@ This compares your active mods with what the server's `.ini` has. A server does 
 
 A PZ Mod Studio package (`Z_PZModStudio_*`) that is on goes into `Mods=` too, but it is a local mod, not a Workshop item: the server on this PC has it, players do not get it by downloading, and the game does not let them join without it. Share the package with them, or switch it off before you write the list.
 
-**Multiplayer check of the active mods** (**Check**) lists calls that a mod's client code makes directly where the game routes them through the server; in multiplayer they change only that player's world, or are refused.
+**Does this list work in multiplayer?** (**Check**) gives one verdict for the list and one per mod. It reads what each mod's description says about multiplayer, and lists calls that a mod's client code makes directly where the game routes them through the server; in multiplayer they change only that player's world, or are refused.
 
 ## Players
 

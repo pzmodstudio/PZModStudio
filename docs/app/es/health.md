@@ -7,13 +7,14 @@ Salud de mods revisa tus mods activos como los lee el juego y lista cada problem
 - Arriba: tu **Build del juego** y cuántos mods hay activos.
 - El botón de la **comunidad** (por ejemplo **comunidad: 40 reglas, 120 mods ↻**): lo que suman a la revisión los archivos compartidos de la comunidad. Hacé clic para descargarlos ahora. **Índice de la comunidad**, al lado, abre la página web del índice: los problemas conocidos de cada mod y sus arreglos.
 - **Revisar de nuevo** vuelve a hacer la revisión. También se hace sola cuando cambia tu lista.
-- Cinco pestañas, cada una con cuántas filas tiene:
+- Seis pestañas; las cuatro primeras muestran cuántas filas tienen:
   - **Problemas**: lo que rompe el juego o lo va a romper (requisitos que faltan o están apagados, orden de carga, mods que tu versión no carga, pares incompatibles). Acá está **Arreglar N problema(s) automáticamente**.
-  - **Conflictos**: dos mods que traen el mismo archivo, ítem, receta o texto; el juego usa uno, y cuál es decisión tuya. Acá está **Fusionar N archivos automáticamente**.
+  - **Conflictos**: dos mods que traen el mismo archivo, ítem, receta o texto; el juego usa uno, y cuál es decisión tuya. Acá está **Fusionar N archivos automáticamente**. Las filas se separan en **Sin resolver**, **Resueltos antes de un cambio** y **Resueltos**; la cantidad de la pestaña no cuenta los resueltos.
   - **Para saber**: nada que arreglar (copias ignoradas, mods actualizados desde la última vez que jugaste, notas de la comunidad).
-  - **Rendimiento**: tiempo de juego por mod (más abajo).
+  - **Seguridad**: lo que un mod podría hacer más allá de modificar el juego (más abajo).
+  - **Rendimiento**: memoria, arranque del juego, tiempo por mod y frames (más abajo).
   - **Disco**: cuánto ocupa cada mod y cuáles se pueden sacar (más abajo).
-- Cada fila muestra el mod, qué anda mal, un código corto (como `missing_dependency`) y sus botones de arreglo a la derecha. La pantalla recuerda la última pestaña; la etiqueta de un problema en la Lista de mods abre la pestaña que lo tiene.
+- Cada fila muestra el mod, qué anda mal, un código corto (como `missing_dependency`) y sus botones de arreglo a la derecha. **Copiar para un asistente** copia la fila con una pregunta, para pegarla en cualquier asistente de chat; desde el Studio no se manda nada. La pantalla recuerda la última pestaña; la etiqueta de un problema en la Lista de mods abre la pestaña que lo tiene.
 
 Si no hay nada mal, ves **No se encontraron problemas en tus N mods activos.**
 
@@ -22,6 +23,8 @@ Si no hay nada mal, ves **No se encontraron problemas en tus N mods activos.**
 - **Errores**: el juego no va a cargar el mod, o lo carga sin algo que necesita. Arreglá estos primero.
 - **Avisos**: el juego carga, pero algo probablemente salga mal: orden equivocado, un archivo que solo usa un mod, una actualización sin descargar, un mod que llena la consola.
 - **Información**: conviene saberlo, no hay nada roto: dos mods definen lo mismo, se está usando una copia compatible, mods que se actualizaron desde que jugaste.
+
+Cada sección se puede plegar haciendo clic en su título.
 
 ## Los problemas que encuentra
 
@@ -41,6 +44,9 @@ Si no hay nada mal, ves **No se encontraron problemas en tus N mods activos.**
 - `user_rule_order`: no se cumple una de tus propias reglas de orden de carga.
 - `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: lo que dicen los archivos de la comunidad sobre tus mods.
 - `package_built_for_other_list`: tu paquete del Studio se armó con una lista de mods distinta a la de este perfil.
+- `package_file_stale`: tu paquete lleva una copia vieja de un archivo de un mod, y el mod cambió ese archivo después. El juego lee la copia vieja.
+- `package_file_differs`, `package_file_orphan`: tu paquete lleva un archivo que trae un solo mod de la lista, o que no trae ningún mod de la lista. Sacalo si ya no lo necesitás.
+- `security_executable`, `security_script`, `security_java`, `security_lua`: lo que un mod podría hacer más allá de modificar el juego, en la pestaña **Seguridad** (más abajo).
 - `compatible_copy`, `shadowed_copy`, `updated_since_last_play`: notas sobre qué copia de un mod se usa y qué cambió.
 
 Las filas sobre la misma definición se pueden abrir con **Por archivo** para ver el archivo de cada mod. Hacé clic en una definición ahí para abrirla en el Fusionador.
@@ -51,9 +57,10 @@ Las filas sobre la misma definición se pueden abrir con **Por archivo** para ve
 - **Mover X antes de Y**: cambia el orden de carga. En una fila "a tu criterio" (dos mods definen lo mismo) dice **Usar la versión de Y**.
 - **Quitar X de la lista**: saca una entrada de la lista.
 - **Buscar "X" en el Workshop** y **Abrir página del Workshop**: abren el Workshop de Steam en tu navegador.
-- **Crear copia compatible**: hace en `Zomboid/mods` una copia adaptada de un mod del Workshop para tu build. El resultado muestra qué cambió y qué puede fallar igual. Iniciá el juego desde el Studio para que use la copia. **Quitar la copia compatible** vuelve al original.
+- **Crear copia compatible**: hace en `Zomboid/mods` una copia adaptada de un mod del Workshop para tu build. El resultado muestra qué cambió y qué puede fallar igual. Iniciá el juego desde el Studio para que use la copia. **Volver al original** quita la copia.
 - **Guardar la versión que tenés**: guarda el mod tal como está hoy, antes de que llegue una actualización del Workshop. Podés restaurarlo desde la Lista de mods (clic derecho, Versiones guardadas).
 - **Fusionar automáticamente** y **Abrir en el Fusionador**: resuelven un conflicto de archivo o de definición en tu paquete de parche, que carga último.
+- **Quitar del paquete**: saca un archivo de tu paquete de parche, después de preguntar; el juego vuelve a leer el archivo del propio mod en el próximo inicio.
 - **Encender el parche X del shim**: activa un parche del shim de Build 42 que necesita un problema conocido.
 
 Una línea verde confirma cada cambio, con **Guardado en tu lista de mods.**
@@ -67,17 +74,35 @@ Una línea verde confirma cada cambio, con **Guardado en tu lista de mods.**
 
 El Studio descarga una vez al día reglas compartidas desde su propio repositorio: reglas de orden de carga, pares de mods que no van juntos y un índice de problemas conocidos con su arreglo. Aparecen como filas `community_*`. Podés apagar la descarga diaria en Configuración; entonces se usa la última copia.
 
+## Seguridad
+
+La pestaña **Seguridad** lista lo que un mod podría hacer más allá de modificar el juego, leído de sus archivos: programas o scripts que trae, Java que puede ejecutar programas o conectarse a internet, y Lua que llama a cosas que los scripts del propio juego nunca llaman. Nada de esto es un veredicto: muchos mods hacen estas cosas por buenas razones. La mayoría de las filas son Información; un Aviso marca algo que ningún mod tiene buena razón para hacer. La fila de un mod del Workshop tiene **Abrir página del Workshop**.
+
+## Rendimiento
+
+La pestaña **Rendimiento** tiene cuatro partes: **Memoria**, **Arranque**, **Tiempo por mod** y **Frames**. Recuerda la última que abriste.
+
 ## Memoria del juego
 
-En la pestaña **Rendimiento**: cuánta memoria puede usar el Java del juego (`-Xmx` en `ProjectZomboid64.json`), de la que tiene la PC, con una recomendación para tus mods activos y un aviso si en una sesión reciente se quedó sin memoria. Elegí un valor (de 2 GB hasta la mitad de la memoria de la PC) y **Aplicar** con el juego cerrado; se aplica en el próximo inicio, y una copia del archivo de antes del cambio queda en `PZModStudio_Backups`.
+En **Rendimiento** > **Memoria**: cuánta memoria puede usar el Java del juego (`-Xmx` en `ProjectZomboid64.json`), de la que tiene la PC, con una recomendación para tus mods activos y un aviso si en una sesión reciente se quedó sin memoria. Elegí un valor (de 2 GB hasta la mitad de la memoria de la PC) y **Aplicar** con el juego cerrado; se aplica en el próximo inicio, y una copia del archivo de antes del cambio queda en `PZModStudio_Backups`.
 
 Cada perfil guarda su propio valor: al activar un perfil, el juego recibe su memoria. Un perfil sin valor propio usa el último elegido. Si una actualización del juego vuelve a poner su valor, el Studio pone el tuyo la próxima vez que abre el juego.
 
+Si en los últimos 14 días Windows mismo se quedó sin memoria con el juego abierto, también aparece acá, con lo que ayuda (un archivo de paginación más grande, cerrar otros programas pesados). Eso no es la memoria del Java del juego, así que subir el valor de arriba no lo arregla.
+
+## Arranque del juego
+
+En **Rendimiento** > **Arranque**: cuánto tardó el juego en llegar al menú principal, etapa por etapa (archivos de los mods, scripts, Lua, modelos, etc.), según el log que deja cada inicio. Cada arranque se compara con tu arranque habitual con más o menos la misma cantidad de mods; una etapa en ámbar tardó mucho más que lo normal. Elegí un arranque anterior para verlo.
+
 ## Tiempo de juego por mod
 
-En la pestaña **Rendimiento**: qué mods frenan el juego mientras jugás. **Medir** pone un mod chico del Studio (PZ Mod Studio Profiler) primero en tu lista de mods y en la partida que jugaste por última vez; abrí el juego (reinicialo si estaba abierto) y jugá unos minutos como siempre. Cada handler de eventos de cada mod lo mide el propio juego y se suma por mod: la parte del tiempo real que se llevó, milisegundos por segundo y su llamada más larga (una larga es un congelamiento que se ve). Abrí una fila para ver los handlers que más cuestan, con su archivo y línea. **Dejar de medir** saca el medidor de la lista y de la partida; los últimos números quedan.
+En **Rendimiento** > **Tiempo por mod**: qué mods frenan el juego mientras jugás. **Medir** pone un mod chico del Studio (PZ Mod Studio Profiler) primero en tu lista de mods y en la partida que jugaste por última vez; abrí el juego (reinicialo si estaba abierto) y jugá unos minutos como siempre. Cada handler de eventos de cada mod lo mide el propio juego y se suma por mod: la parte del tiempo real que se llevó, milisegundos por segundo y su llamada más larga (una larga es un congelamiento que se ve). Abrí una fila para ver los handlers que más cuestan, con su archivo y línea. **Dejar de medir** saca el medidor de la lista y de la partida; los últimos números quedan.
 
 También cuentan las ventanas, barras y acciones con tiempo de un mod (como Clase:render, Clase:update); cada función cuenta solo su propio tiempo. El medidor le suma un poco de tiempo propio a cada handler, así que apagalo cuando termines.
+
+## Frames y tirones
+
+En **Rendimiento** > **Frames**: los tiempos de frame mientras jugás (fps, frames de más de 25, 50 y 100 ms), los chunks cargados y, por mod, los handlers que más tiempo trabaron un frame, con archivo y línea. Los cuenta el mismo medidor, así que tocá **Medir** primero y jugá unos minutos. **Volver a leer** lee los números más nuevos.
 
 ## Espacio en disco
 
@@ -88,9 +113,9 @@ En la pestaña **Disco**: cuánto ocupa cada mod instalado, contado por lo que s
 - **Sobrante**: una carpeta del Workshop de un ítem al que ya no estás suscrito; Steam a veces las deja.
 - **Tu subida**: un mod tuyo en `Zomboid/Workshop`. Se muestra, nunca se ofrece borrarlo.
 
-Marcá los que quieras sacar. Un ítem del Workshop se va con **Desuscribirse** (Steam tiene que estar abierto, y borra los archivos solo). Una carpeta local o un sobrante va con **Mandar a la Papelera**: se puede recuperar desde la Papelera de reciclaje. Antes de cada una se pide confirmación con los nombres. Con el juego abierto no se manda nada a la Papelera.
+Marcá los que quieras sacar. Un ítem del Workshop se va con **Desuscribirse de N ítems** (Steam tiene que estar abierto, y borra los archivos solo). Una carpeta local o un sobrante va con **Mandar N carpetas a la Papelera**: se puede recuperar desde la Papelera de reciclaje. Antes de cada una se pide confirmación con los nombres. Con el juego abierto no se manda nada a la Papelera.
 
-Abajo, **Carpetas del Studio y del juego**: cuánto ocupan las copias de partidas, las versiones guardadas de mods, la caché y los registros, con un botón para abrir cada carpeta. Desde ahí no se borra nada.
+Abajo, **Carpetas del juego y del Studio**: cuánto ocupan el juego, los mods del Workshop, los mods locales, las partidas, las copias de partidas, las versiones guardadas de mods, las copias de la lista de mods, la caché, las descargas a medio instalar y los registros, con un botón para abrir cada carpeta. Desde ahí no se borra nada.
 
 ## Para tener en cuenta
 

@@ -500,10 +500,6 @@ export const DeveloperModule: React.FC<DeveloperModuleProps> = ({ paths, mods, c
             </div>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">{t('developer.header.subtitle')}</p>
           </div>
-          <button type="button" onClick={() => openTab('new')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-700/70 bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-200 cursor-pointer shrink-0 self-start">
-            <FolderPlus className="w-3.5 h-3.5" aria-hidden="true" /> {t('developer.newMod.button')}
-          </button>
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-slate-950/60 p-3 flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-900/40 border border-emerald-800 flex items-center justify-center text-emerald-300 max-lg:hidden">

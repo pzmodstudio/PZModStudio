@@ -8,17 +8,15 @@ Tus mods del Workshop que se actualizaron desde la última vez que jugaste, y lo
   - **Desde que jugaste (fecha)**: la fecha es la última sesión que registró el mod Studio Link, o la última vez que Steam abrió el juego, la que sea más nueva.
   - **Últimos 7 días** y **Últimos 30 días**.
 - **Solo mods prendidos en mi lista**: viene marcado. Desmarcalo para ver también los mods actualizados que están instalados pero apagados.
-- La cantidad de mods, y cuántos **pueden romper partidas**.
+- La cantidad de mods.
 - La flecha circular de arriba a la derecha vuelve a leer todo.
-- Una tarjeta por cada ítem del Workshop. Una tarjeta con marco rojo tiene al menos una marca **Puede romper partidas**.
+- Una tarjeta por cada ítem del Workshop.
 
 ## Cómo leer una tarjeta
 
 - **Actualizado el (fecha)**: la versión que tenés en el disco se publicó después del comienzo del período.
 - **Actualización esperando en Steam**: Steam conoce una versión más nueva que todavía no bajó.
-- **Prendido en tu lista** o **No está prendido en tu lista**: si alguno de sus mods está prendido en la lista que lee el juego.
-- **Puede romper partidas**: una estimación, no un hecho. Aparece en un mod de mapa (sus celdas pueden cambiar debajo de una partida) o cuando las notas hablan de partidas nuevas, borrados, cosas sacadas o renombradas. Pasá el mouse para ver las palabras que la dispararon.
-- **Conviene leer**: las notas dicen que algo se sacó o se rehízo; vale la pena leerlas antes de cargar una partida.
+- Una etiqueta por cada perfil que tiene alguno de sus mods prendido, con la del perfil activo en verde (la lista que lee el juego). **Prendido en ningún perfil** cuando ninguno lo tiene prendido.
 - Debajo de las etiquetas, las notas de cada actualización, de la más nueva a la más vieja, con su fecha.
 - **Todas las notas en el Workshop** abre la página completa de notas del ítem en tu navegador.
 
@@ -45,13 +43,13 @@ Hacelo antes de que Steam baje la actualización: una vez que la baja, los archi
 
 Muchos mods traen un changelog en su propia carpeta (`ChangeLog.txt`, `CHANGELOG.md`). El Studio lo lee del disco, así que funciona sin internet y para mods que no están en el Workshop.
 
-- Una tarjeta muestra las entradas que todavía no leíste, en **Del changelog del propio mod**, al lado de las notas del Workshop. Palabras como "new save" o "removed" también levantan **Puede romper partidas** o **Conviene leer**.
-- **leído en el juego**: los avisos de mods del juego (el mod "Mod Update and Alert System") ya te mostraron la entrada más nueva, así que acá tampoco es nueva.
-- Los mods de `Zomboid/mods` (locales, o de Nexus) aparecen acá cuando su changelog tiene una entrada nueva, marcados como **mod local**. **Marcar como leído** saca la tarjeta hasta la próxima entrada. La primera vez que el Studio ve el changelog de un mod solo lo recuerda, sin mostrarlo.
+- Una tarjeta muestra las entradas que todavía no leíste, en **Del changelog del propio mod**, al lado de las notas del Workshop.
+- **leído en el juego**: los avisos de mods del juego ya te mostraron la entrada más nueva, así que acá tampoco es nueva.
+- Los mods de `Zomboid/mods` (locales, o de Nexus) prendidos en tu lista aparecen acá cuando su changelog tiene una entrada nueva, marcados como **mod local**. **Marcar como leído** saca la tarjeta hasta la próxima entrada. La primera vez que el Studio ve el changelog de un mod solo lo recuerda, sin mostrarlo.
 - **Apoyar al autor**: los links que el autor puso en el changelog (Ko-fi, Patreon, GitHub, Discord...) y los de apoyo de su descripción del Workshop (Ko-fi, Patreon, Buy Me a Coffee, PayPal, GitHub Sponsors, Liberapay, Boosty, Open Collective), que se abren en tu navegador.
 
 ## Bueno saber
 
-- Acá aparecen solo mods del Workshop; los que instalaste a mano no tienen historial del Workshop.
+- Los mods que instalaste a mano no tienen historial del Workshop: aparecen acá solo por su propio changelog.
 - El número de la barra lateral cuenta los mods de tu lista activa actualizados desde tu última sesión o que esperan en Steam.
 - "Desde que jugaste" depende de las sesiones que conoce el Studio: jugá con el mod Studio Link prendido para que las registre.

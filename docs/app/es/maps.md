@@ -13,10 +13,10 @@ El mundo está dividido en celdas; una celda son 256 x 256 casillas.
 
 ## Moverte por el mapa
 
-- Girá la **rueda** del mouse para acercar y alejar. El zoom se hace sobre el punto que está bajo el puntero.
+- Hacé clic en el mapa primero y después girá la **rueda** del mouse para acercar y alejar. El zoom se hace sobre el punto que está bajo el puntero. Hasta que hacés clic, la rueda mueve la página (**Hacé click en el mapa para hacer zoom con la rueda** te lo recuerda), y vuelve a moverla cuando el puntero sale del mapa.
 - **Mantené apretado el botón izquierdo y arrastrá** para mover el mapa.
 - **Doble clic** en el mapa, o el botón de su esquina superior derecha (**Ver el mapa entero**), para volver a verlo completo.
-- Dejá el puntero sobre una celda para ver su número, si es parte del mundo del juego y qué mapas la cubren.
+- Dejá el puntero sobre una celda para ver su número, si es parte del mundo del juego y qué mapas la cubren (**Más de un mapa acá** cuando la comparten dos).
 
 La imagen se arma con las imágenes de mapa que traen el juego y los mods. Mientras tanto ves **Armando el mapa…**. Un mod de mapa que no trae imagen igual muestra sus celdas como cuadrados de color.
 
@@ -32,14 +32,14 @@ Cada fila muestra el nombre del mapa, el mod del que viene, cuántas celdas tien
 
 - Destildá la casilla de una fila para ocultar ese mapa de la imagen. Esto solo cambia la vista, no tu lista de mods.
 - Apretá el ícono de lista de una fila (**Verlo en la lista de mods**) para saltar a ese mod en la Lista de mods, resaltado.
-- Marcá **Solo mods de mapa prendidos en mi lista** para ver solo los mapas que tenés activos.
+- Marcá **Solo mods de mapa prendidos en mi lista** para ver solo los mapas que tenés activos. También oculta los avisos y los otros mods de mapas que solo tienen que ver con mods apagados. La casilla se recuerda.
 - El botón de actualizar de arriba vuelve a leer los mapas. También se vuelven a leer cuando cambia tu lista de mods.
 
 ## Choques
 
 - Un aviso **rojo** significa que dos mods de mapa comparten celdas y los dos están prendidos: en tu próxima partida uno reemplaza al otro ahí. Debajo, cada mod tiene un botón para verlo en la Lista de mods y un botón **Desactivar** que lo apaga (después de preguntarte).
 - Un aviso **ámbar** significa que chocarían si los dos estuvieran prendidos.
-- Un aviso de definición de casillas significa que dos mods usan el mismo número de definición de casillas. Si los dos están activos, sus casillas se pisan y aparecen paredes, pisos o muebles equivocados. Dejá activo solo uno.
+- Un aviso de definición de casillas significa que dos mods usan el mismo número de definición de casillas. Si los dos están activos, sus casillas se pisan y aparecen paredes, pisos o muebles equivocados. Dejá activo solo uno. Debajo, cada mod tiene un botón para verlo en la Lista de mods, y **Desactivar** cuando hay más de uno activo.
 
 ## Otros mods de mapas
 

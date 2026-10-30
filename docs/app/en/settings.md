@@ -23,9 +23,10 @@ Without a valid game folder, screens such as the Mod Merger ask you to come here
 
 ## Warnings
 
-Under **System Notifications and Warnings** you can silence or bring back two messages:
+Under **System Notifications and Warnings** you can silence or bring back three messages:
 
-- **Warning when launching game without active merge package**: the warning before launching when no merge package is active.
+- **Warning at launch about unmerged mod conflicts**: the warning before launching when your active mods share files that no active merge package merges (or merges from older versions of the mods).
+- **Notice at launch about mods that define the same things**: the notice before launching when two active mods define the same item, recipe or text differently and no package decides which stays. Nothing breaks: the one loading last wins.
 - **Auto-Sort Dependencies Explanatory Message**: the explanation shown when you sort dependencies in the Mod List.
 
 Each has **Silence Warning** / **Restore Warning** (or **Silence Notification** / **Restore Notification**).
@@ -48,12 +49,16 @@ Pick **English** or **Español** under **Language**. A line missing in a languag
 ## Community files and GitHub token
 
 - **Download the community rules and mod index**: once a day the Studio fetches load-order rules, incompatible pairs and a registry per mod from its own GitHub repository. Auto-Sort, Mod Health, the Mod List and Browse Mods use them. Off, the last copy is kept and nothing is fetched. Nothing is ever sent. Its two buttons open the index's web page and its community lists.
-- **Check for new versions of PZ Mod Studio**: at start and every 6 hours while it is open, the Studio asks GitHub which is the latest release. When there is a newer one, a bar under the header says so. **Update now** downloads the new version, checks the project signed it (the signature of `SHA256SUMS.txt` and the zip's SHA-256), puts it in place of yours and restarts the Studio; if anything does not match, nothing changes. **Download** opens the release page in your browser, and **Not now** hides the notice until the next version. When the Studio is installed in a folder it cannot write to (Program Files, for every user), update it with the installer from the page. Nothing is installed unless you ask, and nothing is sent. **Check now** asks at once. Off, GitHub is not asked.
+- **Check for new versions of PZ Mod Studio**: at start and every 6 hours while it is open, the Studio asks GitHub which is the latest release. When there is a newer one, a bar under the header says so. **Update now** downloads the new version, checks the project signed it (the signature of `SHA256SUMS.txt` and the zip's SHA-256), puts it in place of yours and restarts the Studio; if anything does not match, nothing changes. **Download** opens the release page in your browser, and **Not now** hides the notice until the next version. When the Studio is installed in a folder it cannot write to (Program Files, for every user), update it with the installer from the page. Nothing is installed unless you ask, and nothing is sent. **Check now** asks at once. When GitHub does not answer, the Studio asks its itch.io page instead; then the notice offers only the download page, not **Update now**. Off, GitHub is not asked.
 - **GitHub, for "Propose" in one click**: optional. Connected, the "Propose to the community" buttons (rules, a mod's registry, a list) open the pull request for you. Without it, they open GitHub's page with everything filled in. Press **Connect with GitHub**: a code appears (already copied) and GitHub's page opens; type the code there and approve **PZ Mod Studio**, and the Studio is connected. Or press **Make a token**, make one on GitHub, paste it and press **Check and save**. The token is checked with GitHub and kept in Windows Credential Manager on this PC only; **Remove** deletes it.
 
 ## Diagnostics
 
 **Diagnostics** collects what a bug report needs: the Studio's and Windows' versions, the folders, the game build, the active profile, the Studio Link, Zombie Buddy, whether Steam is limiting requests, and the end of the Studio's log. **Copy diagnostics** copies it; your Windows user name and PC name are replaced with `<user>` and `<pc>`. Look before you paste it anywhere. **Open the logs folder** opens the folder with the Studio's own logs.
+
+## Translation
+
+Browse Mods has a Translate button on a mod's page and one for the summaries of a page of results; the Developer screen's translation drafts use the same service. Without a key, the free Google Translate service is used (it is unofficial and may stop one day). With a DeepL API key (free up to 500,000 characters a month), DeepL is used first: press **Get a DeepL key**, paste it and press **Check and save**. The key is kept in Windows Credential Manager on this PC only; **Remove** deletes it. Translations already made are kept on this PC, so a text is not sent again; **Delete them** clears them.
 
 ## Developer features
 

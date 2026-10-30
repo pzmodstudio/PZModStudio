@@ -16,7 +16,7 @@ A profile is a named mod list: which mods belong to it, which of them are on, an
    - **What is on now**: the mods switched on right now.
    - **Everything installed**: every mod the Studio found.
    - **Pick them**: a list with a search box and **All** / **None** buttons; tick the mods you want.
-   - **Nothing yet**: an empty profile. The Studio asks you to confirm, because switching to it turns every mod off. A **Find mods in Browse Mods** button takes you there to subscribe first.
+   - **Nothing yet**: an empty profile. The Studio asks you to confirm, because switching to it turns every mod off. While a profile is active, a **Find mods in Browse Mods** button takes you there to subscribe first.
 3. Press **Create New Profile**.
 
 The new profile is created and activated at once, and keeps the load order your list already has. If the Studio has not found any mods yet (game or Zomboid folder not set in App Settings), it refuses, so a profile does not switch all your mods off by mistake.
@@ -35,7 +35,7 @@ If a mod of the profile needs a Java agent in the game's launch file (Zombie Bud
 
 - The pencil button (**Rename this profile**) opens **Edit Mod Profile**: change the name, the description and the **Game build**. Leave the build on **As last played** or set **Build 41** / **Build 42**. With a build set, the Studio asks before launching this profile on another build, even before it has been played. Press **Save Changes**.
 - The share button saves the profile to a `.pzpack` file you can send to anyone. It holds only the mods that are on, in order, with their Workshop ids. Whoever opens it can subscribe to what they are missing.
-- The trash button deletes the profile after a confirmation. If the profile uses patch packages from the Mod Merger (`Z_PZModStudio_...`), a second question asks whether to delete them too; **Cancel** keeps them.
+- The trash button deletes the profile after a confirmation. If some of its Workshop items are used by no other profile, the confirmation is a window that lists them (**Only this profile uses**), ticked, with **Tick all** / **Tick none**. **Delete and unsubscribe** deletes the profile and unsubscribes from the ticked items (Steam must be running); **Delete profile only** keeps them. Items another profile uses, and local mods, are never touched. If the profile uses patch packages from the Mod Merger (`Z_PZModStudio_...`), a second question asks whether to delete them too; **Cancel** keeps them.
 
 ## Good to know
 

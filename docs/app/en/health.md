@@ -7,13 +7,14 @@ Mod Health checks your active mods the way the game reads them, and lists every 
 - At the top: your **Game build** and how many mods are active.
 - The **community** button (for example **community: 40 rules, 120 mods ↻**): what the shared community files add to the check. Click it to download them now. **Community index** beside it opens the index's web page: every mod's known issues and their fixes.
 - **Check again** runs the check again. It also runs by itself when your list changes.
-- Five tabs, each with how many rows it has:
+- Six tabs, the first four with how many rows they have:
   - **Problems**: what breaks the game or will (missing or switched-off requirements, load order, mods your build cannot load, incompatible pairs). **Fix N problem(s) automatically** is here.
-  - **Conflicts**: two mods giving the same file, item, recipe or text; the game uses one, and which one is your call. **Merge N files automatically** is here.
+  - **Conflicts**: two mods giving the same file, item, recipe or text; the game uses one, and which one is your call. **Merge N files automatically** is here. Rows are sorted into **Not settled**, **Settled before a change** and **Settled**; the tab's count leaves out the settled ones.
   - **Good to know**: nothing to fix (ignored copies, mods updated since you last played, community notes).
-  - **Performance**: game time per mod (below).
+  - **Security**: what a mod could do beyond modding (below).
+  - **Performance**: memory, game start, time per mod and frames (below).
   - **Disk**: how much each mod takes and which ones can go (below).
-- Each row shows the mod, what is wrong, a short code (like `missing_dependency`) and its fix buttons on the right. The screen remembers the last tab; a problem chip in the Mod List opens the tab that has it.
+- Each row shows the mod, what is wrong, a short code (like `missing_dependency`) and its fix buttons on the right. **Copy for an assistant** copies the row with a question, to paste into any chat assistant; nothing is sent from the Studio. The screen remembers the last tab; a problem chip in the Mod List opens the tab that has it.
 
 If nothing is wrong, you see **No problems found in your N active mods.**
 
@@ -22,6 +23,8 @@ If nothing is wrong, you see **No problems found in your N active mods.**
 - **Errors**: the game will not load the mod, or it loads without something it needs. Fix these first.
 - **Warnings**: the game loads, but something is likely to go wrong: wrong order, a file only one mod gets to use, an update not downloaded yet, a mod filling the console.
 - **Info**: worth knowing, nothing is broken: two mods define the same thing, a compatible copy is in use, mods updated since you last played.
+
+Each section can be folded by clicking its title.
 
 ## The problems it finds
 
@@ -41,6 +44,9 @@ If nothing is wrong, you see **No problems found in your N active mods.**
 - `user_rule_order`: one of your own load-order rules is broken.
 - `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: what the community files say about your mods.
 - `package_built_for_other_list`: your Studio package was built with a different mod list than this profile.
+- `package_file_stale`: your package carries an old copy of a mod's file, and the mod has changed that file since. The game reads the old copy.
+- `package_file_differs`, `package_file_orphan`: your package carries a file that only one mod in the list ships, or that no mod in the list ships. Take it out if you no longer need it.
+- `security_executable`, `security_script`, `security_java`, `security_lua`: what a mod could do beyond modding, on the **Security** tab (below).
 - `compatible_copy`, `shadowed_copy`, `updated_since_last_play`: notes about which copy of a mod is used and what changed.
 
 Rows about the same definition can be opened with **By file** to see each mod's file. Click a definition there to open it in the Merger.
@@ -51,9 +57,10 @@ Rows about the same definition can be opened with **By file** to see each mod's 
 - **Move X before Y**: changes the load order. On a "your call" row (two mods define the same thing) it reads **Use Y's version instead**.
 - **Remove X from the list**: takes an entry out of the list.
 - **Search Workshop for "X"** and **Open Workshop page**: open the Steam Workshop in your browser.
-- **Make compatible copy**: makes an adapted copy of a Workshop mod in `Zomboid/mods` for your build. The result shows what it changed and what may still break. Start the game from the Studio so it uses the copy. **Remove compatible copy** goes back to the original.
+- **Make compatible copy**: makes an adapted copy of a Workshop mod in `Zomboid/mods` for your build. The result shows what it changed and what may still break. Start the game from the Studio so it uses the copy. **Back to the original** removes the copy.
 - **Keep the version you have**: saves the mod as it is today, before a Workshop update lands. You can put it back from the Mod List (right-click, Kept versions).
 - **Merge automatically** and **Open in Merger**: settle a file or definition conflict in your patch package, which loads last.
+- **Take out of the package**: takes a file out of your patch package, after asking; the game reads the mod's own file again on its next launch.
 - **Switch the shim's X patch on**: turns on a patch of the Build 42 shim that a known issue needs.
 
 A green line confirms each change, with **Saved to your mod list.**
@@ -67,17 +74,35 @@ A green line confirms each change, with **Saved to your mod list.**
 
 The Studio downloads shared rules once a day from its own repository: load-order rules, pairs of mods that do not go together, and an index of known issues with their fix. They show up as `community_*` rows. You can turn the daily download off in App Settings; then the last copy is used.
 
+## Security
+
+The **Security** tab lists what a mod could do beyond modding, read from its files: program files or scripts it ships, Java that can run programs or reach the internet, and Lua that calls what the game's own scripts never call. None of it is a verdict: many mods do these things for good reasons. Most rows are Info; a Warning marks a pattern no mod has a good reason for. A Workshop mod's row has **Open Workshop page**.
+
+## Performance
+
+The **Performance** tab has four parts: **Memory**, **Boot**, **Time per mod** and **Frames**. It remembers the last one you opened.
+
 ## Game memory
 
-In the **Performance** tab: how much memory the game's Java may use (`-Xmx` in `ProjectZomboid64.json`), out of the PC's, with a suggestion for your active mods and a warning when a recent session ran out of memory. Pick a value (2 GB up to half the PC's memory) and **Apply** with the game closed; it takes effect on the next start, and a copy of the file before the change goes to `PZModStudio_Backups`.
+In **Performance** > **Memory**: how much memory the game's Java may use (`-Xmx` in `ProjectZomboid64.json`), out of the PC's, with a suggestion for your active mods and a warning when a recent session ran out of memory. Pick a value (2 GB up to half the PC's memory) and **Apply** with the game closed; it takes effect on the next start, and a copy of the file before the change goes to `PZModStudio_Backups`.
 
 Each profile keeps its own value: switching a profile on gives the game its memory. A profile without one uses the last value chosen. If a game update puts its own value back, the Studio restores yours the next time it starts the game.
 
+When Windows itself ran out of memory with the game open in the last 14 days, it is listed here too, with what helps (a bigger page file, closing other big programs). That is not the game's Java memory, so raising the value above does not fix it.
+
+## Game start
+
+In **Performance** > **Boot**: how long the game took to reach the main menu, stage by stage (mods' files, scripts, Lua, models and so on), from the log every launch leaves. Each start is set beside your usual start with about as many mods; a stage in amber took much longer than usual. Pick an earlier start to see it.
+
 ## Game time per mod
 
-In the **Performance** tab: which mods slow the game down while you play. **Measure** puts a small Studio mod (PZ Mod Studio Profiler) first in your mod list and in the save you played last; start the game (restart it if it was open) and play a few minutes as usual. Every event handler of every mod is timed by the game and added up per mod: the share of real time it took, milliseconds per second, and its longest single call (a long one is a freeze you see). Open a row for the handlers that cost the most, with their file and line. **Stop measuring** takes the profiler out of the list and the save again; the last numbers stay.
+In **Performance** > **Time per mod**: which mods slow the game down while you play. **Measure** puts a small Studio mod (PZ Mod Studio Profiler) first in your mod list and in the save you played last; start the game (restart it if it was open) and play a few minutes as usual. Every event handler of every mod is timed by the game and added up per mod: the share of real time it took, milliseconds per second, and its longest single call (a long one is a freeze you see). Open a row for the handlers that cost the most, with their file and line. **Stop measuring** takes the profiler out of the list and the save again; the last numbers stay.
 
 The windows, bars and timed actions of a mod count too (as Class:render, Class:update); each function counts only its own time. The profiler adds a little time of its own to every handler, so stop it when you are done.
+
+## Frames and hitches
+
+In **Performance** > **Frames**: frame times while you play (fps, frames over 25, 50 and 100 ms), chunks loaded and, per mod, the handlers that held a frame the longest, with file and line. The same profiler counts them, so press **Measure** first and play a few minutes. **Read again** reads the newest numbers.
 
 ## Disk space
 
@@ -88,9 +113,9 @@ On the **Disk** tab: how much each installed mod takes, counted by what goes as 
 - **Leftover**: a Workshop folder of an item you are no longer subscribed to; Steam sometimes leaves them.
 - **Your upload**: a mod of yours in `Zomboid/Workshop`. Shown, never offered for removal.
 
-Tick the ones you want gone. A Workshop item goes with **Unsubscribe** (Steam must be running, and deletes the files itself). A local folder or a leftover goes with **Send to the Recycle Bin**: it can be restored from the Recycle Bin. Each one asks first, with the names. Nothing goes to the Recycle Bin while the game is open.
+Tick the ones you want gone. A Workshop item goes with **Unsubscribe from N items** (Steam must be running, and deletes the files itself). A local folder or a leftover goes with **Send N folders to the Recycle Bin**: it can be restored from the Recycle Bin. Each one asks first, with the names. Nothing goes to the Recycle Bin while the game is open.
 
-Below, **Studio and game folders**: how much save backups, kept mod versions, the cache and the logs take, with a button to open each folder. Nothing is deleted from there.
+Below, **Game and Studio folders**: how much the game, the Workshop mods, local mods, saves, save backups, kept mod versions, mod list backups, the cache, half-installed downloads and the logs take, with a button to open each folder. Nothing is deleted from there.
 
 ## Good to know
 

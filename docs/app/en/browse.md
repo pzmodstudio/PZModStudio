@@ -6,15 +6,16 @@ Browse Mods is where you find and get new mods: search the Steam Workshop and Ne
 
 - Four tabs at the top: **Steam Workshop**, **Nexus Mods**, **My mods** (with how many you have) and **My lists**. Each tab keeps its page and filters when you switch away.
 - On the right, the install buttons: **Install .zip / .7z**, **Folder** and **From a link**.
-- Each mod is a card with its picture, build chips (like **Build 42**), whether it is **Installed**, and chips such as **Update waiting** or **New since last play**. Rest the pointer on a card to see more; click it to open its detail view; right-click it for a menu.
+- Each mod is a card with its picture, build chips (like **B42**, or **build ?** when the page does not say), whether it is **Installed**, and chips such as **Update waiting** or **New since last play**. Rest the pointer on a card to see more; click it to open its detail view; right-click it for a menu (subscribe, its page, copy its link or id, favorites, lists and profiles).
 
 ## Steam Workshop
 
 - Type in the search box and press **Search**. You can also paste one or more Workshop links, ids or a collection link: the Studio shows exactly those items and how many you do not have yet.
 - **Sort**: **Most Popular**, **Top Rated All Time**, **Most Recent** or **Last Updated**. With Most Popular you also pick the period (**Today**, **One Week**, **Three Months**, **One Year**). A text search is always sorted by relevance.
 - **Game build**: **Build 42**, **Build 41** or **Any build**.
-- **Mods** or **Collections**: what to list. With Mods you can also pick a category.
+- **Mods** or **Collections**: what to list. With Mods you can also pick a category; the build filter is only for Mods.
 - **Web** opens the Workshop in your browser.
+- **Translate titles and summaries** shows the results' titles and summaries in the app's language. Nothing is sent to the translation service until you press it.
 
 If Steam refuses the search, a box explains why. When Steam is just busy, press **Try again**. Otherwise you can paste a personal Steam Web API key and press **Check and save**; it is kept in Windows Credential Manager on this PC only, and **Remove it** deletes it. Pasting links works without a key.
 
@@ -26,18 +27,21 @@ Nexus downloads happen on the Nexus site. In a Nexus mod's detail view, **Downlo
 
 ## My mods
 
-Everything you have installed: Workshop subscriptions, Nexus mods and local mods. Filter by name or id, choose a **Source**, sort by **Recently updated** or **Name**, and use the chips **New since last play** and **Update waiting in Steam** to see only those. Right-click a Workshop mod to **Unsubscribe**.
+Everything you have installed: Workshop subscriptions, Nexus mods and local mods. Filter by name or id, choose a **Source**, sort by **Recently updated** or **Name**, pick a category, and use the chips **New since last play** and **Update waiting in Steam** to see only those. Right-click a Workshop mod to **Unsubscribe**.
 
 ## The detail view
 
 Clicking a card opens a large view with pictures, the description, info and requirements. **Back** returns to the previous one, and Esc or the X closes it.
 
-- **Subscribe** / **Unsubscribe**: done through the Steam client, so Steam must be running. Steam downloads the files; the mod appears in your Mod List when it finishes. Without Steam, the button reads **Open page to subscribe**.
+- **Subscribe** / **Unsubscribe**: done through the Steam client, so Steam must be running. Steam downloads the files; the mod appears in your Mod List when it finishes. Without Steam there is no Subscribe button, and **Open Workshop page** reads **Open page to subscribe**.
 - **Required items**: what the mod needs on the Workshop, marked **Installed** or **Missing**. Click one to open it.
 - **Community index**: what the community index knows about the mod: builds it runs on, mods it does not go with, known issues and whether the Studio fixes them, and a newer version for your build if there is one.
 - The star in the header adds it to your **Favorites**.
+- **Translate to ...** puts the description in the app's language; **Show original** goes back to it. The text goes to a translation service only when you press it.
+- A video among the pictures plays in the view. If its author does not allow that, **Watch on YouTube (browser)** opens it.
+- **Support the author** lists the links the author gave for that, when there are any.
 
-For a collection you get **Subscribe to the N missing**, **Make a profile from this** (a profile with the mods of the collection you have installed), and the list of what you are missing.
+For a collection you get **Subscribe to the N missing** (or **Unsubscribe from all** when you have them all), **Make a profile from this** (a profile with the mods of the collection you have installed), and the list of what you are missing.
 
 ## Subscribing to what a mod needs
 
@@ -56,7 +60,7 @@ Your own lists of mods, kept on this PC. **Favorites** is always there.
 
 ## Lists from the community
 
-**From the community** (beside **My lists**) shows lists other players shared. Each one was read by a person before it was published in the Studio's repository; the Studio fetches them once a day (the arrows fetch them now). **All lists on the web** opens the community page with every list and its mods.
+**From the community** (beside **My lists**) shows lists other players shared. Each one was read by a person before it was published in the Studio's repository; the Studio fetches them once a day (the arrows fetch them now). **All lists on the web** opens the community page with every list and its mods. The search box keeps the lists whose name, author, description or mods match what you type.
 
 - Each card says who made it, how many mods it has and how many of its Workshop mods you already have.
 - **Copy to my lists** makes it one of your lists, named with its author. Nothing is installed: from there, **Subscribe to all missing** and **Make a profile** work as with any list.
