@@ -88,8 +88,24 @@
           "date": "2026-10-18",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
           "status": "verified"
+        },
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "note": "The copy changed: Rewrote 5 item(s) in 1 script file(s) from the Build 41 \"Type =\" field to Build 42's \"ItemType =\" with its namespaced value (Clothing -> base:clothing).; Rewrote 5 require path(s) Build 42 moved, in 5 file(s): ISUI/ISVehicleMechanics -> Vehicles/ISUI/ISVehicleMechanics, ISUnlockVehicleDoor -> Vehicles/TimedActions/ISUnlockVehicleDoor, Vehicle/ISVehiclePartMenu -> Vehicles/ISUI/ISVehiclePartMenu, Vehicle/Vehicles -> Vehicles/Vehicles, Vehicles/ISUI/ISVehicleTrailerUtils -> Vehicles/ISVehicleTrailerUtils.",
+          "source": "PZ Mod Studio, the compatible copy it made",
+          "status": "verified",
+          "title": "Needed a compatible copy on this build",
+          "seen_by": 1
         }
-      ]
+      ],
+      "authors": [],
+      "requires": [],
+      "incompatible": [],
+      "load_after": []
     },
     "ExhaustivePowerRework": {
       "id": "ExhaustivePowerRework",
@@ -315,8 +331,26 @@
           "date": "2026-10-18",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
           "status": "verified"
+        },
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): shared/IDNALUtils -> IDNALUtils.",
+          "source": "PZ Mod Studio, the compatible copy it made",
+          "status": "verified",
+          "title": "Needed a compatible copy on this build",
+          "seen_by": 1
         }
-      ]
+      ],
+      "authors": [
+        "Fingbel"
+      ],
+      "requires": [],
+      "incompatible": [],
+      "load_after": []
     },
     "OCDInventory": {
       "id": "OCDInventory",
@@ -338,6 +372,34 @@
           "status": "verified"
         }
       ]
+    },
+    "OneBuildingOneKey": {
+      "id": "OneBuildingOneKey",
+      "authors": [
+        "CreamPie"
+      ],
+      "builds": [
+        "42"
+      ],
+      "requires": [],
+      "incompatible": [],
+      "load_after": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "note": "The copy changed: versionMax=42.20.99 -> 42.21 (the game only compares major.minor, so 42.20.99 blocked build 42.21).",
+          "source": "PZ Mod Studio, the compatible copy it made",
+          "status": "verified",
+          "title": "Needed a compatible copy on this build",
+          "seen_by": 1
+        }
+      ],
+      "name": "One Building, One Key",
+      "workshop_id": "3784264347"
     },
     "ReactiveSE": {
       "authors": [
