@@ -7,6 +7,9 @@
    "version": null,
    "date": "2026-10-30",
    "notes": [
+    "Shim: Core:getKey(nil) answers nil without asking Java, which logged a NullPointerException each time (Fancy Handwork's key handler, hundreds a session); checked in the game; the index's Fancy Handwork entry says so",
+    "Link 1.18.3: the game's tooltips without the ghost box at the top-left (tick boxes, lists, combos... set their tooltip at a control-relative spot every frame, and it was drawn there before moving to the mouse); seen and checked in the game on sandbox options",
+    "Monitor: every Translator exception is the bare-% card (MissingFormatArgument and FormatFlagsConversionMismatch too), one card per mod whichever it threw; the MCP diagnostics fold per mod as the Monitor does",
     "Mod List: chips laid right to left so the origin keeps the last column and the same chips line up; the warning count and In the index give way once the index knows the mod",
     "Settings: Fetch now for the community files; the index and lists links open the site's mods page, not its home (also on the Workshop page)",
     "Share: a registry the index's own check accepts (a compatible copy with no file named is fix none, mod.info incompatibilities say their source); the registries merged tonight brought in",
