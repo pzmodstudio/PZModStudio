@@ -7,6 +7,12 @@
  *   node scripts/community-index.js build   -- check, then write community/index.json
  *
  * A registry's file name is its id with "/" written as "__" (dSAG's id is "2858201402/dailystatisticsandgains").
+ *
+ * Reports: what one player's PZ Mod Studio saw of a mod, in
+ * community/reports/<registry file name without .json>/<GitHub name>.json, shaped like a registry.
+ * Each player writes only their own file, so two players' pull requests never touch the same one.
+ * The build folds every report into its mod's entry: lists joined, each issue once, with
+ * `seen_by` (how many players saw it).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +22,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..', 'community');
 const DIR = path.join(ROOT, 'index');
 const OUT = path.join(ROOT, 'index.json');
+const REPORTS = path.join(ROOT, 'reports');
+const REPORTER_FILE = /^[A-Za-z0-9_-]{1,64}\.json$/;
 
 const STATUSES = new Set(['verified', 'reported']);
 const FIX_KINDS = new Set(['shim_patch', 'require_path', 'compatible_copy', 'none']);
@@ -38,7 +46,7 @@ function shimPatchNames() {
   return names;
 }
 
-function problemsOf(registry, fileName, patches) {
+function problemsOf(registry, fileName, patches, reportDir) {
   const p = [];
   const str = (v) => typeof v === 'string' && v.trim().length > 0;
   const seen = (what, e) => {
@@ -48,7 +56,11 @@ function problemsOf(registry, fileName, patches) {
     if (!str(e.source) && !str(e.build)) p.push(`${what}: say where it was seen (source) or on which build`);
   };
   if (!str(registry.id)) p.push('id is missing');
-  else if (fileName !== registry.id.replace(/\//g, '__') + '.json') p.push(`file name must be ${registry.id.replace(/\//g, '__')}.json`);
+  else if (reportDir !== undefined) {
+    const dir = registry.id.replace(/\//g, '__');
+    if (reportDir !== dir) p.push(`a report on ${registry.id} goes in reports/${dir}/`);
+    if (!REPORTER_FILE.test(fileName)) p.push('a report is named after its reporter: letters, digits, - and _ (their GitHub name)');
+  } else if (fileName !== registry.id.replace(/\//g, '__') + '.json') p.push(`file name must be ${registry.id.replace(/\//g, '__')}.json`);
   if (registry.name !== undefined && !str(registry.name)) p.push('name must be text');
   if (registry.workshop_id !== undefined && !/^\d+$/.test(registry.workshop_id)) p.push('workshop_id must be the number in the Workshop URL');
   for (const key of ['authors', 'builds', 'requires']) {
@@ -106,6 +118,66 @@ function readAll() {
   return { mods, errors };
 }
 
+/** One issue without its count or date, told apart as the app does (src/utils/errorShape.ts, factKey). */
+const errorShape = (line) => line.replace(/^(ERROR|WARN)\s*:\s*\w+\s*f:\d+\s*(at [\w.]+\s*)?>?\s*/, '').replace(/\d+/g, 'N').trim().slice(0, 90);
+const issueKey = (i) => `${(i.fix ?? { kind: 'none' }).kind}|${i.log ? errorShape(i.log) : String(i.title).replace(/\d+/g, 'N')}`;
+
+function readReports(patches) {
+  const reports = [];
+  const errors = [];
+  if (!fs.existsSync(REPORTS)) return { reports, errors };
+  for (const dir of fs.readdirSync(REPORTS).sort()) {
+    const full = path.join(REPORTS, dir);
+    if (!fs.statSync(full).isDirectory()) continue;
+    for (const fileName of fs.readdirSync(full).sort()) {
+      if (!fileName.endsWith('.json')) continue;
+      const where = `reports/${dir}/${fileName}`;
+      let report;
+      try {
+        report = JSON.parse(fs.readFileSync(path.join(full, fileName), 'utf8'));
+      } catch (e) {
+        errors.push(`${where}: not JSON (${e.message})`);
+        continue;
+      }
+      for (const problem of problemsOf(report, fileName, patches, dir)) errors.push(`${where}: ${problem}`);
+      reports.push({ reporter: fileName.slice(0, -5).toLowerCase(), report });
+    }
+  }
+  return { reports, errors };
+}
+
+/** Every report into its mod's entry, which a report makes when the mod has no registry yet. */
+function foldReports(mods, reports) {
+  const union = (a = [], b = []) => [...new Set([...a, ...b])];
+  const byId = (a = [], b = []) => [...a, ...b.filter((r) => !a.some((x) => x.id === r.id))];
+  const groups = new Map();
+  for (const { reporter, report } of reports) {
+    const m = (mods[report.id] ??= { id: report.id, authors: [], builds: [], requires: [], incompatible: [], load_after: [], issues: [] });
+    for (const key of ['name', 'workshop_id']) if (!m[key] && report[key]) m[key] = report[key];
+    for (const key of ['authors', 'builds', 'requires']) m[key] = union(m[key], report[key]);
+    for (const key of ['incompatible', 'load_after']) m[key] = byId(m[key], report[key]);
+    for (const issue of report.issues ?? []) {
+      const key = report.id + '\n' + issueKey(issue);
+      const g = groups.get(key) ?? { id: report.id, issues: [], reporters: new Set() };
+      g.issues.push(issue);
+      g.reporters.add(reporter);
+      groups.set(key, g);
+    }
+  }
+  for (const [key, g] of groups) {
+    const m = mods[g.id];
+    const latest = g.issues.reduce((a, b) => ((b.date ?? '') > (a.date ?? '') ? b : a));
+    const builds = union([], g.issues.map((i) => i.build).filter(Boolean)).sort();
+    const known = (m.issues ?? []).find((i) => m.id + '\n' + issueKey(i) === key);
+    if (known) {
+      // Written in the registry, and seen by these players too.
+      known.seen_by = g.reporters.size + 1;
+      continue;
+    }
+    m.issues = [...(m.issues ?? []), { ...latest, seen_by: g.reporters.size, ...(builds.length > 1 ? { builds_seen: builds } : {}) }];
+  }
+}
+
 function main() {
   const mode = process.argv[2];
   if (mode !== 'check' && mode !== 'build') {
@@ -113,16 +185,20 @@ function main() {
     process.exit(2);
   }
   const { mods, errors } = readAll();
+  const reported = readReports(shimPatchNames());
+  errors.push(...reported.errors);
   if (errors.length) {
     for (const e of errors) console.error(`  ${e}`);
-    console.error(`${errors.length} problem(s) in community/index.`);
+    console.error(`${errors.length} problem(s) in community/index and community/reports.`);
     process.exit(1);
   }
-  const ids = Object.keys(mods);
-  console.log(`${ids.length} registr${ids.length === 1 ? 'y' : 'ies'} well formed.`);
+  const registries = Object.keys(mods).length;
+  foldReports(mods, reported.reports);
+  const ids = Object.keys(mods).sort();
+  console.log(`${registries} registr${registries === 1 ? 'y' : 'ies'} and ${reported.reports.length} report(s) well formed; ${ids.length} mod(s) in the index.`);
   if (mode === 'build') {
     const dates = ids.flatMap((id) => [...(mods[id].issues ?? []), ...(mods[id].incompatible ?? []), ...(mods[id].load_after ?? [])].map((e) => e.date).filter(Boolean));
-    const index = { version: 1, updated: dates.sort().pop() ?? null, mods };
+    const index = { version: 1, updated: dates.sort().pop() ?? null, mods: Object.fromEntries(ids.map((id) => [id, mods[id]])) };
     fs.writeFileSync(OUT, JSON.stringify(index, null, 2) + '\n');
     console.log(`Wrote ${path.relative(process.cwd(), OUT)}.`);
   }

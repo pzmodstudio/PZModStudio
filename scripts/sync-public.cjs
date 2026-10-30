@@ -20,7 +20,7 @@ const EXCLUDE = /^(private\/|publish-repo\/|docs\/(RESEARCH|COMPETITORS|AUDIT|RO
 
 // Contributions merged on GitHub (a registry, a list, a rule) come into the project first: the mirror
 // below deletes whatever the project does not have, so without this a merged proposal would vanish.
-// Only community/index/, community/lists/ and community/rules.json are taken, and only when the
+// Only community/index/, community/reports/, community/lists/ and community/rules.json are taken, and only when the
 // project's own copy has not changed since the two sides last agreed; anything else is reported.
 try {
   run(dest, 'fetch', '-q', 'origin', 'main');
@@ -30,7 +30,7 @@ try {
   for (const f of changed) {
     const theirs = show('origin/main', f);
     const target = path.join(root, f);
-    if (!/^community\/(index\/|lists\/|rules\.json$)/.test(f)) { console.log('Changed on GitHub, not imported: ' + f); continue; }
+    if (!/^community\/(index\/|reports\/|lists\/|rules\.json$)/.test(f)) { console.log('Changed on GitHub, not imported: ' + f); continue; }
     if (theirs === null) { console.log('Removed on GitHub, left in the project: ' + f); continue; }
     const mine = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null;
     const before = show(base, f);

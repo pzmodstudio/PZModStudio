@@ -36,6 +36,16 @@ Open a pull request that edits `rules.json`. Every rule needs where it was seen:
 
 Keep `updated` as the date of the change.
 
+## Players' reports (`reports/`)
+
+What one player's PZ Mod Studio saw of a mod (Mod List, right-click, *Share what the Studio saw of
+this mod*): `reports/<mod id>/<GitHub name>.json`, shaped like a registry below. Each player writes
+only their own file, so two players' pull requests on one mod never clash, and sharing again
+updates the same file. The build folds every report into its mod's entry in `index.json`: lists
+joined, and each issue once (the same log line, numbers aside, is one issue) with `seen_by`, how
+many players reported it, and `builds_seen` when they saw it on more than one build. A mod with
+reports and no registry gets an entry of its own.
+
 ## The mod index (`index/`)
 
 One file per mod, `index/<mod id>.json` (a `/` in the id is written `__`), and `index.json` built

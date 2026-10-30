@@ -1,0 +1,27 @@
+{
+  "id": "ReactiveSE",
+  "name": "Reactive Sound Events",
+  "workshop_id": "3656190498",
+  "authors": [
+    "JulianFVM"
+  ],
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap.",
+      "source": "PZ Mod Studio, the compatible copy it made",
+      "status": "verified",
+      "title": "Needed a compatible copy on this build"
+    }
+  ]
+}

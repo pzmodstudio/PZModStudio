@@ -7,19 +7,7 @@
   ],
   "id": "ItemDetailsPanel",
   "incompatible": [],
-  "issues": [
-    {
-      "build": "42.21",
-      "date": "2026-10-30",
-      "fix": {
-        "kind": "none"
-      },
-      "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% o' at Formatter.format(null:-1). Message: ERROR:",
-      "source": "PZ Mod Studio, from the game's console.txt",
-      "status": "verified",
-      "title": "1 warning in the last session (the game carried on)"
-    }
-  ],
+  "issues": [],
   "load_after": [],
   "name": "Item Details Panel",
   "requires": [],

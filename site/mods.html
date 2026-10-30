@@ -70,7 +70,9 @@
   const mods = Object.values(idx.json.mods || {}).sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const nameOf = (id) => (idx.json.mods[id] && idx.json.mods[id].name) || id;
-  const seen = (e) => (e.status === 'verified' ? 'verified' : 'reported') + (e.build ? ' on ' + e.build : '') + (e.date ? ', ' + e.date : '');
+  // How many players' reports carry it (the index folds community/reports into each mod).
+  const seen = (e) => (e.seen_by > 1 ? 'seen by ' + e.seen_by + ' players' : e.seen_by === 1 ? 'seen by 1 player' : e.status === 'verified' ? 'verified' : 'reported')
+    + (e.builds_seen ? ' on ' + e.builds_seen.join(', ') : e.build ? ' on ' + e.build : '') + (e.date ? ', last ' + e.date : '');
   const fixText = (f) => !f || f.kind === 'none' ? 'nothing to fix, or no fix known yet' : f.kind === 'shim_patch' ? "the Studio's shim patches it (" + f.name + ')' : f.kind === 'require_path' ? 'a compatible copy rewrites the require (' + f.from + ' → ' + f.to + '), or Fix the path in the Monitor Center' : 'a compatible copy fixes it';
 
   const card = (m) => {
