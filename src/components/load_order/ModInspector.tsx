@@ -229,7 +229,7 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
 
   return (
     <div className="col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow p-4">
-      <div className="flex-1 flex flex-col overflow-y-auto space-y-4 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
         <div className="border-b border-slate-800 pb-3 space-y-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
