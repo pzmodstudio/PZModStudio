@@ -88,24 +88,8 @@
           "date": "2026-10-18",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
           "status": "verified"
-        },
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "note": "The copy changed: Rewrote 5 item(s) in 1 script file(s) from the Build 41 \"Type =\" field to Build 42's \"ItemType =\" with its namespaced value (Clothing -> base:clothing).; Rewrote 5 require path(s) Build 42 moved, in 5 file(s): ISUI/ISVehicleMechanics -> Vehicles/ISUI/ISVehicleMechanics, ISUnlockVehicleDoor -> Vehicles/TimedActions/ISUnlockVehicleDoor, Vehicle/ISVehiclePartMenu -> Vehicles/ISUI/ISVehiclePartMenu, Vehicle/Vehicles -> Vehicles/Vehicles, Vehicles/ISUI/ISVehicleTrailerUtils -> Vehicles/ISVehicleTrailerUtils.",
-          "source": "PZ Mod Studio, the compatible copy it made",
-          "status": "verified",
-          "title": "Needed a compatible copy on this build",
-          "seen_by": 1
         }
-      ],
-      "authors": [],
-      "requires": [],
-      "incompatible": [],
-      "load_after": []
+      ]
     },
     "ExhaustivePowerRework": {
       "id": "ExhaustivePowerRework",
@@ -171,20 +155,7 @@
       ],
       "id": "ImmersiveSnowWeatherPatch",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.FormatFlagsConversionMismatchException: Conversion = s, Flags =   at Formatter$FormatSpecifier.failM",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "6 warnings in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Whiteout - [Compatibility & Gameplay Patch]",
       "requires": [
@@ -205,20 +176,7 @@
       ],
       "id": "InteractiveTailoring",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = '.' at Formatter.parse(null:-1). Message: ERROR: Form",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "1 warning in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Interactive Tailoring",
       "requires": [
@@ -236,20 +194,7 @@
       ],
       "id": "ItemDetailsPanel",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% o' at Formatter.format(null:-1). Message: ERROR:",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "1 warning in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Item Details Panel",
       "requires": [],
@@ -302,30 +247,6 @@
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
           "status": "verified",
           "title": "ISPathFindAction is nil when unlocking a vehicle"
-        },
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = 'l' at Formatter$FormatSpecifier.conversion(null:-1).",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "7 warnings in the last session (the game carried on)",
-          "seen_by": 1
-        },
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): TimedActions/ISPathFindAction -> Vehicles/TimedActions/ISPathFindAction.",
-          "source": "PZ Mod Studio, the compatible copy it made",
-          "status": "verified",
-          "title": "Needed a compatible copy on this build",
-          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -357,26 +278,8 @@
           "date": "2026-10-18",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
           "status": "verified"
-        },
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): shared/IDNALUtils -> IDNALUtils.",
-          "source": "PZ Mod Studio, the compatible copy it made",
-          "status": "verified",
-          "title": "Needed a compatible copy on this build",
-          "seen_by": 1
         }
-      ],
-      "authors": [
-        "Fingbel"
-      ],
-      "requires": [],
-      "incompatible": [],
-      "load_after": []
+      ]
     },
     "OCDInventory": {
       "id": "OCDInventory",
@@ -398,34 +301,6 @@
           "status": "verified"
         }
       ]
-    },
-    "OneBuildingOneKey": {
-      "id": "OneBuildingOneKey",
-      "authors": [
-        "CreamPie"
-      ],
-      "builds": [
-        "42"
-      ],
-      "requires": [],
-      "incompatible": [],
-      "load_after": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "note": "The copy changed: versionMax=42.20.99 -> 42.21 (the game only compares major.minor, so 42.20.99 blocked build 42.21).",
-          "source": "PZ Mod Studio, the compatible copy it made",
-          "status": "verified",
-          "title": "Needed a compatible copy on this build",
-          "seen_by": 1
-        }
-      ],
-      "name": "One Building, One Key",
-      "workshop_id": "3784264347"
     },
     "PropaneExplosion": {
       "id": "PropaneExplosion",
@@ -497,18 +372,6 @@
           "status": "verified",
           "title": "Formatting \"Sandbox_Reac...\" warns in the log",
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Formatting \"Sandbox_ReactiveSE_EventChance\""
-        },
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap.",
-          "source": "PZ Mod Studio, the compatible copy it made",
-          "status": "verified",
-          "title": "Needed a compatible copy on this build",
-          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -525,20 +388,7 @@
       ],
       "id": "RealisticDash",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : Lua          f:0 at Lua((MOD:Realistic Dashboard and Gauges)).ZZ_PatchVehicleDashboard_PassengerDash.lua> require(\"Vehicles/VehicleUtils\") failed",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "1 warning in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Realistic Dashboard and Gauges",
       "requires": [],
@@ -553,20 +403,7 @@
       ],
       "id": "ResearchLabInternProfession",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% A' at Formatter.format(null:-1). Message: ERROR:",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "1 warning in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Zombie Virus Vaccine: Research Lab Intern Profession [B42.20+ SP/MP]",
       "requires": [
@@ -604,20 +441,7 @@
       ],
       "id": "StealthAttackBySwas",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "11 warnings in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Stealth Attack",
       "requires": [],
@@ -632,20 +456,7 @@
       ],
       "id": "VisibleVehicleCouplingB42",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "1 warning in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Visible Vehicle Coupling (VVC)",
       "requires": [],
@@ -660,20 +471,7 @@
       ],
       "id": "moodlesinlua",
       "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-30",
-          "fix": {
-            "kind": "none"
-          },
-          "log": "WARN : Lua          f:0 at Lua((MOD:Moodles in lua)).MoodlesIn.lua> require(\"LSMoodleManager\") failed",
-          "source": "PZ Mod Studio, from the game's console.txt",
-          "status": "verified",
-          "title": "1 warning in the last session (the game carried on)",
-          "seen_by": 1
-        }
-      ],
+      "issues": [],
       "load_after": [],
       "name": "Moodles in lua",
       "requires": [],
