@@ -1,0 +1,27 @@
+{
+  "authors": [
+    "Fingbel"
+  ],
+  "builds": [
+    "42"
+  ],
+  "id": "NoLighterNeeded",
+  "incompatible": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): shared/IDNALUtils -> IDNALUtils.",
+      "source": "PZ Mod Studio, the compatible copy it made",
+      "status": "verified",
+      "title": "Needed a compatible copy on this build"
+    }
+  ],
+  "load_after": [],
+  "name": "I Don't Need A Lighter",
+  "requires": [],
+  "workshop_id": "2714198296"
+}
