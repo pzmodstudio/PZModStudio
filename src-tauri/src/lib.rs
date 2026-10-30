@@ -37,6 +37,7 @@ pub mod secrets;
 pub mod translate;
 pub mod translation_drafts;
 pub mod steam_client;
+pub mod steam_downloads;
 pub mod studio_link;
 pub mod server_browser;
 pub mod server_manager;
@@ -497,6 +498,12 @@ fn steam_helper(flag: &str, pz_install_dir: &str, ids: &[String]) -> Result<Stri
 fn steam_client_ready_cmd(paths: StudioPaths) -> Result<bool, String> {
     let _ = paths;
     Ok(steam_client::is_ready(&vfs::trusted_install_dir()))
+}
+
+/// What Steam is downloading for the game right now (Workshop items, phase, bytes).
+#[tauri::command(async)]
+fn steam_downloads_cmd(paths: StudioPaths) -> steam_downloads::SteamDownloads {
+    steam_downloads::status(&paths.workshop_dir)
 }
 
 /// A mod's own poster/icon as a data URL, so the webview can show a file on disk.
@@ -2052,6 +2059,7 @@ pub fn run() {
             read_mod_image_cmd,
             workshop_subscribe_cmd,
             steam_client_ready_cmd,
+            steam_downloads_cmd,
             launch_sandbox_cmd,
             script_conflicts_cmd,
             resolve_failed_requires_cmd,

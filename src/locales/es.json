@@ -3486,5 +3486,17 @@
     "cancel": "Cancelar",
     "keep": "Elegir",
     "start": "Elegir e iniciar"
+  },
+  "steamDownloads": {
+    "phase": {
+      "queued": "En cola",
+      "preparing": "Preparando",
+      "downloading": "Bajando",
+      "installing": "Instalando"
+    },
+    "someItem": "un mod del Workshop",
+    "andMore": "{{name}} y {{count}} más",
+    "done": "Steam terminó de bajar {{name}}. La lista de mods ya lo tiene.",
+    "failed": "Steam no pudo bajar {{name}}: {{result}}"
   }
 }

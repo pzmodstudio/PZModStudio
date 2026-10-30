@@ -1521,6 +1521,17 @@ export type CatalogSource =
   | { kind: 'workshop_upload'; item_folder: string }
   | { kind: 'local' };
 
+/** What Steam is downloading for the game (steam_downloads.rs). */
+export interface SteamDownloads {
+  phase: 'idle' | 'queued' | 'preparing' | 'downloading' | 'installing';
+  items: string[];
+  started: string | null;
+  total_bytes: number | null;
+  done_bytes: number | null;
+  rate_mbps: number | null;
+  finished: { at: string; items: string[]; ok: boolean; result: string } | null;
+}
+
 export interface WorkshopItem {
   workshop_id: string;
   found: boolean;
