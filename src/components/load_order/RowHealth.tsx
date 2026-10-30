@@ -31,7 +31,7 @@ const STYLE: Record<HealthSeverity, { chip: string; icon: React.ElementType; ico
 const ORDER: Record<HealthSeverity, number> = { error: 0, warning: 1, info: 2 };
 
 /** Fixes the row can apply by rewriting the list, the way Mod Health does. */
-const LIST_FIX_ACTIONS = new Set<HealthFix['action']>(['enable_mod', 'disable_mod', 'move_before', 'remove_from_list']);
+const LIST_FIX_ACTIONS = new Set<HealthFix['action']>(['enable_mod', 'disable_mod', 'move_before', 'remove_from_list', 'replace_in_list']);
 
 const fixLabel = (fix: HealthFix, nameOf: (id: string) => string): string => {
   const t = i18next.t;
@@ -44,6 +44,8 @@ const fixLabel = (fix: HealthFix, nameOf: (id: string) => string): string => {
       return t('modList.health.fix.moveBefore', { name: nameOf(fix.before) });
     case 'remove_from_list':
       return t('modList.health.fix.remove');
+    case 'replace_in_list':
+      return t('modList.health.fix.replace', { name: nameOf(fix.mod_id) });
     case 'subscribe_workshop':
       return t('modList.health.fix.searchWorkshop');
     case 'open_workshop_page':

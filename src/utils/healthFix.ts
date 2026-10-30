@@ -22,6 +22,12 @@ export function applyFix(mods: ModInfo[], fix: HealthFix): ModInfo[] | null {
       const next = mods.filter((m) => m.mod_id !== fix.entry);
       return next.length === mods.length ? null : next;
     }
+    case 'replace_in_list': {
+      // The new id takes the old entry's place, switched on; where it sat before goes.
+      const target = mods.find((m) => m.mod_id === fix.mod_id);
+      if (!target || !mods.some((m) => m.mod_id === fix.entry)) return null;
+      return mods.filter((m) => m.mod_id !== fix.mod_id).map((m) => (m.mod_id === fix.entry ? { ...target, enabled: true } : m));
+    }
     case 'move_before': {
       const from = mods.findIndex((m) => m.mod_id === fix.mod_id);
       const anchor = mods.findIndex((m) => m.mod_id === fix.before);

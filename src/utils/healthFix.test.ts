@@ -32,6 +32,12 @@ describe('applyFix', () => {
     expect(applyFix(list, { action: 'remove_from_list', entry: 'nope' })).toBeNull();
   });
 
+  it('puts a renamed mod where its old id was, switched on', () => {
+    const renamed = applyFix([mod('A'), mod('Old'), mod('C'), mod('New', false)], { action: 'replace_in_list', entry: 'Old', mod_id: 'New' });
+    expect(renamed?.map((m) => [m.mod_id, m.enabled])).toEqual([['A', true], ['New', true], ['C', true]]);
+    expect(applyFix(list, { action: 'replace_in_list', entry: 'nope', mod_id: 'B' })).toBeNull();
+  });
+
   it('is not for fixes that act on disk or open a page', () => {
     expect(applyFix(list, { action: 'subscribe_workshop', hint: 'x' })).toBeNull();
     expect(applyFix(list, { action: 'open_in_merger', relative_path: 'media/x.lua' })).toBeNull();

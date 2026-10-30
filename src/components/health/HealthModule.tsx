@@ -86,6 +86,8 @@ const fixLabel = (fix: HealthFix): string => {
       return t('health.fix.moveBefore', { id: fix.mod_id, before: fix.before });
     case 'remove_from_list':
       return t('health.fix.remove', { entry: fix.entry });
+    case 'replace_in_list':
+      return t('health.fix.replace', { id: fix.mod_id, entry: fix.entry });
     case 'subscribe_workshop':
       return t('health.fix.searchWorkshop', { hint: fix.hint });
     case 'open_workshop_page':
@@ -314,6 +316,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       say(t('health.switchedOff', { name: nameOf(fix.mod_id) }));
     } else if (fix.action === 'remove_from_list') {
       say(t('health.outOfList', { entry: fix.entry }));
+    } else if (fix.action === 'replace_in_list') {
+      say(t('health.replaced', { name: nameOf(fix.mod_id), entry: fix.entry }));
     }
   };
 

@@ -638,7 +638,8 @@
         "removeFromPackage": "Quitar del paquete",
         "keepVersion": "Guardar esta versión",
         "shimOn": "Encender el parche del shim",
-        "inHealth": "Arreglar en Salud de mods"
+        "inHealth": "Arreglar en Salud de mods",
+        "replace": "Usar {{name}}"
       },
       "kept": "{{name}} tal como está hoy quedó guardado ({{when}}). Clic derecho en la fila para ver sus versiones guardadas.",
       "shimOn": "El parche {{name}} del shim está encendido, escrito en {{count}} paquete(s); el juego lo lee en el próximo inicio.",
@@ -819,7 +820,8 @@
       "openMerger": "Abrir en el Fusionador",
       "shimOn": "Encender el parche {{name}} del shim",
       "removeCopyTitle": "Opcional. Quita la copia compatible para que el juego vuelva a usar el original del Workshop: para cuando su autor lo actualice para Build 42.",
-      "removeFromPackage": "Quitar del paquete"
+      "removeFromPackage": "Quitar del paquete",
+      "replace": "Usar {{id}} en lugar de {{entry}}"
     },
     "freshCopy": "{{mod}} ya tiene una copia compatible. ¿Crear una nueva? La actual se mueve a Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "¿Sacar {{file}} de {{package}}?\n\nEl paquete se publica de nuevo sin él y el juego vuelve a leer el archivo propio del mod en su próximo inicio. Si editaste la copia, esas ediciones se pierden.",
@@ -866,7 +868,8 @@
       "staleTag": "Revisar",
       "settled": "Resueltos",
       "settledTag": "Resuelto"
-    }
+    },
+    "replaced": "{{name}} quedó en el lugar de {{entry}}, activo."
   },
   "dialogs": {
     "kept": {
@@ -2577,7 +2580,8 @@
       "server_item_unused_holds_many": "WorkshopItems= tiene {{item}}, que trae {{mods}}, pero Mods= no los incluye. Se descarga y nunca se carga.",
       "server_base_map_last": "Map= termina con {{map}}, que no es uno de los mapas del juego. El mapa base (por ejemplo Muldraugh, KY) va último.",
       "two_mod_managers": "{{mod}} también dibuja la pantalla de Mods del juego. Mientras esté activo, el Studio le deja esa pantalla (las copias de partidas y el aviso antes de cargar siguen siendo del Studio). Desactivalo en este perfil para usar la pantalla del Studio.",
-      "floods_console": "{{mod}} llenó la consola en la última sesión: {{lines}} líneas de errores ({{share}}% del total), de {{exceptions}} excepciones y {{warnings}} advertencias. Escribirlas hace más lento el juego, y los errores de otros mods se pierden entre ellas. Miralas en el Monitor, o desactivalo en este perfil."
+      "floods_console": "{{mod}} llenó la consola en la última sesión: {{lines}} líneas de errores ({{share}}% del total), de {{exceptions}} excepciones y {{warnings}} advertencias. Escribirlas hace más lento el juego, y los errores de otros mods se pierden entre ellas. Miralas en el Monitor, o desactivalo en este perfil.",
+      "missing_mod_renamed": "{{mod}} no está instalado: su carpeta ahora tiene {{renamed}} ({{name}}). El autor le cambió el id en una actualización."
     },
     "fragments": {
       "beside_others": ", junto a {{others}}",
