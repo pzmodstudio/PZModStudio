@@ -7,6 +7,7 @@
    "version": null,
    "date": "2026-10-30",
    "notes": [
+    "Shim: Propane Explosion's aim check only with a ranged weapon (findAimTarget called getMaxRange on items that are not weapons; reproduced and checked in the game). Monitor: a card shows its own advice, and 'the shim covers this' only when it has none (the game's door code, which no Lua reaches, was told it was covered)",
     "Shim: ModernStatus' auto-hidden indicators leave the screen again (42.21 clamps top-level UI to it, so 22 invisible ones sat at 0,0 taking the clicks over the primary-hand icon); checked in the game; ModernStatus in the index",
     "Shim: Core:getKey(nil) answers nil without asking Java, which logged a NullPointerException each time (Fancy Handwork's key handler, hundreds a session); checked in the game; the index's Fancy Handwork entry says so",
     "Link 1.18.3: the game's tooltips without the ghost box at the top-left (tick boxes, lists, combos... set their tooltip at a control-relative spot every frame, and it was drawn there before moving to the mouse); seen and checked in the game on sandbox options",
