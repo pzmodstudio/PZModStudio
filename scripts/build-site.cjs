@@ -33,7 +33,7 @@ tags.slice(0, 12).forEach((t, i) => {
 });
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-fs.writeFileSync(path.join(site, 'releases.json'), JSON.stringify({ latest: pkg.version, built: new Date().toISOString().slice(0, 10), releases }, null, 1));
+fs.writeFileSync(path.join(site, 'releases.json'), JSON.stringify({ latest: pkg.version, count: tags.length, built: new Date().toISOString().slice(0, 10), releases }, null, 1));
 
 for (const f of ['index.json', 'rules.json', 'lists.json']) fs.copyFileSync(path.join(root, 'community', f), path.join(site, f));
 
