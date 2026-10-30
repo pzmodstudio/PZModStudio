@@ -3486,5 +3486,17 @@
     "cancel": "Cancel",
     "keep": "Pick",
     "start": "Pick and start"
+  },
+  "steamDownloads": {
+    "phase": {
+      "queued": "Queued",
+      "preparing": "Preparing",
+      "downloading": "Downloading",
+      "installing": "Installing"
+    },
+    "someItem": "a Workshop item",
+    "andMore": "{{name}} and {{count}} more",
+    "done": "Steam finished downloading {{name}}. The mod list has it now.",
+    "failed": "Steam could not download {{name}}: {{result}}"
   }
 }

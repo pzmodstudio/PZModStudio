@@ -259,6 +259,11 @@ fn windows_style(p: PathBuf) -> PathBuf {
     PathBuf::from(text)
 }
 
+/// Where Steam itself is installed, as the registry says.
+pub fn steam_path() -> Option<PathBuf> {
+    registry_string(true, "Software\\Valve\\Steam", "SteamPath").map(|p| windows_style(PathBuf::from(p)))
+}
+
 /// Every Steam library on this PC: the install Steam recorded in the registry and the libraries it
 /// lists, then common install folders as a fallback when the registry says nothing.
 pub fn steam_library_dirs() -> Vec<PathBuf> {

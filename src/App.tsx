@@ -24,6 +24,7 @@ import { TogglePlan, applyPlan, enableWithRequirements, planIsSimple, planToggle
 import { SplashScreen } from './components/layout/SplashScreen';
 import { SHOW_WELCOME_EVENT, WelcomeTour, welcomeSeen } from './components/common/WelcomeTour';
 import { BackendErrorToasts } from './components/layout/BackendErrorToasts';
+import { SteamDownloadsBar } from './components/layout/SteamDownloadsBar';
 import { HealthModule } from './components/health/HealthModule';
 import { useModHealth } from './hooks/useModHealth';
 import { BrowseModule } from './components/browse/BrowseModule';
@@ -1474,6 +1475,7 @@ export const App: React.FC = () => {
         onClose={() => setPendingPlan(null)}
       />
     )}
+    <SteamDownloadsBar paths={paths} />
     <BackendErrorToasts />
     </ContextMenuProvider>
   );
