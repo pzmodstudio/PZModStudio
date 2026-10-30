@@ -7,6 +7,7 @@
    "version": null,
    "date": "2026-10-30",
    "notes": [
+    "Shim: the place-item cursor no longer throws once its last item is placed (42.21's ISPlace3DItemCursor reads self.items[1] after create() removed it; isValid answers false and render/renderOpaqueObjectsInWorld do nothing on an empty list). The error Take A Bath was blamed for; checked in the game, wrapping once however often the shim runs",
     "Mod List: Share to the index is gone (menu item, the For the index / In the index chips, the report pull request). It sent the Monitor's raw counts with a guessed owner and no fix, so the index got facts that were wrong or that the Studio already fixes; the index stays, curated by hand, and the app still reads it. The warn chip hides when the index has a known issue for the mod",
     "Shim: Propane Explosion's aim check only with a ranged weapon (findAimTarget called getMaxRange on items that are not weapons; reproduced and checked in the game). Monitor: a card shows its own advice, and 'the shim covers this' only when it has none (the game's door code, which no Lua reaches, was told it was covered)",
     "Shim: ModernStatus' auto-hidden indicators leave the screen again (42.21 clamps top-level UI to it, so 22 invisible ones sat at 0,0 taking the clicks over the primary-hand icon); checked in the game; ModernStatus in the index",
