@@ -7,6 +7,7 @@
    "version": null,
    "date": "2026-10-30",
    "notes": [
+    "Mod List: a not-installed mod taken out of the list (removed, or replaced by its new id) leaves the profile too, instead of coming back at the end; jumping to a mod outside the profile or hidden by a filter shows it (the panel fell back to the list's first mod). Reading the mod list only reconciles the Zomboid folder that holds the default.txt it read: with a temporary folder in the tests it fell through to the user's real one and rewrote its active profile with the test's mods",
     "Mod List: a mod that is not installed shows one 'not installed' chip, the health check's (with its fix), not two",
     "Mod Health: a mod whose author changed its id in an update is no longer 'unsubscribed or deleted'. When an installed folder is named like the missing id but holds another, the issue says so and offers to put the new id in the old one's place, switched on (RadioVoices became RadioVoicesLocal today; checked on the real list)",
     "Mod List: the mod panel scrolls instead of squeezing its sections (a flex column shrank 'Mod data' to a sliver, so the scroll never appeared)",
