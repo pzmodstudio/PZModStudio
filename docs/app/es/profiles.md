@@ -16,7 +16,7 @@ Un perfil es una lista de mods con nombre: qué mods le pertenecen, cuáles est�
    - **Los que están activos ahora**: los mods prendidos en este momento.
    - **Todo lo instalado**: todos los mods que encontró el Studio.
    - **Elegirlos**: una lista con buscador y botones **Todos** / **Ninguno**; marcá los mods que quieras.
-   - **Ninguno todavía**: un perfil vacío. El Studio te pide confirmar, porque cambiar a él apaga todos los mods. Un botón **Buscar mods en Explorar mods** te lleva ahí para suscribirte antes.
+   - **Ninguno todavía**: un perfil vacío. El Studio te pide confirmar, porque cambiar a él apaga todos los mods. Mientras hay un perfil activo, un botón **Buscar mods en Explorar mods** te lleva ahí para suscribirte antes.
 3. Tocá **Crear perfil nuevo**.
 
 El perfil nuevo se crea y se activa en el momento, y conserva el orden de carga que ya tiene tu lista. Si el Studio todavía no encontró ningún mod (carpeta del juego o de Zomboid sin fijar en Configuración), no lo deja crear, para que un perfil no apague todos tus mods por error.
@@ -35,7 +35,7 @@ Si un mod del perfil necesita un agente Java en el archivo de inicio del juego (
 
 - El botón del lápiz (**Renombrar este perfil**) abre **Editar perfil**: cambiá el nombre, la descripción y la **Build del juego**. Dejá la build en **La última jugada** o fijá **Build 41** / **Build 42**. Con una build fijada, el Studio pregunta antes de iniciar este perfil en otra build, aun antes de haberlo jugado. Tocá **Guardar cambios**.
 - El botón de compartir guarda el perfil en un archivo `.pzpack` que podés mandarle a quien quieras. Lleva solo los mods prendidos, en orden, con sus IDs del Workshop. Quien lo abra puede suscribirse a lo que le falte.
-- El botón de la papelera borra el perfil después de confirmar. Si el perfil usa paquetes de parche del Fusionador (`Z_PZModStudio_...`), una segunda pregunta ofrece borrarlos también; **Cancelar** los conserva.
+- El botón de la papelera borra el perfil después de confirmar. Si algunos de sus ítems del Workshop no los usa ningún otro perfil, la confirmación es una ventana que los lista (**Solo los usa este perfil**), marcados, con **Marcar todos** / **Desmarcar todos**. **Borrar y desuscribir** borra el perfil y te desuscribe de los ítems marcados (Steam tiene que estar abierto); **Borrar solo el perfil** los conserva. Los ítems que usa otro perfil, y los mods locales, nunca se tocan. Si el perfil usa paquetes de parche del Fusionador (`Z_PZModStudio_...`), una segunda pregunta ofrece borrarlos también; **Cancelar** los conserva.
 
 ## Bueno saber
 

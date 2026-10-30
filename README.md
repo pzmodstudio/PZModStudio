@@ -27,6 +27,18 @@ Unlike basic file combiners, PZ Mod Studio parses Lua scripts into a true **Abst
 
 ---
 
+## 📸 Screenshots
+
+The [website](https://pzmodstudio.github.io/PZModStudio/) has the videos (a tour of the app, the Link mod's Mods screen, the in-game error notice) and a page for each screen.
+
+| | |
+| :---: | :---: |
+| <img src="site/img/mod-list.webp" alt="Mod List" width="440"><br>**Mod List**: the load order the way the game reads it | <img src="site/img/health.webp" alt="Mod Health" width="440"><br>**Mod Health**: every problem in the active list, with its fix |
+| <img src="site/img/monitor.webp" alt="Monitor Center" width="440"><br>**Monitor**: each error as a card, with the mod named | <img src="site/img/browse.webp" alt="Browse Mods" width="440"><br>**Browse**: the Workshop inside the app |
+| <img src="site/img/error-notice.webp" alt="In-game error notice" width="440"><br>**The Link, in the game**: the mod behind a Lua error | <img src="site/img/save-check.webp" alt="In-game save check" width="440"><br>**The Link, in the game**: what changed before a save loads |
+
+---
+
 ## ✨ Key Features
 
 | Module | Core Capabilities |

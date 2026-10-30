@@ -627,9 +627,9 @@
         "translation_conflict": "Names things differently from another mod",
         "translation_stale": "Chosen words out of date",
         "translation_settled": "Words settled in your package",
-      "package_file_stale": "Package copy out of date",
-      "package_file_differs": "Package copy differs from the mod",
-      "package_file_orphan": "Package copy of no mod",
+        "package_file_stale": "Package copy out of date",
+        "package_file_differs": "Package copy differs from the mod",
+        "package_file_orphan": "Package copy of no mod",
         "package_built_for_other_list": "Built for another list",
         "two_mod_managers": "Two mod managers",
         "floods_console": "Fills the console"
@@ -661,7 +661,7 @@
     },
     "statWorkshop": "from the Workshop",
     "statWorkshopOf": "of {{total}} from the Workshop",
-    "workshopInProfileTitle": "{{shown}} of your {{total}} Workshop subscriptions have a mod in the profile \"{{name}}\". The others are installed and show with \"Showing everything\".",
+    "workshopInProfileTitle": "{{shown}} of your {{total}} Workshop subscriptions have a mod in the profile \"{{name}}\". The others are installed and show with \"All installed\".",
     "statMods": "mods",
     "statActive": "active",
     "tagLabel": "Filter by tag",
@@ -825,7 +825,8 @@
       "mergeAuto": "Merge automatically",
       "openMerger": "Open in Merger",
       "shimOn": "Switch the shim's {{name}} patch on",
-      "removeCopyTitle": "Optional. Removes the compatible copy so the game uses the Workshop original again: for when its author has updated it for Build 42."
+      "removeCopyTitle": "Optional. Removes the compatible copy so the game uses the Workshop original again: for when its author has updated it for Build 42.",
+      "removeFromPackage": "Take out of the package"
     },
     "freshCopy": "{{mod}} already has a compatible copy. Make a fresh one? The current copy is moved to Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "Take {{file}} out of {{package}}?\n\nThe package is published again without it, and the game reads the mod's own file on its next launch. If you edited the copy, those edits go.",
@@ -889,7 +890,7 @@
       "deleteTitle": "Delete this kept copy",
       "delete": "Delete",
       "keptNow": "{{name}} as it is today is kept ({{when}}).",
-      "confirmUse": "Use the version of {{name}} kept on {{when}}{{version}}?\n\nIt goes into Zomboid/mods as a local copy, and the game started from the Studio reads it instead of the Workshop one. Mod Health lists it as a compatible copy, with \"Remove compatible copy\" to go back to the Workshop version.",
+      "confirmUse": "Use the version of {{name}} kept on {{when}}{{version}}?\n\nIt goes into Zomboid/mods as a local copy, and the game started from the Studio reads it instead of the Workshop one. Mod Health lists it as a compatible copy, with \"Back to the original\" to go back to the Workshop version.",
       "restored": "{{name}} is back to the version kept on {{when}}. Start the game from the Studio to play it.",
       "confirmDelete": "Delete the version of {{name}} kept on {{when}}? This cannot be undone."
     },
@@ -2157,7 +2158,6 @@
     "newMod": {
       "title": "A new mod",
       "intro": "Made in Zomboid/mods the way Build 42 reads it: <code>42/mod.info</code> (name, id, description, author, poster, versionMin), <code>42/media/lua/client|server|shared</code> and <code>42/media/scripts</code>, <code>common/media/lua</code> for what every build shares, a poster to replace, and one Lua file that prints the mod's name when the game loads it. The game lists it after the next scan.",
-      "button": "New mod…",
       "name": "Name",
       "id": "Id (the folder and the list entry: letters, digits, _ and -)",
       "author": "Author",
@@ -2280,7 +2280,10 @@
       "doneUpdate": "Item #{{id}} updated: {{files}} file(s), {{size}}.",
       "legal": "Steam keeps the item hidden until you accept the Workshop legal agreement on its site:",
       "notYours": "Someone else's mod: Workshop item #{{id}} ships it and you are subscribed to it. The Studio does not upload other people's mods. If that item is yours, put id={{id}} in workshop.txt: Steam then checks that the account owns it.",
-      "legalLink": "open the agreement page"
+      "legalLink": "open the agreement page",
+      "remove": "Remove",
+      "removeTitle": "Moves this item's folder (Zomboid/Workshop/<folder>) to the Recycle Bin. Nothing changes on Steam.",
+      "removeConfirm": "Move \"{{title}}\" to the Recycle Bin?\n\n{{path}}\n\nOnly the folder on this PC goes; the item stays on the Workshop as it is."
     },
     "drafts": {
       "title": "Translation drafts",
@@ -2613,7 +2616,6 @@
       "vs": " against ",
       "any": "any",
       "published": " (published {{date}})",
-      "and_more": " and {{more}} more",
       "source": " [source: {{source}}]",
       "verified": "verified",
       "reported": "reported",
@@ -2940,7 +2942,7 @@
     "markRead": "Mark as read",
     "ownChangelog": "From the mod's own changelog ({{file}})",
     "title": "What's new",
-    "blurb": "Your Workshop mods updated since you last played, and the ones whose update is waiting in Steam, with each update's change notes. \"May break saves\" is a guess (a map mod, or notes that talk about new saves, wipes, things removed or renamed): read the notes before you load a save in progress. An update still waiting in Steam can be headed off by keeping the version you have first.",
+    "blurb": "Your Workshop mods updated since you last played, and the ones whose update is waiting in Steam, with each update's change notes: read them before you load a save in progress. An update still waiting in Steam can be headed off by keeping the version you have first.",
     "refresh": "Refresh",
     "sinceLast": "Since you last played ({{date}})",
     "onlyActive": "Only mods on in my list",
@@ -3401,7 +3403,7 @@
         "title": "What's New",
         "body": "Workshop mods updated since you last played, with their change notes. Read it before loading a running save.",
         "points": [
-          "It warns when an update may break saves.",
+          "It shows each update's change notes, to read before you load a save.",
           "You can keep a mod's version before it updates and go back to it."
         ]
       },

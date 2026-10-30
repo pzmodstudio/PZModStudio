@@ -627,9 +627,9 @@
         "translation_conflict": "Nombra cosas distinto que otro mod",
         "translation_stale": "Palabras elegidas desactualizadas",
         "translation_settled": "Palabras resueltas en tu paquete",
-      "package_file_stale": "Copia del paquete desactualizada",
-      "package_file_differs": "Copia del paquete distinta del mod",
-      "package_file_orphan": "Copia del paquete sin mod",
+        "package_file_stale": "Copia del paquete desactualizada",
+        "package_file_differs": "Copia del paquete distinta del mod",
+        "package_file_orphan": "Copia del paquete sin mod",
         "package_built_for_other_list": "Hecho para otra lista",
         "two_mod_managers": "Dos administradores de mods",
         "floods_console": "Llena la consola"
@@ -661,7 +661,7 @@
     },
     "statWorkshop": "del Workshop",
     "statWorkshopOf": "de {{total}} del Workshop",
-    "workshopInProfileTitle": "{{shown}} de tus {{total}} suscripciones del Workshop tienen algún mod en el perfil \"{{name}}\". Las otras están instaladas y se ven con \"Mostrando todo\".",
+    "workshopInProfileTitle": "{{shown}} de tus {{total}} suscripciones del Workshop tienen algún mod en el perfil \"{{name}}\". Las otras están instaladas y se ven con \"Todos los instalados\".",
     "statMods": "mods",
     "statActive": "activos",
     "tagLabel": "Filtrar por etiqueta",
@@ -825,7 +825,8 @@
       "mergeAuto": "Fusionar automáticamente",
       "openMerger": "Abrir en el Fusionador",
       "shimOn": "Encender el parche {{name}} del shim",
-      "removeCopyTitle": "Opcional. Quita la copia compatible para que el juego vuelva a usar el original del Workshop: para cuando su autor lo actualice para Build 42."
+      "removeCopyTitle": "Opcional. Quita la copia compatible para que el juego vuelva a usar el original del Workshop: para cuando su autor lo actualice para Build 42.",
+      "removeFromPackage": "Quitar del paquete"
     },
     "freshCopy": "{{mod}} ya tiene una copia compatible. ¿Crear una nueva? La actual se mueve a Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "¿Sacar {{file}} de {{package}}?\n\nEl paquete se publica de nuevo sin él y el juego vuelve a leer el archivo propio del mod en su próximo inicio. Si editaste la copia, esas ediciones se pierden.",
@@ -889,7 +890,7 @@
       "deleteTitle": "Borrar esta copia guardada",
       "delete": "Borrar",
       "keptNow": "{{name}} tal como está hoy quedó guardado ({{when}}).",
-      "confirmUse": "¿Usar la versión de {{name}} guardada el {{when}}{{version}}?\n\nVa a Zomboid/mods como copia local, y el juego iniciado desde el Studio la lee en vez de la del Workshop. Salud de mods la lista como copia compatible, con \"Quitar la copia compatible\" para volver a la del Workshop.",
+      "confirmUse": "¿Usar la versión de {{name}} guardada el {{when}}{{version}}?\n\nVa a Zomboid/mods como copia local, y el juego iniciado desde el Studio la lee en vez de la del Workshop. Salud de mods la lista como copia compatible, con \"Volver al original\" para volver a la del Workshop.",
       "restored": "{{name}} volvió a la versión guardada el {{when}}. Iniciá el juego desde el Studio para jugarla.",
       "confirmDelete": "¿Borrar la versión de {{name}} guardada el {{when}}? No se puede deshacer."
     },
@@ -2157,7 +2158,6 @@
     "newMod": {
       "title": "Un mod nuevo",
       "intro": "Se crea en Zomboid/mods tal como lo lee la Build 42: <code>42/mod.info</code> (name, id, description, author, poster, versionMin), <code>42/media/lua/client|server|shared</code> y <code>42/media/scripts</code>, <code>common/media/lua</code> para lo que comparten todas las builds, un póster para reemplazar y un archivo Lua que imprime el nombre del mod cuando el juego lo carga. El juego lo lista después del próximo escaneo.",
-      "button": "Mod nuevo…",
       "name": "Nombre",
       "id": "Id (la carpeta y la entrada de la lista: letras, dígitos, _ y -)",
       "author": "Autor",
@@ -2280,7 +2280,10 @@
       "doneUpdate": "Ítem #{{id}} actualizado: {{files}} archivo(s), {{size}}.",
       "legal": "Steam deja el ítem oculto hasta que aceptes el acuerdo legal del Workshop en su sitio:",
       "notYours": "Es un mod de otra persona: el ítem #{{id}} del Workshop lo trae y estás suscripto a él. El Studio no sube mods ajenos. Si ese ítem es tuyo, poné id={{id}} en workshop.txt: Steam verifica que la cuenta sea la dueña.",
-      "legalLink": "abrir la página del acuerdo"
+      "legalLink": "abrir la página del acuerdo",
+      "remove": "Quitar",
+      "removeTitle": "Manda la carpeta de este ítem (Zomboid/Workshop/<carpeta>) a la Papelera de reciclaje. En Steam no cambia nada.",
+      "removeConfirm": "¿Mandar \"{{title}}\" a la Papelera de reciclaje?\n\n{{path}}\n\nSolo se va la carpeta de esta PC; el ítem queda en el Workshop como está."
     },
     "drafts": {
       "title": "Borradores de traducción",
@@ -2613,7 +2616,6 @@
       "vs": " contra ",
       "any": "cualquiera",
       "published": " (publicada el {{date}})",
-      "and_more": " y {{more}} más",
       "source": " [fuente: {{source}}]",
       "verified": "verificado",
       "reported": "reportado",
@@ -2940,7 +2942,7 @@
     "markRead": "Marcar como leído",
     "ownChangelog": "Del changelog del propio mod ({{file}})",
     "title": "Novedades",
-    "blurb": "Tus mods del Workshop actualizados desde que jugaste por última vez, y los que tienen una actualización esperando en Steam, con las notas de cada actualización. \"Puede romper partidas\" es una estimación (un mod de mapa, o notas que hablan de partidas nuevas, borrados, cosas sacadas o renombradas): leé las notas antes de cargar una partida en curso. A una actualización que todavía espera en Steam se le puede ganar guardando antes la versión que tenés.",
+    "blurb": "Tus mods del Workshop actualizados desde que jugaste por última vez, y los que tienen una actualización esperando en Steam, con las notas de cada actualización: leelas antes de cargar una partida en curso. A una actualización que todavía espera en Steam se le puede ganar guardando antes la versión que tenés.",
     "refresh": "Actualizar",
     "sinceLast": "Desde que jugaste ({{date}})",
     "onlyActive": "Solo mods prendidos en mi lista",
@@ -3401,7 +3403,7 @@
         "title": "Novedades",
         "body": "Los mods del Workshop que se actualizaron desde la última vez que jugaste, con sus notas de cambios. Leelo antes de cargar una partida en curso.",
         "points": [
-          "Avisa cuando una actualización puede romper partidas.",
+          "Muestra las notas de cada actualización, para leerlas antes de cargar una partida.",
           "Podés guardar la versión de un mod antes de que se actualice y volver a ella."
         ]
       },

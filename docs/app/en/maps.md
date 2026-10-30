@@ -13,10 +13,10 @@ The world is cut into cells; one cell is 256 x 256 tiles.
 
 ## Moving around the map
 
-- Turn the mouse **wheel** to zoom in and out. It zooms on the point under the pointer.
+- Click the map first, then turn the mouse **wheel** to zoom in and out. It zooms on the point under the pointer. Until you click, the wheel scrolls the page (**Click the map to zoom with the wheel** reminds you), and it does again once the pointer leaves the map.
 - **Hold the left button and drag** to move the map.
 - **Double-click** the map, or press the button in its top-right corner (**See the whole map**), to see it all again.
-- Rest the pointer on a cell to see its number, whether it is part of the game's world, and which maps cover it.
+- Rest the pointer on a cell to see its number, whether it is part of the game's world, and which maps cover it (**More than one map here** when two share it).
 
 The picture is put together from the map images the game and the mods ship. While that happens you see **Putting the map together…**. A map mod that ships no picture still shows its cells as coloured squares.
 
@@ -32,14 +32,14 @@ Each row shows the map's name, the mod it comes from, how many cells it has, how
 
 - Untick a row's box to hide that map from the picture. This only changes the view, not your mod list.
 - Press the list icon on a row (**See it in the Mod List**) to jump to that mod in the Mod List, highlighted.
-- Tick **Only map mods on in my list** to show only the maps you have switched on.
+- Tick **Only map mods on in my list** to show only the maps you have switched on. It also hides the warnings and the other map mods that only concern mods that are off. The tick is remembered.
 - The refresh button at the top reads the maps again. They are also read again when your mod list changes.
 
 ## Clashes
 
 - A **red** warning means two map mods share cells and both are on: in your next game one replaces the other there. Under it, each mod has a button to see it in the Mod List and a **Turn off** button that switches it off (after asking).
 - An **amber** warning means they would clash if both were on.
-- A tile definition warning means two mods use the same tile definition number. If both are on, their tiles overwrite each other and you get wrong walls, floors or furniture. Keep only one on.
+- A tile definition warning means two mods use the same tile definition number. If both are on, their tiles overwrite each other and you get wrong walls, floors or furniture. Keep only one on. Under it, each mod has a button to see it in the Mod List, and **Turn off** when more than one is on.
 
 ## Other map mods
 

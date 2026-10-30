@@ -15,10 +15,10 @@ If the game folder is not set yet, the screen only shows **Configure Directory P
 
 Two tabs are always there:
 
-- **console.txt (Client)**: the live game log. The Studio starts reading at the end of the file, so you see what happens from the moment the Studio is open. When a new game session starts, the file starts over and so does the tab.
-- **Dedicated Server (Live)**: the log of the dedicated server, while one you started in **Servers** is running.
+- **console.txt (Client)**: the live game log. The Studio starts reading at the end of the file, so you see what happens from the moment the Studio is open. When a new game session starts, the file starts over and the Studio reads it from its first line. The tab keeps the latest 1,500 lines, also while you are on another screen.
+- **Dedicated Server (Live)**: the log of the dedicated server, while one you started in **Servers** is running. It shows its latest 1,500 lines and is read again every 2 seconds.
 
-To read other logs, press **Load Log**. The menu lists the logs found in your Zomboid folder (with their size); pick one to open it in a new tab. **📂 Browse another file (.txt)...** opens any text file. These tabs can be closed with their X; the two live tabs cannot.
+To read other logs, press **Load Log**. The menu lists the logs found in your Zomboid folder (with their size); pick one to open it in a new tab. **📂 Browse another file (.txt)...** opens any text file. A loaded log shows its last 2,000 lines. These tabs can be closed with their X; the two live tabs cannot.
 
 Under the tabs:
 
@@ -38,6 +38,8 @@ Error lines are shown in red, warnings in amber.
 
 A card appears when the game throws an error, or when it writes a warning and names a mod. Everything else stays in the log on the left. Cards that threw (red) come first, warnings (amber, marked **warning · the game carried on**) after them. The same problem appears once, however many times the game repeats it; the number like **600×** says how many times it is in the log, and the ones that repeat are the ones worth fixing first.
 
+Above the cards, a badge counts the exceptions (**Action Required**) and another the warnings, with a line that sums up the log. When the Studio remembers earlier sessions, each card says **new** or **seen in N sessions since** a date, and **Only the new ones** hides the rest.
+
 A card can show:
 
 - **The mod's name**, when the game named it on the error line or in the stack trace under it.
@@ -45,6 +47,7 @@ A card can show:
 - **Log Snippet**: the line itself.
 - For a failed `require`, where that module really is now, when the Studio finds it.
 - What to do next, or a note that the Build 42 shim already covers it.
+- When the error is in a copy your Studio package holds: a note when the mod changed that file after the copy was made, or when no mod in your list ships that file any more.
 
 When a new game session starts, the cards of the last one are cleared. **Discard** clears them by hand.
 
@@ -73,7 +76,7 @@ For problems the log does not name: a freeze, a recipe that never appears, a sav
 4. Answer **It still happens** or **It is gone**. The list is halved again. The badge shows the round and how many launches are left (about 8 for a hundred mods).
 5. When one mod is left, play once more to confirm it.
 
-At the end the panel names the mod, shows any lines the log has about it, and offers **Patch a file of it**, **Switch it off** or **Keep it on**. Your original list is put back whichever way the hunt ends. **Stop and put my list back** ends it early.
+At the end the panel names the mod, shows any lines the log has about it (with **Patch File.lua** when a line names a file, and **Show its lines in the console**), and offers **Patch a file of it**, **Switch it off** or **Keep it on**. Your original list is put back whichever way the hunt ends. **Stop and put my list back** ends it early.
 
 If no single mod is to blame, the panel says why: it may take two mods together, or be one of the required mods, or not be caused by a mod at all.
 

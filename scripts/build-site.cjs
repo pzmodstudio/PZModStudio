@@ -13,15 +13,16 @@ const tags = git('for-each-ref', '--sort=-creatordate', '--format=%(refname:shor
 
 // What the page lists: what a player can notice. Work on the site, the repository, the scripts and the
 // packaging stays out, and a line that names another mod is said without the name.
-const INTERNAL = /^(Site:|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:|itch.io page)/;
+const INTERNAL = /^(Site:|Site redesign|New captures|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:|itch.io page)/;
 const REWRITE = [
+  [/^Site: one card per app screen.*/, 'Help: every page checked against the screens and brought up to date; the Workshop remove button and Mod Health\'s "Take out of the package" no longer show a raw text key'],
   [/^Workshop publish: read the upload.*/i, 'Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished'],
   [/ from Smooth Frames' console lines/i, " from the game's console lines"],
   [/Smooth Frames/gi, 'the frame report']
 ];
 const subjects = (range) => git('log', '--format=%s', range).split(/\r?\n/)
-  .filter((s) => s && !INTERNAL.test(s))
-  .map((s) => REWRITE.reduce((t, [re, to]) => t.replace(re, to), s));
+  .filter(Boolean).map((s) => REWRITE.reduce((t, [re, to]) => t.replace(re, to), s))
+  .filter((s) => !INTERNAL.test(s));
 
 const releases = [];
 const head = subjects(tags[0].tag + '..HEAD');

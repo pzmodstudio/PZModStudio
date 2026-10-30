@@ -37,7 +37,7 @@ The number on each row is the mod's place among the mods that are **on**: the lo
 
 - The search box matches the name, the mod id, the Workshop id and your notes.
 - The filter buttons: **All**, **On**, **Off**, **Favourites**, **Updated**, **Problems**, **Maps**, **Libraries**, **Can't load**. Each shows its count.
-- Below them: **Sort: load order**, **Sort: name**, **Sort: newest installs** or **Sort: oldest installs** (by when each mod was installed: when its folder was made; for a Workshop one, the first download, which updates do not change; each row shows the date and mods not installed go last), the **Groups** menu, one of your groups, the source (**Steam Workshop**, **Your Workshop uploads**, **Installed by hand**, **Compatible copies**...), a tag (errors or warnings last session, slow to load, a Mod Health problem) and **Profile's mods** / **All installed**.
+- Below them: **Sort: load order**, **Sort: name**, **Sort: newest installs** or **Sort: oldest installs** (by when each mod was installed: when its folder was made; for a Workshop one, the first download, which updates do not change; each row shows the date and mods not installed go last), the **Groups** menu, one of your groups, the source (**Steam Workshop**, **Your Workshop uploads**, **Installed by hand**, **Compatible copies**...), a tag (errors or warnings last session, slow to load, heavy on the game, a Mod Health problem) and **Profile's mods** / **All installed**.
 - The game's Mods screen (Studio Link mod) has the same filters in the same order. Updated, Libraries, the group, the source and the tag need PZ Mod Studio; without it the game says so where they would be.
 - Dragging works sorted by name too: the mod goes to the place of the one you drop it on.
 - **clear filters** shows every mod again.
@@ -53,18 +53,18 @@ The number on each row is the mod's place among the mods that are **on**: the lo
 
 ## The profile's mods
 
-With a profile active, the list shows that profile's mods. The **Only (profile)** button switches to **Showing everything**, which lists every installed mod and tags each with the profiles it is in. Installed mods that are in no profile (subscribed from the Steam website, for example) get a blue bar with **Add to the profile** (they join switched off), **Show them**, or the X to hide it.
+With a profile active, the list shows that profile's mods. The **Profile's mods** button switches to **All installed**, which lists every installed mod and tags each with the profiles it is in. Installed mods that are in no profile (subscribed from the Steam website, for example) get a blue bar with **Add to the profile** (they join switched off), **Show them**, or the X to hide it.
 
 ## The right-click menu
 
-**Switch on/off**, **Add to the profile** / **Take out of the profile** (taken out also switches it off), **Move to the top**, **Move to the bottom**, **Open in Mod Browser**, **Open its folder**, **Add a note…**, **Groups…**, **Load-order rules…**, **Keep this version**, **Kept versions…**, **Favorite**, **Add to a list…**, **Add to a profile…**, **Share what the Studio saw of this mod…** and **Copy the mod id**.
+**Switch on/off**, **Add to the profile** / **Take out of the profile** (taken out also switches it off), **Move to the top**, **Move to the bottom**, **Open in Mod Browser** (**Search for it in Mod Browser** for a mod that is not installed), **Open its folder**, **Add a note…** (**Edit the note…** once it has one), **Groups…**, **Load-order rules…**, **Keep this version**, **Kept versions…**, **Favorite**, **Add to a list…**, **Add to a profile…**, **Share what the Studio saw of this mod…**, **Copy the mod id** and **Unsubscribe from its Workshop item** (Steam deletes its files; other mods in the same item go too).
 
 - **Load-order rules…**: say a mod must load after another (things you found by playing). Auto-Sort follows the rule and Mod Health warns when the list breaks it. **Share this rule** offers it to the community on GitHub.
 - **Keep this version** copies the mod as it is today to `Zomboid/PZModStudio_Snapshots`. **Kept versions…** lists the copies: **Use this version** puts one back as a local copy the game reads instead of the Workshop one.
 
 ## Row tags
 
-Tags on a row come from the last session and Mod Health: errors or warnings the game logged for the mod, how long it took to load, and problems such as **Needs a mod that is off** or **Loads too early**. Click a tag to go to the related mod or to Mod Health; the wrench button next to it applies the fix.
+Tags on a row come from the last session and Mod Health: errors or warnings the game logged for the mod, how long it took to load (from 250 ms), its share of the game's time when you measured it in Mod Health (from 1 %, amber from 5 %), and problems such as **Needs a mod that is off** or **Loads too early**. Click a tag to go to the related mod or to Mod Health; the wrench button next to it applies the fix.
 
 ## Earlier lists and presets
 

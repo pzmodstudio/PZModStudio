@@ -4,64 +4,313 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PZ Mod Studio - the mod manager for Project Zomboid</title>
-<meta name="description" content="PZ Mod Studio: a portable Windows app to manage Project Zomboid mods. Load order, conflicts, crash cards, profiles, a server runner and a community mod index. Free download.">
+<meta name="description" content="PZ Mod Studio: a free, open-source Windows app for Project Zomboid mods, and the Link mod that brings it into the game. Load order the way the game reads it, the mod behind each error, profiles, save backups, servers and a community mod index.">
+<meta property="og:title" content="PZ Mod Studio">
+<meta property="og:description" content="Your Project Zomboid mods, in order. A free, open-source app for Windows and a Link mod for the game.">
+<meta property="og:image" content="https://pzmodstudio.github.io/PZModStudio/img/key-art.webp">
+<meta name="theme-color" content="#090f10">
+<link rel="icon" href="img/badge.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<nav class="top"><div class="wrap"><a href="./" class="brand">PZ Mod Studio</a><a href="#download">Download</a><a href="#updates">Updates</a><a href="mods.html">Mod index</a><a href="resources.html">Resources</a></div></nav>
+<nav class="top"><div class="wrap">
+  <a href="./" class="brand"><img src="img/badge.webp" alt="">PZ Mod Studio</a>
+  <a class="opt" href="#link">The Link mod</a><a class="opt" href="#features">Screens</a><a class="opt" href="#project">The project</a><a class="opt" href="mods.html">Mod index</a>
+  <a class="cta" href="#download">Download</a>
+</div></nav>
 
 <header class="hero">
   <div class="wrap">
-    <h1>Your Project Zomboid mods, in order.</h1>
-    <p class="lead">A portable Windows app (about 17 MB, no installer) that sorts your load order the way the game reads it, finds the mod that breaks your game, and keeps your lists, profiles and servers in one place. Build 42 and Build 41.</p>
-    <p><a class="btn big" href="https://github.com/pzmodstudio/PZModStudio/releases/latest" id="dl">Download <span id="ver"></span></a> <a class="btn quiet big" href="mods.html">Browse the mod index</a></p>
-    <p class="dim">Windows 10 / 11 · free · portable zip on GitHub Releases</p>
+    <div>
+      <span class="kicker">Free · open source · Build 42 &amp; 41</span>
+      <h1>Your mods.<br>In <em>order.</em></h1>
+      <p class="lede">A portable Windows app that sorts your load order the way the game reads it, names the mod behind every error and backs up your save before a changed mod list can hurt it. With the <a href="#link">Link mod</a>, all of it shows up inside the game.</p>
+      <a class="btn" href="https://github.com/pzmodstudio/PZModStudio/releases/latest" id="dl">Download <span id="ver"></span></a><a class="btn quiet" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3824256253">Link mod on the Workshop</a>
+      <div class="facts">
+        <div><b>~17 MB</b><span>no installer</span></div>
+        <div><b>12</b><span>screens</span></div>
+        <div><b id="nRel">–</b><span>releases</span></div>
+        <div><b>0</b><span>accounts · telemetry · ads</span></div>
+      </div>
+    </div>
+    <div class="art"><img src="img/key-art.webp" width="1408" height="768" alt="PZ Mod Studio key art: the PZ Mod Studio emblem with mod profiles, load order, error diagnosis and save backups, and the Link companion mod"></div>
   </div>
 </header>
 
-<main class="wrap">
-  <section id="features">
-    <h2>What it does</h2>
-    <div class="grid">
-      <div class="card"><h3>Load order, sorted</h3><p>Autosort follows every <code>require</code>, <code>loadModAfter</code> and <code>loadModBefore</code> exactly like the game, and Ctrl+Z puts your order back.</p></div>
-      <div class="card"><h3>Mod Health</h3><p>Missing or disabled requirements, wrong order, incompatible pairs, mods that do not load on your build, and a security scan as heuristics.</p></div>
-      <div class="card"><h3>Crash cards</h3><p>The game's <code>console.txt</code> read for you: which mod threw, the lines around it, the Lua file that failed, and a fix when one is known.</p></div>
-      <div class="card"><h3>Conflicts and merges</h3><p>Finds mods that overwrite the same file and merges Lua with a real syntax tree, into a patch package that loads last. Your mods stay untouched.</p></div>
-      <div class="card"><h3>Profiles and lists</h3><p>Solo, co-op, server: switch mod sets in one click, share a <code>.pzpack</code>, join a modded server with exactly its mods.</p></div>
-      <div class="card"><h3>Run your server</h3><p>Console, players, backups and restart warnings for the dedicated server you run.</p></div>
-      <div class="card"><h3>Memory and performance</h3><p>How much memory the game may use, which mods cost the most frame time, and when Windows itself ran out of memory with the game open.</p></div>
-      <div class="card"><h3>AI assistants (MCP)</h3><p>A built-in Model Context Protocol server lets Claude, Cursor or other assistants read logs and manage the load order.</p></div>
+<div class="ticker" aria-hidden="true"><div id="tick">LOAD ORDER<i>/</i>MOD HEALTH<i>/</i>CRASH CARDS<i>/</i>PROFILES<i>/</i>SAVE BACKUPS<i>/</i>MOD MERGER<i>/</i>WHAT'S NEW<i>/</i>MAPS OF KNOX COUNTRY<i>/</i>SERVERS<i>/</i>LUA HOT RELOAD<i>/</i>MCP FOR AI ASSISTANTS<i>/</i></div></div>
+
+<main>
+  <!-- 1. the sort -->
+  <section class="block" id="sort">
+    <div class="wrap split">
+      <div class="reveal">
+        <span class="kicker">01 · Auto-Sort</span>
+        <h2>One button.<br>The game's own rules.</h2>
+        <p class="lede">The game reads <code>mod.info</code>: what a mod requires, what it loads after and before. Auto-Sort follows exactly that, and leaves the rest where you put it.</p>
+        <ul class="ticks">
+          <li><b>Each mod after what it needs</b> and after the mods its author says it loads after.</li>
+          <li><b>Nothing else moves.</b> Your order is your order; the previous one is kept for Undo.</li>
+          <li><b>Mod Health</b> catches what sorting cannot fix: a mod your build can't load, a requirement missing or turned off, two mods that don't go together.</li>
+        </ul>
+      </div>
+      <div class="console reveal" id="demo">
+        <div class="bar"><b>default.txt</b> · active profile <span class="state bad" id="demoState">3 problems</span></div>
+        <div class="rows" id="rows"></div>
+        <div class="foot"><button class="btn small" id="sortBtn">Auto-Sort</button><button class="btn small quiet" id="resetBtn">Shuffle back</button><span class="dim">an illustration · the app does this on your real list</span></div>
+      </div>
     </div>
   </section>
 
-  <section id="download">
-    <h2>Download</h2>
-    <p>Get the portable zip from GitHub Releases, unzip it anywhere and run <code>Project-Zomboid-Mod-Studio.exe</code>. It finds your game, the Workshop and your <code>Zomboid</code> folder by itself. Nothing is installed and no admin rights are needed.</p>
-    <p><a class="btn" href="https://github.com/pzmodstudio/PZModStudio/releases/latest">Download on GitHub</a> <a class="btn quiet" href="https://pichu66.itch.io/pzmodstudio">Also on itch.io</a> <a class="btn quiet" href="https://github.com/pzmodstudio/PZModStudio">Source code</a></p>
-    <p class="dim">Each release has <code>SHA256SUMS.txt</code> and a signature to check the file. The zip also holds <code>pz-mcp-server.exe</code> (about 3 MB), the console server for AI assistants. Windows SmartScreen may warn about an app it has not seen often: the build is not code-signed, which needs a paid certificate.</p>
+  <!-- 2. app + link -->
+  <section class="block" id="link">
+    <div class="wrap">
+      <div class="reveal">
+        <span class="kicker">02 · Two halves</span>
+        <h2>The app on your PC.<br>The Link in your game.</h2>
+        <p class="lede">The Studio does the thinking on Windows. The Link, a small Lua mod on the Workshop, puts it where you actually play: the main menu, the Mods screen, the moment before a save loads.</p>
+      </div>
+      <div class="halves reveal">
+        <article class="half">
+          <div class="media"><video src="img/app-tour.mp4" poster="img/app-tour.webp" muted loop playsinline autoplay preload="none" aria-label="A tour of PZ Mod Studio: Mod List, Mod Health, Browse, What's new, Maps, Mod Merger, Profiles"></video></div>
+          <div class="body">
+            <span class="where">Windows · portable app</span>
+            <h3>PZ Mod Studio</h3>
+            <ul class="ticks">
+              <li><b>Profiles</b>: a light setup, a heavy one and a co-op one, side by side. Switching unsubscribes nothing.</li>
+              <li><b>Load order, Mod Health, crash cards</b> from <code>console.txt</code>, each error with the mod behind it.</li>
+              <li><b>Mod Merger</b>: two mods that replace one file, merged into a package that loads last. The mods stay untouched.</li>
+            </ul>
+          </div>
+        </article>
+        <div class="wire"><span>profile · health · saves</span></div>
+        <article class="half">
+          <div class="media"><video src="img/link-mods.mp4" poster="img/link-mods.webp" muted loop playsinline autoplay preload="none" aria-label="The Link's Mods screen in the game, with the app's profile: picking mods, the Maps and Libraries filters, search"></video></div>
+          <div class="body">
+            <span class="where">In the game · Steam Workshop</span>
+            <h3>The Link mod</h3>
+            <ul class="ticks">
+              <li><b>The active profile on the Mods screen.</b> What you change in the game goes back to the profile.</li>
+              <li><b>Mod Health marks</b> on the mods with a problem, and your own notes on each mod.</li>
+              <li><b>A card on the main menu</b>: the profile, the problems, what changed in the save Continue would load.</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+      <div class="alone reveal">
+        <div>
+          <h4>The Link, even without the app</h4>
+          <ul class="ticks">
+            <li>An <b>error notice that names the mod</b> whose Lua failed, with a report ready for its author.</li>
+            <li>A clearer Mods screen: search, filters, a mod comes on with what it needs, a load order you can drag.</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Safe by design</h4>
+          <ul class="ticks">
+            <li>Only Lua: five plain-text files. No Java, no DLLs, nothing compiled.</li>
+            <li>It can't start programs or open pages, and it sends nothing anywhere.</li>
+          </ul>
+          <a class="btn small quiet" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3824256253">Subscribe on the Workshop</a>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <section id="updates">
-    <h2>Updates</h2>
-    <p class="dim" id="updatesNote">Latest version: <b id="latest"></b>. The app checks for a new version on its own.</p>
-    <div id="releases"></div>
+  <!-- 3. crash to fix -->
+  <section class="block" id="crash">
+    <div class="wrap">
+      <div class="reveal">
+        <span class="kicker rust">03 · When something breaks</span>
+        <h2>From the crash<br>to the fix.</h2>
+        <p class="lede">The game's log says <i>something</i> failed. The Studio says which mod, what it means, and what to do about it.</p>
+      </div>
+      <div class="steps">
+        <div class="step reveal"><div class="numeral">1</div><div class="shot fit"><video src="img/link-error.mp4" poster="img/error-notice.webp" muted loop playsinline autoplay preload="none" aria-label="On the main menu, a notice appears: 1 new Lua error in Unnamed Mod, with Copy report, Show in Mods and See in the Studio"></video></div><h3>The game names the mod</h3><p>The moment a mod's Lua fails, the Link says which one, and the one that called it. Copy report puts it on the clipboard for the author.</p></div>
+        <div class="step reveal"><div class="numeral">2</div><div class="shot"><img src="img/monitor.webp" loading="lazy" alt="Monitor Center: the same error as a card, with the mod named and a report ready"></div><h3>The app explains it</h3><p>Monitor reads <code>console.txt</code> and turns each error into a card: the mod behind it, what it means, whether the game carried on.</p></div>
+        <div class="step reveal"><div class="numeral">3</div><div class="shot"><img src="img/health.webp" loading="lazy" alt="Mod Health: compatible copies the Studio made for mods written for an older build"></div><h3>One click fixes it</h3><p>Mod Health checks the list the way the game does and, when there is a fix, offers it: turn on the requirement, move the mod, use a compatible copy.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. saves -->
+  <section class="block" id="saves">
+    <div class="wrap split">
+      <div class="reveal">
+        <span class="kicker">04 · Saves</span>
+        <h2>A check before<br>every save loads.</h2>
+        <p class="lede">Loading a save with different mods can lose items, vehicles or whole map areas for good. So when a save's mods changed since you last played it, you see what changed first.</p>
+        <ul class="ticks">
+          <li><b>Automatic zip backups</b> when you leave a save and before it loads with changed mods. Each one is read back after it's written.</li>
+          <li><b>What is inside</b>: each character, where they are and what they carry; each vehicle and what is in it.</li>
+          <li><b>Map mods a save doesn't load</b> found and added back, so no bare land where a map should be.</li>
+        </ul>
+      </div>
+      <div class="savecard reveal">
+        <img src="img/save-check.webp" loading="lazy" alt="In the game, before a save loads: two mods taken out, one added, seven updated and the load order changed, with Back, Play on a copy and Load it">
+        <div class="choices">
+          <div><b>Load it</b><span>the app backs it up first</span></div>
+          <div><b>Play on a copy</b><span>the original stays as it was</span></div>
+          <div><b>Back</b><span>nothing is touched</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. the twelve screens -->
+  <section class="block" id="features">
+    <div class="wrap">
+      <div class="reveal">
+        <span class="kicker">05 · Everything it does</span>
+        <h2>Twelve screens.</h2>
+        <p class="lede">One for each part of keeping a modded game running. Open any of them for the full list of what it does, with a screenshot.</p>
+      </div>
+      <div class="screens" id="modules"></div>
+    </div>
+  </section>
+
+  <!-- 6. the project -->
+  <section class="block" id="project">
+    <div class="wrap">
+      <div class="reveal">
+        <span class="kicker">06 · Under the hood</span>
+        <h2>Open, small,<br>and on your side.</h2>
+      </div>
+      <div class="principles reveal">
+        <div><b>Mods stay untouched</b><span>It never edits Workshop mods. Every fix is a separate folder you can delete.</span></div>
+        <div><b>Saves need your yes</b><span>A save is only changed when you say so, and after a backup.</span></div>
+        <div><b>Authors come first</b><span>Their support links beside their mods, error reports ready to send them.</span></div>
+        <div><b>Nothing phones home</b><span>No account, no telemetry, no ads. Every line is on GitHub.</span></div>
+      </div>
+      <div class="split" style="margin-top:56px">
+        <table class="spec reveal">
+          <tr><th>Runs on</th><td>Windows 10 / 11, portable zip; unzip anywhere and run</td></tr>
+          <tr><th>Game</th><td>Project Zomboid Build 42 (and 41); finds the game, the Workshop and your <code>Zomboid</code> folder by itself</td></tr>
+          <tr><th>Built with</th><td>Rust (Tauri 2) and React; a Lua mod for the game</td></tr>
+          <tr><th>License</th><td>MIT, app and mod</td></tr>
+          <tr><th>Online only to</th><td>browse the Workshop or Nexus, fetch the community rules and look for a new version once a day (both can be switched off)</td></tr>
+          <tr><th>Releases</th><td>GitHub and itch.io, each with <code>SHA256SUMS.txt</code> and a signature</td></tr>
+          <tr><th>For AI assistants</th><td>an MCP server (<code>pz-mcp-server.exe</code>) so an assistant can read your logs and mod list and help fix an error</td></tr>
+          <tr><th>For modders</th><td>save a <code>.lua</code> and it runs in the game in about 0.3 s, no restart</td></tr>
+        </table>
+        <div class="doors reveal">
+          <a class="door" href="https://github.com/pzmodstudio/PZModStudio"><b>Source code</b><span>The app, the Link mod and the scripts that build them.</span><i>&rarr;</i></a>
+          <a class="door" href="mods.html"><b>Community mod index</b><span id="idxLine">Builds, clashes and known issues per mod, and lists players shared.</span><i>&rarr;</i></a>
+          <a class="door" href="https://github.com/pzmodstudio/PZModStudio/blob/main/docs/INDEX.md"><b>Technical wiki</b><span>Kahlua, the event bus, B42 crafting and fluids, crash taxonomy and more.</span><i>&rarr;</i></a>
+          <a class="door" href="https://github.com/pzmodstudio/PZModStudio/blob/main/AGENTS.md"><b>MCP tools</b><span>Every tool an AI assistant can call, with its parameters.</span><i>&rarr;</i></a>
+          <a class="door" href="resources.html"><b>Resources</b><span>The wiki, the Workshop, the forums and the Java docs.</span><i>&rarr;</i></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. updates -->
+  <section class="block" id="updates">
+    <div class="wrap">
+      <span class="kicker">07 · Changelog</span>
+      <h2>Updates.</h2>
+      <p class="dim" id="updatesNote">Latest version: <b id="latest"></b>. The app checks for a new version on its own.</p>
+      <div id="releases"></div>
+      <button class="btn small quiet more-rel" id="moreRel" hidden>Show every version</button>
+    </div>
+  </section>
+
+  <!-- 8. download -->
+  <section class="final" id="download">
+    <div class="wrap">
+      <span class="kicker">Free · portable · Windows 10 / 11</span>
+      <h2>Get it running<br>in a minute.</h2>
+      <div class="steps3">
+        <div><b>Download the zip</b> from GitHub Releases (or itch.io).</div>
+        <div><b>Unzip anywhere</b> and run <code>Project-Zomboid-Mod-Studio.exe</code>. No admin rights.</div>
+        <div><b>Subscribe to the Link</b> on the Workshop to see it in the game.</div>
+      </div>
+      <a class="btn" href="https://github.com/pzmodstudio/PZModStudio/releases/latest">Download on GitHub</a><a class="btn quiet" href="https://pichu66.itch.io/pzmodstudio">itch.io</a><a class="btn quiet" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3824256253">Link mod</a>
+      <p class="dim" style="max-width:760px;margin-top:20px;font-size:14px">The zip also holds <code>pz-mcp-server.exe</code> (about 3 MB), the console server for AI assistants. Windows SmartScreen may warn about an app it has not seen often: the build is not code-signed, which needs a paid certificate. Check the file against <code>SHA256SUMS.txt</code> and its signature.</p>
+    </div>
   </section>
 </main>
 
-<footer><div class="wrap">PZ Mod Studio is a fan-made tool and is not affiliated with The Indie Stone. Project Zomboid is theirs. <a href="mods.html">Mod index</a> · <a href="resources.html">Resources</a></div></footer>
+<footer><div class="wrap"><span>PZ Mod Studio is a fan-made tool, not affiliated with The Indie Stone. Project Zomboid is theirs.</span><span class="links"><a href="mods.html">Mod index</a><a href="resources.html">Resources</a><a href="https://github.com/pzmodstudio/PZModStudio">GitHub</a><a href="https://pichu66.itch.io/pzmodstudio">itch.io</a></span></div></footer>
+
+<div class="modview" id="moduleView" hidden></div>
+<script src="modules.js"></script>
 
 <script>
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ticker: the text twice, so the loop has no seam
+const tick = document.getElementById('tick'); tick.innerHTML += tick.innerHTML;
+
+// reveal on scroll
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .12 });
+document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+// videos play only while on screen
+const vo = new IntersectionObserver((es) => es.forEach((e) => { const v = e.target; if (e.isIntersecting && !calm) { v.preload = 'auto'; v.play().catch(() => {}); } else v.pause(); }), { threshold: .3 });
+document.querySelectorAll('video').forEach((v) => { v.removeAttribute('autoplay'); vo.observe(v); });
+
+// Auto-Sort demo: generic mods, the same rules Auto-Sort uses
+(() => {
+  const MODS = {
+    patch: { name: 'Vehicle pack: patch', bad: 'loadModAfter Vehicle pack, but loads before it', ok: 'after Vehicle pack' },
+    ui: { name: 'Interface tweaks', ok: 'no requirements: stays where you put it' },
+    pack: { name: 'Vehicle pack', bad: 'requires Core library, which loads later', ok: 'after Core library' },
+    b41: { name: 'Old weapons (Build 41 only)', warn: 'cannot load on Build 42 · Mod Health: turn it off' },
+    core: { name: 'Core library', ok: 'library: before what needs it' },
+    map: { name: 'Map: Riverside cabins', ok: 'no requirements: stays where you put it' }
+  };
+  const START = ['patch', 'ui', 'pack', 'b41', 'core', 'map'];
+  const SORTED = ['ui', 'core', 'pack', 'patch', 'b41', 'map'];
+  const H = 58, rows = document.getElementById('rows'), state = document.getElementById('demoState');
+  rows.style.height = START.length * H + 'px';
+  const els = {};
+  for (const id of START) {
+    const d = document.createElement('div'); d.className = 'row'; d.innerHTML = '<span class="n"></span><div><span class="name">' + MODS[id].name + '</span><span class="tag"></span></div>';
+    rows.appendChild(d); els[id] = d;
+  }
+  const place = (order, sorted) => {
+    order.forEach((id, i) => {
+      const el = els[id], m = MODS[id];
+      el.style.transform = 'translateY(' + i * H + 'px)';
+      el.querySelector('.n').textContent = '#' + (i + 1);
+      const text = m.warn || (sorted ? m.ok : (m.bad || m.ok));
+      el.querySelector('.tag').textContent = (m.warn ? '! ' : sorted || !m.bad ? '✓ ' : '✗ ') + text;
+      el.className = 'row ' + (m.warn ? 'warn' : sorted || !m.bad ? 'ok' : '');
+    });
+    state.textContent = sorted ? 'sorted · 1 for Mod Health' : '3 problems';
+    state.className = 'state ' + (sorted ? 'ok' : 'bad');
+  };
+  place(START, false);
+  const go = (order, sorted) => {
+    if (!calm) for (const id of START) { els[id].classList.add('moving'); setTimeout(() => els[id].classList.remove('moving'), 800); }
+    place(order, sorted);
+  };
+  document.getElementById('sortBtn').onclick = () => go(SORTED, true);
+  document.getElementById('resetBtn').onclick = () => go(START, false);
+  // sort once by itself the first time it is seen
+  const so = new IntersectionObserver((es) => { if (es[0].isIntersecting) { so.disconnect(); setTimeout(() => go(SORTED, true), calm ? 0 : 1100); } }, { threshold: .6 });
+  so.observe(rows);
+})();
+
 (async () => {
-  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let data;
   try { data = await (await fetch('releases.json', { cache: 'no-cache' })).json(); } catch (e) { document.getElementById('releases').innerHTML = '<div class="empty">The update list could not be read.</div>'; return; }
   document.getElementById('ver').textContent = 'v' + data.latest;
   document.getElementById('latest').textContent = data.latest;
-  document.getElementById('releases').innerHTML = (data.releases || []).map((r, i) => {
-    const title = r.version ? 'Version ' + esc(r.version) : 'In development (not released yet)';
-    return '<details class="rel"' + (i < 2 ? ' open' : '') + '><summary><b>' + title + '</b> <span class="dim">' + esc(r.date) + ' · ' + r.notes.length + ' change' + (r.notes.length === 1 ? '' : 's') + '</span></summary><ul>'
+  const rels = data.releases || [];
+  document.getElementById('nRel').textContent = rels.filter((r) => r.version).length;
+  const SHOWN = 4;
+  const html = (r, i) => {
+    const title = r.version ? 'v' + esc(r.version) : 'In development';
+    return '<details class="rel"' + (i < 1 ? ' open' : '') + (i >= SHOWN ? ' hidden' : '') + '><summary><b>' + title + '</b> <span class="dim">' + esc(r.date) + ' · ' + r.notes.length + ' change' + (r.notes.length === 1 ? '' : 's') + '</span></summary><ul>'
       + r.notes.map((n) => '<li>' + esc(n) + '</li>').join('') + '</ul></details>';
-  }).join('');
+  };
+  document.getElementById('releases').innerHTML = rels.map(html).join('');
+  const more = document.getElementById('moreRel');
+  if (rels.length > SHOWN) { more.hidden = false; more.onclick = () => { document.querySelectorAll('details.rel[hidden]').forEach((d) => d.hidden = false); more.hidden = true; }; }
 })();
 </script>
 </body>

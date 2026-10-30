@@ -63,7 +63,7 @@ A mod's own file opened to patch is the exception: in a packaged package, its sa
 
 ## Sharing packages
 
-**Load Package (.pzmerge)** imports a package file. If it was made with mods you do not have, or with different copies of them, a **Before you publish** window lists them, with **Subscribe to all** for the missing Workshop mods. The safest fix is for both of you to have the newest copies, then rescan and merge again before publishing.
+**Load Package (.pzmerge)** imports a package file. If it was made with mods you do not have, with different copies of them or on another game build, a **Before you publish** window lists them, with **Subscribe to all** for the missing Workshop mods. The safest fix is for both of you to have the newest copies, then rescan and merge again before publishing.
 
 ## Good to know
 

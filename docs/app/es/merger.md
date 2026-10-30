@@ -63,7 +63,7 @@ Un archivo propio de un mod abierto para parchear es la excepción: en un paquet
 
 ## Compartir paquetes
 
-**Cargar paquete (.pzmerge)** importa un archivo de paquete. Si se hizo con mods que no tenés, o con otras copias de ellos, una ventana **Antes de publicar** te los lista, con **Suscribirse a todos** para los mods del Workshop que faltan. Lo más seguro es que los dos tengan las copias más nuevas; después reescaneá y volvé a fusionar antes de publicar.
+**Cargar paquete (.pzmerge)** importa un archivo de paquete. Si se hizo con mods que no tenés, con otras copias de ellos o en otra build del juego, una ventana **Antes de publicar** te los lista, con **Suscribirse a todos** para los mods del Workshop que faltan. Lo más seguro es que los dos tengan las copias más nuevas; después reescaneá y volvé a fusionar antes de publicar.
 
 ## Bueno saber
 

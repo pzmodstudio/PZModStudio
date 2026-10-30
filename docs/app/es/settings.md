@@ -23,9 +23,10 @@ Sin una carpeta del juego válida, pantallas como el Fusionador de mods te piden
 
 ## Avisos
 
-En **Avisos y notificaciones** podés silenciar o volver a mostrar dos mensajes:
+En **Avisos y notificaciones** podés silenciar o volver a mostrar tres mensajes:
 
-- **Aviso al iniciar el juego sin un paquete de fusión activo**: el aviso antes de iniciar cuando no hay ningún paquete de fusión activo.
+- **Aviso al iniciar con mods en conflicto sin fusionar**: el aviso antes de iniciar cuando tus mods activos comparten archivos que ningún paquete de fusión activo resuelve (o los resuelve desde versiones viejas de los mods).
+- **Aviso al iniciar con mods que definen lo mismo**: el aviso antes de iniciar cuando dos mods activos definen distinto el mismo objeto, receta o texto y ningún paquete decide cuál queda. No rompe nada: gana el que carga último.
 - **Mensaje explicativo al ordenar dependencias**: la explicación que aparece al ordenar dependencias en la Lista de mods.
 
 Cada uno tiene **Silenciar** / **Volver a mostrar**.
@@ -48,12 +49,16 @@ Elegí **English** o **Español** en **Idioma**. Si a un idioma le falta una lí
 ## Archivos de la comunidad y token de GitHub
 
 - **Descargar las reglas y el índice de mods de la comunidad**: una vez al día el Studio baja de su propio repositorio de GitHub reglas de orden de carga, pares incompatibles y un registro por mod. Los usan Ordenar, Salud de mods, la Lista de mods y Explorar mods. Apagado, se conserva la última copia y no se descarga nada. Nunca se envía nada. Sus dos botones abren la página web del índice y sus listas de la comunidad.
-- **Buscar versiones nuevas de PZ Mod Studio**: al abrir y cada 6 horas mientras está abierto, el Studio le pregunta a GitHub cuál es la última versión publicada. Si hay una más nueva, una barra debajo del encabezado lo avisa. **Actualizar ahora** baja la versión nueva, comprueba que la firmó el proyecto (la firma de `SHA256SUMS.txt` y el SHA-256 del zip), la pone en lugar de la que tenés y reinicia el Studio; si algo no coincide, no cambia nada. **Descargar** abre la página de la versión en el navegador, y **Ahora no** oculta el aviso hasta la próxima versión. Si el Studio está instalado en una carpeta donde no puede escribir (Archivos de programa, para todos los usuarios), actualizalo con el instalador de la página. Nada se instala sin que lo pidas, y no se envía nada. **Buscar ahora** pregunta en el momento. Apagado, no se consulta GitHub.
+- **Buscar versiones nuevas de PZ Mod Studio**: al abrir y cada 6 horas mientras está abierto, el Studio le pregunta a GitHub cuál es la última versión publicada. Si hay una más nueva, una barra debajo del encabezado lo avisa. **Actualizar ahora** baja la versión nueva, comprueba que la firmó el proyecto (la firma de `SHA256SUMS.txt` y el SHA-256 del zip), la pone en lugar de la que tenés y reinicia el Studio; si algo no coincide, no cambia nada. **Descargar** abre la página de la versión en el navegador, y **Ahora no** oculta el aviso hasta la próxima versión. Si el Studio está instalado en una carpeta donde no puede escribir (Archivos de programa, para todos los usuarios), actualizalo con el instalador de la página. Nada se instala sin que lo pidas, y no se envía nada. **Buscar ahora** pregunta en el momento. Si GitHub no responde, el Studio le pregunta a su página de itch.io; entonces el aviso ofrece solo la página de descarga, sin **Actualizar ahora**. Apagado, no se consulta GitHub.
 - **GitHub, para "Compartir" en un clic**: opcional. Conectado, los botones "Compartir con la comunidad" (reglas, el registro de un mod, una lista) abren el pull request por vos. Sin conectar, abren la página de GitHub con todo ya completo. Apretá **Conectar con GitHub**: aparece un código (ya copiado) y se abre la página de GitHub; escribí el código ahí y aprobá **PZ Mod Studio**, y el Studio queda conectado. O apretá **Crear un token**, crealo en GitHub, pegalo y apretá **Verificar y guardar**. El token se verifica con GitHub y se guarda en el Administrador de credenciales de Windows, solo en esta PC; **Quitar** lo borra.
 
 ## Diagnóstico
 
 **Diagnóstico** junta lo que necesita un reporte de problema: versiones del Studio y de Windows, las carpetas, la versión del juego, el perfil activo, el Studio Link, Zombie Buddy, si Steam está limitando los pedidos y el final del registro del Studio. **Copiar diagnóstico** lo copia; tu nombre de usuario de Windows y el nombre de la PC se reemplazan por `<user>` y `<pc>`. Revisalo antes de pegarlo en algún lado. **Abrir carpeta de registros** abre la carpeta con los registros propios del Studio.
+
+## Traducción
+
+Explorar mods tiene un botón Traducir en la página de cada mod y otro para los resúmenes de una página de resultados; los borradores de traducción de la pantalla Desarrollador usan el mismo servicio. Sin clave, se usa el servicio gratuito de Google Translate (no es oficial y puede dejar de andar algún día). Con una clave de la API de DeepL (gratis hasta 500.000 caracteres por mes), se usa DeepL primero: apretá **Conseguir una clave de DeepL**, pegala y apretá **Verificar y guardar**. La clave se guarda en el Administrador de credenciales de Windows, solo en esta PC; **Quitar** la borra. Las traducciones ya hechas quedan guardadas en esta PC, así un texto no se vuelve a mandar; **Borrarlas** las elimina.
 
 ## Funciones para desarrolladores
 

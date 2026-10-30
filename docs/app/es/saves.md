@@ -6,7 +6,7 @@ Tus partidas de Project Zomboid y sus copias de seguridad. El Studio hace copias
 
 Cada perfil tiene sus propias partidas. Una partida pertenece al perfil que estaba activo la última vez que la jugaste con el Studio abierto; una partida jugada sin él pertenece a un perfil solo si los mods de ese perfil son exactamente los de la partida. Una partida nunca se pasa a otro perfil.
 
-- Esta pantalla muestra las partidas del perfil activo. **Ver todas** agrega las de otros perfiles y las que no tienen perfil, cada una con la etiqueta **Perfil: <nombre>** o **Sin perfil**.
+- Esta pantalla muestra las partidas del perfil activo. **Ver todas (N más)** agrega las de otros perfiles y las que no tienen perfil, cada una con la etiqueta **Perfil: <nombre>** o **Sin perfil**. **Solo las de <nombre>** vuelve a las partidas del perfil activo.
 - La partida de un servidor se muestra con su dirección (`ip:puerto`) y la etiqueta **Online**, y pertenece al perfil con el que entraste a ese servidor desde **Servidores** (el Link no corre en un servidor, así que el Studio se guía por su propia lista de servidores).
 - En el juego, con el mod Studio Link: la pantalla **Cargar** lista las partidas del perfil activo, con **Ver todas** al lado de la búsqueda, y **Continuar** carga la partida más reciente del perfil activo (no aparece si el perfil no tiene ninguna). Sin el Studio, el juego lista todas las partidas como siempre.
 
@@ -14,9 +14,11 @@ Cada perfil tiene sus propias partidas. Una partida pertenece al perfil que esta
 
 - Arriba, **Abrir carpeta de copias** abre la carpeta donde van las copias (`Zomboid/PZModStudio_SaveBackups`), y la flecha circular actualiza la pantalla.
 - Una barra con el espacio del disco: cuánto queda libre, el tamaño del disco y cuánto ocupan las copias. Se pone ámbar con **Queda poco espacio** cuando tu partida más grande puede no entrar dos veces más.
-- Una fila por partida: el nombre del mundo, y abajo el modo de juego, el tamaño, la cantidad de archivos, la cantidad de mods y el último cambio.
+- Una fila por partida: el nombre del mundo, y abajo el modo de juego, el tamaño, la cantidad de archivos, la cantidad de mods y el último cambio. La etiqueta **creada en <build>** dice qué build del juego escribió la partida; una build más nueva la actualiza al cargarla.
 - Si los mods de la partida cambiaron desde su última sesión, una línea ámbar lo dice: **Desde su última sesión (...)**, con cuántos mods se agregaron, se sacaron, se actualizaron, o si cambió el orden. Pasá el mouse por encima para ver los nombres.
 - Si la lista de mods de la partida nombra mods que no están instalados, una línea roja lo dice: **No carga: N mods de su lista no están instalados**, con un botón por mod. Tocalo para abrirlo en **Explorar mods** (el ítem del Workshop si la lista lo nombra, si no, una búsqueda con su id). Las partidas de servidor no tienen lista propia: el juego baja los mods del servidor al entrar.
+- Si los mods de la partida traen mapas que la partida no carga, una línea ámbar lo dice: **No carga N mapas de sus mods**, con una etiqueta por carpeta de mapa. La partida guarda la lista de mapas con la que se creó y el juego nunca la actualiza, así que un mod de mapa prendido después se carga sin su mapa (terreno vacío donde deberían estar sus celdas). Con el juego cerrado, **Agregar los mapas a la partida** hace una copia de la partida, pone esos mapas en su lista y mueve el terreno vacío ya generado en sus celdas a la carpeta de copias, después de confirmar.
+- **Personaje y vehículos** abre lo que tiene la partida, leído de sus propios archivos: cada personaje con nombre, posición y si está muerto, los ítems que lleva, y cada vehículo con su posición, a qué distancia está del personaje y cuántos ítems tiene adentro. Las cantidades de ítems son aproximadas.
 - A la derecha de cada fila, su estado:
   - **Copia al día**: la copia más nueva coincide con la partida.
   - **Cambió desde la copia del ...**: la partida cambió después de su última copia.
@@ -27,7 +29,7 @@ Cada perfil tiene sus propias partidas. Una partida pertenece al perfil que esta
 
 - **Al salir de ella**: cuando volvés al menú principal, o el juego se cierra con la partida abierta.
 - **Antes de cargarla con mods cambiados**: el mod Studio Link la pide cuando cargás una partida cuyos mods no son los de su última sesión, o se actualizaron desde entonces.
-- **Antes de cambiar su lista de mods**: cuando la lista de mods de la partida está por cambiarse en el juego.
+- **Antes de cambiar su lista de mods**: cuando la lista de mods de la partida está por cambiarse en el juego, o antes de **Agregar los mapas a la partida**.
 - **Antes de una restauración**: la partida como estaba, justo antes de restaurar una copia vieja.
 
 Si una partida no cambió desde su copia más nueva, no se vuelve a comprimir.
