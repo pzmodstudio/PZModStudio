@@ -1606,6 +1606,32 @@ local function initVanillaGuards()
     -- pcall does not keep it out of the log. A mod that walks its bindings on every key press
     -- with a header among them (Fancy Handwork's "[FancyHandwork]") wrote hundreds of them a
     -- session. Same answer, nil, without asking Java. An unknown name already answers 0.
+    -- ----------------------------------------------------------------------------
+    -- ISPlace3DItemCursor with no item left (42.21)
+    -- ----------------------------------------------------------------------------
+    -- Placing the last item takes it out of self.items in create(), and the same frame's
+    -- DoTileBuilding still asks isValid, which reads self.items[1]:getUnequippedWeight():
+    -- "attempted index: getUnequippedWeight of non-table". Mods that copy the function (Take A
+    -- Bath And Shower) carry it along and get named for it. With nothing left to place the
+    -- cursor is not valid and draws nothing. Wrapped again whenever a mod puts its own on top.
+    if ISPlace3DItemCursor then
+        for _, name in ipairs({ "isValid", "render", "renderOpaqueObjectsInWorld" }) do
+            local fn = ISPlace3DItemCursor[name]
+            if type(fn) == "function" and not (Poly.__placeCursorGuards and Poly.__placeCursorGuards[fn]) then
+                local guarded = function(self, ...)
+                    if not self.items or not self.items[1] then
+                        if name == "isValid" then return false end
+                        return
+                    end
+                    return fn(self, ...)
+                end
+                Poly.__placeCursorGuards = Poly.__placeCursorGuards or {}
+                Poly.__placeCursorGuards[guarded] = true
+                ISPlace3DItemCursor[name] = guarded
+            end
+        end
+    end
+
     local okCore, coreClass = pcall(function() return Core.class end)
     local coreIndex = okCore and coreClass and __classmetatables and __classmetatables[coreClass]
     coreIndex = coreIndex and coreIndex.__index

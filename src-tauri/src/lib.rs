@@ -403,111 +403,6 @@ fn clear_translation_cache_cmd() -> Result<usize, String> {
     translate::clear_cache(&vfs::studio_paths().user_zomboid_dir)
 }
 
-/// Opens the pull request that adds or replaces one mod's registry in the community index.
-#[tauri::command(async)]
-fn propose_registry_cmd(mod_id: String, content: String) -> Result<rules::propose::ProposeResult, String> {
-    let registry: serde_json::Value = serde_json::from_str(&content).map_err(|e| format!("The registry is not JSON: {}", e))?;
-    if registry.get("id").and_then(|v| v.as_str()) != Some(mod_id.as_str()) {
-        return Err("The registry's id does not match the mod.".to_string());
-    }
-    let pretty = serde_json::to_string_pretty(&registry).map_err(|e| e.to_string())? + "\n";
-    let path = format!("community/index/{}.json", mod_id.replace('/', "__"));
-    let name = registry.get("name").and_then(|v| v.as_str()).unwrap_or(&mod_id).to_string();
-    let title = format!("Community index: {}", name);
-    let body = format!("A registry for `{}`, proposed from PZ Mod Studio.\n\nWhat was tested, on which build, is in the file; the repository's check has run on it.", mod_id);
-    rules::propose::propose_file(&path, &title, &body, &|existing| {
-        // A registry already there holds what others added (load-after, successor, their
-        // issues): the proposal adds to it instead of replacing it.
-        let Some(old) = existing.and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok()) else {
-            return Ok(pretty.clone());
-        };
-        Ok(serde_json::to_string_pretty(&merge_registry_issues(old, registry.clone())).map_err(|e| e.to_string())? + "\n")
-    })
-}
-
-/// Opens the pull request with what this player's Studio saw of one mod, in a file of their own
-/// (`community/reports/<mod>/<GitHub name>.json`): another player's report is never touched, so
-/// two pull requests on one mod cannot clash. Their earlier report on it is added to, not lost.
-#[tauri::command(async)]
-fn propose_report_cmd(mod_id: String, content: String) -> Result<rules::propose::ProposeResult, String> {
-    let report: serde_json::Value = serde_json::from_str(&content).map_err(|e| format!("The report is not JSON: {}", e))?;
-    if report.get("id").and_then(|v| v.as_str()) != Some(mod_id.as_str()) {
-        return Err("The report's id does not match the mod.".to_string());
-    }
-    let pretty = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
-    let dir = mod_id.replace('/', "__");
-    let name = report.get("name").and_then(|v| v.as_str()).unwrap_or(&mod_id).to_string();
-    let title = format!("Community report: {}", name);
-    let body = format!("What PZ Mod Studio saw of `{}` on this player's PC, proposed from the Studio. The index counts each player's report once.", mod_id);
-    rules::propose::propose_file_as(
-        &|login| format!("community/reports/{}/{}.json", dir, login.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect::<String>()),
-        &title,
-        &body,
-        &|existing| {
-            let Some(old) = existing.and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok()) else {
-                return Ok(pretty.clone());
-            };
-            Ok(serde_json::to_string_pretty(&merge_registry_issues(old, report.clone())).map_err(|e| e.to_string())? + "\n")
-        },
-    )
-}
-
-/// One known issue without its count or date: the same log line (numbers aside) and the same
-/// kind of fix are one issue, however many times or on which day it was seen.
-fn issue_identity(issue: &serde_json::Value) -> String {
-    let kind = issue.pointer("/fix/kind").and_then(|v| v.as_str()).unwrap_or("");
-    let text = issue.get("log").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).or_else(|| issue.get("title").and_then(|v| v.as_str())).unwrap_or("");
-    let shape: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().map(|c| if c.is_ascii_digit() { 'N' } else { c }).take(160).collect();
-    format!("{}|{}", kind, shape)
-}
-
-/// `new` over `old` as `merge_registry`, except that an issue proposed again replaces the entry
-/// that is already there (fresher count, date and build) instead of standing beside it.
-fn merge_registry_issues(mut old: serde_json::Value, mut new: serde_json::Value) -> serde_json::Value {
-    let fresh: Vec<serde_json::Value> = new.get_mut("issues").and_then(|v| v.as_array_mut()).map(std::mem::take).unwrap_or_default();
-    if let Some(issues) = old.get_mut("issues").and_then(|v| v.as_array_mut()) {
-        let ids: std::collections::HashSet<String> = fresh.iter().map(issue_identity).collect();
-        issues.retain(|i| !ids.contains(&issue_identity(i)));
-    }
-    let mut merged = merge_registry(old, new);
-    if let Some(obj) = merged.as_object_mut() {
-        let issues = obj.entry("issues").or_insert_with(|| serde_json::Value::Array(Vec::new()));
-        if let Some(list) = issues.as_array_mut() {
-            list.extend(fresh);
-        }
-    }
-    merged
-}
-
-/// `new` over `old`: new values win, lists keep every entry of both, and keys only `old` has stay.
-fn merge_registry(old: serde_json::Value, new: serde_json::Value) -> serde_json::Value {
-    use serde_json::Value;
-    match (old, new) {
-        (Value::Object(mut o), Value::Object(n)) => {
-            for (k, v) in n {
-                let merged = match o.remove(&k) {
-                    Some(prev) => merge_registry(prev, v),
-                    None => v,
-                };
-                o.insert(k, merged);
-            }
-            Value::Object(o)
-        }
-        (Value::Array(mut o), Value::Array(n)) => {
-            for v in n {
-                if !o.contains(&v) {
-                    o.push(v);
-                }
-            }
-            Value::Array(o)
-        }
-        // An empty value in the draft (a prompt to fill in) does not erase what was there.
-        (prev, Value::Null) => prev,
-        (prev, Value::String(s)) if s.is_empty() => prev,
-        (_, n) => n,
-    }
-}
-
 /// Opens the pull request that adds one load-order rule to community/rules.json.
 #[tauri::command(async)]
 fn propose_rule_cmd(rule: serde_json::Value) -> Result<rules::propose::ProposeResult, String> {
@@ -2152,8 +2047,6 @@ pub fn run() {
             github_device_start_cmd,
             github_device_wait_cmd,
             github_device_cancel_cmd,
-            propose_registry_cmd,
-            propose_report_cmd,
             propose_rule_cmd,
             workshop_search_cmd,
             read_mod_image_cmd,
@@ -2239,24 +2132,6 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn an_issue_proposed_again_replaces_its_entry() {
-        let line = "WARN : General f:0> Translator.reportMissingArgumentsFromPastAbuse> Formatting \"Sandbox_X\"";
-        let old = serde_json::json!({ "id": "X", "load_after": ["A"], "issues": [
-            { "title": "3 warnings in the last session", "log": line, "date": "2026-10-29", "fix": { "kind": "none" } },
-            { "title": "Someone else's note", "fix": { "kind": "none" } }
-        ]});
-        let new = serde_json::json!({ "id": "X", "load_after": [], "issues": [
-            { "title": "7 warnings in the last session", "log": line, "date": "2026-10-30", "fix": { "kind": "none" } }
-        ]});
-        let merged = super::merge_registry_issues(old, new);
-        let issues = merged["issues"].as_array().unwrap();
-        assert_eq!(issues.len(), 2, "the same line is one issue, the other one stays");
-        assert!(issues.iter().any(|i| i["title"] == "7 warnings in the last session" && i["date"] == "2026-10-30"));
-        assert!(issues.iter().any(|i| i["title"] == "Someone else's note"));
-        assert_eq!(merged["load_after"], serde_json::json!(["A"]));
-    }
-
     #[test]
     fn the_helpers_answer_is_found_among_steams_chatter() {
         let output = "Setting breakpad minidump AppID = 108600\nSteamInternal_SetMinidumpSteamID: ...\nPZMS-STEAM:{\"done\":[\"7\"]}\n";
