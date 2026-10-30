@@ -38,7 +38,8 @@
       "note": "A WARN from Translator.reportMissingArgumentsFromPastAbuse about a sandbox option's text with a stray format sign. The game carries on; nothing to fix on the player's side.",
       "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
       "status": "verified",
-      "title": "Formatting \"Sandbox_Reac...\" warns in the log"
+      "title": "Formatting \"Sandbox_Reac...\" warns in the log",
+      "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Formatting \"Sandbox_ReactiveSE_EventChance\""
     },
     {
       "build": "42.21",

@@ -4,6 +4,7 @@ import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, He
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { COMMUNITY_SITE } from '../../utils/communityIndex';
+import { loadCommunityIndex } from '../../services/communityIndex';
 import { applyFix } from '../../utils/healthFix';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
@@ -525,7 +526,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                   onClick={() => {
                     void (async () => {
                       try {
-                        const c = await TauriService.refreshCommunity(paths);
+                        const c = await TauriService.refreshCommunity(paths); // The Mod List's marks read the index too: theirs is the fresh one from now.
+                        void loadCommunityIndex(paths, true);
                         say(t('health.communityFetched', { rules: c.rules, pairs: c.pairs, mods: c.mods, updated: c.index_updated ? t('health.indexUpdated', { date: c.index_updated }) : '' }));
                         onRecheck();
                       } catch {
