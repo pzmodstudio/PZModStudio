@@ -241,9 +241,10 @@ mod tests {
             on_disk += 1;
             let registry: Registry = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap_or_else(|e| panic!("{}: {}", path.display(), e));
             let built = index.get(&registry.id).unwrap_or_else(|| panic!("{} is not in index.json: run node scripts/community-index.js build", registry.id));
-            assert_eq!(built.issues.len(), registry.issues.len(), "{} differs from index.json: run node scripts/community-index.js build", registry.id);
+            assert!(built.issues.len() >= registry.issues.len(), "{} differs from index.json: run node scripts/community-index.js build", registry.id);
         }
-        assert_eq!(index.mods.len(), on_disk, "index.json has entries no registry has: run node scripts/community-index.js build");
+        // Reports (community/reports) add issues, and mods no registry has yet.
+        assert!(index.mods.len() >= on_disk, "index.json lacks a registry: run node scripts/community-index.js build");
     }
 
     #[test]

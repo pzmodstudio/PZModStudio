@@ -425,6 +425,33 @@ fn propose_registry_cmd(mod_id: String, content: String) -> Result<rules::propos
     })
 }
 
+/// Opens the pull request with what this player's Studio saw of one mod, in a file of their own
+/// (`community/reports/<mod>/<GitHub name>.json`): another player's report is never touched, so
+/// two pull requests on one mod cannot clash. Their earlier report on it is added to, not lost.
+#[tauri::command(async)]
+fn propose_report_cmd(mod_id: String, content: String) -> Result<rules::propose::ProposeResult, String> {
+    let report: serde_json::Value = serde_json::from_str(&content).map_err(|e| format!("The report is not JSON: {}", e))?;
+    if report.get("id").and_then(|v| v.as_str()) != Some(mod_id.as_str()) {
+        return Err("The report's id does not match the mod.".to_string());
+    }
+    let pretty = serde_json::to_string_pretty(&report).map_err(|e| e.to_string())? + "\n";
+    let dir = mod_id.replace('/', "__");
+    let name = report.get("name").and_then(|v| v.as_str()).unwrap_or(&mod_id).to_string();
+    let title = format!("Community report: {}", name);
+    let body = format!("What PZ Mod Studio saw of `{}` on this player's PC, proposed from the Studio. The index counts each player's report once.", mod_id);
+    rules::propose::propose_file_as(
+        &|login| format!("community/reports/{}/{}.json", dir, login.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect::<String>()),
+        &title,
+        &body,
+        &|existing| {
+            let Some(old) = existing.and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok()) else {
+                return Ok(pretty.clone());
+            };
+            Ok(serde_json::to_string_pretty(&merge_registry_issues(old, report.clone())).map_err(|e| e.to_string())? + "\n")
+        },
+    )
+}
+
 /// One known issue without its count or date: the same log line (numbers aside) and the same
 /// kind of fix are one issue, however many times or on which day it was seen.
 fn issue_identity(issue: &serde_json::Value) -> String {
@@ -2126,6 +2153,7 @@ pub fn run() {
             github_device_wait_cmd,
             github_device_cancel_cmd,
             propose_registry_cmd,
+            propose_report_cmd,
             propose_rule_cmd,
             workshop_search_cmd,
             read_mod_image_cmd,

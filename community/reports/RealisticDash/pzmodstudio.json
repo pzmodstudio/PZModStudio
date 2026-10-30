@@ -1,0 +1,27 @@
+{
+  "id": "RealisticDash",
+  "name": "Realistic Dashboard and Gauges",
+  "workshop_id": "3635591071",
+  "authors": [
+    "LonelyDesperate"
+  ],
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "log": "WARN : Lua          f:0 at Lua((MOD:Realistic Dashboard and Gauges)).ZZ_PatchVehicleDashboard_PassengerDash.lua> require(\"Vehicles/VehicleUtils\") failed",
+      "source": "PZ Mod Studio, from the game's console.txt",
+      "status": "verified",
+      "title": "1 warning in the last session (the game carried on)"
+    }
+  ]
+}

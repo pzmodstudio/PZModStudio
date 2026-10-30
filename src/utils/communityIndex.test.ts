@@ -48,8 +48,8 @@ describe('knownIssues', () => {
 
 describe('proposeUrl', () => {
   it('opens the new-file page with the file name and the JSON filled in', () => {
-    const url = proposeUrl(draftRegistry(mod, undefined, '42.21'));
-    expect(url).toContain('/new/main/community/index?filename=2858201402__dailystatisticsandgains.json&value=');
+    const url = proposeUrl(draftRegistry(mod, undefined, '42.21'), 'someone');
+    expect(url).toContain('/new/main/community/reports/2858201402__dailystatisticsandgains?filename=someone.json&value=');
     expect(decodeURIComponent(url.split('&value=')[1])).toContain('"id": "2858201402/dailystatisticsandgains"');
     expect(registryFileName('Plain')).toBe('Plain.json');
   });

@@ -913,7 +913,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             if (!confirm(t('modList.menu.prConfirm', { name: mod.name, json: JSON.stringify(registry, null, 2).slice(0, 1500) }))) return;
             showToast(t('modList.menu.openingPr', { name: mod.name }), 20000);
             try {
-              const r = await TauriService.proposeRegistry(mod.mod_id, JSON.stringify(registry, null, 2));
+              const r = await TauriService.proposeReport(mod.mod_id, JSON.stringify(registry, null, 2));
               setShared(markShared(mod.mod_id, registry.issues, r.pr_url));
               showToast(t('modList.menu.prOpened', { url: r.pr_url }), 10000);
               TauriService.openExternalUrl(r.pr_url);

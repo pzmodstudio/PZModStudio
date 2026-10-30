@@ -115,11 +115,13 @@ export function draftRegistry(mod: ModInfo, catalog: CatalogModSummary | undefin
 }
 
 /**
- * GitHub's "new file" page for the registry, with the path and the content filled in: the
- * person signs in, reads it over, and presses "Propose changes"; GitHub forks and opens the pull
- * request for them. Nothing is sent from the app.
+ * GitHub's "new file" page for this player's report on the mod (community/reports/<mod>/), with
+ * the content filled in: the person signs in, reads it over, and presses "Propose changes"; GitHub
+ * forks and opens the pull request for them. Nothing is sent from the app. Without a token the
+ * Studio does not know their GitHub name, so the file gets a name of its own, as unique.
  */
-export function proposeUrl(registry: CommunityRegistry): string {
+export function proposeUrl(registry: CommunityRegistry, reporter = `player-${Math.random().toString(36).slice(2, 10)}`): string {
   const value = JSON.stringify(registry, null, 2) + '\n';
-  return `${COMMUNITY_REPO}/new/main/community/index?filename=${encodeURIComponent(registryFileName(registry.id))}&value=${encodeURIComponent(value)}`;
+  const dir = registryFileName(registry.id).replace(/\.json$/, '');
+  return `${COMMUNITY_REPO}/new/main/community/reports/${encodeURIComponent(dir)}?filename=${encodeURIComponent(reporter + '.json')}&value=${encodeURIComponent(value)}`;
 }

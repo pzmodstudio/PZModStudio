@@ -1351,6 +1351,10 @@ export interface CommunityIssue {
   date?: string | null;
   source?: string | null;
   status?: CommunityStatus;
+  /** How many players' reports carry it (community/reports), when the index counted them. */
+  seen_by?: number;
+  /** The builds those reports saw it on, when more than one. */
+  builds_seen?: string[];
 }
 
 /** One mod's registry in the community index (community/index/<id>.json). */

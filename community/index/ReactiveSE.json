@@ -40,17 +40,6 @@
       "status": "verified",
       "title": "Formatting \"Sandbox_Reac...\" warns in the log",
       "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Formatting \"Sandbox_ReactiveSE_EventChance\""
-    },
-    {
-      "build": "42.21",
-      "date": "2026-10-30",
-      "fix": {
-        "kind": "none"
-      },
-      "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap.",
-      "source": "PZ Mod Studio, the compatible copy it made",
-      "status": "verified",
-      "title": "Needed a compatible copy on this build"
     }
   ],
   "load_after": [],

@@ -217,8 +217,15 @@ fn token() -> Result<String, String> {
 /// Puts one file on a branch of the fork and opens the pull request. `new_content` gets the
 /// file as it is on GitHub today (None when it does not exist) and returns what it should be.
 pub fn propose_file(path: &str, title: &str, body: &str, new_content: &dyn Fn(Option<&str>) -> Result<String, String>) -> Result<ProposeResult, String> {
+    propose_file_as(&|_| path.to_string(), title, body, new_content)
+}
+
+/// `propose_file` for a file named after the person proposing it: `path_of` gets their GitHub login.
+pub fn propose_file_as(path_of: &dyn Fn(&str) -> String, title: &str, body: &str, new_content: &dyn Fn(Option<&str>) -> Result<String, String>) -> Result<ProposeResult, String> {
     let client = Client::new(&token()?);
     let login = client.login()?;
+    let path = path_of(&login);
+    let path = path.as_str();
     let fork = client.fork(&login)?;
     let sha = client.main_sha(&fork)?;
     let branch = branch_name(path, chrono::Utc::now().timestamp());

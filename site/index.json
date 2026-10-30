@@ -165,7 +165,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.FormatFlagsConversionMismatchException: Conversion = s, Flags =   at Formatter$FormatSpecifier.failM",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "6 warnings in the last session (the game carried on)"
+          "title": "6 warnings in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -198,7 +199,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = '.' at Formatter.parse(null:-1). Message: ERROR: Form",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "1 warning in the last session (the game carried on)"
+          "title": "1 warning in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -228,7 +230,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% o' at Formatter.format(null:-1). Message: ERROR:",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "1 warning in the last session (the game carried on)"
+          "title": "1 warning in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -267,7 +270,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = 'l' at Formatter$FormatSpecifier.conversion(null:-1).",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "7 warnings in the last session (the game carried on)"
+          "title": "7 warnings in the last session (the game carried on)",
+          "seen_by": 1
         },
         {
           "build": "42.21",
@@ -278,7 +282,8 @@
           "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): TimedActions/ISPathFindAction -> Vehicles/TimedActions/ISPathFindAction.",
           "source": "PZ Mod Studio, the compatible copy it made",
           "status": "verified",
-          "title": "Needed a compatible copy on this build"
+          "title": "Needed a compatible copy on this build",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -386,7 +391,8 @@
           "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap.",
           "source": "PZ Mod Studio, the compatible copy it made",
           "status": "verified",
-          "title": "Needed a compatible copy on this build"
+          "title": "Needed a compatible copy on this build",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -413,7 +419,8 @@
           "log": "WARN : Lua          f:0 at Lua((MOD:Realistic Dashboard and Gauges)).ZZ_PatchVehicleDashboard_PassengerDash.lua> require(\"Vehicles/VehicleUtils\") failed",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "1 warning in the last session (the game carried on)"
+          "title": "1 warning in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -440,7 +447,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% A' at Formatter.format(null:-1). Message: ERROR:",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "1 warning in the last session (the game carried on)"
+          "title": "1 warning in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -490,7 +498,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "11 warnings in the last session (the game carried on)"
+          "title": "11 warnings in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -517,7 +526,8 @@
           "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "1 warning in the last session (the game carried on)"
+          "title": "1 warning in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],
@@ -544,7 +554,8 @@
           "log": "WARN : Lua          f:0 at Lua((MOD:Moodles in lua)).MoodlesIn.lua> require(\"LSMoodleManager\") failed",
           "source": "PZ Mod Studio, from the game's console.txt",
           "status": "verified",
-          "title": "1 warning in the last session (the game carried on)"
+          "title": "1 warning in the last session (the game carried on)",
+          "seen_by": 1
         }
       ],
       "load_after": [],

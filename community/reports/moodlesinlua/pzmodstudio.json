@@ -1,0 +1,27 @@
+{
+  "id": "moodlesinlua",
+  "name": "Moodles in lua",
+  "workshop_id": "3395171770",
+  "authors": [
+    "molecule31; Dreamweave"
+  ],
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "log": "WARN : Lua          f:0 at Lua((MOD:Moodles in lua)).MoodlesIn.lua> require(\"LSMoodleManager\") failed",
+      "source": "PZ Mod Studio, from the game's console.txt",
+      "status": "verified",
+      "title": "1 warning in the last session (the game carried on)"
+    }
+  ]
+}

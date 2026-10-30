@@ -1134,6 +1134,15 @@ export const TauriService = {
     return await invoke<ProposeResult>('propose_shared_list_cmd', { list });
   },
 
+  /** With the saved token: forks, writes this player's own report on the mod and opens the pull request. */
+  proposeReport: async (modId: string, content: string): Promise<ProposeResult> => {
+    try {
+      return await invoke<ProposeResult>('propose_report_cmd', { modId, content });
+    } catch (err) {
+      reportBackendError('Proposing to the community index', err);
+      throw err;
+    }
+  },
   /** With the saved token: forks, writes the registry on a branch and opens the pull request. */
   proposeRegistry: async (modId: string, content: string): Promise<ProposeResult> => {
     try {
