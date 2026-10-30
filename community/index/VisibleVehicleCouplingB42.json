@@ -1,0 +1,27 @@
+{
+  "authors": [
+    "Malevi4"
+  ],
+  "builds": [
+    "42"
+  ],
+  "id": "VisibleVehicleCouplingB42",
+  "incompatible": [],
+  "issues": [
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "none"
+      },
+      "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
+      "source": "PZ Mod Studio, from the game's console.txt",
+      "status": "verified",
+      "title": "1 warning in the last session (the game carried on)"
+    }
+  ],
+  "load_after": [],
+  "name": "Visible Vehicle Coupling (VVC)",
+  "requires": [],
+  "workshop_id": "3807182783"
+}
