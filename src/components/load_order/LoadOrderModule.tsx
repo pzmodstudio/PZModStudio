@@ -17,8 +17,6 @@ import { MOD_FILTERS, MOD_SOURCES, ModFilterId, issuesByModOf, modTagsOf, tagLab
 import { useKeepActions } from '../common/keep';
 import { KeptVersions } from './KeptVersions';
 import { LoadRules } from './LoadRules';
-import { ShareState, draftRegistry, knownIssues, markShared, proposeUrl, shareStateOf, sharedFacts } from '../../utils/communityIndex';
-import { useCommunityIndex } from '../../services/communityIndex';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
 import {
@@ -36,7 +34,6 @@ import {
   FolderOpen,
   Filter,
   FolderX,
-  Globe,
   ListOrdered,
   MapPin,
   Package,
@@ -643,22 +640,10 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     triggerReorder(next);
     showToast(on ? t('modList.groups.turnedOn', { name }) : t('modList.groups.turnedOff', { name }));
   };
-  // What each mod has for the community index, against what is in it and what this player sent.
-  const communityIndex = useCommunityIndex(paths);
-  const [shared, setShared] = useState(sharedFacts);
-  const shareStates = useMemo(() => {
-    const map = new Map<string, ShareState>();
-    for (const m of mods) {
-      const state = shareStateOf(m.mod_id, knownIssues(catalogById?.get(m.mod_id), errorStats?.get(m.name), installedBuild), communityIndex, shared);
-      if (state) map.set(m.mod_id, state);
-    }
-    return map;
-  }, [mods, catalogById, errorStats, installedBuild, communityIndex, shared]);
-  const modTags = useMemo(() => {
-    const tags = modTagsOf(mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares);
-    for (const [id, state] of shareStates) tags.set(id, [...(tags.get(id) ?? []), state === 'shared' ? 'shared' : 'share']);
-    return tags;
-  }, [mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares, shareStates]);
+  const modTags = useMemo(
+    () => modTagsOf(mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares),
+    [mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares],
+  );
   /** The origins and groups the list's mods have, with how many (as the game's pickers count). */
   const sourceCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -901,43 +886,6 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       onSelect: () => setKeptVersionsOf(mod),
     },
     ...(mod.mod_id.startsWith('Z_PZModStudio_') ? [] : keep.menuItems({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })),
-    {
-      label: t('modList.menu.share'),
-      icon: Globe,
-      onSelect: () => {
-        void (async () => {
-          const registry = draftRegistry(mod, catalogById?.get(mod.mod_id), installedBuild, knownIssues(catalogById?.get(mod.mod_id), errorStats?.get(mod.name), installedBuild));
-          if (await TauriService.githubTokenStatus()) {
-            // With a token: the Studio forks, writes the file on a branch and opens the pull request.
-            // That is public at once, so the person sees what goes out first.
-            if (!confirm(t('modList.menu.prConfirm', { name: mod.name, json: JSON.stringify(registry, null, 2).slice(0, 1500) }))) return;
-            showToast(t('modList.menu.openingPr', { name: mod.name }), 20000);
-            try {
-              const r = await TauriService.proposeReport(mod.mod_id, JSON.stringify(registry, null, 2));
-              setShared(markShared(mod.mod_id, registry.issues, r.pr_url));
-              showToast(t('modList.menu.prOpened', { url: r.pr_url }), 10000);
-              TauriService.openExternalUrl(r.pr_url);
-            } catch {
-              // Already shown by TauriService.
-            }
-            return;
-          }
-          // Without one: GitHub's new-file page, with the registry the Studio can fill in already
-          // there; the person adds what they tested and GitHub opens the pull request. Nothing is sent from here.
-          void navigator.clipboard.writeText(JSON.stringify(registry, null, 2));
-          showToast(t('modList.menu.openingGithub', { name: mod.name }), 8000);
-          TauriService.openExternalUrl(proposeUrl(registry));
-        })();
-      },
-      // Everything seen is in the index or in a pull request already: another one would say it twice.
-      disabled: mod.mod_id.startsWith('Z_PZModStudio_') || knownIssues(catalogById?.get(mod.mod_id), errorStats?.get(mod.name), installedBuild).length === 0 || shareStates.get(mod.mod_id) === 'shared',
-      disabledReason: mod.mod_id.startsWith('Z_PZModStudio_')
-        ? t('modList.menu.notCommunity')
-        : shareStates.get(mod.mod_id) === 'shared'
-        ? t('modList.menu.alreadyShared', { when: shared[mod.mod_id]?.at ? ` (${shared[mod.mod_id].at})` : '' })
-        : t('modList.menu.nothingSeen'),
-      title: t('modList.menu.shareTitle', { facts: knownIssues(catalogById?.get(mod.mod_id), errorStats?.get(mod.name), installedBuild).map((f) => f.title.toLowerCase()).join('; ') }),
-    },
     {
       label: t('modList.menu.copyId'),
       icon: Copy,
@@ -1451,8 +1399,6 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                       isBridge={isBridge}
                       catalogById={catalogById}
                       errorStats={errorStats}
-                      shareState={shareStates.get(mod.mod_id)}
-                      sharedAt={shared[mod.mod_id]?.at}
                       loadTimes={loadTimes}
                       gameShares={gameShares}
                       isFavorite={keep.isFavorite({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })}

@@ -38,8 +38,7 @@ Keep `updated` as the date of the change.
 
 ## Players' reports (`reports/`)
 
-What one player's PZ Mod Studio saw of a mod (Mod List, right-click, *Share what the Studio saw of
-this mod*): `reports/<mod id>/<GitHub name>.json`, shaped like a registry below. Each player writes
+What one player saw of a mod (the Studio no longer sends these itself; they come by hand): `reports/<mod id>/<GitHub name>.json`, shaped like a registry below. Each player writes
 only their own file, so two players' pull requests on one mod never clash, and sharing again
 updates the same file. The build folds every report into its mod's entry in `index.json`: lists
 joined, and each issue once (the same log line, numbers aside, is one issue) with `seen_by`, how

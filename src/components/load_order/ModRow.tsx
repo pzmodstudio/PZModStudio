@@ -7,8 +7,7 @@ import { SourceBadge, sourceOf } from '../common/SourceBadge';
 import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
 import { RowHealthChips } from './RowHealth';
-import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Globe, Hash, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
-import { ShareState } from '../../utils/communityIndex';
+import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Hash, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
 
 /** Below this a mod's loading time is a few milliseconds of mod.info and translations: not worth a tag. */
 export const SLOW_LOAD_MS = 250;
@@ -32,8 +31,6 @@ export interface ModRowBodyProps {
   catalogById?: Map<string, CatalogModSummary>;
   errorStats?: Map<string, ModErrorStat>;
   /** What it has for the community index, and the day this player last sent it. */
-  shareState?: ShareState;
-  sharedAt?: string;
   loadTimes?: Map<string, number>;
   /** Share of the game's time per mod (%), from the last profiler measurement. */
   gameShares?: Map<string, number>;
@@ -87,8 +84,6 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   isBridge,
   catalogById,
   errorStats,
-  shareState,
-  sharedAt,
   loadTimes,
   gameShares,
   isFavorite = false,
@@ -224,36 +219,12 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
             onSearchInBrowser={onSearchInBrowser}
           />
 
-          {/* Whether what the Studio saw of it is in the community index yet. */}
-          {shareState && !(shareState === 'shared' && indexKnows) && (
-            <Tip
-              content={
-                <TipBody title={t(`modList.row.index.${shareState}Head`)} tone={shareState === 'shared' ? 'emerald' : 'cyan'}>
-                  <RichText text={t(`modList.row.index.${shareState}Body`, { when: sharedAt ? ` (${sharedAt})` : '' })} />
-                </TipBody>
-              }
-            >
-              <span
-                className={`flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                  shareState === 'shared'
-                    ? 'bg-slate-900 text-emerald-400/80 border-emerald-900/70'
-                    : shareState === 'newer'
-                    ? 'bg-amber-950/60 text-amber-300 border-amber-700/70'
-                    : 'bg-sky-950/60 text-sky-300 border-sky-700/70'
-                }`}
-              >
-                {shareState === 'shared' ? <Check className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
-                {t(`modList.row.index.${shareState}`)}
-              </span>
-            </Tip>
-          )}
-
           {/* What the game laid at this mod's door last session, counted from console.txt. */}
           {(() => {
             const stat = errorStats?.get(mod.name);
             if (!stat || (stat.exceptions === 0 && stat.warnings === 0)) return null;
-            // Once all of it is in the index the count is old news: it shows again with something new to share.
-            if (shareState === 'shared') return null;
+            // The index's known-issue chip already says what this is and what fixes it.
+            if (indexKnows) return null;
             const threw = stat.exceptions > 0;
             const line = stat.last_exception ?? stat.last_warning ?? '';
             return (
