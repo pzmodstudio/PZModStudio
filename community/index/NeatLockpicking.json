@@ -1,24 +1,41 @@
 {
-  "id": "NeatLockpicking",
-  "name": "Neat Lockpicking",
-  "workshop_id": "3783535220",
+  "authors": [],
   "builds": [
     "42"
   ],
+  "id": "NeatLockpicking",
+  "incompatible": [],
   "issues": [
     {
-      "title": "ISPathFindAction is nil when unlocking a vehicle",
-      "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
+      "build": "42.21",
+      "date": "2026-10-18",
       "file": "media/lua/shared/NeatLockpicking/NeatLockpick_Unlock.lua",
-      "line": 171,
-      "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
       "fix": {
         "kind": "compatible_copy"
       },
-      "build": "42.21",
-      "date": "2026-10-18",
+      "line": 171,
+      "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
+      "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
       "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-      "status": "verified"
+      "status": "verified",
+      "title": "ISPathFindAction is nil when unlocking a vehicle"
+    },
+    {
+      "build": "42.21",
+      "date": "2026-10-30",
+      "fix": {
+        "kind": "compatible_copy"
+      },
+      "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): TimedActions/ISPathFindAction -> Vehicles/TimedActions/ISPathFindAction.",
+      "source": "PZ Mod Studio, the compatible copy it made",
+      "status": "verified",
+      "title": "Needed a compatible copy on this build"
     }
-  ]
+  ],
+  "load_after": [],
+  "name": "Neat Lockpicking",
+  "requires": [
+    "NeatUI_Framework"
+  ],
+  "workshop_id": "3783535220"
 }
