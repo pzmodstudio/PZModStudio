@@ -6,8 +6,8 @@ description=[b]PZ Mod Studio[/b] is a free, open-source program for Windows that
 description=
 description=The Link also works alone, but it is made to go with the app. Both are free.
 description=
-description=[url=https://github.com/pzmodstudio/PZModStudio/releases/latest][img]https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/workshop/Z_StudioLink/banners/download.png[/img][/url]
-description=[url=https://theindiestone.com/forums/topic/100431-project-zomboid-mod-studio/#findComment-488341][b]Full walkthrough on the forums[/b][/url]
+description=[url=https://pzmodstudio.github.io/PZModStudio/][img]https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/workshop/Z_StudioLink/banners/download.png[/img][/url]
+description=[url=https://pzmodstudio.github.io/PZModStudio/][b]Website: screenshots, features and download[/b][/url]  |  [url=https://theindiestone.com/forums/topic/100431-project-zomboid-mod-studio/#findComment-488341][b]Full walkthrough on the forums[/b][/url]
 description=
 description=[img]https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/workshop/Z_StudioLink/banners/s1-app.png[/img]
 description=[img]https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/workshop/Z_StudioLink/banners/f-profiles.png[/img]
@@ -75,8 +75,8 @@ description=[*]A save is only changed when you say yes, and after a backup. The 
 description=[*]Windows may show a SmartScreen notice the first time only because the program has no paid code-signing certificate.
 description=[/list]
 description=
-description=[url=https://github.com/pzmodstudio/PZModStudio/releases/latest][img]https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/workshop/Z_StudioLink/banners/download.png[/img][/url]
-description=[url=https://github.com/pzmodstudio/PZModStudio][b]Source code[/b][/url]  |  [url=https://theindiestone.com/forums/topic/100431-project-zomboid-mod-studio/#findComment-488341][b]Forum walkthrough[/b][/url]
+description=[url=https://pzmodstudio.github.io/PZModStudio/][img]https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/workshop/Z_StudioLink/banners/download.png[/img][/url]
+description=[url=https://pzmodstudio.github.io/PZModStudio/][b]Website[/b][/url]  |  [url=https://github.com/pzmodstudio/PZModStudio][b]Source code[/b][/url]  |  [url=https://theindiestone.com/forums/topic/100431-project-zomboid-mod-studio/#findComment-488341][b]Forum walkthrough[/b][/url]
 description=
 description=Build 42 only. Found a bug? Use Copy report and paste it in the comments, or open an issue on GitHub.
 tags=Build 42;Interface;QoL;Framework

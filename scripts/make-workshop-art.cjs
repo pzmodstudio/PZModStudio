@@ -1,6 +1,6 @@
 // Draws the Link's Workshop art with HTML and Edge's headless screenshot:
 //   workshop/Z_StudioLink/banners/*.png  the banners in the description (loaded from GitHub)
-//   workshop/Z_StudioLink/slides/*       the images and GIFs for the carousel at the top of the
+//   workshop/Z_StudioLink/_SUBIR-AL-POST/*  the images and GIFs for the carousel at the top of the
 //                                        page ("Add/edit images & videos" on the item's page)
 // Screens come from docs/forum/images (the app), workshop/Z_StudioLink/media (game crops) and
 // workshop/Z_StudioLink/recordings (the game, for the animated slides; not in git).
@@ -13,7 +13,7 @@ const { execFileSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
 const ws = path.join(root, 'workshop', 'Z_StudioLink');
 const bannerDir = path.join(ws, 'banners');
-const slideDir = path.join(ws, 'slides');
+const slideDir = path.join(ws, '_SUBIR-AL-POST');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pz-art-'));
 const only = process.argv[2];
 const EDGE = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(p => fs.existsSync(p));
@@ -169,7 +169,7 @@ const SLIDES = [
   ['02-mod-list', 'THE APP', "Load order by the game's own rules", 'Each mod after what it requires. One click, the old order kept.', forum('02-mod-list.png')],
   ['03-mod-health', 'THE APP', 'Mod Health', 'Problems found before you start a game, each with its fix.', forum('04-mod-health.png')],
   ['04-monitor', 'THE APP', 'Monitor', 'Which mod caused that error, in plain words.', forum('10-monitor.png')],
-  ['05-merger', 'THE APP', 'Mod Merger', 'Two mods that change the same file, merged into a package.', forum('09-merger-package.png')],
+  ['05-merger', 'THE APP', 'Mod Merger', 'Two mods that change the same file, merged into a package.', forum('08-merger-packages.png')],
   ['06-browse', 'THE APP', 'Browse the Workshop and Nexus', 'Subscribe to a whole collection in one click.', forum('05-browse.png')],
   ['07-mods-screen', 'THE LINK, IN THE GAME', 'A clearer Mods screen', 'Search, filters, details. Works even without the app.', rec('01-mods-screen.mp4'), [0, 18]],
   ['08-requirements', 'THE LINK, IN THE GAME', 'Mods come on with what they need', 'And it says first what turning one off would break.', rec('03-requirements.mp4'), [0, 22]],
@@ -201,7 +201,7 @@ if (only !== 'banners') {
   for (const [name, kicker, title, line, src, cut] of SLIDES) {
     const png = path.join(tmp, `${name}.png`);
     if (src && !fs.existsSync(src)) {
-      console.log(`slides/${name}: no ${src}, skipped`);
+      console.log(`_SUBIR-AL-POST/${name}: no ${src}, skipped`);
       continue;
     }
     if (cut) {
@@ -214,21 +214,21 @@ if (only !== 'banners') {
         execFileSync('ffmpeg', ['-v', 'error', '-y', '-loop', '1', '-framerate', String(fps), '-i', png, '-ss', String(cut[0]), '-t', String(cut[1] - cut[0]), '-i', src, '-filter_complex', filter, '-loop', '0', out], { stdio: 'inherit' });
         if (fs.statSync(out).size <= 1900000) break;
       }
-      console.log(`slides/${name}.gif  ${kb(out)}`);
+      console.log(`_SUBIR-AL-POST/${name}.gif  ${kb(out)}`);
       continue;
     }
     if (!kicker) {
       // 16:9 out of the key art's wider frame, centred.
       const out = path.join(slideDir, `${name}.jpg`);
       execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', keyArt, '-vf', `crop=ih*16/9:ih,scale=${SW}:${SH}:flags=lanczos`, '-q:v', '2', out]);
-      console.log(`slides/${name}.jpg  ${kb(out)}`);
+      console.log(`_SUBIR-AL-POST/${name}.jpg  ${kb(out)}`);
       continue;
     }
     if (src.startsWith(forum(''))) shot(full(src) + caption(kicker, title, line), png, SW, SH);
     else shot(fitted(src, ...size(src)) + caption(kicker, title, line), png, SW, SH);
     const out = path.join(slideDir, `${name}.jpg`);
     execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', png, '-q:v', '2', out]);
-    console.log(`slides/${name}.jpg  ${kb(out)}`);
+    console.log(`_SUBIR-AL-POST/${name}.jpg  ${kb(out)}`);
   }
 }
 fs.rmSync(tmp, { recursive: true, force: true });

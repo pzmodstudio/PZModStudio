@@ -1,8 +1,17 @@
 {
- "latest": "1.7.14",
- "count": 24,
+ "latest": "1.7.15",
+ "count": 25,
  "built": "2026-10-30",
  "releases": [
+  {
+   "version": "1.7.15",
+   "date": "2026-10-30",
+   "notes": [
+    "Settings: Connect with GitHub works again, for sharing a rule or what you know about a mod",
+    "Link 1.18.2: the website's address in the mod's description",
+    "Packages: the card shows the whole description, and a package's own description next to its files"
+   ]
+  },
   {
    "version": "1.7.14",
    "date": "2026-10-29",
@@ -123,13 +132,6 @@
    "date": "2026-10-26",
    "notes": [
     "Mod List: sort by newest or oldest install"
-   ]
-  },
-  {
-   "version": "1.7.3",
-   "date": "2026-10-24",
-   "notes": [
-    "Launcher: Custom start, straight into a save or onto a server (Link 1.18.0)"
    ]
   }
  ]
