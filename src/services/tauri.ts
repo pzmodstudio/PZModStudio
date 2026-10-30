@@ -2250,9 +2250,11 @@ export const TauriService = {
   saveMasterLoadOrder: async (
     userZomboidDir: string,
     loadOrder: string[],
-    activeModIds: string[]
+    activeModIds: string[],
+    /** Not-installed mods taken out of the list on purpose: the profile stops keeping them. */
+    forget: string[] = []
   ): Promise<void> => {
-    return await invoke('save_master_load_order', { userZomboidDir, loadOrder, activeModIds });
+    return await invoke('save_master_load_order', { userZomboidDir, loadOrder, activeModIds, forget });
   },
 };
 

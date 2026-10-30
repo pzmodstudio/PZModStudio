@@ -807,9 +807,13 @@ export const App: React.FC = () => {
     const userDir = paths.user_zomboid_dir || '';
     const activeModIds = updatedMods.filter((m) => m.enabled).map((m) => m.mod_id);
     const fullLoadOrder = updatedMods.map((m) => m.mod_id);
+    // A not-installed row that is gone from the new list was removed or replaced by the player;
+    // otherwise the profile keeps what it cannot see (a mod unsubscribed for a while).
+    const kept = new Set(fullLoadOrder);
+    const forget = mods.filter((m) => m.not_installed && !kept.has(m.mod_id)).map((m) => m.mod_id);
 
     try {
-      await TauriService.saveMasterLoadOrder(userDir, fullLoadOrder, activeModIds);
+      await TauriService.saveMasterLoadOrder(userDir, fullLoadOrder, activeModIds, forget);
     } catch (err) {
       reportBackendError('Saving the load order', err);
     }
