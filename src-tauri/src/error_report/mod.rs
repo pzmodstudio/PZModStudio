@@ -78,7 +78,8 @@ static TRANSLATION_OWNERS: std::sync::Mutex<Option<(Option<std::time::SystemTime
 /// The mod whose translation file holds `key`: a Translator warning names only the text, so
 /// this is how the Monitor's card and the per-mod counts get to the mod behind it.
 pub fn translation_owner(key: &str) -> Option<String> {
-    if cfg!(test) {
+    // Tests see no installed mods, except the ones run against this PC (PZMS_ZOMBOID_DIR).
+    if cfg!(test) && std::env::var("PZMS_ZOMBOID_DIR").is_err() {
         return None;
     }
     let paths = crate::vfs::studio_paths();

@@ -955,7 +955,10 @@ fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErro
             severity: Severity::Exception,
             polyfill_rule_id_suggestion: Some("B42_DAILY_REPORT_SAFETY".to_string()),
         })
-    } else if line.contains("UnknownFormatConversionException") {
+    } else if line.contains("UnknownFormatConversionException") || line.contains("Translator.reportMissingArgumentsFromPastAbuse") {
+        // Every way Java refuses a bare % in a text: a sign it cannot read ("Conversion = ')'"),
+        // one that reads as a placeholder with nothing to fill it ("Format specifier '% A'"), or
+        // one with flags that do not fit ("FormatFlagsConversionMismatchException").
         Some(TranslatedErrorPayload {
             called_from: Vec::new(),
             id: format!("err_{}", counter),
@@ -1768,6 +1771,54 @@ mod one_card_tests {
             cards.extend(maker.line(l));
         }
         cards
+    }
+
+    /// The Monitor's cards for this PC's console.txt, folded as the app folds them (title, shape of
+    /// the line, mod). PZMS_ZOMBOID_DIR.
+    #[test]
+    #[ignore]
+    fn the_real_sessions_cards() {
+        let Ok(dir) = std::env::var("PZMS_ZOMBOID_DIR") else { return };
+        let file = std::fs::File::open(std::path::Path::new(&dir).join("console.txt")).expect("console.txt");
+        let shape = |l: &str| -> String {
+            let l = l.trim_start();
+            let rest = if l.starts_with("ERROR") || l.starts_with("WARN") { l.split_once('>').map(|(_, r)| r).unwrap_or(l) } else { l };
+            rest.chars().map(|c| if c.is_ascii_digit() { 'N' } else { c }).collect::<String>().trim().chars().take(90).collect()
+        };
+        let mut maker = CardMaker::new();
+        let mut cards: Vec<(super::TranslatedErrorPayload, usize)> = Vec::new();
+        let add = |card: super::TranslatedErrorPayload, cards: &mut Vec<(super::TranslatedErrorPayload, usize)>| {
+            let same = |c: &super::TranslatedErrorPayload| {
+                c.mod_name == card.mod_name && ((c.title == card.title && shape(&c.raw_error) == shape(&card.raw_error)) || (c.code == "translator_text" && card.code == "translator_text"))
+            };
+            match cards.iter_mut().find(|(c, _)| same(c)) {
+                Some((_, n)) => *n += 1,
+                None => cards.push((card, 1)),
+            }
+        };
+        for line in super::lossy_lines(std::io::BufReader::new(file)) {
+            for card in maker.line(&line) {
+                add(card, &mut cards);
+            }
+        }
+        if let Some(card) = maker.flush() {
+            add(card, &mut cards);
+        }
+        for (c, n) in &cards {
+            println!("--- {:?} x{} | {} | mod: {:?} | from: {:?}\n    {}\n    {}", c.severity, n, c.code, c.mod_name, c.called_from, c.title, c.raw_error.chars().take(230).collect::<String>());
+        }
+        println!("{} cards", cards.len());
+    }
+
+    #[test]
+    fn every_way_java_refuses_a_bare_percent_is_the_same_card() {
+        for line in [
+            "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Formatting \"Sandbox_X\"",
+            "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% A' at Formatter.format(null:-1). Message: ERROR: Missing arguments for \"UI_trait_X\"",
+            "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.FormatFlagsConversionMismatchException: Conversion = s, Flags =   at Formatter$FormatSpecifier.failMismatch(null:-1). Message: ERROR: Formatting \"UI_X\"",
+        ] {
+            assert_eq!(super::translate_log_error(line, 1).map(|c| c.code).as_deref(), Some("translator_text"), "{}", line);
+        }
     }
 
     #[test]

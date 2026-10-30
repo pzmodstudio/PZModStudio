@@ -1597,6 +1597,25 @@ local function initVanillaGuards()
         end
     end
 
+    -- ----------------------------------------------------------------------------
+    -- Core:getKey(nil): a key binding asked for with no name (42.21)
+    -- ----------------------------------------------------------------------------
+    -- Java throws a NullPointerException ("keybindID" is null) and logs it, then hands Lua nil;
+    -- pcall does not keep it out of the log. A mod that walks its bindings on every key press
+    -- with a header among them (Fancy Handwork's "[FancyHandwork]") wrote hundreds of them a
+    -- session. Same answer, nil, without asking Java. An unknown name already answers 0.
+    local okCore, coreClass = pcall(function() return Core.class end)
+    local coreIndex = okCore and coreClass and __classmetatables and __classmetatables[coreClass]
+    coreIndex = coreIndex and coreIndex.__index
+    if type(coreIndex) == "table" and coreIndex.getKey and not coreIndex.__pzms_getKey then
+        local orig_getKey = coreIndex.getKey
+        coreIndex.getKey = function(self, name, ...)
+            if name == nil then return nil end
+            return orig_getKey(self, name, ...)
+        end
+        coreIndex.__pzms_getKey = true
+    end
+
 end
 
 -- ----------------------------------------------------------------------------
