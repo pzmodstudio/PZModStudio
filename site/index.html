@@ -301,7 +301,7 @@ document.querySelectorAll('video').forEach((v) => { v.removeAttribute('autoplay'
   document.getElementById('ver').textContent = 'v' + data.latest;
   document.getElementById('latest').textContent = data.latest;
   const rels = data.releases || [];
-  document.getElementById('nRel').textContent = rels.filter((r) => r.version).length;
+  document.getElementById('nRel').textContent = data.count || rels.filter((r) => r.version).length;
   const SHOWN = 4;
   const html = (r, i) => {
     const title = r.version ? 'v' + esc(r.version) : 'In development';
