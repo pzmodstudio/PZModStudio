@@ -517,7 +517,7 @@ pub fn toggle_package_in_modlist(
                     }
                 }
             }
-            let _ = crate::instance_manager::save_master_load_order(user_zomboid_dir.to_string(), load_order, active_mods);
+            let _ = crate::instance_manager::save_master_load_order(user_zomboid_dir.to_string(), load_order, active_mods, None);
         }
     }
 
@@ -652,5 +652,6 @@ pub(crate) fn remember_package_in_saved_order(user_zomboid_dir: &str, package: &
         user_zomboid_dir.to_string(),
         load_order,
         active_mods.to_vec(),
+        None,
     );
 }

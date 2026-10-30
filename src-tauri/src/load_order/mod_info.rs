@@ -825,7 +825,14 @@ pub fn scan_all_installed_mods(paths: &StudioPaths) -> Vec<ModManifest> {
     let mut saved_active_ids: Option<HashSet<String>> = None;
     let mut saved_in: Option<(std::path::PathBuf, bool)> = None;
 
-    let user_dirs = get_all_user_zomboid_dirs(&paths.user_zomboid_dir);
+    // The Zomboid folder that holds the default.txt being read is the only one whose saved order
+    // counts; the other candidates are for when the list is somewhere else.
+    let ini_home = Path::new(&paths.mod_list_ini_path).parent().and_then(|p| p.parent()).map(|p| p.to_string_lossy().to_lowercase().replace('/', "\\"));
+    let same_folder = |u: &std::path::PathBuf| ini_home.as_deref() == Some(u.to_string_lossy().to_lowercase().replace('/', "\\").trim_end_matches('\\'));
+    let mut user_dirs = get_all_user_zomboid_dirs(&paths.user_zomboid_dir);
+    if let Some(home) = user_dirs.iter().find(|d| same_folder(d)).cloned() {
+        user_dirs = vec![home];
+    }
     for u_dir in &user_dirs {
         // A) Check PZModStudio_Instances/ for an active profile
         let inst_dir = u_dir.join("PZModStudio_Instances");
@@ -878,8 +885,12 @@ pub fn scan_all_installed_mods(paths: &StudioPaths) -> Vec<ModManifest> {
     // default.txt is what the game loads. When it no longer says what the Studio saved -- the
     // game's own Mods screen, an earlier list restored, a bisect trial, another tool -- it wins,
     // and the saved list takes it, so the next save does not put the old list back.
+    // Only the Zomboid folder that holds this default.txt takes it: a list found in another
+    // folder (the user's real one, while a test reads a temporary one) is never rewritten from it.
     if let (Some(order), Some(active), Some((u_dir, is_profile))) = (&saved_load_order, &saved_active_ids, &saved_in) {
-        if let Ok(ini) = read_mod_list_ini(&paths.mod_list_ini_path) {
+        if !same_folder(u_dir) {
+            // Read only: what the other folder saved still orders the rows below.
+        } else if let Ok(ini) = read_mod_list_ini(&paths.mod_list_ini_path) {
             let game_active: Vec<String> = ini.active_mods.iter().map(|s| sanitize_mod_id(s)).filter(|s| !s.is_empty()).collect();
             let installed = |id: &String| all_mods_map.contains_key(id);
             let in_game: HashSet<&String> = game_active.iter().filter(|id| installed(id)).collect();

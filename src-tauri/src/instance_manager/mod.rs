@@ -438,7 +438,10 @@ pub fn save_master_load_order(
     user_zomboid_dir: String,
     load_order: Vec<String>,
     active_mod_ids: Vec<String>,
+    forget: Option<Vec<String>>,
 ) -> Result<(), String> {
+    // Not-installed mods the player took out of the list on purpose: the profile lets them go.
+    let forget: std::collections::HashSet<String> = forget.unwrap_or_default().into_iter().collect();
     // Runs on every toggle/reorder: only the Zomboid folder in use, and no Workshop scans.
     let z_dir = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&user_zomboid_dir)
         .into_iter()
@@ -470,13 +473,13 @@ pub fn save_master_load_order(
                             let remembered: Vec<String> = inst
                                 .load_order
                                 .iter()
-                                .filter(|id| !installed.contains(id))
+                                .filter(|id| !installed.contains(id) && !forget.contains(*id))
                                 .cloned()
                                 .collect();
                             let still_wanted: Vec<String> = inst
                                 .active_mod_ids
                                 .iter()
-                                .filter(|id| !installed.contains(id))
+                                .filter(|id| !installed.contains(id) && !forget.contains(*id))
                                 .cloned()
                                 .collect();
 
@@ -486,6 +489,7 @@ pub fn save_master_load_order(
                             inst.active_mod_ids.extend(still_wanted);
                             // A mod switched on is one of the profile's mods from then on.
                             let mut members = inst.member_ids();
+                            members.retain(|id| !forget.contains(id));
                             for id in &inst.active_mod_ids {
                                 if !members.contains(id) {
                                     members.push(id.clone());
@@ -571,7 +575,7 @@ pub fn update_instance(
 
     // If updating active instance, also sync master load order
     if instance.is_active {
-        let _ = save_master_load_order(user_zomboid_dir, instance.load_order.clone(), instance.active_mod_ids.clone());
+        let _ = save_master_load_order(user_zomboid_dir, instance.load_order.clone(), instance.active_mod_ids.clone(), None);
     }
 
     Ok(instance)

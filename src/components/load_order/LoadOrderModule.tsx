@@ -1174,6 +1174,15 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     const finalId = targetMod ? targetMod.mod_id : targetModId;
 
     setSearchQuery(''); // Clear search query so target mod is guaranteed visible in DOM
+    // A mod outside the profile, or hidden by a filter, would leave the panel on the list's first
+    // mod: show everything, filters off, so its row and its panel are the ones that open.
+    if (targetMod && !scopeMods.some((m) => m.mod_id === finalId)) setShowEveryMod(true);
+    if (targetMod && !filteredMods.some((m) => m.mod_id === finalId)) {
+      setStateFilter('all');
+      setSourceFilter('all');
+      setTagFilter('all');
+      setGroupFilter('all');
+    }
     setSelectedModId(finalId);
     setHighlightedModId(finalId);
 
