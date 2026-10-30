@@ -516,6 +516,7 @@
       "share": "Share what the Studio saw of this mod…",
       "notCommunity": "A Studio package is not a mod of the community",
       "nothingSeen": "Nothing seen of this mod yet: the errors and warnings the Monitor counts for it, or a compatible copy it needed, would go here",
+      "alreadyShared": "Everything is in the index already, or in a pull request you opened{{when}}: sharing it again would say it twice. It comes back when the Studio sees something new of this mod.",
       "shareTitle": "Sends nothing by itself: opens a note for the community index on GitHub with what was seen here ({{facts}}), for you to complete",
       "openingPr": "Opening a pull request with {{name}}'s registry…",
       "prOpened": "Pull request opened: {{url}} (opening it in your browser so you can add what you tested).",
@@ -570,6 +571,17 @@
       "millis": "{{n}} milliseconds",
       "threw": "{{count}}× threw",
       "warn": "{{count}} warn",
+      "index": {
+        "share": "For the index",
+        "shareHead": "Something to share",
+        "shareBody": "The Studio saw something of this mod (last session's errors or warnings, or a compatible copy it needed) that the community index does not have yet. Right-click → **Share what the Studio saw of this mod…** proposes it.",
+        "newer": "Something new",
+        "newerHead": "Something new since it was shared",
+        "newerBody": "What is in the index (or what you proposed) does not cover everything the Studio saw now. Right-click → **Share what the Studio saw of this mod…** proposes the new part.",
+        "shared": "In the index",
+        "sharedHead": "Shared",
+        "sharedBody": "Everything the Studio saw of this mod is in the community index, or in a pull request you opened{{when}}. If something new turns up, this mark changes to **Something new**."
+      },
       "errorsTitle": "Last session the game logged {{count}} error(s) from this mod: something in its code threw, and whatever it was doing at that moment did not finish.",
       "warningsTitle": "Last session the game logged {{count}} warning(s) about this mod: the game noticed something odd and carried on, so nothing broke by itself.",
       "alsoWarnings": " Also {{count}} warning(s).",
@@ -671,7 +683,9 @@
       "errors": "Errors last session",
       "warnings": "Warnings last session",
       "slow": "Slow to load (from {{min}} ms)",
-      "heavy": "Heavy on the game (from {{pct}} %)"
+      "heavy": "Heavy on the game (from {{pct}} %)",
+      "share": "To share to the index",
+      "shared": "Already in the index"
     },
     "clearFilters": "clear filters",
     "clearFiltersTitle": "Show every mod again",

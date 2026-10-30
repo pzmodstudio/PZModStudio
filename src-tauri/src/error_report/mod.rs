@@ -62,11 +62,66 @@ fn media_path(file: &Path) -> Option<String> {
     Some(text[at + 1..].to_string())
 }
 
-/// The text key in `... ERROR: Formatting "Sandbox_NeatLockpicking_X"`.
-fn formatting_key(line: &str) -> Option<String> {
-    let rest = line.split("Formatting \"").nth(1)?;
+/// The text key in `... ERROR: Formatting "Sandbox_NeatLockpicking_X"` (a bare `%`) or
+/// `... ERROR: Missing arguments for "UI_trait_X"` (a `%` that looks like a placeholder).
+pub fn formatting_key(line: &str) -> Option<String> {
+    let rest = line.split("Formatting \"").nth(1).or_else(|| line.split("Missing arguments for \"").nth(1))?;
     let key = rest.split('"').next()?.trim();
     (!key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')).then(|| key.to_string())
+}
+
+/// Every key of the active mods' translation files (English and the game's language) and the
+/// display name of the mod that ships it, the last-loading one winning as in the game; kept until
+/// the mod list file changes.
+static TRANSLATION_OWNERS: std::sync::Mutex<Option<(Option<std::time::SystemTime>, std::collections::HashMap<String, String>)>> = std::sync::Mutex::new(None);
+
+/// The mod whose translation file holds `key`: a Translator warning names only the text, so
+/// this is how the Monitor's card and the per-mod counts get to the mod behind it.
+pub fn translation_owner(key: &str) -> Option<String> {
+    if cfg!(test) {
+        return None;
+    }
+    let paths = crate::vfs::studio_paths();
+    let stamp = std::fs::metadata(&paths.mod_list_ini_path).and_then(|m| m.modified()).ok();
+    let mut cache = TRANSLATION_OWNERS.lock().ok()?;
+    if cache.as_ref().map(|(s, _)| *s != stamp).unwrap_or(true) {
+        *cache = Some((stamp, translation_index(&paths)));
+    }
+    cache.as_ref()?.1.get(key).cloned()
+}
+
+fn translation_index(paths: &StudioPaths) -> std::collections::HashMap<String, String> {
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let active: Vec<String> = crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path)
+        .map(|d| d.active_mods)
+        .unwrap_or_default();
+    let language = game_language(&paths.user_zomboid_dir).to_lowercase();
+    let game = catalog.game_version_int();
+    let mut owners = std::collections::HashMap::new();
+    for entry in &active {
+        let Some(m) = catalog.resolve(entry.trim()) else { continue };
+        for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
+            let dir = layer.join("media").join("lua").join("shared").join("Translate");
+            for e in walkdir::WalkDir::new(&dir).into_iter().filter_map(|e| e.ok()) {
+                let lower = e.path().to_string_lossy().replace('\\', "/").to_lowercase();
+                let ours = lower.contains("/translate/en/") || lower.contains(&format!("/translate/{}/", language));
+                if !e.file_type().is_file() || !ours || !(lower.ends_with(".txt") || lower.ends_with(".json")) {
+                    continue;
+                }
+                let Ok(bytes) = std::fs::read(e.path()) else { continue };
+                for line in String::from_utf8_lossy(&bytes).lines() {
+                    // `Key = "text",` in a .txt, `"Key": "text",` in a .json.
+                    let t = line.trim_start().trim_start_matches('"');
+                    let key: String = t.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '.').collect();
+                    let after = t[key.len()..].trim_start().trim_start_matches('"').trim_start();
+                    if !key.is_empty() && (after.starts_with('=') || after.starts_with(':')) {
+                        owners.insert(key, m.name.clone());
+                    }
+                }
+            }
+        }
+    }
+    owners
 }
 
 /// Where a translation key is defined: which mod, which file, the line.

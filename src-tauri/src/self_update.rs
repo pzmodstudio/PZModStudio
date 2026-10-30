@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn the_built_in_key_is_the_projects() {
-        assert_eq!(base64::engine::general_purpose::STANDARD.encode(public_key().unwrap()), "KHCKNudgelhMw/PinZ1giA9TuGI2BpK/EKoFqNwYO3c=");
+        assert_eq!(base64::engine::general_purpose::STANDARD.encode(public_key().unwrap()), "n/cV3Kqh9txGTSl+PkpfYNuIvE/75bh7Otn+fSrQWns=");
     }
 
     #[test]

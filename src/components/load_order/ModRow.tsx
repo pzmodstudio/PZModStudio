@@ -7,7 +7,8 @@ import { SourceBadge, sourceOf } from '../common/SourceBadge';
 import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
 import { RowHealthChips } from './RowHealth';
-import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Hash, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Globe, Hash, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
+import { ShareState } from '../../utils/communityIndex';
 
 /** Below this a mod's loading time is a few milliseconds of mod.info and translations: not worth a tag. */
 export const SLOW_LOAD_MS = 250;
@@ -30,6 +31,9 @@ export interface ModRowBodyProps {
   isBridge: boolean;
   catalogById?: Map<string, CatalogModSummary>;
   errorStats?: Map<string, ModErrorStat>;
+  /** What it has for the community index, and the day this player last sent it. */
+  shareState?: ShareState;
+  sharedAt?: string;
   loadTimes?: Map<string, number>;
   /** Share of the game's time per mod (%), from the last profiler measurement. */
   gameShares?: Map<string, number>;
@@ -83,6 +87,8 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   isBridge,
   catalogById,
   errorStats,
+  shareState,
+  sharedAt,
   loadTimes,
   gameShares,
   isFavorite = false,
@@ -289,6 +295,30 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
               </Tip>
             );
           })()}
+
+          {/* Whether what the Studio saw of it is in the community index yet. */}
+          {shareState && (
+            <Tip
+              content={
+                <TipBody title={t(`modList.row.index.${shareState}Head`)} tone={shareState === 'shared' ? 'emerald' : 'cyan'}>
+                  <RichText text={t(`modList.row.index.${shareState}Body`, { when: sharedAt ? ` (${sharedAt})` : '' })} />
+                </TipBody>
+              }
+            >
+              <span
+                className={`flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                  shareState === 'shared'
+                    ? 'bg-slate-900 text-emerald-400/80 border-emerald-900/70'
+                    : shareState === 'newer'
+                    ? 'bg-amber-950/60 text-amber-300 border-amber-700/70'
+                    : 'bg-sky-950/60 text-sky-300 border-sky-700/70'
+                }`}
+              >
+                {shareState === 'shared' ? <Check className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                {t(`modList.row.index.${shareState}`)}
+              </span>
+            </Tip>
+          )}
 
           {/* Its files' share of the loading screen last session, when it is worth a word. */}
           {(() => {

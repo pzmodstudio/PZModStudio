@@ -24,7 +24,7 @@
       "build": "42.21",
       "date": "2026-10-30",
       "fix": {
-        "kind": "compatible_copy"
+        "kind": "none"
       },
       "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): TimedActions/ISPathFindAction -> Vehicles/TimedActions/ISPathFindAction.",
       "source": "PZ Mod Studio, the compatible copy it made",

@@ -4,6 +4,16 @@
  "built": "2026-10-30",
  "releases": [
   {
+   "version": null,
+   "date": "2026-10-30",
+   "notes": [
+    "Share: a registry the index's own check accepts (a compatible copy with no file named is fix none, mod.info incompatibilities say their source); the registries merged tonight brought in",
+    "Share: off while everything seen is in the index or a pull request; an issue proposed again replaces its entry in the registry instead of standing twice",
+    "Mod List: a mark on each mod with something for the community index (For the index / Something new / In the index), a tag to filter by it, and what was proposed remembered",
+    "Monitor: a bare % in a mod's texts names the mod (the key's owner), one card per mod, and counts toward that mod so it can be shared"
+   ]
+  },
+  {
    "version": "1.7.15",
    "date": "2026-10-30",
    "notes": [

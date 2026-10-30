@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-18",
+  "updated": "2026-10-30",
   "mods": {
     "2858201402/dailystatisticsandgains": {
       "id": "2858201402/dailystatisticsandgains",
@@ -148,29 +148,134 @@
         }
       ]
     },
-    "NeatLockpicking": {
-      "id": "NeatLockpicking",
-      "name": "Neat Lockpicking",
-      "workshop_id": "3783535220",
+    "ImmersiveSnowWeatherPatch": {
+      "authors": [],
       "builds": [
         "42"
       ],
+      "id": "ImmersiveSnowWeatherPatch",
+      "incompatible": [],
       "issues": [
         {
-          "title": "ISPathFindAction is nil when unlocking a vehicle",
-          "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.FormatFlagsConversionMismatchException: Conversion = s, Flags =   at Formatter$FormatSpecifier.failM",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "6 warnings in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Whiteout - [Compatibility & Gameplay Patch]",
+      "requires": [
+        "ZombieBuddy",
+        "Viewpoint",
+        "ViewpointImmersiveWeathers",
+        "ImmersiveSnow",
+        "ImmersiveSnowViewpoint"
+      ],
+      "workshop_id": "3827201530"
+    },
+    "InteractiveTailoring": {
+      "authors": [
+        "Chuckleberry Finn"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "InteractiveTailoring",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = '.' at Formatter.parse(null:-1). Message: ERROR: Form",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "1 warning in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Interactive Tailoring",
+      "requires": [
+        "ChuckleberryFinnAlertSystem",
+        "errorMagnifier"
+      ],
+      "workshop_id": "3522680786"
+    },
+    "ItemDetailsPanel": {
+      "authors": [
+        "DarMeao"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "ItemDetailsPanel",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% o' at Formatter.format(null:-1). Message: ERROR:",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "1 warning in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Item Details Panel",
+      "requires": [],
+      "workshop_id": "3826420021"
+    },
+    "NeatLockpicking": {
+      "authors": [],
+      "builds": [
+        "42"
+      ],
+      "id": "NeatLockpicking",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-18",
           "file": "media/lua/shared/NeatLockpicking/NeatLockpick_Unlock.lua",
-          "line": 171,
-          "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
           "fix": {
             "kind": "compatible_copy"
           },
-          "build": "42.21",
-          "date": "2026-10-18",
+          "line": 171,
+          "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
+          "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
+          "status": "verified",
+          "title": "ISPathFindAction is nil when unlocking a vehicle"
+        },
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): TimedActions/ISPathFindAction -> Vehicles/TimedActions/ISPathFindAction.",
+          "source": "PZ Mod Studio, the compatible copy it made",
+          "status": "verified",
+          "title": "Needed a compatible copy on this build"
         }
-      ]
+      ],
+      "load_after": [],
+      "name": "Neat Lockpicking",
+      "requires": [
+        "NeatUI_Framework"
+      ],
+      "workshop_id": "3783535220"
     },
     "NoLighterNeeded": {
       "id": "NoLighterNeeded",
@@ -219,39 +324,119 @@
       ]
     },
     "ReactiveSE": {
-      "id": "ReactiveSE",
-      "name": "Reactive Sound Events",
-      "workshop_id": "3656190498",
+      "authors": [
+        "JulianFVM"
+      ],
       "builds": [
         "42"
       ],
+      "id": "ReactiveSE",
+      "incompatible": [
+        {
+          "id": "ReactiveSoundEvents",
+          "note": "per its mod.info",
+          "status": "verified",
+          "source": "its mod.info"
+        }
+      ],
       "issues": [
         {
-          "title": "Requires \"ISUI/ISWorldMap\", which Build 42 moved",
-          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"ISUI/Maps/ISWorldMap\".",
-          "file": "media/lua/client/ReactiveSE/ReactiveSE_RadioMarkers.lua",
-          "fix": {
-            "kind": "require_path",
-            "from": "ISUI/ISWorldMap",
-            "to": "ISUI/Maps/ISWorldMap"
-          },
           "build": "42.21",
           "date": "2026-10-18",
+          "file": "media/lua/client/ReactiveSE/ReactiveSE_RadioMarkers.lua",
+          "fix": {
+            "from": "ISUI/ISWorldMap",
+            "kind": "require_path",
+            "to": "ISUI/Maps/ISWorldMap"
+          },
+          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"ISUI/Maps/ISWorldMap\".",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
+          "status": "verified",
+          "title": "Requires \"ISUI/ISWorldMap\", which Build 42 moved"
         },
         {
-          "title": "Formatting \"Sandbox_Reac...\" warns in the log",
-          "note": "A WARN from Translator.reportMissingArgumentsFromPastAbuse about a sandbox option's text with a stray format sign. The game carries on; nothing to fix on the player's side.",
+          "build": "42.21",
+          "date": "2026-10-18",
           "fix": {
             "kind": "none"
           },
-          "build": "42.21",
-          "date": "2026-10-18",
+          "note": "A WARN from Translator.reportMissingArgumentsFromPastAbuse about a sandbox option's text with a stray format sign. The game carries on; nothing to fix on the player's side.",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
+          "status": "verified",
+          "title": "Formatting \"Sandbox_Reac...\" warns in the log"
+        },
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "note": "The copy changed: Rewrote 1 require path(s) Build 42 moved, in 1 file(s): ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap.",
+          "source": "PZ Mod Studio, the compatible copy it made",
+          "status": "verified",
+          "title": "Needed a compatible copy on this build"
         }
-      ]
+      ],
+      "load_after": [],
+      "name": "Reactive Sound Events",
+      "requires": [],
+      "workshop_id": "3656190498"
+    },
+    "RealisticDash": {
+      "authors": [
+        "LonelyDesperate"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "RealisticDash",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : Lua          f:0 at Lua((MOD:Realistic Dashboard and Gauges)).ZZ_PatchVehicleDashboard_PassengerDash.lua> require(\"Vehicles/VehicleUtils\") failed",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "1 warning in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Realistic Dashboard and Gauges",
+      "requires": [],
+      "workshop_id": "3635591071"
+    },
+    "ResearchLabInternProfession": {
+      "authors": [
+        "rEXX"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "ResearchLabInternProfession",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% A' at Formatter.format(null:-1). Message: ERROR:",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "1 warning in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Zombie Virus Vaccine: Research Lab Intern Profession [B42.20+ SP/MP]",
+      "requires": [
+        "ZVirusVaccine42BETA"
+      ],
+      "workshop_id": "3615135168"
     },
     "SaucedCarts": {
       "id": "SaucedCarts",
@@ -273,6 +458,87 @@
           "status": "verified"
         }
       ]
+    },
+    "StealthAttackBySwas": {
+      "authors": [
+        "swas"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "StealthAttackBySwas",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "11 warnings in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Stealth Attack",
+      "requires": [],
+      "workshop_id": "3786073264"
+    },
+    "VisibleVehicleCouplingB42": {
+      "authors": [
+        "Malevi4"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "VisibleVehicleCouplingB42",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Form",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "1 warning in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Visible Vehicle Coupling (VVC)",
+      "requires": [],
+      "workshop_id": "3807182783"
+    },
+    "moodlesinlua": {
+      "authors": [
+        "molecule31; Dreamweave"
+      ],
+      "builds": [
+        "42"
+      ],
+      "id": "moodlesinlua",
+      "incompatible": [],
+      "issues": [
+        {
+          "build": "42.21",
+          "date": "2026-10-30",
+          "fix": {
+            "kind": "none"
+          },
+          "log": "WARN : Lua          f:0 at Lua((MOD:Moodles in lua)).MoodlesIn.lua> require(\"LSMoodleManager\") failed",
+          "source": "PZ Mod Studio, from the game's console.txt",
+          "status": "verified",
+          "title": "1 warning in the last session (the game carried on)"
+        }
+      ],
+      "load_after": [],
+      "name": "Moodles in lua",
+      "requires": [],
+      "workshop_id": "3395171770"
     }
   }
 }

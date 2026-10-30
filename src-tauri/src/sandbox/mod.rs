@@ -616,6 +616,11 @@ impl ModBlame {
                 }
             }
         }
+        // A text the game could not format names only its key: the mod is whoever ships that
+        // key, never the mod named a line or two above.
+        if line.contains("Translator.reportMissingArgumentsFromPastAbuse") {
+            return crate::error_report::formatting_key(line).and_then(|key| crate::error_report::translation_owner(&key));
+        }
         // Otherwise: a media path in the line, if some mod replaced that file.
         let lower = line.to_lowercase();
         if let Some(start) = lower.find("media/").or_else(|| lower.find("media\\")) {

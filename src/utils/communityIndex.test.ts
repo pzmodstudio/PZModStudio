@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftRegistry, knownIssues, proposeUrl, registryFileName, withoutUserName } from './communityIndex';
+import { draftRegistry, factKey, knownIssues, proposeUrl, registryFileName, shareStateOf, withoutUserName } from './communityIndex';
 import { CatalogModSummary, ModErrorStat, ModInfo } from '../types';
 
 const mod = {
@@ -41,7 +41,7 @@ describe('knownIssues', () => {
     const issues = knownIssues(catalog, stat, '42.21');
     expect(issues.map((i) => i.title)).toEqual(['Threw 2 errors in the last session', '1 warning in the last session (the game carried on)', 'Needed a compatible copy on this build']);
     expect(issues[0]).toMatchObject({ log: 'ERROR: x.lua:3', build: '42.21', status: 'verified', fix: { kind: 'none' } });
-    expect(issues[2]).toMatchObject({ fix: { kind: 'compatible_copy' }, note: 'The copy changed: require ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap' });
+    expect(issues[2]).toMatchObject({ fix: { kind: 'none' }, note: 'The copy changed: require ISUI/ISWorldMap -> ISUI/Maps/ISWorldMap' });
     expect(draftRegistry(mod, undefined, '42.21', issues).issues).toHaveLength(3);
   });
 });
@@ -60,5 +60,24 @@ describe('withoutUserName', () => {
     expect(withoutUserName('ERROR at C:\\Users\\Javier Pérez\\Zomboid\\mods\\X\\a.lua line 3')).toBe('ERROR at C:\\Users\\<user>\\Zomboid\\mods\\X\\a.lua line 3');
     expect(withoutUserName('at C:/Users/bob/Zomboid/x.lua')).toBe('at C:/Users/<user>/Zomboid/x.lua');
     expect(withoutUserName(null)).toBeUndefined();
+  });
+});
+
+describe('shareStateOf', () => {
+  const warning = (n: number, log: string) => ({ title: `${n} warnings in the last session (the game carried on)`, log, fix: { kind: 'none' as const } });
+  const line = 'WARN : General f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown at Formatter.parse(null:-1). Message: ERROR: Formatting "Sandbox_X_Y"';
+  it('asks to share what nobody sent, and nothing when nothing was seen', () => {
+    expect(shareStateOf('X', [warning(3, line)], null, {})).toBe('share');
+    expect(shareStateOf('X', [], null, {})).toBeNull();
+    expect(shareStateOf('Z_PZModStudio_MergedPatch', [warning(3, line)], null, {})).toBeNull();
+  });
+  it('a sent fact stays shared whatever its count, a new line is new', () => {
+    const shared = { X: { facts: [factKey(warning(3, line))], at: '2026-10-30' } };
+    expect(shareStateOf('X', [warning(7, line)], null, shared)).toBe('shared');
+    expect(shareStateOf('X', [warning(7, line), warning(1, 'WARN : Lua f:0 something else')], null, shared)).toBe('newer');
+  });
+  it('what the index already has counts as shared', () => {
+    const index = { version: 1, updated: null, fetched_at: null, mods: { X: { id: 'X', authors: [], builds: [], requires: [], incompatible: [], load_after: [], issues: [warning(1, line)] } } };
+    expect(shareStateOf('X', [warning(4, line)], index, {})).toBe('shared');
   });
 });
