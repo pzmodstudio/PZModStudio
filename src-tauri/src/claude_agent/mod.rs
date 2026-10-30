@@ -218,8 +218,9 @@ mod win {
     use std::time::{Duration, Instant};
     use windows_sys::Win32::Foundation::{CloseHandle, HWND, LPARAM, RECT};
     use windows_sys::Win32::Graphics::Gdi::{
-        CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC,
-        SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+        CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, GetMonitorInfoW,
+        MonitorFromWindow, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, MONITORINFO,
+        MONITOR_DEFAULTTONEAREST,
     };
     use windows_sys::Win32::Storage::Xps::PrintWindow;
     use windows_sys::Win32::System::Threading::{
@@ -231,10 +232,10 @@ mod win {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, EnumWindows, GetClientRect, GetForegroundWindow, GetWindowPlacement, GetWindowRect,
-        GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, PostMessageW, SetForegroundWindow,
+        GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, IsZoomed, PostMessageW, SetForegroundWindow,
         WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE,
         SetWindowPos, ShowWindow, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_RESTORE,
-        SW_SHOWMINNOACTIVE, SW_SHOWNOACTIVATE, WINDOWPLACEMENT,
+        SW_MAXIMIZE, SW_SHOWMINNOACTIVE, SW_SHOWNOACTIVATE, WINDOWPLACEMENT,
     };
 
     const GAME_EXE: &str = "projectzomboid64.exe";
@@ -513,6 +514,53 @@ mod win {
             }
             super::encode_png(path, &bgra, w as u32, hgt as u32, max_width, ok)
         }
+    }
+
+    /// Whether a window spills out of its monitor's work area (the part the taskbar leaves).
+    fn spills_off_screen(h: isize) -> bool {
+        let hwnd = to_hwnd(h);
+        unsafe {
+            if IsZoomed(hwnd) != 0 || IsIconic(hwnd) != 0 {
+                return false;
+            }
+            let mut r: RECT = std::mem::zeroed();
+            if GetWindowRect(hwnd, &mut r) == 0 {
+                return false;
+            }
+            let mut mi: MONITORINFO = std::mem::zeroed();
+            mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            if GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mut mi) == 0 {
+                return false;
+            }
+            let w = mi.rcWork;
+            // Windows draws an invisible resize border of ~8 px around a window: allow for it.
+            const SLACK: i32 = 12;
+            r.right > w.right + SLACK || r.bottom > w.bottom + SLACK || r.left < w.left - SLACK || r.top < w.top - SLACK
+        }
+    }
+
+    /// After a windowed launch: the game opens its window at the size it saved (the screen's
+    /// size, after it was maximized once) with the title bar on top, so it runs off the bottom.
+    /// Maximized it fits; a window the player made smaller is left alone. Watched for a minute,
+    /// since the game sets its size again while it boots.
+    pub fn fit_after_launch() {
+        thread::spawn(|| {
+            let wait_until = Instant::now() + Duration::from_secs(180);
+            while Instant::now() < wait_until && find_game_window().is_none() {
+                thread::sleep(Duration::from_millis(250));
+            }
+            let guard_until = Instant::now() + Duration::from_secs(60);
+            while Instant::now() < guard_until {
+                if let Some(h) = find_game_window() {
+                    if spills_off_screen(h) {
+                        unsafe {
+                            ShowWindow(to_hwnd(h), SW_MAXIMIZE);
+                        }
+                    }
+                }
+                thread::sleep(Duration::from_millis(500));
+            }
+        });
     }
 
     /// After a launch: wait for the game window, then for a while keep it parked at the bottom of
@@ -812,6 +860,12 @@ pub fn current_foreground_window() -> isize {
     {
         0
     }
+}
+
+/// After a windowed launch from the app: maximizes the game window when it does not fit the screen.
+pub fn start_fit_window_guard() {
+    #[cfg(windows)]
+    win::fit_after_launch();
 }
 
 /// Background watcher started after a launch: parks the new game window and/or returns focus.

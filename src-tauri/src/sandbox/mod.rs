@@ -225,6 +225,9 @@ pub fn launch_sandbox_and_watch<R: tauri::Runtime>(
 
         let child = cmd.spawn().map_err(|e| format!("Failed to launch ProjectZomboid64.exe: {}", e))?;
         let child_pid = child.id();
+        if is_windowed {
+            crate::claude_agent::start_fit_window_guard();
+        }
         thread::sleep(Duration::from_millis(300));
         find_running_pz_pid().unwrap_or(child_pid)
     };
