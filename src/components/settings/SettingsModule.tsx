@@ -3,7 +3,8 @@ import { DiagnosticsCard } from './DiagnosticsCard';
 import { FolderOpen, CheckCircle, AlertTriangle, RefreshCw, HardDrive, Wrench, Bell, Bot, Copy, Check, Terminal, Radio, Code2, Layers, Info, Lightbulb, KeyRound, ExternalLink, Loader2, Languages } from 'lucide-react';
 import { AppUpdateStatus, PolyfillSection, ShimPatch } from '../../types';
 import { TauriService } from '../../services/tauri';
-import { COMMUNITY_SITE } from '../../utils/communityIndex';
+import { COMMUNITY_LISTS, COMMUNITY_MODS } from '../../utils/communityIndex';
+import { loadCommunityIndex } from '../../services/communityIndex';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
 import { LANGUAGES, setLanguage } from '../../i18n';
@@ -110,6 +111,8 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   };
   /** Whether the Studio fetches the community rules and mod index once a day (kept beside the mod list). */
   const [communityDownloads, setCommunityDownloads] = useState<boolean>(true);
+  const [communityFetching, setCommunityFetching] = useState(false);
+  const [communityNote, setCommunityNote] = useState('');
   useEffect(() => {
     if (!paths.user_zomboid_dir) return;
     void TauriService.communityDownloads(paths.user_zomboid_dir).then(setCommunityDownloads);
@@ -912,15 +915,38 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
                 {t('settings.communityBlurb')}
               </p>
               <div className="flex flex-wrap gap-2 pt-1">
-                <button type="button" onClick={() => TauriService.openExternalUrl(COMMUNITY_SITE)}
+                {/* Without waiting for the daily fetch: a registry merged a minute ago, here now. */}
+                <button
+                  type="button"
+                  disabled={communityFetching}
+                  onClick={() => {
+                    void (async () => {
+                      setCommunityFetching(true);
+                      try {
+                        const c = await TauriService.refreshCommunity(paths);
+                        void loadCommunityIndex(paths, true);
+                        setCommunityNote(t('health.communityFetched', { rules: c.rules, pairs: c.pairs, mods: c.mods, updated: c.index_updated ? t('health.indexUpdated', { date: c.index_updated }) : '' }));
+                      } catch {
+                        // Already shown by TauriService.
+                      } finally {
+                        setCommunityFetching(false);
+                      }
+                    })();
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-700/70 text-[11px] text-emerald-300 hover:bg-emerald-950/40 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${communityFetching ? 'animate-spin' : ''}`} aria-hidden="true" /> {t('settings.communityFetchNow')}
+                </button>
+                <button type="button" onClick={() => TauriService.openExternalUrl(COMMUNITY_MODS)}
                   className="flex items-center gap-1 px-2 py-1 rounded border border-slate-700 text-[11px] text-slate-300 hover:bg-slate-800 cursor-pointer">
                   <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.communitySite')}
                 </button>
-                <button type="button" onClick={() => TauriService.openExternalUrl(`${COMMUNITY_SITE}#lists`)}
+                <button type="button" onClick={() => TauriService.openExternalUrl(COMMUNITY_LISTS)}
                   className="flex items-center gap-1 px-2 py-1 rounded border border-slate-700 text-[11px] text-slate-300 hover:bg-slate-800 cursor-pointer">
                   <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.communityLists')}
                 </button>
               </div>
+              {communityNote && <p className="text-[11px] text-emerald-300 pt-1">{communityNote}</p>}
             </div>
             <button
               type="button"

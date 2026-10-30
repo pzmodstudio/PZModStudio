@@ -169,6 +169,7 @@
     "rememberModeBlurb": "El botón de inicio arranca en el modo que usaste la última vez (depuración, ventana, normal...). Apagado: siempre arranca en Modo depuración (pantalla completa), el recomendado.",
     "community": "Descargar las reglas y el índice de mods de la comunidad",
     "communityBlurb": "Una vez al día, del repositorio del Studio en GitHub: reglas de orden de carga, pares incompatibles, y un registro por mod con las builds en que corre, con qué choca y sus problemas conocidos con el arreglo que el Studio aplica. Los usan Ordenar, Salud de mods, la Lista de mods y Explorar. Apagado: se conserva la última copia y no se descarga nada. Nunca se envía nada.",
+    "communityFetchNow": "Descargar ahora",
     "communitySite": "El índice de la comunidad en la web",
     "communityLists": "Listas de la comunidad en la web",
     "updateCheck": "Buscar versiones nuevas de PZ Mod Studio",

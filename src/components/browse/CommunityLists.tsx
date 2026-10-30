@@ -4,7 +4,7 @@ import i18next from 'i18next';
 import { CommunityLists as CommunityListsData, SharedList } from '../../types';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { StudioPathsUI } from '../settings/SettingsModule';
-import { COMMUNITY_REPO, COMMUNITY_SITE } from '../../utils/communityIndex';
+import { COMMUNITY_LISTS, COMMUNITY_REPO } from '../../utils/communityIndex';
 
 /**
  * Other players' lists, from the community repository (fetched once a day). Copying one makes it
@@ -57,7 +57,7 @@ export const CommunityLists: React.FC<{ paths: StudioPathsUI; installedWorkshopI
           className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-50">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
         </button>
-        <button type="button" onClick={() => TauriService.openExternalUrl(`${COMMUNITY_SITE}#lists`)} title={i18next.t('browse.lists.community.allTitle')}
+        <button type="button" onClick={() => TauriService.openExternalUrl(COMMUNITY_LISTS)} title={i18next.t('browse.lists.community.allTitle')}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 text-[11px] font-bold text-slate-300 hover:text-slate-100 cursor-pointer">
           <ExternalLink className="w-3 h-3" aria-hidden="true" /> {i18next.t('browse.lists.community.all')}
         </button>

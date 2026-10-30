@@ -169,6 +169,7 @@
     "rememberModeBlurb": "The Launch button starts on the mode you used last time (Debug, Windowed, Normal...). Off: it always starts on Debug Mode (Fullscreen), the recommended one.",
     "community": "Download the community rules and mod index",
     "communityBlurb": "Once a day, from the Studio's own repository on GitHub: load-order rules, incompatible pairs, and one registry per mod with the builds it runs on, what it clashes with and its known issues with the fix the Studio can apply. Auto-Sort, Mod Health, the Mod List and the Browse page use them. Off: the last copy is kept and nothing is fetched. Nothing is ever sent.",
+    "communityFetchNow": "Fetch now",
     "communitySite": "The community index on the web",
     "communityLists": "Community lists on the web",
     "updateCheck": "Check for new versions of PZ Mod Studio",
