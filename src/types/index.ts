@@ -1165,6 +1165,7 @@ export type HealthFix =
   | { action: 'disable_mod'; mod_id: string }
   | { action: 'move_before'; mod_id: string; before: string }
   | { action: 'remove_from_list'; entry: string }
+  | { action: 'replace_in_list'; entry: string; mod_id: string }
   | { action: 'subscribe_workshop'; hint: string }
   | { action: 'open_workshop_page'; workshop_id: string }
   | { action: 'make_compatible_copy'; mod_id: string }

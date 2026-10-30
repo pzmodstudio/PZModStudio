@@ -638,7 +638,8 @@
         "removeFromPackage": "Take out of the package",
         "keepVersion": "Keep this version",
         "shimOn": "Switch the shim patch on",
-        "inHealth": "Fix in Mod Health"
+        "inHealth": "Fix in Mod Health",
+        "replace": "Use {{name}}"
       },
       "kept": "{{name}} as it is today is kept ({{when}}). Right-click the row for its kept versions.",
       "shimOn": "The shim's patch {{name}} is on, written into {{count}} package(s); the game reads it on its next launch.",
@@ -819,7 +820,8 @@
       "openMerger": "Open in Merger",
       "shimOn": "Switch the shim's {{name}} patch on",
       "removeCopyTitle": "Optional. Removes the compatible copy so the game uses the Workshop original again: for when its author has updated it for Build 42.",
-      "removeFromPackage": "Take out of the package"
+      "removeFromPackage": "Take out of the package",
+      "replace": "Use {{id}} instead of {{entry}}"
     },
     "freshCopy": "{{mod}} already has a compatible copy. Make a fresh one? The current copy is moved to Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "Take {{file}} out of {{package}}?\n\nThe package is published again without it, and the game reads the mod's own file on its next launch. If you edited the copy, those edits go.",
@@ -866,7 +868,8 @@
       "staleTag": "Check again",
       "settled": "Settled",
       "settledTag": "Settled"
-    }
+    },
+    "replaced": "{{name}} took {{entry}}'s place, switched on."
   },
   "dialogs": {
     "kept": {
@@ -2577,7 +2580,8 @@
       "server_item_unused_holds_many": "WorkshopItems= has {{item}}, which holds {{mods}}, but Mods= does not list them. It is downloaded and never loaded.",
       "server_base_map_last": "Map= ends with {{map}}, which is not one of the game's own maps. The base map (for example Muldraugh, KY) belongs last.",
       "two_mod_managers": "{{mod}} also draws the game's Mods screen. While it is on, the Studio leaves that screen to it (the save backups and the check before a save loads stay the Studio's). Turn it off in this profile to use the Studio's screen.",
-      "floods_console": "{{mod}} filled the console in the last session: {{lines}} lines of errors ({{share}}% of all of them), from {{exceptions}} exceptions and {{warnings}} warnings. Writing them slows the game, and other mods' errors are lost among them. Look at them in the Monitor, or turn it off in this profile."
+      "floods_console": "{{mod}} filled the console in the last session: {{lines}} lines of errors ({{share}}% of all of them), from {{exceptions}} exceptions and {{warnings}} warnings. Writing them slows the game, and other mods' errors are lost among them. Look at them in the Monitor, or turn it off in this profile.",
+      "missing_mod_renamed": "{{mod}} is not installed: its folder now holds {{renamed}} ({{name}}). The author changed its id in an update."
     },
     "fragments": {
       "beside_others": ", beside {{others}}",

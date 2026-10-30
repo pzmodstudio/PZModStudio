@@ -912,6 +912,8 @@ pub enum SuggestedFix {
     DisableMod { mod_id: String },
     MoveBefore { mod_id: String, before: String },
     RemoveFromList { entry: String },
+    /// Put `mod_id` where `entry` is in the list, switched on, and take `entry` out.
+    ReplaceInList { entry: String, mod_id: String },
     SubscribeWorkshop { hint: String },
     /// Open the item's Workshop page in the browser.
     OpenWorkshopPage { workshop_id: String },
@@ -990,6 +992,7 @@ impl IssueList {
                 SuggestedFix::EnableMod { mod_id: m } | SuggestedFix::DisableMod { mod_id: m } => Some(m),
                 SuggestedFix::MoveBefore { mod_id: m, before } => Some(if Some(m.as_str()) == mod_id { before } else { m }),
                 SuggestedFix::SubscribeWorkshop { hint } => Some(hint),
+                SuggestedFix::ReplaceInList { mod_id: m, .. } => Some(m),
                 SuggestedFix::RemoveFromList { .. }
                 | SuggestedFix::OpenWorkshopPage { .. }
                 | SuggestedFix::MakeCompatibleCopy { .. }
@@ -1392,6 +1395,16 @@ fn near_match<'a>(catalog: &'a ModCatalog, id: &str) -> Option<&'a CatalogMod> {
     catalog.mods.iter().find(|m| m.shadowed_by.is_none() && m.id.eq_ignore_ascii_case(id))
 }
 
+/// An installed mod whose folder is named like the missing id but whose mod.info says another
+/// id: the author changed the id in an update (the folder stays, the old id is gone).
+fn renamed_to<'a>(catalog: &'a ModCatalog, id: &str) -> Option<&'a CatalogMod> {
+    catalog.mods.iter().find(|m| {
+        m.shadowed_by.is_none()
+            && m.id != id
+            && std::path::Path::new(&m.root_dir).file_name().and_then(|f| f.to_str()).map(|f| f.eq_ignore_ascii_case(id)).unwrap_or(false)
+    })
+}
+
 /// Everything that will go wrong when the game loads `active` (the default.txt list, in order).
 pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
     let mut list = IssueList(Vec::new());
@@ -1444,6 +1457,12 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         let Some(m) = resolve_entry(catalog, entry) else {
             let mut fixes = vec![SuggestedFix::RemoveFromList { entry: entry.to_string() }];
             let (message, params) = match near_match(catalog, id) {
+                None if renamed_to(catalog, id).is_some() => {
+                    let renamed = renamed_to(catalog, id).unwrap();
+                    fixes.insert(0, SuggestedFix::ReplaceInList { entry: entry.to_string(), mod_id: renamed.id.clone() });
+                    (format!("{} is not installed: its folder now holds {} ({}), the mod changed its id in an update", id, renamed.id, renamed.name),
+                        issue_params(&[("variant", "renamed"), ("mod", id), ("renamed", &renamed.id), ("name", &renamed.name)]))
+                }
                 Some(similar) => {
                     fixes.insert(0, SuggestedFix::EnableMod { mod_id: similar.id.clone() });
                     (format!("{} is not installed. Mod ids are case-sensitive: did you mean {}?", id, similar.id),
@@ -1786,10 +1805,11 @@ mod tests {
         write_mod(&ws.join("9/mods/Broken/42"), "id=Broken\nversionMin=42\n");
         write_mod(&ws.join("10/mods/Late/42"), "id=Late\nloadModAfter=B\n");
         write_mod(&ws.join("11/mods/Slashy/42"), "id=11/slashy\n");
+        write_mod(&ws.join("12/mods/Radio/42"), "id=RadioLocal\nname=Radio [TEST]\n");
         let (w, z) = paths(&f);
         let cat = build_catalog(&w, &z, Some(42_021));
 
-        let active: Vec<String> = ["UsesLib", "Lib", "NeedsMissing", "Old", "NeedsOld", "A", "Late", "B", "Ranged", "Broken", "Gone", "a", "A"]
+        let active: Vec<String> = ["UsesLib", "Lib", "NeedsMissing", "Old", "NeedsOld", "A", "Late", "B", "Ranged", "Broken", "Gone", "a", "A", "Radio"]
             .iter().map(|s| s.to_string()).collect();
         let report = health_report(&cat, &active);
         let got = codes(&report);
@@ -1805,6 +1825,8 @@ mod tests {
         assert!(has("outside_version_range", "Ranged"));
         assert!(has("invalid_mod_info", "Broken"));
         assert!(has("missing_mod", "Gone"));
+        let radio = report.issues.iter().find(|i| i.code == "missing_mod" && i.mod_id.as_deref() == Some("Radio")).unwrap();
+        assert_eq!(radio.fixes[0], SuggestedFix::ReplaceInList { entry: "Radio".into(), mod_id: "RadioLocal".into() }, "the folder named like the old id now holds the new one");
         assert!(has("missing_mod", "a"), "ids are case-sensitive");
         assert!(has("duplicate_entry", "A"));
         assert_eq!(report.issues.iter().filter(|i| i.code == "incompatible").count(), 1);
