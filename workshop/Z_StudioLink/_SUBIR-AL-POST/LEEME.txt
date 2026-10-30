@@ -1,0 +1,33 @@
+Lo que se sube al post del Workshop (Z_StudioLink, item 3824256253)
+=====================================================================
+
+En la página del item: "Add/edit images & videos" -> subir estas imágenes EN ESTE ORDEN
+(el número del nombre es el orden del carrusel):
+
+  00-cover.jpg          portada
+  01-profiles.gif       perfiles: la app y el juego
+  02-mod-list.jpg       orden de carga
+  03-mod-health.jpg     Mod Health
+  04-monitor.jpg        Monitor
+  05-merger.jpg         Mod Merger
+  06-browse.jpg         Workshop y Nexus
+  07-mods-screen.gif    la pantalla de Mods del Link
+  08-requirements.gif   un mod se activa con lo que necesita
+  09-save-check.jpg     el chequeo antes de cargar una partida
+  10-error-notice.jpg   el aviso de error
+
+Cada una pesa menos de 2 MB (Steam rechaza las más grandes). Este LEEME no se sube.
+
+Video: Steam solo acepta links de YouTube. El video es
+recordings/pz-studio-link.mp4 (no está en git): subirlo a YouTube y pegar el link en la
+misma pantalla.
+
+Lo que NO se sube a mano
+------------------------
+  preview.png   la miniatura del item: la sube el juego con el mod.
+  banners/      las imágenes de la descripción; workshop.txt las carga desde GitHub.
+  media/        recortes y GIFs de origen; los posts del foro enlazan a algunos.
+  recordings/   las grabaciones crudas (mp4) de donde salen los GIFs.
+  art/          el arte original (key art, badge).
+
+Para volver a generar estas imágenes: node scripts/make-workshop-art.cjs slides

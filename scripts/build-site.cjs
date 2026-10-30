@@ -13,8 +13,10 @@ const tags = git('for-each-ref', '--sort=-creatordate', '--format=%(refname:shor
 
 // What the page lists: what a player can notice. Work on the site, the repository, the scripts and the
 // packaging stays out, and a line that names another mod is said without the name.
-const INTERNAL = /^(Site:|Site redesign|New captures|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:|itch.io page)/;
+const INTERNAL = /^(Workshop: |Site:|Site redesign|New captures|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:|itch.io page)/;
 const REWRITE = [
+  [/^Connect with GitHub: the new OAuth app.*/, 'Settings: Connect with GitHub works again, for sharing a rule or what you know about a mod'],
+  [/^Link 1.18.2: .*/, "Link 1.18.2: the website's address in the mod's description"],
   [/^Site: one card per app screen.*/, 'Help: every page checked against the screens and brought up to date; the Workshop remove button and Mod Health\'s "Take out of the package" no longer show a raw text key'],
   [/^Workshop publish: read the upload.*/i, 'Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished'],
   [/ from Smooth Frames' console lines/i, " from the game's console lines"],

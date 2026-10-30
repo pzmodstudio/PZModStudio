@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// PZ Mod Studio's OAuth app on GitHub (device flow on, no secret).
-pub const CLIENT_ID: &str = "Ov23liFK37O7B9WkDAoa";
+pub const CLIENT_ID: &str = "Ov23liMbPtcpyQBMCtDK";
 /// Forking a public repository, a branch on the fork and a pull request need this, and no more.
 const SCOPE: &str = "public_repo";
 

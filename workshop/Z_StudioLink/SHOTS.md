@@ -3,7 +3,7 @@
 The description ([workshop.txt](workshop.txt)) shows only the banners in `banners/`, loaded from
 `raw.githubusercontent.com` (Steam does not follow the redirect of a `github.com/.../raw/...`
 link, so those never load). The screens go in the carousel at the top of the page: the files in
-`slides/`, added by hand in "Add/edit images & videos" on the item's page, in their numbered
+`_SUBIR-AL-POST/` (its LEEME.txt lists them), added by hand in "Add/edit images & videos" on the item's page, in their numbered
 order. `node scripts/make-workshop-art.cjs` draws both (`banners` or `slides` for one of them):
 `art/key-art.jpg` is the project's key art: the hero banner, the cover slide, the 256x256
 `preview.png` (a square of its full height, so no text is cut) and the round badge on the slides
