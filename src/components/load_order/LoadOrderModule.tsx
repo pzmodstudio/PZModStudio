@@ -17,7 +17,8 @@ import { MOD_FILTERS, MOD_SOURCES, ModFilterId, issuesByModOf, modTagsOf, tagLab
 import { useKeepActions } from '../common/keep';
 import { KeptVersions } from './KeptVersions';
 import { LoadRules } from './LoadRules';
-import { draftRegistry, knownIssues, proposeUrl } from '../../utils/communityIndex';
+import { ShareState, draftRegistry, knownIssues, markShared, proposeUrl, shareStateOf, sharedFacts } from '../../utils/communityIndex';
+import { useCommunityIndex } from '../../services/communityIndex';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
 import {
@@ -642,7 +643,22 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     triggerReorder(next);
     showToast(on ? t('modList.groups.turnedOn', { name }) : t('modList.groups.turnedOff', { name }));
   };
-  const modTags = useMemo(() => modTagsOf(mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares), [mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares]);
+  // What each mod has for the community index, against what is in it and what this player sent.
+  const communityIndex = useCommunityIndex(paths);
+  const [shared, setShared] = useState(sharedFacts);
+  const shareStates = useMemo(() => {
+    const map = new Map<string, ShareState>();
+    for (const m of mods) {
+      const state = shareStateOf(m.mod_id, knownIssues(catalogById?.get(m.mod_id), errorStats?.get(m.name), installedBuild), communityIndex, shared);
+      if (state) map.set(m.mod_id, state);
+    }
+    return map;
+  }, [mods, catalogById, errorStats, installedBuild, communityIndex, shared]);
+  const modTags = useMemo(() => {
+    const tags = modTagsOf(mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares);
+    for (const [id, state] of shareStates) tags.set(id, [...(tags.get(id) ?? []), state === 'shared' ? 'shared' : 'share']);
+    return tags;
+  }, [mods, errorStats, loadTimes, catalogById, issuesByMod, gameShares, shareStates]);
   /** The origins and groups the list's mods have, with how many (as the game's pickers count). */
   const sourceCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -898,6 +914,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             showToast(t('modList.menu.openingPr', { name: mod.name }), 20000);
             try {
               const r = await TauriService.proposeRegistry(mod.mod_id, JSON.stringify(registry, null, 2));
+              setShared(markShared(mod.mod_id, registry.issues, r.pr_url));
               showToast(t('modList.menu.prOpened', { url: r.pr_url }), 10000);
               TauriService.openExternalUrl(r.pr_url);
             } catch {
@@ -912,8 +929,13 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           TauriService.openExternalUrl(proposeUrl(registry));
         })();
       },
-      disabled: mod.mod_id.startsWith('Z_PZModStudio_') || knownIssues(catalogById?.get(mod.mod_id), errorStats?.get(mod.name), installedBuild).length === 0,
-      disabledReason: mod.mod_id.startsWith('Z_PZModStudio_') ? t('modList.menu.notCommunity') : t('modList.menu.nothingSeen'),
+      // Everything seen is in the index or in a pull request already: another one would say it twice.
+      disabled: mod.mod_id.startsWith('Z_PZModStudio_') || knownIssues(catalogById?.get(mod.mod_id), errorStats?.get(mod.name), installedBuild).length === 0 || shareStates.get(mod.mod_id) === 'shared',
+      disabledReason: mod.mod_id.startsWith('Z_PZModStudio_')
+        ? t('modList.menu.notCommunity')
+        : shareStates.get(mod.mod_id) === 'shared'
+        ? t('modList.menu.alreadyShared', { when: shared[mod.mod_id]?.at ? ` (${shared[mod.mod_id].at})` : '' })
+        : t('modList.menu.nothingSeen'),
       title: t('modList.menu.shareTitle', { facts: knownIssues(catalogById?.get(mod.mod_id), errorStats?.get(mod.name), installedBuild).map((f) => f.title.toLowerCase()).join('; ') }),
     },
     {
@@ -1429,6 +1451,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                       isBridge={isBridge}
                       catalogById={catalogById}
                       errorStats={errorStats}
+                      shareState={shareStates.get(mod.mod_id)}
+                      sharedAt={shared[mod.mod_id]?.at}
                       loadTimes={loadTimes}
                       gameShares={gameShares}
                       isFavorite={keep.isFavorite({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })}

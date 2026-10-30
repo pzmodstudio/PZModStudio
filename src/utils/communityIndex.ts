@@ -1,4 +1,5 @@
-import { CatalogModSummary, CommunityIssue, CommunityRegistry, ModErrorStat, ModInfo } from '../types';
+import { CatalogModSummary, CommunityIndex, CommunityIssue, CommunityRegistry, ModErrorStat, ModInfo } from '../types';
+import { errorShape } from './errorShape';
 
 /** The Studio's repository, where the index lives. */
 export const COMMUNITY_REPO = 'https://github.com/pzmodstudio/PZModStudio';
@@ -34,12 +35,58 @@ export function knownIssues(catalog: CatalogModSummary | undefined, stat: ModErr
     issues.push({
       title: 'Needed a compatible copy on this build',
       note: catalog.origin.changes.length ? `The copy changed: ${catalog.origin.changes.join('; ')}` : undefined,
-      fix: { kind: 'compatible_copy' },
+      // Which files the copy changed is not known here, and a compatible_copy fix must name one.
+      fix: { kind: 'none' },
       ...seen,
       source: 'PZ Mod Studio, the compatible copy it made',
     });
   }
   return issues;
+}
+
+/**
+ * One fact without its count: "3 warnings" and "5 warnings" from the same line are the same
+ * fact, a warning from another line is a new one.
+ */
+export const factKey = (issue: CommunityIssue): string =>
+  `${issue.fix.kind}|${issue.log ? errorShape(issue.log) : issue.title.replace(/\d+/g, 'N')}`;
+
+/** What the player already sent, per mod: the facts, when, and the pull request. */
+export type SharedFacts = Record<string, { facts: string[]; at: string; url?: string }>;
+const SHARED_KEY = 'pz_shared_facts';
+
+export function sharedFacts(): SharedFacts {
+  try {
+    return JSON.parse(localStorage.getItem(SHARED_KEY) ?? '{}') as SharedFacts;
+  } catch {
+    return {};
+  }
+}
+
+/** After a pull request: these facts of the mod are out, on top of what was sent before. */
+export function markShared(modId: string, issues: CommunityIssue[], url?: string): SharedFacts {
+  const all = sharedFacts();
+  const facts = [...new Set([...(all[modId]?.facts ?? []), ...issues.map(factKey)])];
+  all[modId] = { facts, at: new Date().toISOString().slice(0, 10), url };
+  try {
+    localStorage.setItem(SHARED_KEY, JSON.stringify(all));
+  } catch {
+    // Not kept: the row asks again next time, which is harmless.
+  }
+  return all;
+}
+
+/**
+ * Where a mod stands with the index: `share` (the Studio saw something and nobody sent it),
+ * `newer` (sent before, but something new turned up since), `shared` (everything seen is in the
+ * index or in a pull request this player opened); null when there is nothing to tell.
+ */
+export type ShareState = 'share' | 'newer' | 'shared';
+export function shareStateOf(modId: string, issues: CommunityIssue[], index: CommunityIndex | null, shared: SharedFacts): ShareState | null {
+  if (modId.startsWith('Z_PZModStudio_') || issues.length === 0) return null;
+  const known = new Set([...(shared[modId]?.facts ?? []), ...(index?.mods[modId]?.issues ?? []).map(factKey)]);
+  if (issues.every((i) => known.has(factKey(i)))) return 'shared';
+  return known.size > 0 ? 'newer' : 'share';
 }
 
 /**
@@ -58,7 +105,7 @@ export function draftRegistry(mod: ModInfo, catalog: CatalogModSummary | undefin
     authors: mod.author ? [mod.author] : [],
     builds,
     requires: mod.dependencies ?? [],
-    incompatible: (mod.incompatible ?? []).map((id) => ({ id, note: 'per its mod.info', status: 'verified' as const })),
+    incompatible: (mod.incompatible ?? []).map((id) => ({ id, note: 'per its mod.info', source: 'its mod.info', status: 'verified' as const })),
     load_after: [],
     issues,
   };

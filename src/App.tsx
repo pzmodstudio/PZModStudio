@@ -311,10 +311,11 @@ export const App: React.FC = () => {
       setErrorCards((prev) => {
         // One card per problem: the same shape of line again is the same problem. The title
         // alone used to decide, which folded three different lines of one mod into one card.
+        // Two mods with the same shape of line are two problems (a bare % in each one's texts).
         const shape = errorShape(card.raw_error);
         const isDuplicate = prev.some(
           (c) =>
-            (c.title === card.title && errorShape(c.raw_error) === shape) ||
+            (c.title === card.title && errorShape(c.raw_error) === shape && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
             (c.polyfill_rule_id_suggestion && c.polyfill_rule_id_suggestion === card.polyfill_rule_id_suggestion)
         );
         if (isDuplicate) return prev;

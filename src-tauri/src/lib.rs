@@ -421,9 +421,35 @@ fn propose_registry_cmd(mod_id: String, content: String) -> Result<rules::propos
         let Some(old) = existing.and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok()) else {
             return Ok(pretty.clone());
         };
-        let merged = merge_registry(old, registry.clone());
-        Ok(serde_json::to_string_pretty(&merged).map_err(|e| e.to_string())? + "\n")
+        Ok(serde_json::to_string_pretty(&merge_registry_issues(old, registry.clone())).map_err(|e| e.to_string())? + "\n")
     })
+}
+
+/// One known issue without its count or date: the same log line (numbers aside) and the same
+/// kind of fix are one issue, however many times or on which day it was seen.
+fn issue_identity(issue: &serde_json::Value) -> String {
+    let kind = issue.pointer("/fix/kind").and_then(|v| v.as_str()).unwrap_or("");
+    let text = issue.get("log").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).or_else(|| issue.get("title").and_then(|v| v.as_str())).unwrap_or("");
+    let shape: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().map(|c| if c.is_ascii_digit() { 'N' } else { c }).take(160).collect();
+    format!("{}|{}", kind, shape)
+}
+
+/// `new` over `old` as `merge_registry`, except that an issue proposed again replaces the entry
+/// that is already there (fresher count, date and build) instead of standing beside it.
+fn merge_registry_issues(mut old: serde_json::Value, mut new: serde_json::Value) -> serde_json::Value {
+    let fresh: Vec<serde_json::Value> = new.get_mut("issues").and_then(|v| v.as_array_mut()).map(std::mem::take).unwrap_or_default();
+    if let Some(issues) = old.get_mut("issues").and_then(|v| v.as_array_mut()) {
+        let ids: std::collections::HashSet<String> = fresh.iter().map(issue_identity).collect();
+        issues.retain(|i| !ids.contains(&issue_identity(i)));
+    }
+    let mut merged = merge_registry(old, new);
+    if let Some(obj) = merged.as_object_mut() {
+        let issues = obj.entry("issues").or_insert_with(|| serde_json::Value::Array(Vec::new()));
+        if let Some(list) = issues.as_array_mut() {
+            list.extend(fresh);
+        }
+    }
+    merged
 }
 
 /// `new` over `old`: new values win, lists keep every entry of both, and keys only `old` has stay.
@@ -2185,6 +2211,24 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_issue_proposed_again_replaces_its_entry() {
+        let line = "WARN : General f:0> Translator.reportMissingArgumentsFromPastAbuse> Formatting \"Sandbox_X\"";
+        let old = serde_json::json!({ "id": "X", "load_after": ["A"], "issues": [
+            { "title": "3 warnings in the last session", "log": line, "date": "2026-10-29", "fix": { "kind": "none" } },
+            { "title": "Someone else's note", "fix": { "kind": "none" } }
+        ]});
+        let new = serde_json::json!({ "id": "X", "load_after": [], "issues": [
+            { "title": "7 warnings in the last session", "log": line, "date": "2026-10-30", "fix": { "kind": "none" } }
+        ]});
+        let merged = super::merge_registry_issues(old, new);
+        let issues = merged["issues"].as_array().unwrap();
+        assert_eq!(issues.len(), 2, "the same line is one issue, the other one stays");
+        assert!(issues.iter().any(|i| i["title"] == "7 warnings in the last session" && i["date"] == "2026-10-30"));
+        assert!(issues.iter().any(|i| i["title"] == "Someone else's note"));
+        assert_eq!(merged["load_after"], serde_json::json!(["A"]));
+    }
+
     #[test]
     fn the_helpers_answer_is_found_among_steams_chatter() {
         let output = "Setting breakpad minidump AppID = 108600\nSteamInternal_SetMinidumpSteamID: ...\nPZMS-STEAM:{\"done\":[\"7\"]}\n";
