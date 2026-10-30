@@ -323,6 +323,7 @@ Poly.patchDefaults = {
     sauced_carts = true,            -- SaucedCarts / Pushable Carts
     exhaustive_power_rework = true, -- Exhaustive Power Rework server start
     modern_status = true,           -- ModernStatus hidden indicators off the screen
+    propane_explosion = true,       -- Propane Explosion aim check without a firearm
 }
 
 function Poly.modActive(ids)
@@ -1914,6 +1915,27 @@ local function initModPatches()
             local result = orig_setRuntimeAutoHidden(self, autoHidden)
             if self._runtimeAutoHidden ~= true then self.keepOnScreen = nil end
             return result
+        end
+    end
+    end
+
+    if Poly.patchOn("propane_explosion", { "PropaneExplosion" }) then
+    -- ----------------------------------------------------------------------------
+    -- Propane Explosion: the aim check only with a weapon that can aim
+    -- ----------------------------------------------------------------------------
+    -- Its OnPlayerUpdate handler keeps looking for a tank to shoot while an attack is under
+    -- way, even when the item in the hand is not a firearm, and findAimTarget then calls
+    -- weapon:getMaxRange(), which only weapons have: "Object tried to call nil in findAimTarget"
+    -- (PropaneExplosion_Utils.lua:632, 42.21). Without a ranged weapon there is nothing to aim
+    -- at, which is what it answers then.
+    if PropaneExplosionUtils and PropaneExplosionUtils.findAimTarget and not PropaneExplosionUtils.__pzms_aim then
+        PropaneExplosionUtils.__pzms_aim = true
+        local orig_findAimTarget = PropaneExplosionUtils.findAimTarget
+        PropaneExplosionUtils.findAimTarget = function(character, weapon, ...)
+            if not weapon or not instanceof(weapon, "HandWeapon") or not weapon:isRanged() then
+                return nil
+            end
+            return orig_findAimTarget(character, weapon, ...)
         end
     end
     end
