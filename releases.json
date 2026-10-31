@@ -1,12 +1,24 @@
 {
- "latest": "1.7.15",
- "count": 25,
- "built": "2026-10-30",
+ "latest": "1.8.0",
+ "count": 26,
+ "built": "2026-10-31",
  "releases": [
   {
-   "version": null,
-   "date": "2026-10-30",
+   "version": "1.8.0",
+   "date": "2026-10-31",
    "notes": [
+    "Release 1.8.0",
+    "Browse: unsubscribing from a Workshop item in the app takes its mods out of the list and the profile, instead of leaving them on as \"not installed\" once Steam deletes them. Unsubscribing in Steam itself still keeps the row, so a mod gone for a while gets its place back",
+    "Publish: a translation draft the old Merger saved as glued objects is mended on the way (its objects joined into one, later keys winning), so a package that has one can still be published; only a .json that cannot be read at all is refused",
+    "Merger: adding a mod's block to a translation file joins its keys into the one JSON object (and taking it out removes them); a script file gets /* */ markers, only Lua gets --. Before, every file got Lua comments around a second copy, and a package's Translate/EN/UI.json held two JSON objects glued together. A publish now refuses a .json that is not one object, instead of shipping a file the game cannot read",
+    "Monitor: a require the game itself has under its Build 42 path is said to be only noise when nothing from that file fails afterwards (the game runs its own Lua before any mod's, so the module is there anyway); the card's text is in the app's language (it was the backend's English), and its button reads \"Fix the path (only quiets the warning)\". When the same file errors later in the log, the card says the path is what mends it",
+    "The Studio's rules and mod index live inside the app; nothing is downloaded and nothing is shared through GitHub any more",
+    "Monitor: a Java mod's own error (\"[BloodFX] drawing disabled: java.lang.NullPointerException ...\") gets its own card under the mod's name, without the Merger or a polyfill (neither reaches Java); the exception its stack trace repeats on the next line is not a second, anonymous card. Mod Health: a community-index require issue is left out once the mod as installed no longer has that require (ReactiveSE 1.3.0 moved ISUI/ISWorldMap itself, and the warning offered a compatible copy that would have brought the old file back)",
+    "Translate: the language of a text is the script with most letters (a description in Russian, Chinese and English said 'from Chinese' because any Han letter won). A 429 from Google stops at once instead of retrying every piece, MyMemory sends pieces joined up to its 500 bytes and refuses a too-long text before any call (it made 40 calls, then gave up), and the limit is explained in words with the DeepL way out",
+    "Mod Health: a mod id changed back by its author is caught too (RadioVoices -> RadioVoicesLocal -> RadioVoices today). The Studio now remembers which Workshop item each mod id was seen in (PZModStudio_Cache/mod_workshop_ids.json), so a missing id points to what its item holds now; for an id gone before it was noted, the one Workshop mod whose id starts it or is started by it. A new id already in the list is not offered (the old entry is just a leftover)",
+    "Novedades: 'Since you last played' shows the session's time, not only the date, and an empty list says when that session was and offers Last 7 days. A session at 18:54 read as 'since today' while today's earlier updates were left out",
+    "Novedades: the sidebar count is read again when the game enters or leaves a save, when the window comes back and on every tab change. Counted once at start, it kept showing 1 for an update the player had since played with, while the page (since the 18:54 session) rightly showed nothing",
+    "Monitor: Clear on the game console empties it for real; after a Clear on a full console (1500 lines) the tab stayed at 0 / 1502 forever, because it hid by line count and the rolling window never grew past it. Other tabs now hide up to the last line seen at Clear time",
     "Launch: a windowed game that opens bigger than the screen is maximized (the game reopens at the size it saved maximized, title bar on top, so it ran under the taskbar); a window the player made smaller is left alone. Checked by the player on a real launch",
     "Mod List: a not-installed mod taken out of the list (removed, or replaced by its new id) leaves the profile too, instead of coming back at the end; jumping to a mod outside the profile or hidden by a filter shows it (the panel fell back to the list's first mod). Reading the mod list only reconciles the Zomboid folder that holds the default.txt it read: with a temporary folder in the tests it fell through to the user's real one and rewrote its active profile with the test's mods",
     "Mod List: a mod that is not installed shows one 'not installed' chip, the health check's (with its fix), not two",
@@ -150,13 +162,6 @@
    "date": "2026-10-27",
    "notes": [
     "Profiles: deleting one offers to unsubscribe the Workshop items only it uses"
-   ]
-  },
-  {
-   "version": "1.7.4",
-   "date": "2026-10-26",
-   "notes": [
-    "Mod List: sort by newest or oldest install"
    ]
   }
  ]

@@ -219,7 +219,7 @@ footer .links { margin-left: auto; display: flex; gap: 18px; }
   .row { transition: none; }
 }
 
-/* --- inner pages (mods.html, resources.html) --- */
+/* --- inner pages (resources.html) --- */
 .pagehead { padding: 56px 0 28px; border-bottom: 1px solid var(--line); }
 .pagehead h1 { font-size: clamp(44px, 7vw, 80px); margin: 0 0 14px; }
 .pagehead p { color: var(--muted); max-width: 820px; margin: 0; }
