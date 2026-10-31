@@ -1,19 +1,22 @@
-# Community rules
+# The Studio's knowledge
 
-`rules.json` holds what `mod.info` does not say: that one mod has to load after another or
-its recipes vanish, that two mods cannot be on together. PZ Mod Studio downloads it once a day
-(and keeps the last copy for when it is offline), and then:
+What `mod.info` does not say, kept in this folder and built into PZ Mod Studio when it is
+compiled (`include_str!`). The app downloads none of it and sends nothing back: each version
+carries what was known when it was built. To change it, edit the files here, run
+`node scripts/community-index.js build`, and build the app.
 
-- **Auto-Sort** places the mods as if the earlier one had written `loadModAfter` itself.
-- **Mod Health** says when the active list breaks a rule, names the rule's source, and offers
-  the move that mends it.
+- `rules.json`: one mod has to load after another, or two mods cannot be on together.
+  **Auto-Sort** follows the load-after rules as if the mod had written `loadModAfter` itself;
+  **Mod Health** says when the active list breaks one, names its source, and offers the move that
+  mends it. The player's own rules (Mod List → right-click → Load-order rules…) win over these.
+- `index/`: one registry per mod, below.
 
-The player's own rules (Mod List → right-click → Load-order rules…) win over these; a player can
-also switch the download off in Settings.
+On each PC the player can mark a known issue as **No longer happens**
+(`Zomboid/PZModStudio_LocalIndex.json`), and Mod Health leaves out by itself an issue the mod's
+files show is gone: a `require_path` whose file no longer names the old module, or an issue with
+a `log` line when the mod changed after the issue's `date` and the line is not in the session.
 
-## Adding a rule
-
-Open a pull request that edits `rules.json`. Every rule needs where it was seen:
+## A rule in `rules.json`
 
 ```json
 {
@@ -29,27 +32,17 @@ Open a pull request that edits `rules.json`. Every rule needs where it was seen:
 - `mod_id`, `after`, `a`, `b` are the `id=` line of the mod's `mod.info`, exactly (case matters
   to the game).
 - `note` is one sentence a player can act on: what breaks, how it shows.
-- `source` is a link to where it was reported or discussed, or `"tested on 42.21"` with your
-  name. A rule nobody can check does not go in.
+- `source` is a link to where it was reported or discussed, or `"tested on 42.21"`. A rule
+  nobody can check does not go in.
 - A rule the mod's own `mod.info` already states (`require`, `loadModAfter`, `incompatible`)
   does not go here: the Studio reads those from the mod.
 
 Keep `updated` as the date of the change.
 
-## Players' reports (`reports/`)
-
-What one player saw of a mod (the Studio no longer sends these itself; they come by hand): `reports/<mod id>/<GitHub name>.json`, shaped like a registry below. Each player writes
-only their own file, so two players' pull requests on one mod never clash, and sharing again
-updates the same file. The build folds every report into its mod's entry in `index.json`: lists
-joined, and each issue once (the same log line, numbers aside, is one issue) with `seen_by`, how
-many players reported it, and `builds_seen` when they saw it on more than one build. A mod with
-reports and no registry gets an entry of its own.
-
 ## The mod index (`index/`)
 
 One file per mod, `index/<mod id>.json` (a `/` in the id is written `__`), and `index.json` built
-from them by `node scripts/community-index.js build` — that is what the Studio downloads once a
-day. A registry says, each entry with the build it was seen on, a date, a source and whether it
+from them by `node scripts/community-index.js build` — that is what the app carries. A registry says, each entry with the build it was seen on, a date, a source and whether it
 is **verified** (the Studio checked it: mod.info, the log) or **reported** (a person said so):
 
 ```json
@@ -85,16 +78,6 @@ What the Studio does with it: Auto-Sort follows `load_after`; Mod Health and the
 when two mods of an `incompatible` pair are both on, when a known issue is not yet handled (with
 its fix beside it), and when a mod this build cannot load has a `successor`; the Browse page shows
 the registry before anything is installed. The player's own rules win over the index.
-
-**Proposing one:** Mod List → right-click a mod → *Propose to the community index…* opens
-GitHub's new-file page with the registry the Studio can fill in (mod.info, build) already there;
-add what you tested and press *Propose changes* — GitHub forks and opens the pull request. With a
-personal GitHub token saved in Settings, the Studio does that itself: it forks this repository on
-your account once, writes the file on a branch and opens the pull request, then shows it to you to
-add what you tested. A GitHub account is needed to propose, none to receive. The repository's check
-(`.github/workflows/community.yml`) refuses a registry that is malformed, names a shim patch that
-does not exist, or has an entry with neither a source nor a build, so a person reviews only what
-a machine could not.
 
 ## The web view
 

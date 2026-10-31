@@ -23,12 +23,13 @@ export function scriptLanguage(text: string): string | null {
   }
   const other = cyr + kana + hangul + han + thai + arabic;
   if (other === 0 || other * 4 < latin) return null;
-  if (kana > 0 && kana * 10 >= han) return 'ja';
-  if (hangul > 0) return 'ko';
-  if (han > 0) return 'zh';
-  if (cyr >= thai && cyr >= arabic) return 'ru';
-  if (thai >= arabic) return 'th';
-  return 'ar';
+  // The script with most letters wins: a Russian description that quotes one Chinese name is
+  // Russian. Japanese mixes kana and Han, so they count together when there is kana enough.
+  const japanese = kana > 0 && kana * 10 >= han ? kana + han : 0;
+  const counts: [string, number][] = [['ja', japanese], ['ko', hangul], ['zh', japanese ? 0 : han], ['ru', cyr], ['th', thai], ['ar', arabic]];
+  let best: [string, number] = ['', 0];
+  for (const c of counts) if (c[1] > best[1]) best = c;
+  return best[0] || null;
 }
 
 /** "ruso" for "ru", in the app's language; the code itself when the browser has no name for it. */
@@ -42,3 +43,10 @@ export function languageName(code: string): string {
 }
 
 export const TRANSLATION_SERVICES: Record<string, string> = { google: 'Google Translate', deepl: 'DeepL', mymemory: 'MyMemory' };
+
+/** A failed translation in words: Google's "too many requests" gets its own explanation. */
+export function translateErrorText(error: string): string {
+  return /Google answered 429/.test(error)
+    ? i18next.t('browse.detail.translateLimited')
+    : i18next.t('browse.detail.translateFailed', { reason: error });
+}

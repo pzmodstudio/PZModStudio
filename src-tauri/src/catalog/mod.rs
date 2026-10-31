@@ -70,12 +70,16 @@ pub struct CatalogMod {
     pub info: GameModInfo,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModCatalog {
     /// "42.21" when Zomboid/version.txt was found.
     pub game_version: Option<String>,
     /// In game search order; shadowed duplicates included (marked with `shadowed_by`).
     pub mods: Vec<CatalogMod>,
+    /// Every mod id ever seen in a Workshop item -> that item, kept across runs: when an update
+    /// changes a mod's id the old id is gone from disk, and this is what still ties it to the item.
+    #[serde(default)]
+    pub known_workshop: BTreeMap<String, String>,
 }
 
 impl ModCatalog {
@@ -248,7 +252,34 @@ pub fn build_catalog(workshop_dir: &str, user_zomboid_dir: &str, game_version_ov
         }
     }
 
-    ModCatalog { game_version: game_version.map(format_game_version), mods }
+    let known_workshop = remember_workshop_ids(Path::new(user_zomboid_dir), &mods);
+    ModCatalog { game_version: game_version.map(format_game_version), mods, known_workshop }
+}
+
+/// `<Zomboid>/PZModStudio_Cache/mod_workshop_ids.json`: mod id -> Workshop item it was seen in.
+const KNOWN_WORKSHOP_FILE: &str = "mod_workshop_ids.json";
+
+/// Adds the Workshop mods on disk now to the ids remembered before, writes the file when it
+/// grew, and returns the whole map. Only the folder given is used (never a guessed one).
+fn remember_workshop_ids(user_zomboid_dir: &Path, mods: &[CatalogMod]) -> BTreeMap<String, String> {
+    let path = user_zomboid_dir.join("PZModStudio_Cache").join(KNOWN_WORKSHOP_FILE);
+    let mut known: BTreeMap<String, String> = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let mut changed = false;
+    for m in mods.iter().filter(|m| m.shadowed_by.is_none()) {
+        if let ModSource::Workshop { workshop_id } = &m.source {
+            if known.get(&m.id) != Some(workshop_id) {
+                known.insert(m.id.clone(), workshop_id.clone());
+                changed = true;
+            }
+        }
+    }
+    if changed && user_zomboid_dir.is_dir() {
+        let _ = fs::create_dir_all(path.parent().unwrap());
+        if let Ok(text) = serde_json::to_string_pretty(&known) {
+            let _ = crate::load_order::ini_parser::atomic_write(&path, text);
+        }
+    }
+    known
 }
 
 /// The catalog and the health report of an active list, as returned to the UI and MCP clients.
@@ -270,11 +301,9 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
     let mut report = health_report(&catalog, active);
     report.install = read_game_install(&paths.pz_install_dir);
     add_user_rule_issues(&mut report, &catalog, active, &crate::rules::load_rules(&paths.user_zomboid_dir));
-    if let Some(community) = crate::rules::community::current(&paths.user_zomboid_dir) {
-        add_community_rule_issues(&mut report, &catalog, active, &community);
-        report.community = Some(community.summary());
-    }
-    if let Some(index) = crate::rules::index::current(&paths.user_zomboid_dir) {
+    add_community_rule_issues(&mut report, &catalog, active, crate::rules::community::current());
+    {
+        let index = crate::rules::index::current(&paths.user_zomboid_dir);
         let switches = crate::patch_generator::read_patch_switches(&paths.user_zomboid_dir);
         let shim_on = |name: &str| switches.get(name).copied().unwrap_or(true);
         let package_root = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir)
@@ -282,8 +311,12 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
             .next()
             .map(|d| d.join("mods").join("Z_PZModStudio_MergedPatch"))
             .unwrap_or_default();
-        add_index_issues(&mut report, &catalog, active, &index, &shim_on, &package_root);
-        report.community = Some(report.community.take().unwrap_or_else(|| crate::rules::community::summary(&paths.user_zomboid_dir)).with_index(Some(&index)));
+        let session = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir)
+            .into_iter()
+            .find_map(|d| std::fs::read(d.join("console.txt")).ok())
+            .map(|b| String::from_utf8_lossy(&b).into_owned());
+        add_index_issues(&mut report, &catalog, active, &index, &shim_on, &package_root, session.as_deref());
+        report.community = Some(crate::rules::community::summary(&paths.user_zomboid_dir));
     }
     let conflicts = crate::vfs::file_conflict_states(paths, &catalog, active);
     add_file_conflict_issues(&mut report, &conflicts);
@@ -931,6 +964,8 @@ pub enum SuggestedFix {
     EnableShimPatch { name: String },
     /// Take a mod file's copy out of the Studio package (it is published again without it).
     RemoveFromPackage { relative_path: String, package: String },
+    /// Say a known issue of the Studio's index no longer happens: it is not shown again here.
+    DismissKnownIssue { mod_id: String, title: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1001,7 +1036,8 @@ impl IssueList {
                 | SuggestedFix::MergeFiles { .. }
                 | SuggestedFix::OpenInMerger { .. }
                 | SuggestedFix::EnableShimPatch { .. }
-                | SuggestedFix::RemoveFromPackage { .. } => None,
+                | SuggestedFix::RemoveFromPackage { .. }
+                | SuggestedFix::DismissKnownIssue { .. } => None,
             };
             if let Some(other) = other.filter(|o| Some(o.as_str()) != mod_id && !related.contains(o)) {
                 related.push(other.clone());
@@ -1091,7 +1127,7 @@ mod user_rule_tests {
 
     #[test]
     fn a_broken_rule_is_a_warning_with_the_move_that_mends_it() {
-        let mut catalog = ModCatalog { game_version: None, mods: Vec::new() };
+        let mut catalog = ModCatalog { game_version: None, mods: Vec::new(), ..Default::default() };
         for id in ["Overhaul", "Library"] {
             catalog.mods.push(CatalogMod {
                 id: id.to_string(), name: id.to_string(), source: ModSource::Local, root_dir: String::new(),
@@ -1117,10 +1153,33 @@ mod user_rule_tests {
         add_user_rule_issues(&mut ok, &catalog, &["Overhaul".to_string()], &rules);
         assert!(ok.issues.is_empty());
     }
+
+    #[test]
+    fn a_require_the_author_fixed_in_an_update_is_not_reported() {
+        // ReactiveSE 1.3.0 added a 42.21 folder with the moved require; 42.15 kept the old one.
+        let root = std::env::temp_dir().join(format!("pzms-mended-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let file = "media/lua/client/RSE/Markers.lua";
+        for (folder, req) in [("42.15", "ISUI/ISWorldMap"), ("42.21", "ISUI/Maps/ISWorldMap")] {
+            let path = root.join(folder).join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, format!("require \"{}\"\n", req)).unwrap();
+        }
+        let m = CatalogMod {
+            id: "RSE".into(), name: "RSE".into(), source: ModSource::Local, root_dir: root.to_string_lossy().into(),
+            mod_info_path: None, version_folders: Vec::new(), has_common: false, has_root_mod_info: false,
+            loadability: Loadability::Loadable, shadowed_by: None, origin: None, workshop_state: None,
+            info: GameModInfo::default(),
+        };
+        assert!(require_already_mended(&m, file, "ISUI/ISWorldMap", Some(42_021)), "42.21 reads the mended folder");
+        assert!(!require_already_mended(&m, file, "ISUI/ISWorldMap", Some(42_015)), "42.15 still reads the old require");
+        assert!(!require_already_mended(&m, "media/lua/client/RSE/Gone.lua", "ISUI/ISWorldMap", Some(42_021)), "no file: no proof");
+        let _ = fs::remove_dir_all(&root);
+    }
 }
 
 /// The community's rules against the active list: a broken load-after rule and an incompatible
-/// pair both on, each named as the community's with its note and source.
+/// pair both on, each named as the Studio's with its note and source.
 pub fn add_community_rule_issues(report: &mut HealthReport, catalog: &ModCatalog, active: &[String], community: &crate::rules::community::CommunityRules) {
     let active_ids: Vec<String> = active
         .iter()
@@ -1147,7 +1206,7 @@ pub fn add_community_rule_issues(report: &mut HealthReport, catalog: &ModCatalog
         let (Some(&at), Some(&after_at)) = (position.get(rule.mod_id.as_str()), position.get(rule.after.as_str())) else { continue };
         if at < after_at {
             list.push(Severity::Warning, "community_rule_order", Some(&rule.mod_id),
-                format!("The community has it that {} loads after {}{}, and it comes before it in the list",
+                format!("The Studio's rules have it that {} loads after {}{}, and it comes before it in the list",
                     name(&rule.mod_id), name(&rule.after), why(&rule.note, &rule.source)),
                 vec![SuggestedFix::MoveBefore { mod_id: rule.after.clone(), before: rule.mod_id.clone() }]);
             let (note, source) = why_params(&rule.note, &rule.source);
@@ -1157,7 +1216,7 @@ pub fn add_community_rule_issues(report: &mut HealthReport, catalog: &ModCatalog
     for pair in &community.incompatible {
         if position.contains_key(pair.a.as_str()) && position.contains_key(pair.b.as_str()) {
             list.push(Severity::Warning, "community_incompatible", Some(&pair.a),
-                format!("The community has it that {} and {} do not go together{}, and both are on",
+                format!("The Studio's rules have it that {} and {} do not go together{}, and both are on",
                     name(&pair.a), name(&pair.b), why(&pair.note, &pair.source)),
                 vec![SuggestedFix::DisableMod { mod_id: pair.b.clone() }, SuggestedFix::DisableMod { mod_id: pair.a.clone() }]);
             let (note, source) = why_params(&pair.note, &pair.source);
@@ -1174,10 +1233,33 @@ pub fn add_community_rule_issues(report: &mut HealthReport, catalog: &ModCatalog
     }
 }
 
-/// The community index against the active list: an incompatible pair both on, a load-after
+/// The Studio's mod index against the active list: an incompatible pair both on, a load-after
 /// relation the list breaks, a known issue not yet dealt with on this machine (with the fix the
 /// Studio can apply), and the Build 42 successor of a mod this build cannot load. Each named as
 /// the index's, with the build it was seen on and whether it was verified or reported.
+/// The day the mod as installed last changed: its newest mod.info (an update rewrites it).
+fn mod_changed_on(m: &CatalogMod) -> Option<chrono::NaiveDate> {
+    let root = std::path::Path::new(&m.root_dir);
+    let mut infos = vec![root.join("mod.info"), root.join("common").join("mod.info")];
+    infos.extend(m.version_folders.iter().map(|v| root.join(v).join("mod.info")));
+    infos
+        .iter()
+        .filter_map(|p| std::fs::metadata(p).and_then(|md| md.modified()).ok())
+        .max()
+        .map(|t| chrono::DateTime::<chrono::Local>::from(t).date_naive())
+}
+
+/// The mod as installed no longer has the require a community issue is about: the file the game
+/// loads (version folder over `common/`) is there and does not name `from`. An author's update
+/// mended it, so the warning and its compatible copy would only bring the old file back.
+fn require_already_mended(m: &CatalogMod, file: &str, from: &str, game_version: Option<u32>) -> bool {
+    let layers = crate::load_order::mod_info::media_layers_for_build(std::path::Path::new(&m.root_dir), game_version);
+    let Some(text) = layers.iter().rev().find_map(|dir| std::fs::read_to_string(dir.join(file)).ok()) else {
+        return false;
+    };
+    !text.contains(&format!("\"{}\"", from)) && !text.contains(&format!("'{}'", from))
+}
+
 pub fn add_index_issues(
     report: &mut HealthReport,
     catalog: &ModCatalog,
@@ -1185,6 +1267,7 @@ pub fn add_index_issues(
     index: &crate::rules::index::CommunityIndex,
     shim_on: &dyn Fn(&str) -> bool,
     package_root: &std::path::Path,
+    session_log: Option<&str>,
 ) {
     use crate::rules::index::{IssueFix, Status};
     let active_ids: Vec<String> = active
@@ -1225,7 +1308,7 @@ pub fn add_index_issues(
                     continue;
                 }
                 list.push(Severity::Warning, "community_incompatible", Some(id),
-                    format!("The community index has it that {} and {} do not go together ({}{}), and both are on",
+                    format!("The Studio's mod index has it that {} and {} do not go together ({}{}), and both are on",
                         name(id), name(&rel.id), rel.note.clone().map(|n| format!("{}; ", n)).unwrap_or_default(), seen_on(&rel.build, rel.status)),
                     vec![SuggestedFix::DisableMod { mod_id: rel.id.clone() }, SuggestedFix::DisableMod { mod_id: id.clone() }]);
                 list.with(&[("variant", "index"), ("mod", &name(id)), ("other", &name(&rel.id)), ("note", &note_semi(&rel.note)),
@@ -1236,7 +1319,7 @@ pub fn add_index_issues(
             if let Some(&after_at) = position.get(rel.id.as_str()) {
                 if mine < after_at {
                     list.push(Severity::Warning, "community_rule_order", Some(id),
-                        format!("The community index has it that {} loads after {} ({}{}), and it comes before it in the list",
+                        format!("The Studio's mod index has it that {} loads after {} ({}{}), and it comes before it in the list",
                             name(id), name(&rel.id), rel.note.clone().map(|n| format!("{}; ", n)).unwrap_or_default(), seen_on(&rel.build, rel.status)),
                         vec![SuggestedFix::MoveBefore { mod_id: rel.id.clone(), before: id.clone() }]);
                     list.with(&[("variant", "index"), ("mod", &name(id)), ("after", &name(&rel.id)), ("note", &note_semi(&rel.note)),
@@ -1257,6 +1340,14 @@ pub fn add_index_issues(
             if compat_copy_loads && matches!(issue.fix, IssueFix::RequirePath { .. } | IssueFix::CompatibleCopy) {
                 continue;
             }
+            if let (IssueFix::RequirePath { from, .. }, Some(file)) = (&issue.fix, issue.file.as_deref()) {
+                if catalog.get(id).is_some_and(|m| require_already_mended(m, file, from, catalog.game_version_int())) {
+                    continue;
+                }
+            }
+            if crate::rules::index::log_issue_outdated(issue, catalog.get(id).and_then(mod_changed_on), session_log) {
+                continue;
+            }
             let evidence = issue.file.as_deref().map(|f| match issue.line { Some(l) => format!(" ({}:{})", f, l), None => format!(" ({})", f) }).unwrap_or_default();
             let note = issue.note.clone().map(|n| format!(": {}", n)).unwrap_or_default();
             let (severity, fixes, how, how_key) = match &issue.fix {
@@ -1274,8 +1365,10 @@ pub fn add_index_issues(
                 IssueFix::RequirePath { from, to } => (from.as_str(), to.as_str()),
                 _ => ("", ""),
             };
+            let mut fixes = fixes;
+            fixes.push(SuggestedFix::DismissKnownIssue { mod_id: id.clone(), title: issue.title.clone() });
             list.push(severity, "community_known_issue", Some(id),
-                format!("{} has a known issue, per the community index: {}{}{}{} [{}]", name(id), issue.title, evidence, note, how, seen_on(&issue.build, issue.status)),
+                format!("{} has a known issue, per the Studio's mod index: {}{}{}{} [{}]", name(id), issue.title, evidence, note, how, seen_on(&issue.build, issue.status)),
                 fixes);
             list.with(&[("mod", &name(id)), ("title", &issue.title), ("evidence", &evidence), ("note", &note), ("howKey", how_key), ("from", from), ("to", to),
                 ("build", issue.build.as_deref().unwrap_or("")), ("seenKey", seen_key(&issue.build, issue.status))]);
@@ -1285,7 +1378,7 @@ pub fn add_index_issues(
             if !loadable && !position.contains_key(successor.id.as_str()) {
                 let fixes = successor.workshop_id.clone().map(|w| vec![SuggestedFix::OpenWorkshopPage { workshop_id: w }]).unwrap_or_default();
                 list.push(Severity::Info, "community_successor", Some(id),
-                    format!("{} has a version for this build, per the community index: {}{}", name(id), name(&successor.id), successor.note.clone().map(|n| format!(" ({})", n)).unwrap_or_default()),
+                    format!("{} has a version for this build, per the Studio's mod index: {}{}", name(id), name(&successor.id), successor.note.clone().map(|n| format!(" ({})", n)).unwrap_or_default()),
                     fixes);
                 list.with(&[("mod", &name(id)), ("successor", &name(&successor.id)), ("note", &successor.note.clone().map(|n| format!(" ({})", n)).unwrap_or_default())]);
             }
@@ -1395,14 +1488,31 @@ fn near_match<'a>(catalog: &'a ModCatalog, id: &str) -> Option<&'a CatalogMod> {
     catalog.mods.iter().find(|m| m.shadowed_by.is_none() && m.id.eq_ignore_ascii_case(id))
 }
 
-/// An installed mod whose folder is named like the missing id but whose mod.info says another
-/// id: the author changed the id in an update (the folder stays, the old id is gone).
-fn renamed_to<'a>(catalog: &'a ModCatalog, id: &str) -> Option<&'a CatalogMod> {
-    catalog.mods.iter().find(|m| {
-        m.shadowed_by.is_none()
-            && m.id != id
-            && std::path::Path::new(&m.root_dir).file_name().and_then(|f| f.to_str()).map(|f| f.eq_ignore_ascii_case(id)).unwrap_or(false)
-    })
+/// The id a missing mod has now, when its author changed it in an update: an installed mod
+/// whose folder is named like the missing id but whose mod.info says another, or else a mod of
+/// the Workshop item the missing id was last seen in (so a change back is caught too). One
+/// already in the list is not offered: the old entry is then only a leftover.
+fn renamed_to<'a>(catalog: &'a ModCatalog, id: &str, active_ids: &[&str]) -> Option<&'a CatalogMod> {
+    let candidate = |m: &&CatalogMod| m.shadowed_by.is_none() && m.id != id && !active_ids.contains(&m.id.as_str());
+    let by_folder = catalog.mods.iter().filter(candidate).find(|m| {
+        std::path::Path::new(&m.root_dir).file_name().and_then(|f| f.to_str()).map(|f| f.eq_ignore_ascii_case(id)).unwrap_or(false)
+    });
+    by_folder
+        .or_else(|| {
+            let item = catalog.known_workshop.get(id)?;
+            catalog.mods.iter().filter(candidate).find(|m| matches!(&m.source, ModSource::Workshop { workshop_id } if workshop_id == item))
+        })
+        .or_else(|| {
+            // Never seen in an item (it went before the Studio could note it): one Workshop mod
+            // whose id starts the missing one or is started by it (RadioVoices / RadioVoicesLocal).
+            let low = id.to_ascii_lowercase();
+            let mut near = catalog.mods.iter().filter(candidate).filter(|m| {
+                let other = m.id.to_ascii_lowercase();
+                matches!(m.source, ModSource::Workshop { .. }) && other.len().min(low.len()) >= 6 && (low.starts_with(&other) || other.starts_with(&low))
+            });
+            let first = near.next()?;
+            near.next().is_none().then_some(first)
+        })
 }
 
 /// Everything that will go wrong when the game loads `active` (the default.txt list, in order).
@@ -1457,10 +1567,10 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         let Some(m) = resolve_entry(catalog, entry) else {
             let mut fixes = vec![SuggestedFix::RemoveFromList { entry: entry.to_string() }];
             let (message, params) = match near_match(catalog, id) {
-                None if renamed_to(catalog, id).is_some() => {
-                    let renamed = renamed_to(catalog, id).unwrap();
+                None if renamed_to(catalog, id, &active_ids).is_some() => {
+                    let renamed = renamed_to(catalog, id, &active_ids).unwrap();
                     fixes.insert(0, SuggestedFix::ReplaceInList { entry: entry.to_string(), mod_id: renamed.id.clone() });
-                    (format!("{} is not installed: its folder now holds {} ({}), the mod changed its id in an update", id, renamed.id, renamed.name),
+                    (format!("{} is not installed: the same Workshop mod is now {} ({}), its author changed the id in an update", id, renamed.id, renamed.name),
                         issue_params(&[("variant", "renamed"), ("mod", id), ("renamed", &renamed.id), ("name", &renamed.name)]))
                 }
                 Some(similar) => {
@@ -1848,6 +1958,35 @@ mod tests {
         // ...and an id that itself contains a slash (real mod 2858201402) is matched exactly.
         let slashy = health_report(&cat, &["11/slashy".to_string()]);
         assert!(slashy.issues.is_empty(), "{:?}", slashy.issues);
+    }
+
+    #[test]
+    fn an_id_changed_back_is_found_through_the_item_it_was_seen_in() {
+        let f = fixture("renamed-back");
+        let ws = f.root.join("workshop");
+        let (w, z) = paths(&f);
+        write_mod(&ws.join("20/mods/Voices/42"), "id=VoicesLocal
+name=Voices
+");
+        build_catalog(&w, &z, Some(42_021));
+        // The next update puts the old id back: the folder is not named like the id in the list.
+        write_mod(&ws.join("20/mods/Voices/42"), "id=Voices
+name=Voices
+");
+        let cat = build_catalog(&w, &z, Some(42_021));
+        let report = health_report(&cat, &["VoicesLocal".to_string()]);
+        let issue = report.issues.iter().find(|i| i.code == "missing_mod").unwrap();
+        assert_eq!(issue.fixes[0], SuggestedFix::ReplaceInList { entry: "VoicesLocal".into(), mod_id: "Voices".into() });
+        // Already in the list: the old entry is only a leftover, nothing to swap in.
+        let report = health_report(&cat, &["VoicesLocal".to_string(), "Voices".to_string()]);
+        let issue = report.issues.iter().find(|i| i.code == "missing_mod").unwrap();
+        assert_eq!(issue.fixes[0], SuggestedFix::RemoveFromList { entry: "VoicesLocal".into() });
+        // Gone before it was ever noted: the one Workshop id that starts it.
+        let mut fresh = cat.clone();
+        fresh.known_workshop.clear();
+        let report = health_report(&fresh, &["VoicesLocal".to_string()]);
+        let issue = report.issues.iter().find(|i| i.code == "missing_mod").unwrap();
+        assert_eq!(issue.fixes[0], SuggestedFix::ReplaceInList { entry: "VoicesLocal".into(), mod_id: "Voices".into() });
     }
 
     #[test]

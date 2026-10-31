@@ -139,10 +139,18 @@ pub fn answer_for(wanted: &str, index: &[(String, ModuleCandidate)]) -> RequireA
              there yet if the mod that owns it loads later. Changing the path fixes neither.",
             found.owner, found.module_path, found.phase
         ),
+        // The game runs its own Lua before any mod's: by the time the mod's file asks, the game's
+        // module has usually run already and its globals are there.
+        Some(found) if found.owner == "the game" => format!(
+            "The game has this module at {} (under {}/), not at {}: Build 42 moved it. The game \
+             loads its own Lua before any mod's, so the module has usually run by the time the mod \
+             asks for it, and the mod works. Unless an error from the same file follows in the log, \
+             this line is only noise; patching the path on the right quiets it.",
+            found.module_path, found.phase, wanted_clean
+        ),
         Some(found) => format!(
-            "It is {} that has this module, at {} (under {}/) — not at {}. Build 42 moved a lot \
-             of Lua about. Patching that line of the mod to ask for the path on the right is \
-             what fixes it.",
+            "It is {} that has this module, at {} (under {}/) — not at {}. Patching that line of \
+             the mod to ask for the path on the right is what fixes it.",
             found.owner, found.module_path, found.phase, wanted_clean
         ),
     };
@@ -188,6 +196,12 @@ mod tests {
         assert_eq!(answer.candidates.len(), 1);
         assert!(!answer.candidates[0].same_path);
         assert!(answer.summary.contains("Vehicles/Vehicles"), "{}", answer.summary);
+        // The game's own module has run before any mod's: a warning, not a breakage.
+        assert!(answer.summary.contains("only noise"), "{}", answer.summary);
+
+        // Another mod's module at another path: the path really is the fix.
+        let index = vec![candidate("TOC/Controllers/ItemsController", "The Only Cure Core")];
+        let answer = answer_for("TOC/ItemsController", &index);
         assert!(answer.summary.contains("Patching"), "{}", answer.summary);
     }
 

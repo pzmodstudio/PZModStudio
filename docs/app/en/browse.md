@@ -35,7 +35,7 @@ Clicking a card opens a large view with pictures, the description, info and requ
 
 - **Subscribe** / **Unsubscribe**: done through the Steam client, so Steam must be running. Steam downloads the files; the mod appears in your Mod List when it finishes. Without Steam there is no Subscribe button, and **Open Workshop page** reads **Open page to subscribe**.
 - **Required items**: what the mod needs on the Workshop, marked **Installed** or **Missing**. Click one to open it.
-- **Community index**: what the community index knows about the mod: builds it runs on, mods it does not go with, known issues and whether the Studio fixes them, and a newer version for your build if there is one.
+- **The Studio's index**: what the Studio knows about the mod: builds it runs on, mods it does not go with, known issues and whether the Studio fixes them, and a newer version for your build if there is one.
 - The star in the header adds it to your **Favorites**.
 - **Translate to ...** puts the description in the app's language; **Show original** goes back to it. The text goes to a translation service only when you press it.
 - A video among the pictures plays in the view. If its author does not allow that, **Watch on YouTube (browser)** opens it.
@@ -57,16 +57,6 @@ Your own lists of mods, kept on this PC. **Favorites** is always there.
 - **Make a profile** creates a profile with the list's installed mods switched on.
 - The pencil renames the list, the trash deletes it. The mods stay installed.
 - Right-click a card and **Take out of** the list to remove it from the list only.
-
-## Lists from the community
-
-**From the community** (beside **My lists**) shows lists other players shared. Each one was read by a person before it was published in the Studio's repository; the Studio fetches them once a day (the arrows fetch them now). **All lists on the web** opens the community page with every list and its mods. The search box keeps the lists whose name, author, description or mods match what you type.
-
-- Each card says who made it, how many mods it has and how many of its Workshop mods you already have.
-- **Copy to my lists** makes it one of your lists, named with its author. Nothing is installed: from there, **Subscribe to all missing** and **Make a profile** work as with any list.
-- **See on GitHub** opens the file.
-
-To share one of yours, open it in **My lists** and press **Share with the community**. You are asked your name as its author and a line about it. With a GitHub token (Settings) the Studio shows what goes out and opens the pull request; without one, GitHub's new-file page opens with the list filled in, and you press **Propose changes** there. If someone already shared a list with the same name, rename yours first.
 
 ## Installing a downloaded mod
 

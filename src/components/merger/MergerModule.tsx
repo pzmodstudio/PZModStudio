@@ -636,8 +636,32 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
 
   // Step 3b: Toggle Append vs Remove Mod block in editor content
   const handleToggleAddMod = (modContent: string, modUid: string) => {
-    const blockStart = `-- === MOD: [${modUid}] ===`;
-    const blockEnd = `-- === END MOD: [${modUid}] ===`;
+    const path = currentConflict?.relative_path.toLowerCase() ?? '';
+    // A translation file is one JSON object the game reads whole: a mod's texts join its keys.
+    // Two objects one after the other (with Lua comments between) is not JSON at all.
+    if (path.endsWith('.json')) {
+      try {
+        const mine = JSON.parse(editorContent.trim() || '{}') as Record<string, unknown>;
+        const theirs = JSON.parse(modContent) as Record<string, unknown>;
+        const keys = Object.keys(theirs);
+        const added = keys.some((k) => !(k in mine) || mine[k] !== theirs[k]);
+        const next = { ...mine };
+        for (const k of keys) {
+          if (added) next[k] = theirs[k];
+          else if (next[k] === theirs[k]) delete next[k];
+        }
+        setEditorContent(`${JSON.stringify(next, null, 2)}\n`);
+        setIsManuallyEdited(true);
+        showToast(i18next.t(added ? 'merger.toasts.codeAdded' : 'merger.toasts.codeRemoved', { mod: modUid }));
+      } catch {
+        showToast(i18next.t('merger.toasts.jsonUnreadable'));
+      }
+      return;
+    }
+    // Script files (.txt) take C comments; Lua takes --.
+    const lua = path.endsWith('.lua');
+    const blockStart = lua ? `-- === MOD: [${modUid}] ===` : `/* === MOD: [${modUid}] === */`;
+    const blockEnd = lua ? `-- === END MOD: [${modUid}] ===` : `/* === END MOD: [${modUid}] === */`;
 
     if (editorContent.includes(blockStart)) {
       // REMOVE mod block

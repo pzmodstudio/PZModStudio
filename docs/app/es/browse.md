@@ -35,7 +35,7 @@ Hacer clic en una tarjeta abre una vista grande con imágenes, la descripción, 
 
 - **Suscribirse** / **Desuscribirse**: se hace a través del cliente de Steam, así que Steam tiene que estar abierto. Steam descarga los archivos; el mod aparece en tu Lista de mods cuando termina. Sin Steam no hay botón para suscribirse, y **Abrir página del Workshop** dice **Abrir la página para suscribirse**.
 - **Ítems requeridos**: lo que el mod necesita del Workshop, marcado **Instalado** o **Falta**. Hacé clic en uno para abrirlo.
-- **Índice comunitario**: lo que sabe el índice de la comunidad sobre el mod: builds en las que funciona, mods con los que no va, problemas conocidos y si el Studio los arregla, y una versión más nueva para tu build si existe.
+- **Índice del Studio**: lo que sabe el Studio sobre el mod: builds en las que funciona, mods con los que no va, problemas conocidos y si el Studio los arregla, y una versión más nueva para tu build si existe.
 - La estrella del encabezado lo agrega a tus **Favoritos**.
 - **Traducir al ...** pone la descripción en el idioma de la app; **Ver original** vuelve a ella. El texto va a un servicio de traducción solo cuando lo apretás.
 - Un video entre las imágenes se reproduce en la vista. Si su autor no lo permite, **Ver en YouTube (navegador)** lo abre.
@@ -57,16 +57,6 @@ Tus propias listas de mods, guardadas en esta PC. **Favoritos** siempre está.
 - **Crear un perfil** crea un perfil con los mods instalados de la lista activos.
 - El lápiz renombra la lista y el tacho la borra. Los mods quedan instalados.
 - Clic derecho en una tarjeta y **Sacar de** la lista para quitarla solo de la lista.
-
-## Listas de la comunidad
-
-**De la comunidad** (al lado de **Mis listas**) muestra las listas que compartieron otros jugadores. Cada una la leyó una persona antes de publicarse en el repositorio del Studio; el Studio las trae una vez por día (las flechas las traen ahora). **Todas las listas en la web** abre la página de la comunidad con cada lista y sus mods. El buscador deja las listas cuyo nombre, autor, descripción o mods coinciden con lo que escribís.
-
-- Cada tarjeta dice quién la hizo, cuántos mods tiene y cuántos de sus mods del Workshop ya tenés.
-- **Copiar a mis listas** la hace una de tus listas, con el nombre de su autor. No se instala nada: desde ahí, **Suscribirse a todo lo que falta** y **Crear un perfil** funcionan como con cualquier lista.
-- **Ver en GitHub** abre el archivo.
-
-Para compartir una tuya, abrila en **Mis listas** y apretá **Compartir con la comunidad**. Se te pide tu nombre como autor y una línea sobre la lista. Con un token de GitHub (Ajustes) el Studio te muestra lo que sale y abre el pull request; sin token, se abre la página de archivo nuevo de GitHub con la lista completa, y ahí apretás **Propose changes**. Si alguien ya compartió una lista con el mismo nombre, renombrá la tuya antes.
 
 ## Instalar un mod que descargaste
 

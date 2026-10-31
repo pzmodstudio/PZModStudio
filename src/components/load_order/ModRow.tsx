@@ -30,7 +30,6 @@ export interface ModRowBodyProps {
   isBridge: boolean;
   catalogById?: Map<string, CatalogModSummary>;
   errorStats?: Map<string, ModErrorStat>;
-  /** What it has for the community index, and the day this player last sent it. */
   loadTimes?: Map<string, number>;
   /** Share of the game's time per mod (%), from the last profiler measurement. */
   gameShares?: Map<string, number>;

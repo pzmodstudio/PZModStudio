@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Download, ExternalLink, FileArchive, Heart, Languages, Layers, Loader2, Play, Plus, Trash2, Users, X } from 'lucide-react';
 import { AuthorLink, NexusMod, NexusModDetails, Translation, WorkshopInstallState, WorkshopItem, WorkshopItemDetails, WorkshopLookup } from '../../types';
-import { TRANSLATION_SERVICES, appLanguage, languageName, scriptLanguage } from '../../utils/language';
+import { TRANSLATION_SERVICES, appLanguage, languageName, scriptLanguage, translateErrorText } from '../../utils/language';
 import { SupportLinks } from '../common/SupportLinks';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { StudioPathsUI } from '../settings/SettingsModule';
@@ -178,7 +178,7 @@ const Description: React.FC<{ source?: string | null; fallback?: string | null; 
               : i18next.t('browse.detail.translate', { to: languageName(target) })}
           </button>
         )}
-        {error && <span className="text-red-300">{i18next.t('browse.detail.translateFailed', { reason: error })}</span>}
+        {error && <span className="text-red-300">{translateErrorText(error)}</span>}
       </div>
       <BBCode source={translation && !showOriginal ? translation.texts[0] : source} />
     </div>

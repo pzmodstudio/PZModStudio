@@ -530,7 +530,7 @@ pub fn get_available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "community_index_lookup".to_string(),
-            description: "What the community mod index says about one mod (or every mod, without mod_id): builds it runs on, requires, incompatible with, load after, its Build 42 successor, and known issues each with the fix the Studio can apply (shim_patch, require_path, compatible_copy, none), every entry with the build it was seen on and whether it was verified or reported. Fetched once a day from the Studio's repository (community/index.json), cached beside the mod list; null when none is at hand.".to_string(),
+            description: "What the Studio's mod index says about one mod (or every mod, without mod_id): builds it runs on, requires, incompatible with, load after, its Build 42 successor, and known issues each with the fix the Studio can apply (shim_patch, require_path, compatible_copy, none), every entry with the build it was seen on and whether it was verified or reported. Carried inside the app (community/index.json when it was built), nothing downloaded; the issues this player dismissed are left out.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -540,25 +540,17 @@ pub fn get_available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
-            name: "refresh_community".to_string(),
-            description: "Fetches the community rules (community/rules.json) and the mod index (community/index.json) now, whatever the age of the cached copies, and says how many of each came.".to_string(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
-                }
-            }),
-        },
-        McpTool {
-            name: "set_community_downloads".to_string(),
-            description: "Switches the daily download of the community rules and index on or off (Settings > Download the community rules and mod index). Off keeps the last copies and fetches nothing.".to_string(),
+            name: "dismiss_index_issue".to_string(),
+            description: "Marks one known issue of the Studio's mod index as no longer happening on this machine (Mod Health stops showing it), or brings it back with dismissed: false. Kept in Zomboid/PZModStudio_LocalIndex.json.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
-                    "enabled": { "type": "boolean" }
+                    "mod_id": { "type": "string", "description": "The mod's id= line" },
+                    "title": { "type": "string", "description": "The issue's title, as community_index_lookup gives it" },
+                    "dismissed": { "type": "boolean", "description": "Default true; false brings it back" }
                 },
-                "required": ["enabled"]
+                "required": ["mod_id", "title"]
             }),
         },
         McpTool {
@@ -735,8 +727,7 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "save_inside" => handle_save_inside(args),
         "scan_mod_security" => handle_scan_mod_security(args),
         "check_mod_api" => handle_check_mod_api(args),
-        "refresh_community" => handle_refresh_community(args),
-        "set_community_downloads" => handle_set_community_downloads(args),
+        "dismiss_index_issue" => handle_dismiss_index_issue(args),
         "list_load_rules" => handle_list_load_rules(args),
         "add_load_rule" => handle_add_load_rule(args),
         "remove_load_rule" => handle_remove_load_rule(args),
@@ -1003,6 +994,9 @@ fn handle_get_crash_diagnostics(args: Value) -> ToolCallResult {
             for line_res in reader.lines() {
                 if let Ok(line) = line_res {
                     blame.observe(&line);
+                    if blame.java_echo() {
+                        continue;
+                    }
                     if let Some(mut card) = translate_log_error(&line, counter) {
                         if card.mod_name.is_none() {
                             card.mod_name = blame.of(&line);
@@ -2002,26 +1996,22 @@ fn handle_community_index_lookup(args: Value) -> ToolCallResult {
     let index = crate::rules::index::current(&paths.user_zomboid_dir);
     let mod_id = arg_str(&args, "mod_id");
     if mod_id.is_empty() {
-        return json_result::<Option<crate::rules::index::CommunityIndex>>(Ok(index));
+        return json_result::<crate::rules::index::CommunityIndex>(Ok(index));
     }
     json_result(Ok(json!({
         "summary": crate::rules::community::summary(&paths.user_zomboid_dir),
-        "registry": index.as_ref().and_then(|i| i.get(mod_id).cloned()),
+        "registry": index.get(mod_id).cloned(),
     })))
 }
 
-fn handle_refresh_community(args: Value) -> ToolCallResult {
+fn handle_dismiss_index_issue(args: Value) -> ToolCallResult {
     let paths = resolve_paths(&args);
-    json_result(
-        crate::rules::community::refresh(&paths.user_zomboid_dir)
-            .and_then(|rules| crate::rules::index::refresh(&paths.user_zomboid_dir).map(|index| rules.summary().with_index(Some(&index)))),
-    )
-}
-
-fn handle_set_community_downloads(args: Value) -> ToolCallResult {
-    let paths = resolve_paths(&args);
-    let enabled = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
-    json_result(crate::rules::community::set_downloads_enabled(&paths.user_zomboid_dir, enabled).map(|_| json!({ "downloads": enabled })))
+    let (mod_id, title) = (arg_str(&args, "mod_id"), arg_str(&args, "title"));
+    if mod_id.is_empty() || title.is_empty() {
+        return error_result("mod_id and title are required".to_string());
+    }
+    let dismissed = args.get("dismissed").and_then(|v| v.as_bool()).unwrap_or(true);
+    json_result(crate::rules::index::set_dismissed(&paths.user_zomboid_dir, mod_id, title, dismissed).map(|_| json!({ "mod_id": mod_id, "title": title, "dismissed": dismissed })))
 }
 
 fn handle_list_load_rules(args: Value) -> ToolCallResult {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * The community mod index: one registry per mod in community/index/<id>.json, built into
- * community/index.json, which PZ Mod Studio downloads once a day.
+ * community/index.json, which PZ Mod Studio carries inside the app (include_str!, at build time).
  *
  *   node scripts/community-index.js check   -- every registry is well formed (what a pull request must pass)
  *   node scripts/community-index.js build   -- check, then write community/index.json

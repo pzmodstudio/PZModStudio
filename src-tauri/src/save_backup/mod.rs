@@ -759,7 +759,7 @@ mod tests {
         fs::write(save.join("mods.txt"), "VERSION = 1,\nmods\n{\n    mod = 123/Gone,\n    mod = \\AlsoGone,\n}\n").unwrap();
         let server = make_save(&z, "Multiplayer/1.2.3.4_16261_f5e85281397522383aa0b8b39114e853");
         fs::remove_file(server.join("mods.txt")).unwrap();
-        let catalog = crate::catalog::ModCatalog { game_version: None, mods: Vec::new() };
+        let catalog = crate::catalog::ModCatalog { game_version: None, mods: Vec::new(), ..Default::default() };
         let missing = missing_mods(&z, &catalog);
         assert_eq!(
             missing.get("Sandbox/W").cloned().unwrap_or_default(),

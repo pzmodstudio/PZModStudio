@@ -1,6 +1,8 @@
-//! The community mod index: one registry per mod in `community/index/` of the Studio's own
-//! repository, built into one `community/index.json` by the repository's own check, fetched
-//! once a day like the rules and kept for when the player is offline.
+//! The Studio's mod index: one registry per mod in `community/index/` of the Studio's own
+//! repository, built into one `community/index.json` by the repository's own check and carried
+//! inside the app. Nothing is downloaded. On top of it, each player's own
+//! `Zomboid/PZModStudio_LocalIndex.json` keeps the known issues they marked as no longer
+//! happening, and the health check also leaves out an issue the mod's own files show is gone.
 //!
 //! What a registry says, every entry with the build it was seen on and whether the Studio
 //! verified it or a person reported it: which builds the mod runs on, what it needs, what it
@@ -9,12 +11,15 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
-/// Where the built index lives: this repository, main branch.
-pub const INDEX_URL: &str =
-    "https://raw.githubusercontent.com/pzmodstudio/PZModStudio/main/community/index.json";
-const CACHE_FILE: &str = "PZModStudio_CommunityIndex.json";
+use crate::load_order::mod_info::get_existing_user_zomboid_dirs;
+
+/// The index as this build of the app carries it.
+const BUNDLED: &str = include_str!("../../../community/index.json");
+/// The player's own layer: what they marked as no longer happening.
+const LOCAL_FILE: &str = "PZModStudio_LocalIndex.json";
 
 /// How sure an entry is: the Studio checked it (the log, mod.info), or a person said so.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -127,7 +132,7 @@ pub struct Registry {
     pub issues: Vec<KnownIssue>,
 }
 
-/// The built file the app downloads.
+/// The built file the app carries.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CommunityIndex {
     #[serde(default)]
@@ -136,9 +141,6 @@ pub struct CommunityIndex {
     pub updated: Option<String>,
     #[serde(default)]
     pub mods: BTreeMap<String, Registry>,
-    /// When this copy was fetched (unix seconds); set by the Studio, not by the file.
-    #[serde(default)]
-    pub fetched_at: Option<i64>,
 }
 
 impl CommunityIndex {
@@ -181,32 +183,98 @@ pub fn parse(text: &str) -> Result<CommunityIndex, String> {
     Ok(index)
 }
 
-/// The last copy fetched, if any.
-pub fn load_cached(user_zomboid_dir: &str) -> Option<CommunityIndex> {
-    let text = std::fs::read_to_string(super::community::cache_path(user_zomboid_dir, CACHE_FILE)?).ok()?;
-    parse(&text).ok()
+/// The index this build carries (the repository's test keeps the file well formed).
+pub fn bundled() -> &'static CommunityIndex {
+    static INDEX: OnceLock<CommunityIndex> = OnceLock::new();
+    INDEX.get_or_init(|| parse(BUNDLED).unwrap_or_default())
 }
 
-/// Fetches the index now and keeps it. Says why when it cannot.
-pub fn refresh(user_zomboid_dir: &str) -> Result<CommunityIndex, String> {
-    let path = super::community::cache_path(user_zomboid_dir, CACHE_FILE)
-        .ok_or_else(|| format!("Zomboid folder not found: {}", user_zomboid_dir))?;
-    let text = super::community::fetch_text(INDEX_URL).map_err(|e| format!("The community index could not be fetched: {}", e))?;
-    let mut index = parse(&text)?;
-    index.fetched_at = Some(super::community::now());
-    let json = serde_json::to_string_pretty(&index).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())?;
-    Ok(index)
+/// A known issue the player said no longer happens: the mod and the issue's title.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Dismissed {
+    pub mod_id: String,
+    pub title: String,
+    /// When they said so (unix seconds).
+    #[serde(default)]
+    pub at: Option<i64>,
 }
 
-/// The copy to use: the cached one while it is less than a day old, else a fresh fetch, else
-/// the cached one however old, else none. With downloads off in Settings, the cached one only.
-pub fn current(user_zomboid_dir: &str) -> Option<CommunityIndex> {
-    let cached = load_cached(user_zomboid_dir);
-    if !super::community::downloads_enabled(user_zomboid_dir) || cached.as_ref().and_then(|c| c.fetched_at).map(super::community::is_fresh).unwrap_or(false) {
-        return cached;
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct LocalIndex {
+    #[serde(default)]
+    dismissed: Vec<Dismissed>,
+}
+
+fn local_path(user_zomboid_dir: &str) -> Option<PathBuf> {
+    get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next().map(|d| d.join(LOCAL_FILE))
+}
+
+fn load_local(user_zomboid_dir: &str) -> LocalIndex {
+    local_path(user_zomboid_dir)
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn save_local(user_zomboid_dir: &str, local: &LocalIndex) -> Result<(), String> {
+    let path = local_path(user_zomboid_dir).ok_or_else(|| format!("Zomboid folder not found: {}", user_zomboid_dir))?;
+    let json = serde_json::to_string_pretty(local).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())
+}
+
+/// The issues this player marked as no longer happening.
+pub fn dismissed(user_zomboid_dir: &str) -> Vec<Dismissed> {
+    load_local(user_zomboid_dir).dismissed
+}
+
+/// Marks a known issue as no longer happening on this machine (`on: false` brings it back).
+pub fn set_dismissed(user_zomboid_dir: &str, mod_id: &str, title: &str, on: bool) -> Result<(), String> {
+    let mut local = load_local(user_zomboid_dir);
+    local.dismissed.retain(|d| !(d.mod_id == mod_id && d.title == title));
+    if on {
+        local.dismissed.push(Dismissed { mod_id: mod_id.to_string(), title: title.to_string(), at: Some(chrono::Utc::now().timestamp()) });
     }
-    refresh(user_zomboid_dir).ok().or(cached)
+    save_local(user_zomboid_dir, &local)
+}
+
+/// Brings back every issue this player dismissed; how many.
+pub fn clear_dismissed(user_zomboid_dir: &str) -> Result<usize, String> {
+    let mut local = load_local(user_zomboid_dir);
+    let n = local.dismissed.len();
+    local.dismissed.clear();
+    save_local(user_zomboid_dir, &local)?;
+    Ok(n)
+}
+
+/// The index with this player's layer applied: the issues they dismissed are left out.
+pub fn current(user_zomboid_dir: &str) -> CommunityIndex {
+    with_dismissed(bundled().clone(), &dismissed(user_zomboid_dir))
+}
+
+fn with_dismissed(mut index: CommunityIndex, dismissed: &[Dismissed]) -> CommunityIndex {
+    for d in dismissed {
+        if let Some(r) = index.mods.get_mut(&d.mod_id) {
+            r.issues.retain(|i| i.title != d.title);
+        }
+    }
+    index
+}
+
+/// Whether an issue that quotes a log line is gone: the mod changed after the issue was seen
+/// (its mod.info is newer than the issue's date) and the line is not in the session at hand.
+/// An author's update usually mends what the index says, and nobody comes back to say so.
+pub fn log_issue_outdated(issue: &KnownIssue, mod_changed: Option<chrono::NaiveDate>, session_log: Option<&str>) -> bool {
+    let (Some(log), Some(date), Some(changed), Some(session)) = (issue.log.as_deref(), issue.date.as_deref(), mod_changed, session_log) else {
+        return false;
+    };
+    let Ok(seen) = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") else { return false };
+    if changed <= seen {
+        return false;
+    }
+    // The part of the line that names the problem, without the frame counter and level.
+    let key = log.split_once("> ").map(|(_, rest)| rest).unwrap_or(log);
+    let key: String = key.chars().take(160).collect();
+    !session.contains(key.trim())
 }
 
 /// Whether a known issue is already dealt with on this machine: its shim patch is on, or the
@@ -258,5 +326,25 @@ mod tests {
         let issue = &index.get("Overhaul").unwrap().issues[0];
         assert!(issue_is_handled(issue, &|n| n == "p", Path::new("/nowhere")));
         assert!(!issue_is_handled(issue, &|_| false, Path::new("/nowhere")));
+    }
+
+    #[test]
+    fn a_dismissed_issue_is_left_out_and_the_others_stay() {
+        let index = parse(r#"{"mods":{"M":{"id":"M","issues":[{"title":"gone"},{"title":"still"}]}}}"#).unwrap();
+        let shown = with_dismissed(index, &[Dismissed { mod_id: "M".into(), title: "gone".into(), at: None }]);
+        let titles: Vec<_> = shown.get("M").unwrap().issues.iter().map(|i| i.title.as_str()).collect();
+        assert_eq!(titles, vec!["still"]);
+    }
+
+    #[test]
+    fn a_log_issue_is_outdated_once_the_mod_changed_and_the_line_is_gone() {
+        let issue: KnownIssue = serde_json::from_str(r#"{"title":"t","date":"2026-10-18","log":"WARN : General      f:0> Translator.x> Formatting \"Sandbox_A\""}"#).unwrap();
+        let day = |d: &str| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+        let clean = Some("LOG : nothing of the sort");
+        let still = Some("WARN : General      f:12> Translator.x> Formatting \"Sandbox_A\"");
+        assert!(log_issue_outdated(&issue, day("2026-10-25"), clean), "updated since, and the line is gone");
+        assert!(!log_issue_outdated(&issue, day("2026-10-25"), still), "updated, but the line is still there");
+        assert!(!log_issue_outdated(&issue, day("2026-10-10"), clean), "not updated since: no session proves anything");
+        assert!(!log_issue_outdated(&issue, day("2026-10-25"), None), "no session log at hand");
     }
 }

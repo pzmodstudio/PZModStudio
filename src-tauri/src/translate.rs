@@ -59,22 +59,14 @@ pub fn script_language(text: &str) -> Option<&'static str> {
     if other == 0 || other * 4 < latin {
         return None;
     }
-    if kana > 0 && kana * 10 >= han {
-        return Some("ja");
-    }
-    if hangul > 0 {
-        return Some("ko");
-    }
-    if han > 0 {
-        return Some("zh");
-    }
-    if cyr >= thai && cyr >= arabic {
-        return Some("ru");
-    }
-    if thai >= arabic {
-        return Some("th");
-    }
-    Some("ar")
+    // The script with most letters wins: a Russian description that quotes one Chinese name is
+    // Russian. Japanese mixes kana and Han, so they count together when there is kana enough.
+    let japanese = if kana > 0 && kana * 10 >= han { kana + han } else { 0 };
+    let chinese = if japanese > 0 { 0 } else { han };
+    [("ja", japanese), ("ko", hangul), ("zh", chinese), ("ru", cyr), ("th", thai), ("ar", arabic)]
+        .into_iter()
+        .fold(None, |best: Option<(&'static str, usize)>, x| if x.1 > best.map(|b| b.1).unwrap_or(0) { Some(x) } else { best })
+        .map(|b| b.0)
 }
 
 /// A text as pieces: `(piece, goes to the service)`. BBCode tags, line breaks and runs with no
@@ -157,6 +149,10 @@ fn google(agent: &ureq::Agent, pieces: &[String], target: &str) -> Result<(Vec<S
     }
     Ok((parts, source))
 }
+
+/// MyMemory takes up to 500 bytes a call, and a few thousand words a day for free.
+const MYMEMORY_BYTES: usize = 480;
+const MYMEMORY_CALLS: usize = 25;
 
 /// MyMemory, one piece at a time, only when the script says the language (it needs one).
 fn mymemory(agent: &ureq::Agent, piece: &str, source: &str, target: &str) -> Result<String, String> {
@@ -336,6 +332,12 @@ fn translate_pieces(user_zomboid_dir: &str, pieces: &[String], source_hint: Opti
                     source = src;
                 }
             }
+            // Refused for too many requests: every other call is refused too, so go on at once.
+            Err(first) if first.ends_with(" 429") => {
+                errors.push(first);
+                google_failed = true;
+                break 'batches;
+            }
             Err(first) => {
                 for p in b {
                     match google(&agent, std::slice::from_ref(p), target) {
@@ -362,14 +364,34 @@ fn translate_pieces(user_zomboid_dir: &str, pieces: &[String], source_hint: Opti
     // MyMemory, when the caller or the script says what language it is.
     let whole = pieces.join("\n");
     if let Some(src) = source_hint.or_else(|| script_language(&whole)) {
-        let mut out: Vec<String> = Vec::with_capacity(pieces.len());
-        for p in pieces.iter().take(40) {
-            out.push(mymemory(&agent, p, src, target).map_err(|e| format!("{}; then {}", errors.join("; "), e))?);
+        // Pieces joined by line breaks up to MyMemory's 500 bytes a call; a call whose answer
+        // does not split back goes piece by piece. Counted first: a description that needs more
+        // calls than the free daily share is refused at once, not after 40 calls.
+        let mut calls: Vec<Vec<&String>> = Vec::new();
+        for p in pieces {
+            match calls.last_mut() {
+                Some(c) if c.iter().map(|x| x.len() + 1).sum::<usize>() + p.len() <= MYMEMORY_BYTES => c.push(p),
+                _ => calls.push(vec![p]),
+            }
         }
-        if out.len() == pieces.len() {
+        if calls.len() > MYMEMORY_CALLS {
+            errors.push(format!("MyMemory: this text needs {} calls, more than the {} a translation may use", calls.len(), MYMEMORY_CALLS));
+        } else {
+            let mut out: Vec<String> = Vec::with_capacity(pieces.len());
+            for c in &calls {
+                let joined = c.iter().map(|x| x.as_str()).collect::<Vec<_>>().join("\n");
+                let got = mymemory(&agent, &joined, src, target).map_err(|e| format!("{}; then {}", errors.join("; "), e))?;
+                let parts: Vec<String> = got.lines().map(str::to_string).collect();
+                if parts.len() == c.len() {
+                    out.extend(parts);
+                } else {
+                    for p in c {
+                        out.push(mymemory(&agent, p, src, target).map_err(|e| format!("{}; then {}", errors.join("; "), e))?);
+                    }
+                }
+            }
             return Ok((out, src.to_string(), "mymemory".to_string()));
         }
-        errors.push("MyMemory: too many pieces for the daily limit".to_string());
     }
     Err(format!("No translation service answered: {}", errors.join("; ")))
 }
@@ -470,6 +492,8 @@ mod tests {
     fn the_script_names_the_language_and_latin_does_not() {
         assert_eq!(script_language("Мод добавляет новые предметы"), Some("ru"));
         assert_eq!(script_language("这个模组添加了新物品"), Some("zh"));
+        assert_eq!(script_language("Плавные объёмные модели для вида от первого лица, автор 中文"), Some("ru"), "a few Han letters in Russian text");
+        assert_eq!(script_language("Плавные объёмные модели の"), Some("ru"));
         assert_eq!(script_language("このMODは新しいアイテムを追加します"), Some("ja"));
         assert_eq!(script_language("새로운 아이템을 추가합니다"), Some("ko"));
         assert_eq!(script_language("Adds new items to the game"), None);

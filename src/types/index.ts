@@ -1174,7 +1174,8 @@ export type HealthFix =
   | { action: 'merge_files'; relative_paths: string[] }
   | { action: 'open_in_merger'; relative_path: string }
   | { action: 'enable_shim_patch'; name: string }
-  | { action: 'remove_from_package'; relative_path: string; package: string };
+  | { action: 'remove_from_package'; relative_path: string; package: string }
+  | { action: 'dismiss_known_issue'; mod_id: string; title: string };
 
 /** Texts in the app's language, in the order they were sent. */
 export interface Translation {
@@ -1296,7 +1297,7 @@ export interface GameInstall {
   last_updated: string | null;
 }
 
-/** The community rules in use: how many, and when the copy was fetched. */
+/** What the Studio knows, counted: its rules, its mod index, and what this player dismissed. */
 /** Whether a newer PZ Mod Studio is out (app_update.rs). */
 export interface AppUpdateStatus {
   enabled: boolean;
@@ -1315,12 +1316,11 @@ export interface CommunitySummary {
   rules: number;
   pairs: number;
   updated: string | null;
-  fetched_at: number | null;
-  /** Registries in the community mod index at hand. */
+  /** Registries in the Studio's mod index. */
   mods: number;
   index_updated: string | null;
-  /** Whether the Studio fetches the community files at all (Settings). */
-  downloads: boolean;
+  /** Known issues this player marked as no longer happening. */
+  dismissed: number;
 }
 
 /** How sure an entry of the community index is: the Studio checked it, or a person said so. */
@@ -1372,43 +1372,10 @@ export interface CommunityRegistry {
   issues: CommunityIssue[];
 }
 
-/** The pull request "Propose" opened with the saved GitHub token. */
-/** A list another player shared through the community repository (community/lists). */
-export interface SharedListItem {
-  workshop_id?: string;
-  mod_id?: string;
-  nexus_id?: number;
-  name: string;
-}
-
-export interface SharedList {
-  id: string;
-  name: string;
-  author: string;
-  description: string;
-  build: string;
-  updated: string;
-  items: SharedListItem[];
-}
-
-export interface CommunityLists {
-  version: number;
-  updated: string | null;
-  lists: SharedList[];
-  fetched_at: number | null;
-}
-
-export interface ProposeResult {
-  pr_url: string;
-  fork: string;
-  branch: string;
-}
-
 export interface CommunityIndex {
   version: number;
   updated: string | null;
   mods: Record<string, CommunityRegistry>;
-  fetched_at: number | null;
 }
 
 export interface HealthReport {

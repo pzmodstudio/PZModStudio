@@ -119,7 +119,8 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
           {(['last', 'week', 'month'] as Period[]).map((p) => (
             <button key={p} role="tab" aria-selected={period === p} onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 cursor-pointer ${period === p ? 'bg-emerald-800/60 text-emerald-50' : 'text-slate-300 hover:bg-slate-800'}`}>
-              {p === 'last' ? t('whatsNew.sinceLast', { date: day(data?.last_played) || '?' }) : t(`whatsNew.period.${p}`)}
+              {/* With the time: a session earlier today read as "since today" when only the date showed */}
+              {p === 'last' ? t('whatsNew.sinceLast', { date: when(data?.last_played) || '?' }) : t(`whatsNew.period.${p}`)}
             </button>
           ))}
         </div>
@@ -138,7 +139,14 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
         <div className={`rounded-md border px-3 py-2 text-xs ${notice.tone === 'ok' ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-200' : 'border-red-700/60 bg-red-950/40 text-red-200'}`}>{notice.text}</div>
       )}
 
-      {data && items.length === 0 && <div className="p-8 text-center text-slate-500 text-xs">{t('whatsNew.empty')}</div>}
+      {data && items.length === 0 && (
+        <div className="p-8 text-center text-slate-500 text-xs space-y-2">
+          <div>{period === 'last' && data.last_played ? t('whatsNew.emptySinceLast', { when: when(data.last_played) }) : t('whatsNew.empty')}</div>
+          {period === 'last' && (
+            <button onClick={() => setPeriod('week')} className="px-2 py-1 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer">{t('whatsNew.period.week')}</button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3">
         {items.map((item) => {

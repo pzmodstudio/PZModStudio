@@ -5,12 +5,12 @@ Mod Health checks your active mods the way the game reads them, and lists every 
 ## What you see
 
 - At the top: your **Game build** and how many mods are active.
-- The **community** button (for example **community: 40 rules, 120 mods ↻**): what the shared community files add to the check. Click it to download them now. **Community index** beside it opens the index's web page: every mod's known issues and their fixes.
+- **the Studio's knowledge** (for example **the Studio's knowledge: 40 rules, 120 mods**): the load-order rules, incompatible pairs and known issues the app carries inside. When you marked warnings with **No longer happens**, a button beside it says how many and shows them all again.
 - **Check again** runs the check again. It also runs by itself when your list changes.
 - Six tabs, the first four with how many rows they have:
   - **Problems**: what breaks the game or will (missing or switched-off requirements, load order, mods your build cannot load, incompatible pairs). **Fix N problem(s) automatically** is here.
   - **Conflicts**: two mods giving the same file, item, recipe or text; the game uses one, and which one is your call. **Merge N files automatically** is here. Rows are sorted into **Not settled**, **Settled before a change** and **Settled**; the tab's count leaves out the settled ones.
-  - **Good to know**: nothing to fix (ignored copies, mods updated since you last played, community notes).
+  - **Good to know**: nothing to fix (ignored copies, mods updated since you last played, notes from the Studio's index).
   - **Security**: what a mod could do beyond modding (below).
   - **Performance**: memory, game start, time per mod and frames (below).
   - **Disk**: how much each mod takes and which ones can go (below).
@@ -42,7 +42,7 @@ Each section can be folded by clicking its title.
 - `script_definition_conflict` and `translation_conflict`: two mods define the same item, recipe or name differently; the one that loads last wins. Rows ending in `_stale` mean you merged it before, but a mod changed since; `_settled` means your package already settles it.
 - `floods_console` (shown in the Mod List as **Fills the console**): in your last session this mod wrote more than 1,000 lines of errors to the console. That slows the game and hides other mods' errors. Look at them in the Monitor Center, or switch the mod off.
 - `user_rule_order`: one of your own load-order rules is broken.
-- `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: what the community files say about your mods.
+- `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: what the Studio's rules and mod index say about your mods. A known issue has **No longer happens**: it is not shown again on this PC.
 - `package_built_for_other_list`: your Studio package was built with a different mod list than this profile.
 - `package_file_stale`: your package carries an old copy of a mod's file, and the mod has changed that file since. The game reads the old copy.
 - `package_file_differs`, `package_file_orphan`: your package carries a file that only one mod in the list ships, or that no mod in the list ships. Take it out if you no longer need it.
@@ -70,9 +70,9 @@ A green line confirms each change, with **Saved to your mod list.**
 - **Fix N problem(s) automatically** switches on missing requirements and moves mods earlier where needed. It never switches anything off and skips the "your call" rows. It asks first, and the Mod List can undo it.
 - **Merge N files automatically** merges every conflicting file that has no overlapping changes into your patch package. Files where both mods change the same lines are listed for you to decide in the Merger.
 
-## Community rules and index
+## The Studio's rules and index
 
-The Studio downloads shared rules once a day from its own repository: load-order rules, pairs of mods that do not go together, and an index of known issues with their fix. They show up as `community_*` rows. You can turn the daily download off in App Settings; then the last copy is used.
+The Studio carries load-order rules, pairs of mods that do not go together, and an index of known issues with their fix. They come with each version of the app; nothing is downloaded, and nothing is sent. They show up as `community_*` rows. A known issue is left out by itself when the mod's own files show it is gone (an update fixed the file it was about), or when the mod changed after the issue was seen and its log line no longer appears in your session. **No longer happens** leaves one out by hand.
 
 ## Security
 

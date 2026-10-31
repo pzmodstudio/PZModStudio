@@ -7,10 +7,7 @@
 //! health check says when the list breaks one, in the player's own words.
 
 pub mod community;
-pub mod github_device;
 pub mod index;
-pub mod propose;
-pub mod shared_lists;
 
 use serde::{Deserialize, Serialize};
 use std::fs;

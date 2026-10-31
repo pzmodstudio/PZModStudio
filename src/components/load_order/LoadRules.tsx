@@ -15,8 +15,6 @@ interface LoadRulesProps {
   /** A rule was added or removed: the sort and the health check read them again. */
   onRulesChanged: () => void;
   toast: (message: string, ms?: number) => void;
-  /** The game build installed now, so a proposed rule says what it was tested on. */
-  installedBuild?: string | null;
 }
 
 /**
@@ -24,7 +22,7 @@ interface LoadRulesProps {
  * after it. The sort honours them like a mod's own loadModAfter; the health check says when the
  * list breaks one.
  */
-export const LoadRules: React.FC<LoadRulesProps> = ({ paths, mod, mods, onClose, onRulesChanged, toast, installedBuild = null }) => {
+export const LoadRules: React.FC<LoadRulesProps> = ({ paths, mod, mods, onClose, onRulesChanged, toast }) => {
   const { t } = useTranslation();
   const changeRev = useChangeRevision();
   const [rules, setRules] = useState<UserRule[] | null>(null);
@@ -87,35 +85,6 @@ export const LoadRules: React.FC<LoadRulesProps> = ({ paths, mod, mods, onClose,
     }
   };
 
-  /**
-   * A rule of the player's, offered to everyone: the JSON line for community/rules.json goes to
-   * the clipboard, named with the build it was tested on, and GitHub opens on that file. A pull
-   * request is the rest; nothing is sent from here.
-   */
-  const propose = async (rule: UserRule) => {
-    const entry = {
-      mod_id: rule.mod_id,
-      after: rule.after,
-      note: rule.note ?? t('dialogs.rules.defaultNote', { name: nameOf(rule.mod_id), after: nameOf(rule.after) }),
-      source: t('dialogs.rules.testedOn', { build: installedBuild ?? t('dialogs.rules.buildUnknown') }),
-    };
-    if (await TauriService.githubTokenStatus()) {
-      // With a token: the Studio adds the rule to the file on a branch of the fork and opens the pull request.
-      toast(t('dialogs.rules.openingPr'), 20000);
-      try {
-        const r = await TauriService.proposeRule(entry);
-        toast(t('dialogs.rules.prOpened', { url: r.pr_url }), 10000);
-        TauriService.openExternalUrl(r.pr_url);
-      } catch {
-        // Already shown by TauriService.
-      }
-      return;
-    }
-    await navigator.clipboard.writeText(JSON.stringify(entry, null, 2));
-    toast(t('dialogs.rules.clipboard'), 8000);
-    TauriService.openExternalUrl('https://github.com/pzmodstudio/PZModStudio/edit/main/community/rules.json');
-  };
-
   const Row = ({ rule, text }: { rule: UserRule; text: React.ReactNode }) => (
     <div className="p-2.5 flex items-start justify-between gap-3 hover:bg-slate-950/60 transition">
       <div className="min-w-0">
@@ -123,13 +92,6 @@ export const LoadRules: React.FC<LoadRulesProps> = ({ paths, mod, mods, onClose,
         {rule.note && <div className="text-[10px] text-slate-500 mt-0.5">{rule.note}</div>}
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          onClick={() => void propose(rule)}
-          className="px-2 py-1 rounded-lg text-[11px] text-cyan-300 hover:text-cyan-200 border border-slate-800 hover:border-cyan-900 cursor-pointer transition"
-          title={t('dialogs.rules.shareTitle')}
-        >
-          {t('dialogs.rules.share')}
-        </button>
         <button
           onClick={() => void remove(rule)}
           disabled={busy}

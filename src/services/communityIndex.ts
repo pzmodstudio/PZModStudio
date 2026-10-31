@@ -3,7 +3,7 @@ import { CommunityIndex, CommunityRegistry } from '../types';
 import { TauriService } from './tauri';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
 
-/** One copy per app session: the index is small and changes once a day at most. */
+/** One copy per app session: the index is small and changes only when the player dismisses an issue. */
 let cached: Promise<CommunityIndex | null> | null = null;
 
 export function loadCommunityIndex(paths: StudioPathsUI, force = false): Promise<CommunityIndex | null> {
@@ -11,7 +11,7 @@ export function loadCommunityIndex(paths: StudioPathsUI, force = false): Promise
   return cached;
 }
 
-/** The community index, once loaded; null until then or when none is at hand. */
+/** The Studio's mod index, once loaded; null until then. */
 export function useCommunityIndex(paths: StudioPathsUI): CommunityIndex | null {
   const [index, setIndex] = useState<CommunityIndex | null>(null);
   useEffect(() => {

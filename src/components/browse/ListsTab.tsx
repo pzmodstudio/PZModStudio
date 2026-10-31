@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, FolderPlus, Globe, Pencil, Plus, Star, Trash2, Users, X } from 'lucide-react';
-import { CommunityLists, shareList } from './CommunityLists';
+import { ExternalLink, FolderPlus, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
 import { CatalogModSummary, ModList, WorkshopInstallState, WorkshopItem } from '../../types';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { FAVORITES, itemKey, useModLists } from '../../services/modLists';
@@ -35,9 +34,6 @@ export const ListsTab: React.FC<ListsTabProps> = ({ paths, catalog, installedByI
   const [subscribing, setSubscribing] = useState(false);
   const [details, setDetails] = useState<Map<string, WorkshopItem>>(new Map());
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'mine' | 'community'>('mine');
-  const [shareNote, setShareNote] = useState<{ ok: boolean; text: string } | null>(null);
-  const [sharing, setSharing] = useState(false);
 
   const list: ModList | undefined = lists.lists.find((l) => l.id === selectedId) ?? lists.lists[0];
   const workshopIds = useMemo(() => (list?.items ?? []).map((i) => i.workshop_id).filter((id): id is string => !!id), [list]);
@@ -55,36 +51,6 @@ export const ListsTab: React.FC<ListsTabProps> = ({ paths, catalog, installedByI
       cancelled = true;
     };
   }, [idsKey]);
-
-  const modeSwitch = (
-    <div className="flex gap-1 p-0.5 rounded-lg bg-slate-900 border border-slate-800 self-start">
-      {(['mine', 'community'] as const).map((m) => (
-        <button key={m} type="button" onClick={() => setMode(m)}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold cursor-pointer ${mode === m ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
-          {m === 'community' ? <Users className="w-3 h-3" aria-hidden="true" /> : <Star className="w-3 h-3" aria-hidden="true" />}
-          {i18next.t(`browse.lists.mode.${m}`)}
-        </button>
-      ))}
-    </div>
-  );
-
-  if (mode === 'community') {
-    return (
-      <div className="flex flex-col gap-3">
-        {modeSwitch}
-        <CommunityLists
-          paths={paths}
-          installedWorkshopIds={new Set(installedByItem.keys())}
-          onCopied={(id) => {
-            void lists.reload().then(() => {
-              setSelectedId(id);
-              setMode('mine');
-            });
-          }}
-        />
-      </div>
-    );
-  }
 
   if (!list) return null;
   const catalogById = new Map(catalog.map((m) => [m.id, m]));
@@ -115,7 +81,6 @@ export const ListsTab: React.FC<ListsTabProps> = ({ paths, catalog, installedByI
 
   return (
     <div className="flex flex-col gap-3">
-      {modeSwitch}
       <div className="flex flex-wrap items-center gap-2">
         {lists.lists.map((l) => (
           <button
@@ -186,21 +151,6 @@ export const ListsTab: React.FC<ListsTabProps> = ({ paths, catalog, installedByI
             <FolderPlus className="w-3 h-3" aria-hidden="true" /> {i18next.t('browse.lists.makeProfile')}
           </button>
         )}
-        {list.items.length > 0 && (
-          <button
-            type="button"
-            disabled={sharing}
-            onClick={() => {
-              setSharing(true);
-              setShareNote(null);
-              void shareList(paths, list.id, list.name).then(setShareNote).finally(() => setSharing(false));
-            }}
-            title={i18next.t('browse.lists.share.title')}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer disabled:opacity-50"
-          >
-            <Globe className="w-3 h-3" aria-hidden="true" /> {i18next.t('browse.lists.share.button')}
-          </button>
-        )}
         <button type="button" onClick={() => void rename()} className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer" title={i18next.t('browse.lists.rename')}>
           <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
@@ -211,7 +161,6 @@ export const ListsTab: React.FC<ListsTabProps> = ({ paths, catalog, installedByI
         )}
       </div>
 
-      {shareNote && <div className={`text-[11px] ${shareNote.ok ? 'text-emerald-300' : 'text-red-300'}`}>{shareNote.text}</div>}
 
       {list.items.length === 0 && (
         <p className="text-xs text-slate-500 py-6 text-center">

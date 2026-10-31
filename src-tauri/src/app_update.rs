@@ -6,7 +6,30 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-use crate::rules::community::{cache_path, fetch_text, now};
+use crate::load_order::mod_info::get_existing_user_zomboid_dirs;
+
+/// A file beside the mod list.
+fn cache_path(user_zomboid_dir: &str, file: &str) -> Option<std::path::PathBuf> {
+    get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next().map(|d| d.join(file))
+}
+
+/// One small file over HTTPS, with a ten-second patience.
+fn fetch_text(url: &str) -> Result<String, String> {
+    // The default provider is Rustls, which this build does not carry: without saying NativeTls,
+    // ureq panics on the first https URL.
+    let tls = ureq::tls::TlsConfig::builder().provider(ureq::tls::TlsProvider::NativeTls).build();
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .tls_config(tls)
+        .timeout_global(Some(std::time::Duration::from_secs(10)))
+        .user_agent(format!("PZModStudio/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .into();
+    agent.get(url).call().map_err(|e| e.to_string())?.body_mut().read_to_string().map_err(|e| e.to_string())
+}
+
+fn now() -> i64 {
+    chrono::Utc::now().timestamp()
+}
 
 /// How long an answer is trusted before GitHub is asked again.
 const FRESH_FOR_SECS: i64 = 6 * 60 * 60;

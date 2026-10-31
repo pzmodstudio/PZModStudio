@@ -14,34 +14,7 @@
       "source": "its mod.info"
     }
   ],
-  "issues": [
-    {
-      "build": "42.21",
-      "date": "2026-10-18",
-      "file": "media/lua/client/ReactiveSE/ReactiveSE_RadioMarkers.lua",
-      "fix": {
-        "from": "ISUI/ISWorldMap",
-        "kind": "require_path",
-        "to": "ISUI/Maps/ISWorldMap"
-      },
-      "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"ISUI/Maps/ISWorldMap\".",
-      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-      "status": "verified",
-      "title": "Requires \"ISUI/ISWorldMap\", which Build 42 moved"
-    },
-    {
-      "build": "42.21",
-      "date": "2026-10-18",
-      "fix": {
-        "kind": "none"
-      },
-      "note": "A WARN from Translator.reportMissingArgumentsFromPastAbuse about a sandbox option's text with a stray format sign. The game carries on; nothing to fix on the player's side.",
-      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-      "status": "verified",
-      "title": "Formatting \"Sandbox_Reac...\" warns in the log",
-      "log": "WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Formatting \"Sandbox_ReactiveSE_EventChance\""
-    }
-  ],
+  "issues": [],
   "load_after": [],
   "name": "Reactive Sound Events",
   "requires": [],

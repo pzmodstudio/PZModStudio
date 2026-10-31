@@ -99,19 +99,6 @@
     }
   },
   "settings": {
-    "connect": "Conectar con GitHub",
-    "orPaste": "O pegá un token tuyo:",
-    "connectTypeCode": "Escribí este código en la página de GitHub que se abrió (ya está copiado):",
-    "connectOpenAgain": "Copiar y abrir GitHub de nuevo",
-    "connectWaiting": "Esperando que lo apruebes en GitHub…",
-    "connectCancel": "Cancelar",
-    "connectErrors": {
-      "expired": "El código venció antes de aprobarlo; apretá Conectar con GitHub de nuevo.",
-      "denied": "La conexión se canceló en GitHub.",
-      "cancelled": "Cancelado.",
-      "unreachable": "No se pudo llegar a GitHub: {{detail}}",
-      "refused": "GitHub lo rechazó: {{detail}}"
-    },
     "language": {
       "title": "Idioma",
       "blurb": "El idioma en que habla el Studio. El inglés es el original; si a un idioma le falta una línea, se muestra en inglés. Los mensajes del propio juego (errores, avisos, las líneas del registro en el Monitor) quedan como el juego los escribe.",
@@ -167,11 +154,6 @@
     "openLastBlurb": "Carga el último perfil activo y te lleva directo a la lista de mods.",
     "rememberMode": "Recordar el inicio del juego",
     "rememberModeBlurb": "El botón de inicio arranca en el modo que usaste la última vez (depuración, ventana, normal...). Apagado: siempre arranca en Modo depuración (pantalla completa), el recomendado.",
-    "community": "Descargar las reglas y el índice de mods de la comunidad",
-    "communityBlurb": "Una vez al día, del repositorio del Studio en GitHub: reglas de orden de carga, pares incompatibles, y un registro por mod con las builds en que corre, con qué choca y sus problemas conocidos con el arreglo que el Studio aplica. Los usan Ordenar, Salud de mods, la Lista de mods y Explorar. Apagado: se conserva la última copia y no se descarga nada. Nunca se envía nada.",
-    "communityFetchNow": "Descargar ahora",
-    "communitySite": "El índice de la comunidad en la web",
-    "communityLists": "Listas de la comunidad en la web",
     "updateCheck": "Buscar versiones nuevas de PZ Mod Studio",
     "updateCheckBlurb": "Al abrir y cada 6 horas mientras está abierto, el Studio le pregunta a GitHub cuál es la última versión publicada de PZ Mod Studio. Si hay una más nueva, un aviso arriba ofrece Actualizar ahora (la baja, comprueba la firma del proyecto y reinicia) o abrir la página de la versión. Nada se instala sin que lo pidas, y no se envía nada.",
     "updateCheckNow": "Buscar ahora",
@@ -180,15 +162,7 @@
     "updateAvailable": "Salió PZ Mod Studio {{latest}}; tenés la {{current}}.",
     "updateFailed": "No se pudo consultar GitHub: {{error}}",
     "updateDownload": "Descargar",
-    "github": "GitHub, para \"Compartir\" en un clic",
-    "githubBlurb": "Opcional. Con un token personal guardado, \"Compartir con la comunidad\" (una regla de orden, el registro de un mod) hace un fork del repositorio del Studio en tu cuenta una sola vez, escribe el archivo en una rama y abre el pull request solo. Sin token, los mismos botones abren la página de GitHub con el JSON ya completo y apretás \"Propose changes\" ahí. Recibir los archivos de la comunidad no necesita ninguna cuenta. El token se verifica con GitHub y se guarda en el Administrador de credenciales de Windows, solo en esta PC; no se envía nada más.",
-    "githubHow": "Conectar con GitHub muestra un código; escribilo en la página que se abre y aprobá \"PZ Mod Studio\" (puede abrir pull requests en repositorios públicos, y se usa solo para estas propuestas). O creá vos un token de grano fino (Settings → Developer settings → Personal access tokens) con \"Contents\" y \"Pull requests\" en lectura y escritura, y pegalo.",
-    "tokenSaved": "Hay un token guardado{{account}}.",
-    "tokenAccount": " (cuenta de GitHub {{login}})",
     "remove": "Quitar",
-    "makeToken": "Crear un token",
-    "pasteToken": "Pegá tu token de GitHub",
-    "tokenLabel": "Token de GitHub",
     "checkAndSave": "Verificar y guardar",
     "translate": {
       "title": "Traducción",
@@ -203,7 +177,6 @@
       "clear": "Borrarlas",
       "clearConfirm": "¿Borrar las {{count}} traducciones guardadas? El próximo Traducir vuelve a mandar el texto."
     },
-    "removeTokenConfirm": "¿Quitar el token de GitHub guardado en esta PC?",
     "developer": "Funciones para desarrolladores",
     "developerBlurb": "Muestra la pantalla Desarrollador, el servidor MCP para agentes, que deja a un asistente de IA manejar el Studio, y el mod acompañante que ejecuta comandos dentro del juego. Un jugador no lo necesita; dejalo apagado salvo que estés desarrollando con eso.",
     "shimTitle": "Shim de compatibilidad para Build 42",
@@ -594,8 +567,8 @@
         "dependency_after": "Carga antes de lo que necesita",
         "load_after_order": "Carga demasiado temprano",
         "user_rule_order": "Antes de un mod que dijiste que debe seguir",
-        "community_rule_order": "Antes de un mod que la comunidad dice que debe seguir",
-        "community_incompatible": "La comunidad dice que chocan",
+        "community_rule_order": "Antes de un mod que el Studio dice que debe seguir",
+        "community_incompatible": "El Studio dice que chocan",
         "community_known_issue": "Problema conocido",
         "community_successor": "Hay una versión para esta build",
         "load_before_order": "Carga demasiado tarde",
@@ -767,15 +740,9 @@
     "activeCount": "{{count}} activos",
     "errorsCount": "{{count}} errores",
     "warningsCount": "{{count}} avisos",
-    "communityFetched": "Archivos de la comunidad descargados: {{rules}} regla(s) de orden, {{pairs}} par(es) incompatible(s), {{mods}} registro(s) de mods{{updated}}.",
     "indexUpdated": " (índice actualizado el {{date}})",
-    "communityTitle": "De la comunidad, en uso: {{rules}} regla(s) de orden, {{pairs}} par(es) incompatible(s), {{mods}} registro(s) de mods con problemas conocidos y arreglos{{updated}}. Se descargan una vez al día del repositorio del Studio (community/); clic para descargar ahora.{{off}}",
-    "communitySite": "Índice de la comunidad",
-    "communitySiteTitle": "Abre el índice de la comunidad en tu navegador: los problemas conocidos de cada mod y sus arreglos, con búsqueda, y cómo reportar uno.",
-    "communityOff": " Las descargas están apagadas en Configuración: esta es la última copia.",
-    "communityNone": "Todavía no hay nada de la comunidad (se descarga una vez al día del repositorio del Studio, community/). Clic para descargar ahora.",
-    "community": "comunidad: {{rules}} reglas, {{mods}} mods",
-    "communityNoneShort": "comunidad: nada aún",
+    "communityTitle": "Lo que el Studio trae adentro: {{rules}} regla(s) de orden, {{pairs}} par(es) incompatible(s), {{mods}} registro(s) de mods con problemas conocidos y arreglos{{updated}}. Viene con cada versión de la app; no se descarga nada.",
+    "community": "conocimiento del Studio: {{rules}} reglas, {{mods}} mods",
     "mergeAllTitle": "Fusiona en tu paquete de parche todos los archivos en conflicto sin cambios superpuestos",
     "mergeAll": "Fusionar {{count}} archivos automáticamente",
     "fixAllTitle": "Activa los requisitos faltantes y mueve las librerías antes de los mods que las necesitan",
@@ -821,7 +788,8 @@
       "shimOn": "Encender el parche {{name}} del shim",
       "removeCopyTitle": "Opcional. Quita la copia compatible para que el juego vuelva a usar el original del Workshop: para cuando su autor lo actualice para Build 42.",
       "removeFromPackage": "Quitar del paquete",
-      "replace": "Usar {{id}} en lugar de {{entry}}"
+      "replace": "Usar {{id}} en lugar de {{entry}}",
+      "dismissKnown": "Ya no pasa"
     },
     "freshCopy": "{{mod}} ya tiene una copia compatible. ¿Crear una nueva? La actual se mueve a Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "¿Sacar {{file}} de {{package}}?\n\nEl paquete se publica de nuevo sin él y el juego vuelve a leer el archivo propio del mod en su próximo inicio. Si editaste la copia, esas ediciones se pierden.",
@@ -847,7 +815,7 @@
       "performance": "Rendimiento",
       "problemsIntro": "Lo que rompe el juego o lo va a romper: requisitos que faltan o están apagados, mods en el orden equivocado, mods que tu versión no puede cargar, pares que no van juntos. Arreglá esto primero.",
       "conflictsIntro": "Dos mods traen el mismo archivo, ítem, receta o texto, y el juego usa uno solo. No está roto por sí mismo: fusionalos o elegí qué versión querés.",
-      "infoIntro": "Acá no hay nada que arreglar: copias compatibles que hizo el Studio, copias que el juego ignora, mods actualizados desde la última vez que jugaste, lo que dice el índice de la comunidad sobre tus mods. Un botón acá es opcional: deshace algo que hizo el Studio.",
+      "infoIntro": "Acá no hay nada que arreglar: copias compatibles que hizo el Studio, copias que el juego ignora, mods actualizados desde la última vez que jugaste, lo que dice el índice del Studio sobre tus mods. Un botón acá es opcional: deshace algo que hizo el Studio.",
       "conflictsEmpty": "Ningún par de tus mods trae el mismo archivo, ítem o texto.",
       "infoEmpty": "Nada más para saber sobre esta lista.",
       "security": "Seguridad",
@@ -869,7 +837,11 @@
       "settled": "Resueltos",
       "settledTag": "Resuelto"
     },
-    "replaced": "{{name}} quedó en el lugar de {{entry}}, activo."
+    "replaced": "{{name}} quedó en el lugar de {{entry}}, activo.",
+    "dismissedDone": "Listo: ese aviso de {{name}} ya no se muestra. Si vuelve a pasar, arriba podés volver a mostrar los avisos que marcaste.",
+    "dismissedCount": "{{count}} aviso(s) marcados como resueltos ↺",
+    "dismissedTitle": "Avisos del índice que marcaste con \"Ya no pasa\". Clic para volver a mostrarlos todos.",
+    "dismissedRestored": "Se muestran otra vez {{count}} aviso(s) que habías marcado."
   },
   "dialogs": {
     "kept": {
@@ -920,17 +892,9 @@
       "none": "Ninguna regla tuya menciona este mod todavía.",
       "loadsAfter": "carga después de",
       "loadsAfterThis": "carga después de este mod",
-      "share": "Compartir esta regla",
-      "shareTitle": "Ofrece esta regla a todos los jugadores del Studio: la abre en GitHub (community/rules.json), donde un pull request la agrega. No envía nada por sí sola.",
       "remove": "Quitar",
       "removeTitle": "Quitar esta regla",
-      "added": "{{name}} ahora carga después de {{after}}. Ordenar lo pone ahí; Salud de mods avisa si la lista lo rompe.",
-      "defaultNote": "{{name}} tiene que cargar después de {{after}}",
-      "testedOn": "probado en {{build}}",
-      "buildUnknown": "build ?",
-      "openingPr": "Abriendo un pull request con la regla…",
-      "prOpened": "Pull request abierto: {{url}}",
-      "clipboard": "La regla está en el portapapeles como JSON. En GitHub, agregala bajo \"load_after\" en community/rules.json y abrí un pull request."
+      "added": "{{name}} ahora carga después de {{after}}. Ordenar lo pone ahí; Salud de mods avisa si la lista lo rompe."
     },
     "keep": {
       "favorite": "Favorito",
@@ -1157,6 +1121,7 @@
       "showOriginal": "Ver original",
       "showTranslation": "Ver traducción",
       "translateFailed": "No se pudo traducir: {{reason}}",
+      "translateLimited": "Google frenó las traducciones desde esta PC por un rato (demasiados pedidos) y el servicio de respaldo (MyMemory) tampoco pudo con este texto. Probá de nuevo más tarde, o guardá una clave gratis de DeepL en Configuración.",
       "translateSummaries": "Traducir títulos y resúmenes",
       "translateSummariesTitle": "Traduce los títulos y resúmenes de esta página; cada uno se manda una sola vez.",
       "loadingNexus": "Cargando el mod de Nexus",
@@ -1218,33 +1183,6 @@
       "missingSection": "Faltan ({{count}})"
     },
     "lists": {
-      "mode": {
-        "mine": "Mis listas",
-        "community": "De la comunidad"
-      },
-      "community": {
-        "intro": "Listas que otros jugadores compartieron por el repositorio del Studio (cada una la lee una persona antes de publicarse). Copiar una la hace tuya; no se instala nada hasta que apretás Suscribirse a todo lo que falta.",
-        "filter": "Buscar listas o mods",
-        "refresh": "Traer las listas ahora",
-        "none": "Nadie compartió una lista todavía. Compartí una tuya desde Mis listas.",
-        "noMatch": "Ninguna lista coincide.",
-        "byline": "de {{author}} · {{count}} mod(s)",
-        "have": "Tenés {{have}} de sus {{count}} mod(s) del Workshop.",
-        "copy": "Copiar a mis listas",
-        "source": "Ver en GitHub",
-        "all": "Todas las listas en la web",
-        "allTitle": "Abre la página de listas de la comunidad en tu navegador: todas las compartidas con sus mods, y cómo hacer una."
-      },
-      "share": {
-        "button": "Compartir con la comunidad",
-        "title": "Propone esta lista para el repositorio comunitario; se publica cuando una persona la lee.",
-        "author": "Tu nombre como autor de la lista (se muestra con la lista):",
-        "description": "Una línea sobre \"{{name}}\": para qué es, con qué la jugaste (opcional).",
-        "prConfirm": "Esto abre un pull request público en GitHub con la lista \"{{name}}\":\n\n{{json}}\n\n¿Seguimos?",
-        "prOpened": "Pull request abierto: {{url}}",
-        "taken": "Otra persona ya compartió una lista con ese nombre: renombrá la tuya y compartila de nuevo.",
-        "githubOpened": "Se abrió la página de archivo nuevo de GitHub con la lista completa (también se copió): iniciá sesión y apretá \"Propose changes\"."
-      },
       "newPlaceholder": "Lista nueva…",
       "newLabel": "Nombre de la lista nueva",
       "newTitle": "Crea una lista tuya",
@@ -1274,7 +1212,7 @@
       "nexus": "Nexus"
     },
     "index": {
-      "title": "Índice comunitario",
+      "title": "Índice del Studio",
       "build": "Build {{build}}",
       "notForBuild": "No es para la Build {{build}}, según el índice",
       "incompatible": "{{count}} incompatible(s)",
@@ -1482,7 +1420,8 @@
       "scanDone": "¡Escaneo completo! Mods analizados e integrados.",
       "unsaved": "Tenés ediciones sin guardar acá. ¿Dejarlas atrás?",
       "noLongerConflict": "{{path}} ya no es un conflicto.",
-      "notReadFile": "{{file}} no es un archivo que esta build lea del mod; elegí uno."
+      "notReadFile": "{{file}} no es un archivo que esta build lea del mod; elegí uno.",
+      "jsonUnreadable": "El texto en el editor o el del mod no es JSON válido, así que no se pueden juntar sus claves. Elegí una de las versiones de arriba o arreglalo en el editor."
     },
     "choices": {
       "mergeThem": "Fusionarlos",
@@ -1574,7 +1513,6 @@
       "Deleting the kept version": "Borrar la versión guardada",
       "Deleting the package": "Borrar el paquete",
       "Exporting the package": "Exportar el paquete",
-      "Fetching the community rules and index": "Descargar las reglas y el índice comunitario",
       "Generating the merge package": "Generar el paquete de fusión",
       "Importing the package": "Importar el paquete",
       "Installing from that link": "Instalar desde ese enlace",
@@ -1590,8 +1528,6 @@
       "Merging conflicting files": "Fusionar los archivos en conflicto",
       "Opening the file": "Abrir el archivo",
       "Opening the folder": "Abrir la carpeta",
-      "Proposing a community rule": "Proponer una regla comunitaria",
-      "Proposing to the community index": "Proponer al índice comunitario",
       "Publishing the patched file": "Publicar el archivo parcheado",
       "Putting the kept version back": "Restaurar la versión guardada",
       "Reloading Lua in the game": "Recargar Lua en el juego",
@@ -1610,7 +1546,6 @@
       "Sorting the load order": "Ordenar el orden de carga",
       "Starting the map tool": "Iniciar la herramienta de mapas",
       "Switching a shim patch": "Cambiar un parche shim",
-      "Switching the community downloads": "Cambiar las descargas comunitarias",
       "Taking out of a list": "Sacar de una lista",
       "Unpacking the merge package": "Desempaquetar el paquete de fusión",
       "Updating the package in the mod list": "Actualizar el paquete en la lista de mods",
@@ -1621,7 +1556,9 @@
       "Studio background job": "Una tarea de fondo del Studio",
       "Gathering the diagnostics": "Reunir el diagnóstico",
       "Opening the logs folder": "Abrir la carpeta de registros",
-      "Reading the map mods": "Leer los mods de mapa"
+      "Reading the map mods": "Leer los mods de mapa",
+      "Marking a known issue": "Marcar un aviso conocido",
+      "Showing the dismissed issues again": "Volver a mostrar los avisos marcados"
     },
     "explain": {
       "noZomboid": "El Studio no encuentra tu carpeta Zomboid. Configurala en Configuración.",
@@ -2494,7 +2431,8 @@
       "shimLive": "El shim ya está en el juego: viaja en tu paquete \"{{package}}\", publicado y activo. Si este aviso es de una sesión en la que el paquete no estaba, reiniciá el juego; si vuelve a salir, el shim no lo cubre.",
       "shimDraft": "Tu paquete \"{{package}}\" está abierto (borrador), así que el shim no está en el juego. Publicalo en el Merger (Empaquetar y publicar) y reiniciá el juego.",
       "openMerger": "Un paquete de merge puede arreglar esto — abrir el Merger",
-      "shimCovers": "El shim de Build 42 ya cubre esto"
+      "shimCovers": "El shim de Build 42 ya cubre esto",
+      "fixPathQuiet": "Corregir la ruta (solo silencia el aviso)"
     },
     "bisect": {
       "startConfirm": "¿Empezar a partir tu lista de mods a la mitad?\n\nHay {{count}} mods activos. La búsqueda apaga la mitad, vos jugás, y vuelve a partir a la mitad hasta que queda un solo mod — unos 8 inicios para una lista de este tamaño.\n\nTu lista se guarda y se restaura cuando la búsqueda termina, termine como termine.",
@@ -2525,6 +2463,14 @@
       "switchOff": "Apagarlo",
       "keepOn": "Dejarlo activo",
       "close": "Cerrar"
+    },
+    "require": {
+      "theGame": "el juego",
+      "nowhere": "Ningún módulo llamado {{wanted}} existe en el juego ni en los mods que tenés activados. El mod pide algo que no está: o necesita otro mod que no tenés, o es un error para su autor.",
+      "samePath": "{{owner}} tiene {{path}} justo en esa ruta, en {{phase}}/. El archivo está, así que la falla es dónde o cuándo se pidió: el juego separa client, server y shared, y un archivo de uno no puede pedir un módulo de otro; y un módulo todavía no existe si el mod que lo trae carga después. Cambiar la ruta no arregla ninguna de las dos cosas.",
+      "gameMovedNoise": "El juego tiene este módulo en {{path}} (en {{phase}}/), no en {{wanted}}: Build 42 lo movió. Pero el juego carga su propio Lua antes que el de cualquier mod, así que cuando el mod lo pide ya está cargado, y en el log no hay ningún error de este archivo después. El mod anda: esta línea es solo ruido.",
+      "gameMovedFailed": "El juego tiene este módulo en {{path}} (en {{phase}}/), no en {{wanted}}: Build 42 lo movió. Más abajo en el log {{file}} falla, así que acá sí cuenta: corregir la ruta es lo que lo arregla.",
+      "moved": "Este módulo lo tiene {{owner}}, en {{path}} (en {{phase}}/), no en {{wanted}}. Corregir esa línea del mod para que pida la ruta de la derecha es lo que lo arregla."
     }
   },
   "backendText": {
@@ -2554,12 +2500,12 @@
       "security_lua": "El Lua de {{mod}} hace cosas que los scripts del juego nunca hacen: {{rules}} ({{where}}{{more}}). El Lua del juego no puede ejecutar programas ni conectarse a internet por sí solo, así que es raro más que peligroso; el archivo dice para qué es.",
       "updated_since_last_play": "{{n}} mods activos se actualizaron desde la última vez que jugaste: {{mods}}{{andMore}}. Si una partida se porta mal, empezá por estos.",
       "user_rule_order": "Pediste que {{mod}} cargue después de {{after}}{{note}}, y en la lista viene antes",
-      "community_rule_order_rules": "Según la comunidad, {{mod}} carga después de {{after}}{{note}}{{sourceText}}, y en la lista viene antes",
-      "community_incompatible_rules": "Según la comunidad, {{mod}} y {{other}} no van juntos{{note}}{{sourceText}}, y los dos están activados",
-      "community_rule_order_index": "Según el índice comunitario, {{mod}} carga después de {{after}} ({{note}}{{seen}}), y en la lista viene antes",
-      "community_incompatible_index": "Según el índice comunitario, {{mod}} y {{other}} no van juntos ({{note}}{{seen}}), y los dos están activados",
-      "community_known_issue": "{{mod}} tiene un problema conocido, según el índice comunitario: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
-      "community_successor": "{{mod}} tiene una versión para esta build, según el índice comunitario: {{successor}}{{note}}",
+      "community_rule_order_rules": "Según las reglas del Studio, {{mod}} carga después de {{after}}{{note}}{{sourceText}}, y en la lista viene antes",
+      "community_incompatible_rules": "Según las reglas del Studio, {{mod}} y {{other}} no van juntos{{note}}{{sourceText}}, y los dos están activados",
+      "community_rule_order_index": "Según el índice del Studio, {{mod}} carga después de {{after}} ({{note}}{{seen}}), y en la lista viene antes",
+      "community_incompatible_index": "Según el índice del Studio, {{mod}} y {{other}} no van juntos ({{note}}{{seen}}), y los dos están activados",
+      "community_known_issue": "{{mod}} tiene un problema conocido, según el índice del Studio: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
+      "community_successor": "{{mod}} tiene una versión para esta build, según el índice del Studio: {{successor}}{{note}}",
       "package_built_for_other_list": "{{package}} se armó con otra lista: {{missing}}{{sep}}{{extra}}. Un paquete es un mod en sí mismo, así que aparece en todos los perfiles; sus fusiones solo resuelven los mods con los que se armó. En el Fusionador de mods, abrilo, volvé a escanear y publicá para rearmarlo para esta lista, o apagalo en este perfil.",
       "definition": "{{losers}} y {{winner}} {{all}} definen {{properties}} en {{what}}, en archivos distintos ({{files}}). El juego aplica {{each}} a {{things}}, así que se conserva todo lo demás que define cada uno; solo {{props}} el orden de carga, y {{winner}} carga último.{{example}}{{settled}}",
       "definition_nested": "{{losers}} y {{winner}} declaran {{what}}, en archivos distintos ({{files}}), y su contenido difiere. Lo que difiere está dentro de bloques anidados, que el Studio no compara, así que no puede decir qué está en juego: solo que {{winner}} carga último.{{settled}}",
@@ -2581,7 +2527,7 @@
       "server_base_map_last": "Map= termina con {{map}}, que no es uno de los mapas del juego. El mapa base (por ejemplo Muldraugh, KY) va último.",
       "two_mod_managers": "{{mod}} también dibuja la pantalla de Mods del juego. Mientras esté activo, el Studio le deja esa pantalla (las copias de partidas y el aviso antes de cargar siguen siendo del Studio). Desactivalo en este perfil para usar la pantalla del Studio.",
       "floods_console": "{{mod}} llenó la consola en la última sesión: {{lines}} líneas de errores ({{share}}% del total), de {{exceptions}} excepciones y {{warnings}} advertencias. Escribirlas hace más lento el juego, y los errores de otros mods se pierden entre ellas. Miralas en el Monitor, o desactivalo en este perfil.",
-      "missing_mod_renamed": "{{mod}} no está instalado: su carpeta ahora tiene {{renamed}} ({{name}}). El autor le cambió el id en una actualización."
+      "missing_mod_renamed": "{{mod}} no está instalado: el mismo mod del Workshop ahora se llama {{renamed}} ({{name}}). El autor le cambió el id en una actualización."
     },
     "fragments": {
       "beside_others": ", junto a {{others}}",
@@ -2691,6 +2637,11 @@
         "title": "Acceso a una tabla global sin inicializar",
         "explanation": "El código de un mod intentó leer propiedades de una tabla nil o sin inicializar antes de que Build 42 la creara.",
         "action": "Aplicá la regla de polyfill SAFE_GLOBAL_TABLE_ACCESS"
+      },
+      "java_mod_error": {
+        "title": "{{mod}} (un mod Java) falló en su propio código",
+        "explanation": "{{mod}} es Java, no Lua, y lo escribió él mismo: \"{{what}}\". El error está dentro de su propio código (las líneas de abajo en el log nombran sus clases); ningún mod Lua lo llamó con algo mal.",
+        "action": "El juego sigue. Lo que el mod dice que apagó queda apagado hasta que el juego vuelva a arrancar. Solo lo puede arreglar su autor: \"Guardar informe\" y mandáselo. Un paquete de merge o un polyfill no llegan a Java."
       },
       "java_npe": {
         "title": "NullPointerException en la interoperabilidad con Java",
@@ -2942,6 +2893,7 @@
     "blurb": "Tus mods del Workshop actualizados desde que jugaste por última vez, y los que tienen una actualización esperando en Steam, con las notas de cada actualización: leelas antes de cargar una partida en curso. A una actualización que todavía espera en Steam se le puede ganar guardando antes la versión que tenés.",
     "refresh": "Actualizar",
     "sinceLast": "Desde que jugaste ({{date}})",
+    "emptySinceLast": "Nada nuevo desde tu última partida ({{when}}): las actualizaciones anteriores ya estaban instaladas cuando jugaste. Las de los últimos días están en «Últimos 7 días».",
     "onlyActive": "Solo mods prendidos en mi lista",
     "count": "{{count}} mod(s)",
     "readingNotes": "Leyendo las notas de cambios...",
@@ -3445,7 +3397,7 @@
       },
       "settings": {
         "title": "Configuración",
-        "body": "Carpetas, idioma, avisos, cómo arranca el Studio, la descarga diaria de las reglas de la comunidad y los arreglos para Build 42.",
+        "body": "Carpetas, idioma, avisos, cómo arranca el Studio, las novedades de la app y los arreglos para Build 42.",
         "points": [
           "Las opciones se guardan apenas las cambiás.",
           "Desde acá se prenden las funciones para desarrolladores."

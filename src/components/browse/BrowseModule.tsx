@@ -8,7 +8,7 @@ import {
   RequiredChain,
 } from '../../types';
 import { SubscribeRequirements } from './SubscribeRequirements';
-import { appLanguage } from '../../utils/language';
+import { appLanguage, translateErrorText } from '../../utils/language';
 import { KeepActions, useKeepActions } from '../common/keep';
 import { ListsTab } from './ListsTab';
 import i18next from 'i18next';
@@ -36,6 +36,8 @@ interface BrowseModuleProps {
   onInstalled: () => void;
   /** Workshop items Steam accepted a subscription to: they land later, when Steam has downloaded them. */
   onSubscribed?: (workshopIds: string[]) => void;
+  /** Unsubscribed here: the mods of those items, to take out of the list (Steam deletes their files). */
+  onUnsubscribed?: (modIds: string[]) => void;
   /** Makes a profile from a collection: the Studio's mod list and profiles live above here. */
   onMakeProfile?: (name: string, workshopIds: string[]) => void;
   /** The player's profiles, for "Add to a profile…", and what to call after one changed. */
@@ -566,7 +568,7 @@ const WorkshopTab: React.FC<{
                   {i18next.t('browse.detail.translateSummaries')}
                 </button>
               )}
-              {translateError && <span className="text-red-300">{i18next.t('browse.detail.translateFailed', { reason: translateError })}</span>}
+              {translateError && <span className="text-red-300">{translateErrorText(translateError)}</span>}
               <span>{i18next.t('browse.workshop.page', { page, pages: pages.toLocaleString() })}</span>
             </span>
           </div>
@@ -883,7 +885,7 @@ const TABS: { id: SourceTab; active: string }[] = [
   { id: 'lists', active: 'bg-amber-950/80 text-amber-200 border-amber-700' },
 ];
 
-export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onInstalled, onSubscribed, focusWorkshopId, onFocusHandled, focusSearch, onSearchHandled, onMakeProfile, installedBuild = null, profiles = [], onProfilesChanged }) => {
+export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onInstalled, onSubscribed, onUnsubscribed, focusWorkshopId, onFocusHandled, focusSearch, onSearchHandled, onMakeProfile, installedBuild = null, profiles = [], onProfilesChanged }) => {
   const { t } = useTranslation();
   const keep = useKeepActions(paths, profiles, onProfilesChanged);
   const [tab, setTab] = useState<SourceTab>('workshop');
@@ -975,6 +977,7 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
         // Steam downloads in the background; pick up whatever has landed, and watch for the rest.
         onInstalled();
         if (subscribe && outcome.done.length > 0) onSubscribed?.(outcome.done);
+        if (!subscribe && outcome.done.length > 0) onUnsubscribed?.(outcome.done.flatMap((id) => installedByItem.get(id) ?? []));
         // Nothing went through: the button must not say it did.
         if (outcome.done.length === 0) throw new Error('none subscribed');
       } catch (err) {
@@ -984,7 +987,7 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
         throw err;
       }
     },
-    [paths, onInstalled, onSubscribed, askRequirements]
+    [paths, onInstalled, onSubscribed, onUnsubscribed, installedByItem, askRequirements]
   );
 
   // The Mod List asked for one item: show it on its own, not stacked on whatever was open.

@@ -3,7 +3,7 @@ import { TranslatedErrorCard, LogFileInfoUI, ModInfo } from '../../types';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, explainError } from '../../services/tauri';
-import { liveConsoleLines, startLiveConsole, subscribeLiveConsole } from '../../services/liveConsole';
+import { clearLiveConsole, liveConsoleLines, startLiveConsole, subscribeLiveConsole } from '../../services/liveConsole';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 
@@ -139,7 +139,7 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('live_console');
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [clearedOffsets, setClearedOffsets] = useState<Record<string, number>>({});
+  const [clearedAnchors, setClearedAnchors] = useState<Record<string, string>>({});
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -297,8 +297,13 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
   const filteredLines = useMemo(() => {
     if (!activeTab) return [];
     const raw = activeTab.lines;
-    const offset = clearedOffsets[activeTab.id] || 0;
-    let list = offset > 0 ? (offset >= raw.length ? [] : raw.slice(offset)) : raw;
+    // Cleared tabs show what came after the last line on screen at the time. A count would not
+    // do: the live tabs keep a rolling window of 1500 lines, so once full their length never
+    // grows past the count and the tab stayed empty for good. An anchor that has scrolled out
+    // of the window means everything on screen is new.
+    const anchor = clearedAnchors[activeTab.id];
+    const at = anchor === undefined ? -1 : raw.lastIndexOf(anchor);
+    let list = at >= 0 ? raw.slice(at + 1) : raw;
 
     // 1. Spam filter
     if (filterSpam) {
@@ -325,13 +330,19 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     }
 
     return list;
-  }, [activeTab, filterSpam, severityFilter, searchQuery, clearedOffsets]);
+  }, [activeTab, filterSpam, severityFilter, searchQuery, clearedAnchors]);
 
   const handleClearActiveTab = () => {
     if (!activeTab) return;
-    setClearedOffsets((prev) => ({
+    // The game's console is a shared store: empty it, so the header and new lines show.
+    if (activeTab.id === 'live_console') {
+      clearLiveConsole();
+      return;
+    }
+    if (activeTab.lines.length === 0) return;
+    setClearedAnchors((prev) => ({
       ...prev,
-      [activeTabId]: activeTab.lines.length,
+      [activeTab.id]: activeTab.lines[activeTab.lines.length - 1],
     }));
   };
 

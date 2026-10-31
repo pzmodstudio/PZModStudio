@@ -5,7 +5,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunitySummary, CommunityIndex, CommunityLists, SharedList, ProposeResult, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
 
 export interface LuaSyntaxResult {
   is_valid: boolean;
@@ -475,22 +475,32 @@ export const TauriService = {
     }
   },
 
-  /** Fetches the community rules and the mod index now; returns what came. */
-  refreshCommunity: async (paths: StudioPathsUI): Promise<CommunitySummary> => {
+  /** The Studio's mod index as the app carries it, less the issues this player dismissed; null on failure. */
+  communityIndex: async (paths: StudioPathsUI): Promise<CommunityIndex | null> => {
     try {
-      return await invoke<CommunitySummary>('refresh_community_cmd', { paths });
+      return await invoke<CommunityIndex>('community_index_cmd', { paths });
+    } catch {
+      return null;
+    }
+  },
+
+  /** Shows again every known issue this player dismissed; how many. */
+  restoreIndexIssues: async (paths: StudioPathsUI): Promise<number> => {
+    try {
+      return await invoke<number>('restore_index_issues_cmd', { paths });
     } catch (err) {
-      reportBackendError('Fetching the community rules and index', err);
+      reportBackendError('Showing the dismissed issues again', err);
       throw err;
     }
   },
 
-  /** The community mod index at hand (cached; fetched when a day old), or null when none. */
-  communityIndex: async (paths: StudioPathsUI): Promise<CommunityIndex | null> => {
+  /** Marks a known issue of the index as no longer happening on this PC (`dismissed: false` brings it back). */
+  dismissIndexIssue: async (paths: StudioPathsUI, modId: string, title: string, dismissed = true): Promise<void> => {
     try {
-      return await invoke<CommunityIndex | null>('community_index_cmd', { paths });
-    } catch {
-      return null;
+      await invoke('dismiss_index_issue_cmd', { paths, modId, title, dismissed });
+    } catch (err) {
+      reportBackendError('Marking a known issue', err);
+      throw err;
     }
   },
 
@@ -531,23 +541,6 @@ export const TauriService = {
     }
   },
 
-  /** Whether the Studio fetches the community rules and index (Settings). */
-  communityDownloads: async (userZomboidDir: string): Promise<boolean> => {
-    try {
-      return await invoke<boolean>('community_downloads_cmd', { userZomboidDir });
-    } catch {
-      return true;
-    }
-  },
-
-  setCommunityDownloads: async (userZomboidDir: string, enabled: boolean): Promise<void> => {
-    try {
-      await invoke('set_community_downloads_cmd', { userZomboidDir, enabled });
-    } catch (err) {
-      reportBackendError('Switching the community downloads', err);
-      throw err;
-    }
-  },
 
   /** The player's own load-order rules. */
   listLoadRules: async (paths: StudioPathsUI): Promise<UserRule[]> => {
@@ -1081,68 +1074,6 @@ export const TauriService = {
     await invoke('delete_steam_key_cmd');
   },
 
-  /** Whether a GitHub token is saved on this PC (the token never comes back). */
-  githubTokenStatus: async (): Promise<boolean> => {
-    try {
-      return await invoke<boolean>('github_token_status_cmd');
-    } catch {
-      return false;
-    }
-  },
-
-  /** Checks the token with GitHub and saves it; resolves to the account's login. Throws with the reason. */
-  setGithubToken: async (token: string): Promise<string> => {
-    return await invoke<string>('set_github_token_cmd', { token });
-  },
-
-  deleteGithubToken: async (): Promise<void> => {
-    await invoke('delete_github_token_cmd');
-  },
-
-  /** "Connect with GitHub": a code to type at github.com/login/device. */
-  githubDeviceStart: async (): Promise<{ user_code: string; verification_uri: string; expires_in: number }> => {
-    return await invoke('github_device_start_cmd');
-  },
-
-  /** Waits until the code is approved on GitHub; the token is kept; returns the login. */
-  githubDeviceWait: async (): Promise<string> => {
-    return await invoke<string>('github_device_wait_cmd');
-  },
-
-  githubDeviceCancel: async (): Promise<void> => {
-    await invoke('github_device_cancel_cmd');
-  },
-
-  communityLists: async (paths: StudioPathsUI, refresh = false): Promise<CommunityLists | null> => {
-    try {
-      return await invoke<CommunityLists>('community_lists_cmd', { paths, refresh });
-    } catch (err) {
-      reportBackendError('Loading the community lists', err);
-      return null;
-    }
-  },
-
-  copyCommunityList: async (paths: StudioPathsUI, listId: string): Promise<ModList> => {
-    return await invoke<ModList>('copy_community_list_cmd', { paths, listId });
-  },
-
-  draftSharedList: async (paths: StudioPathsUI, listId: string, author: string, description: string, build: string): Promise<SharedList> => {
-    return await invoke<SharedList>('draft_shared_list_cmd', { paths, listId, author, description, build });
-  },
-
-  proposeSharedList: async (list: SharedList): Promise<ProposeResult> => {
-    return await invoke<ProposeResult>('propose_shared_list_cmd', { list });
-  },
-
-  /** With the saved token: adds the rule to community/rules.json on a branch and opens the pull request. */
-  proposeRule: async (rule: { mod_id: string; after: string; note: string; source: string }): Promise<ProposeResult> => {
-    try {
-      return await invoke<ProposeResult>('propose_rule_cmd', { rule });
-    } catch (err) {
-      reportBackendError('Proposing a community rule', err);
-      throw err;
-    }
-  },
 
   /** Workshop search with the saved key. Throws on failure (no key, rejected key, offline). */
   workshopSearch: async (query: WorkshopBrowseQuery): Promise<WorkshopSearchResult> => {
@@ -2280,10 +2211,10 @@ const WRITES: Record<string, ChangeScope> = {
   workshopUploadSaveMeta: 'other', workshopUploadPrepare: 'mods', workshopUploadRemove: 'mods', workshopPublish: 'other',
   keepModVersion: 'other', deleteKeptVersion: 'other', addLoadRule: 'other', removeLoadRule: 'other',
   createModList: 'other', renameModList: 'other', deleteModList: 'other', addToModList: 'other', removeFromModList: 'other',
-  copyCommunityList: 'other', refreshCommunity: 'other', setCommunityDownloads: 'other', setAppUpdateCheck: 'other', dismissAppUpdate: 'other',
+  dismissIndexIssue: 'other', restoreIndexIssues: 'other', setAppUpdateCheck: 'other', dismissAppUpdate: 'other',
   setModNote: 'other', setInModGroup: 'other', renameModGroup: 'other', setModGroupNote: 'other', deleteModGroup: 'other',
   saveServer: 'other', forgetServer: 'other', setServerMadeProfile: 'other', setLinkScreenChoice: 'other', setShimPatch: 'other',
-  setSteamKey: 'other', deleteSteamKey: 'other', setDeeplKey: 'other', deleteDeeplKey: 'other', clearTranslationCache: 'other', setGithubToken: 'other', deleteGithubToken: 'other',
+  setSteamKey: 'other', deleteSteamKey: 'other', setDeeplKey: 'other', deleteDeeplKey: 'other', clearTranslationCache: 'other',
   saveDraftResolution: 'other', clearDraftResolutions: 'other', writeSandboxPreset: 'other', importPresetFile: 'other',
   syncClientToServer: 'other', createNewServerConfig: 'other', deleteServerConfig: 'other', launchDedicatedServer: 'other', stopDedicatedServer: 'other',
   discordSave: 'other', saveGameBot: 'other', saveServerQuickSettings: 'other', changelogMarkRead: 'other',

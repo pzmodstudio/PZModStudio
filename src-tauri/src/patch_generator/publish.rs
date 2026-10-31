@@ -45,6 +45,63 @@ pub(crate) fn metadata_after_publish(previous: Option<&str>, meta: &MasterPatchM
 }
 
 /// Generates a synthetic master patch mod under Zomboid/mods/<package_folder_name> and updates ModListData.ini.
+/// Whether `text` is a single `{...}` with nothing but blanks around it. Lenient like the game's
+/// own reader (unquoted keys and a trailing comma pass): only the outer shape is checked.
+pub fn is_one_json_object(text: &str) -> bool {
+    let body = text.trim_start_matches('\u{feff}').trim();
+    if !body.starts_with('{') {
+        return false;
+    }
+    let (mut depth, mut in_string, mut escaped) = (0i32, false, false);
+    for (i, c) in body.char_indices() {
+        if in_string {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '"' => in_string = true,
+            '{' | '[' => depth += 1,
+            '}' | ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return body[i + 1..].trim().is_empty();
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// The objects of a file the old Merger glued together (`{...}` blocks with `-- ===` lines
+/// between) as one object, later keys winning as the game would read them file after file.
+/// None when a block is not readable JSON.
+pub fn join_glued_json(text: &str) -> Option<String> {
+    let body: String = text
+        .trim_start_matches('\u{feff}')
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("--") && !l.trim_start().starts_with("/*"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut merged = serde_json::Map::new();
+    let mut found = false;
+    for value in serde_json::Deserializer::from_str(&body).into_iter::<serde_json::Value>() {
+        match value.ok()? {
+            serde_json::Value::Object(map) => {
+                found = true;
+                merged.extend(map);
+            }
+            _ => return None,
+        }
+    }
+    found.then(|| serde_json::to_string_pretty(&serde_json::Value::Object(merged)).ok()).flatten().map(|s| s + "\n")
+}
+
 pub fn generate_master_patch(req: MasterPatchRequest) -> Result<MasterPatchResult, String> {
     let pkg_name = req.package_folder_name
         .clone()
@@ -65,9 +122,26 @@ pub fn generate_master_patch(req: MasterPatchRequest) -> Result<MasterPatchResul
 
     let primary_dir = user_dirs[0].join("mods").join(&clean_pkg_name);
 
-    // Refuse the whole request up front if any path would escape the package folder.
+    // Refuse the whole request up front if any path would escape the package folder, or a text
+    // file the game reads as one JSON object (Translate/*.json) is not one: the game throws on
+    // the load of a broken one, and a merge once glued two objects together with Lua comments.
+    // A draft saved before the Merger knew better is mended on the way: its objects joined.
+    let mut req = req;
+    for file in &mut req.merged_files {
+        if file.relative_path.to_lowercase().ends_with(".json") && !is_one_json_object(&file.content) {
+            if let Some(mended) = join_glued_json(&file.content) {
+                file.content = mended;
+            }
+        }
+    }
     for file in &req.merged_files {
         safe_join(&primary_dir, &file.relative_path)?;
+        if file.relative_path.to_lowercase().ends_with(".json") && !is_one_json_object(&file.content) {
+            return Err(format!(
+                "{} is not one JSON object (two pasted together, or text after it), so the game could not read it. Nothing was published.",
+                file.relative_path
+            ));
+        }
     }
 
     let polyfill_lua_content = generate_master_polyfill_lua();
@@ -763,6 +837,24 @@ mod publish_keeps_files {
     }
     /// The package keeps the name and description it was given, and the staging folder is gone
     /// once the publish is in place.
+    #[test]
+    fn a_translation_file_must_be_one_json_object() {
+        assert!(is_one_json_object("{\n  \"UI_A\": \"All\"\n}\n"));
+        assert!(is_one_json_object("\u{feff}{ UI_A: \"a } b\", }"), "unquoted keys, a brace inside a string, a trailing comma");
+        let glued = "{\n  \"UI_A\": \"All\"\n}\n\n-- === MOD: [Neat Crafting] ===\n{\n  \"UI_A\": \"All\"\n}\n-- === END MOD: [Neat Crafting] ===";
+        assert!(!is_one_json_object(glued), "what the Merger once wrote");
+        assert!(!is_one_json_object("-- comment\n{}"));
+
+        // A saved draft like that is mended: its objects joined, the later key winning.
+        let two = "{\n  \"UI_A\": \"one\"\n}\n-- === MOD: [X] ===\n{\n  \"UI_A\": \"two\",\n  \"UI_B\": \"b\"\n}\n-- === END MOD: [X] ===";
+        let mended = join_glued_json(two).expect("mended");
+        assert!(is_one_json_object(&mended));
+        let v: serde_json::Value = serde_json::from_str(&mended).unwrap();
+        assert_eq!(v["UI_A"], "two");
+        assert_eq!(v["UI_B"], "b");
+        assert!(join_glued_json("{ \"a\": 1 }\n-- x\nnot json").is_none());
+    }
+
     #[test]
     fn publishing_keeps_the_description_and_leaves_no_staging_behind() {
         let zomboid = package_dir("describe");

@@ -75,8 +75,6 @@ interface LoadOrderModuleProps {
   loadTimes?: Map<string, number>;
   /** Share of the game's time per mod (%), from the last profiler measurement. */
   gameShares?: Map<string, number>;
-  /** The game build installed now, named in a rule proposed to the community. */
-  installedBuild?: string | null;
   /** Opens this Workshop item's page in Browse Mods (where the Workshop link lives). */
   onOpenInBrowser?: (workshopId: string) => void;
   /** Searches the Workshop in Explore Mods (a mod that is not installed has no item to open). */
@@ -171,7 +169,6 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   errorStats,
   loadTimes,
   gameShares,
-  installedBuild = null,
   onOpenInBrowser,
   onSearchInBrowser,
   onOpenMerger,
@@ -1569,7 +1566,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           </button>
           <KeptVersions paths={paths} mod={keptVersionsOf} onClose={() => setKeptVersionsOf(null)} onModsChanged={onRefreshMods} toast={showToast} />
           {keep.node}
-          <LoadRules paths={paths} mod={rulesOf} mods={mods} installedBuild={installedBuild} onClose={() => setRulesOf(null)} onRulesChanged={() => onRulesChanged?.()} toast={showToast} />
+          <LoadRules paths={paths} mod={rulesOf} mods={mods} onClose={() => setRulesOf(null)} onRulesChanged={() => onRulesChanged?.()} toast={showToast} />
           <ModMetaDialog paths={paths} open={metaOf} meta={meta} onChange={setMeta} onClose={() => setMetaOf(null)} />
           {groupNoteOf && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setGroupNoteOf(null)}>

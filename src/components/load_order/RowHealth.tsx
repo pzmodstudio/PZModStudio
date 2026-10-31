@@ -60,6 +60,7 @@ const fixLabel = (fix: HealthFix, nameOf: (id: string) => string): string => {
     case 'make_compatible_copy':
     case 'remove_compatible_copy':
     case 'remove_from_package':
+    case 'dismiss_known_issue':
       return t('modList.health.fix.inHealth');
   }
 };
@@ -148,6 +149,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
       case 'make_compatible_copy':
       case 'remove_compatible_copy':
       case 'remove_from_package':
+      case 'dismiss_known_issue':
         onGoToHealth?.(issue);
         return;
       case 'disable_mod':
