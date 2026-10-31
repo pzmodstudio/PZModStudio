@@ -243,6 +243,7 @@ mod tests {
                 installed("Older", Some("1.0"), Some(900)),
                 installed("Newer", Some("2.0"), Some(1_100)),
             ],
+            ..Default::default()
         };
         let report = compare_with_installed(
             &pack(
@@ -271,6 +272,7 @@ mod tests {
         let catalog = ModCatalog {
             game_version: None,
             mods: vec![installed("Local", Some("2.0"), None)],
+            ..Default::default()
         };
         let report = compare_with_installed(&pack(vec![entry("Local", Some("1.0"), None)], None), &catalog);
         assert_eq!(report.drift.len(), 1);
@@ -287,7 +289,7 @@ mod tests {
         assert!(preset.game_version.is_none());
         assert!(preset.mods[0].version.is_none());
 
-        let catalog = ModCatalog { game_version: Some("42.21".into()), mods: vec![installed("A", Some("1.0"), Some(5))] };
+        let catalog = ModCatalog { game_version: Some("42.21".into()), mods: vec![installed("A", Some("1.0"), Some(5))], ..Default::default() };
         let report = compare_with_installed(&preset, &catalog);
         // Nothing to compare against, so nothing is claimed.
         assert!(report.drift.is_empty());

@@ -347,6 +347,38 @@ ${report}`);
     onOpenMerger();
   };
 
+  /** Whether a line after this card's names the same file with an error: the require did cost something. */
+  const fileFailedLater = (card: TranslatedErrorCard): boolean => {
+    const file = fileNamed(card);
+    if (!file) return false;
+    const at = logLines.findIndex((l) => l.includes(card.raw_error.trim()));
+    return logLines.slice(at + 1).some((l) => l.includes(file) && !l.includes('require(') && /ERROR|Exception|attempted|non-table|nil value/.test(l));
+  };
+
+  /**
+   * A module the game itself has under its Build 42 path: the game runs its own Lua before any
+   * mod's, so the module is there anyway, and unless the file failed afterwards the line is noise.
+   */
+  const requireOnlyNoise = (card: TranslatedErrorCard): boolean => {
+    const wanted = moduleWanted(card);
+    const best = wanted ? requireAnswers[wanted]?.candidates[0] : undefined;
+    return !!best && !best.same_path && best.owner === 'the game' && !fileFailedLater(card);
+  };
+
+  /** What became of the require, in the app's language. */
+  const requireText = (card: TranslatedErrorCard, answer: RequireAnswer): string => {
+    const best = answer.candidates[0];
+    if (!best) return t('monitor.require.nowhere', { wanted: answer.wanted });
+    const owner = best.owner === 'the game' ? t('monitor.require.theGame') : best.owner;
+    if (best.same_path) return t('monitor.require.samePath', { owner, path: best.module_path, phase: best.phase });
+    if (best.owner === 'the game') {
+      return requireOnlyNoise(card)
+        ? t('monitor.require.gameMovedNoise', { path: best.module_path, phase: best.phase, wanted: answer.wanted })
+        : t('monitor.require.gameMovedFailed', { path: best.module_path, phase: best.phase, wanted: answer.wanted, file: fileNamed(card) ?? '' });
+    }
+    return t('monitor.require.moved', { owner, path: best.module_path, phase: best.phase, wanted: answer.wanted });
+  };
+
   /** A `require` the Studio found at another path: the fix is known before the file is opened. */
   const knownFix = (card: TranslatedErrorCard): { from: string; to: string } | null => {
     const wanted = moduleWanted(card);
@@ -631,7 +663,9 @@ ${report}`);
                           {fixing === card.id
                             ? t('monitor.fixes.fixing')
                             : knownFix(card)
-                            ? fileNamed(card)
+                            ? requireOnlyNoise(card)
+                              ? t('monitor.fixes.fixPathQuiet')
+                              : fileNamed(card)
                               ? t('monitor.fixes.fixPathIn', { file: fileNamed(card) })
                               : t('monitor.fixes.fixPath')
                             : fileNamed(card)
@@ -689,7 +723,7 @@ ${report}`);
                 const best = answer.candidates[0];
                 return (
                   <div className="px-2.5 py-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 leading-relaxed space-y-1">
-                    <div>{answer.summary}</div>
+                    <div>{requireText(card, answer)}</div>
                     {best && !best.same_path && (
                       <div className="font-mono text-[10px] text-emerald-300">
                         {answer.wanted} &rarr; {best.module_path}

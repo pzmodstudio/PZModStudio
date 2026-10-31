@@ -337,40 +337,6 @@ fn delete_steam_key_cmd() -> Result<(), String> {
     secrets::delete(secrets::STEAM_WEB_API_KEY)
 }
 
-/// Whether a GitHub token is saved (the token itself never goes back to the UI).
-#[tauri::command(async)]
-fn github_token_status_cmd() -> Result<bool, String> {
-    Ok(secrets::get(rules::propose::GITHUB_TOKEN)?.is_some())
-}
-
-/// Checks the token with GitHub (GET /user), saves it in Windows Credential Manager; returns the login.
-#[tauri::command(async)]
-fn set_github_token_cmd(token: String) -> Result<String, String> {
-    rules::propose::save_token(&token)
-}
-
-/// "Connect with GitHub": a code to type at github.com/login/device.
-#[tauri::command(async)]
-fn github_device_start_cmd() -> Result<rules::github_device::DeviceCode, String> {
-    rules::github_device::start()
-}
-
-/// Waits until the code is approved on GitHub, keeps the token; returns the login.
-#[tauri::command(async)]
-fn github_device_wait_cmd() -> Result<String, String> {
-    rules::github_device::wait()
-}
-
-#[tauri::command]
-fn github_device_cancel_cmd() {
-    rules::github_device::cancel()
-}
-
-#[tauri::command(async)]
-fn delete_github_token_cmd() -> Result<(), String> {
-    secrets::delete(rules::propose::GITHUB_TOKEN)
-}
-
 /// Mod texts (Steam BBCode) in the app's language; translated once, then from disk.
 #[tauri::command(async)]
 fn translate_texts_cmd(texts: Vec<String>, target: String) -> Result<translate::Translation, String> {
@@ -402,20 +368,6 @@ fn translation_cache_info_cmd() -> translate::CacheInfo {
 #[tauri::command(async)]
 fn clear_translation_cache_cmd() -> Result<usize, String> {
     translate::clear_cache(&vfs::studio_paths().user_zomboid_dir)
-}
-
-/// Opens the pull request that adds one load-order rule to community/rules.json.
-#[tauri::command(async)]
-fn propose_rule_cmd(rule: serde_json::Value) -> Result<rules::propose::ProposeResult, String> {
-    let (Some(mod_id), Some(after)) = (rule.get("mod_id").and_then(|v| v.as_str()), rule.get("after").and_then(|v| v.as_str())) else {
-        return Err("A rule needs mod_id and after.".to_string());
-    };
-    let title = format!("Community rule: {} loads after {}", mod_id, after);
-    let body = format!("`{}` has to load after `{}`{}, proposed from PZ Mod Studio.", mod_id, after,
-        rule.get("note").and_then(|v| v.as_str()).map(|n| format!(": {}", n)).unwrap_or_default());
-    rules::propose::propose_file("community/rules.json", &title, &body, &|existing| {
-        rules::propose::merge_rule_into(existing.ok_or_else(|| "community/rules.json is not on GitHub".to_string())?, &rule)
-    })
 }
 
 /// Searches the Project Zomboid Workshop with the saved key.
@@ -1277,81 +1229,27 @@ fn sort_load_order_cmd(paths: StudioPaths, order: Vec<String>) -> catalog::SortR
     let mut catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
     // The player's own rules, as if each mod had written loadModAfter itself.
     rules::apply_to_catalog(&mut catalog, &rules::load_rules(&paths.user_zomboid_dir));
-    if let Some(community) = rules::community::current(&paths.user_zomboid_dir) {
-        rules::apply_to_catalog(&mut catalog, &community.as_user_rules());
-    }
-    if let Some(index) = rules::index::current(&paths.user_zomboid_dir) {
-        rules::apply_to_catalog(&mut catalog, &index.as_user_rules());
-    }
+    rules::apply_to_catalog(&mut catalog, &rules::community::current().as_user_rules());
+    rules::apply_to_catalog(&mut catalog, &rules::index::current(&paths.user_zomboid_dir).as_user_rules());
     catalog::sort_load_order(&catalog, &order)
 }
 
-/// Fetches the community rules and the mod index now, whatever the age of the cached copies.
+/// The Studio's mod index as the app carries it, less the issues this player dismissed: it is small.
 #[tauri::command(async)]
-fn refresh_community_cmd(paths: StudioPaths) -> Result<rules::community::CommunitySummary, String> {
-    let rules = rules::community::refresh(&paths.user_zomboid_dir)?;
-    let index = rules::index::refresh(&paths.user_zomboid_dir)?;
-    let mut summary = rules.summary().with_index(Some(&index));
-    summary.downloads = rules::community::downloads_enabled(&paths.user_zomboid_dir);
-    Ok(summary)
-}
-
-/// The community mod index at hand (cached, or fetched when a day old), whole: it is small.
-#[tauri::command(async)]
-fn community_index_cmd(paths: StudioPaths) -> Option<rules::index::CommunityIndex> {
+fn community_index_cmd(paths: StudioPaths) -> rules::index::CommunityIndex {
     rules::index::current(&paths.user_zomboid_dir)
 }
 
-/// Other players' lists (fetched once a day; `refresh` fetches now).
+/// Shows again every known issue this player dismissed; how many.
 #[tauri::command(async)]
-fn community_lists_cmd(paths: StudioPaths, refresh: bool) -> rules::shared_lists::CommunityLists {
-    rules::shared_lists::current(&paths.user_zomboid_dir, refresh)
+fn restore_index_issues_cmd(paths: StudioPaths) -> Result<usize, String> {
+    rules::index::clear_dismissed(&paths.user_zomboid_dir)
 }
 
-/// Makes a community list one of the player's own.
+/// Marks a known issue of the index as no longer happening on this machine, or brings it back.
 #[tauri::command(async)]
-fn copy_community_list_cmd(paths: StudioPaths, list_id: String) -> Result<lists::ModList, String> {
-    let all = rules::shared_lists::current(&paths.user_zomboid_dir, false);
-    let shared = all.lists.iter().find(|l| l.id == list_id).ok_or_else(|| format!("There is no community list {}.", list_id))?;
-    rules::shared_lists::copy_to_my_lists(&paths.user_zomboid_dir, shared)
-}
-
-/// One of the player's lists as it would go to the community repository (checked).
-#[tauri::command(async)]
-fn draft_shared_list_cmd(paths: StudioPaths, list_id: String, author: String, description: String, build: String) -> Result<rules::shared_lists::SharedList, String> {
-    let list = lists::load_lists(&paths.user_zomboid_dir).into_iter().find(|l| l.id == list_id).ok_or_else(|| format!("There is no list {}.", list_id))?;
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let shared = rules::shared_lists::from_list(&list, &author, &description, &build, &today);
-    let problems = rules::shared_lists::problems(&shared);
-    if !problems.is_empty() {
-        return Err(format!("The list cannot be shared yet: {}.", problems.join("; ")));
-    }
-    Ok(shared)
-}
-
-/// Opens the pull request that adds the list to `community/lists/` (GitHub token in Settings).
-#[tauri::command(async)]
-fn propose_shared_list_cmd(list: rules::shared_lists::SharedList) -> Result<rules::propose::ProposeResult, String> {
-    let problems = rules::shared_lists::problems(&list);
-    if !problems.is_empty() {
-        return Err(format!("The list cannot be shared yet: {}.", problems.join("; ")));
-    }
-    let path = format!("community/lists/{}.json", list.id);
-    let content = serde_json::to_string_pretty(&list).map_err(|e| e.to_string())? + "
-";
-    let title = format!("Community list: {}", list.name);
-    let body = format!("A list of {} mod(s) by {}, shared from PZ Mod Studio.
-
-{}", list.items.len(), list.author, list.description);
-    rules::propose::propose_file(&path, &title, &body, &|existing| {
-        // Someone else's list with the same name is not replaced: the author picks another name.
-        if let Some(old) = existing.and_then(|t| serde_json::from_str::<rules::shared_lists::SharedList>(t).ok()) {
-            if !old.author.eq_ignore_ascii_case(&list.author) {
-                return Err(format!("taken: {} already has a list called \"{}\"; rename yours first.", old.author, old.name));
-            }
-        }
-        Ok(content.clone())
-    })
+fn dismiss_index_issue_cmd(paths: StudioPaths, mod_id: String, title: String, dismissed: bool) -> Result<(), String> {
+    rules::index::set_dismissed(&paths.user_zomboid_dir, &mod_id, &title, dismissed)
 }
 
 /// Whether a newer PZ Mod Studio is out (asked of GitHub once a day while the check is on);
@@ -1380,17 +1278,6 @@ fn set_app_update_check_cmd(user_zomboid_dir: String, enabled: bool) -> Result<a
 #[tauri::command(async)]
 fn dismiss_app_update_cmd(user_zomboid_dir: String, version: String) -> Result<(), String> {
     app_update::dismiss(&user_zomboid_dir, &version)
-}
-
-/// Whether the Studio fetches the community rules and index (Settings).
-#[tauri::command(async)]
-fn community_downloads_cmd(user_zomboid_dir: String) -> bool {
-    rules::community::downloads_enabled(&user_zomboid_dir)
-}
-
-#[tauri::command(async)]
-fn set_community_downloads_cmd(user_zomboid_dir: String, enabled: bool) -> Result<(), String> {
-    rules::community::set_downloads_enabled(&user_zomboid_dir, enabled)
 }
 
 #[tauri::command(async)]
@@ -1919,15 +1806,14 @@ pub fn run() {
             auto_merge_conflicts_cmd,
             sort_load_order_cmd,
             list_load_rules_cmd,
-            refresh_community_cmd,
             community_index_cmd,
-            community_downloads_cmd,
+            dismiss_index_issue_cmd,
+            restore_index_issues_cmd,
             app_update_status_cmd,
             self_update_cmd,
             server_player_action_cmd,
             set_app_update_check_cmd,
             dismiss_app_update_cmd,
-            set_community_downloads_cmd,
             add_load_rule_cmd,
             remove_load_rule_cmd,
             make_compatible_copy_cmd,
@@ -2017,10 +1903,6 @@ pub fn run() {
             discord_save_cmd,
             discord_test_cmd,
             discord_commands_status_cmd,
-            community_lists_cmd,
-            copy_community_list_cmd,
-            draft_shared_list_cmd,
-            propose_shared_list_cmd,
             dev_watch_stop_cmd,
             dev_reload_all_cmd,
             create_mod_list_cmd,
@@ -2042,19 +1924,12 @@ pub fn run() {
             steam_key_status_cmd,
             set_steam_key_cmd,
             delete_steam_key_cmd,
-            github_token_status_cmd,
             translate_texts_cmd,
             deepl_key_status_cmd,
             set_deepl_key_cmd,
             delete_deepl_key_cmd,
             translation_cache_info_cmd,
             clear_translation_cache_cmd,
-            set_github_token_cmd,
-            delete_github_token_cmd,
-            github_device_start_cmd,
-            github_device_wait_cmd,
-            github_device_cancel_cmd,
-            propose_rule_cmd,
             workshop_search_cmd,
             read_mod_image_cmd,
             workshop_subscribe_cmd,

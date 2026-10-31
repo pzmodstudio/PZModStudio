@@ -46,11 +46,9 @@ Pick **English** or **Español** under **Language**. A line missing in a languag
 - **Remember how the game starts**: on, the Launch button starts on the mode you used last time (Debug, Windowed, Normal...). Off, it always starts on Debug Mode (Fullscreen), the recommended one.
 - **The game's Mods screen, with another mod manager on**: only one mod manager can draw the game's Mods screen. When another one is on (DMM, PZMM...), choose **Ask me in the game**, **PZ Mod Studio's (asks again if the other one is turned on)** or **The other manager's**. Save backups and the check before a save loads stay with PZ Mod Studio either way.
 
-## Community files and GitHub token
+## App updates
 
-- **Download the community rules and mod index**: once a day the Studio fetches load-order rules, incompatible pairs and a registry per mod from its own GitHub repository. Auto-Sort, Mod Health, the Mod List and Browse Mods use them. Off, the last copy is kept and nothing is fetched. Nothing is ever sent. Its two buttons open the index's web page and its community lists.
 - **Check for new versions of PZ Mod Studio**: at start and every 6 hours while it is open, the Studio asks GitHub which is the latest release. When there is a newer one, a bar under the header says so. **Update now** downloads the new version, checks the project signed it (the signature of `SHA256SUMS.txt` and the zip's SHA-256), puts it in place of yours and restarts the Studio; if anything does not match, nothing changes. **Download** opens the release page in your browser, and **Not now** hides the notice until the next version. When the Studio is installed in a folder it cannot write to (Program Files, for every user), update it with the installer from the page. Nothing is installed unless you ask, and nothing is sent. **Check now** asks at once. When GitHub does not answer, the Studio asks its itch.io page instead; then the notice offers only the download page, not **Update now**. Off, GitHub is not asked.
-- **GitHub, for "Propose" in one click**: optional. Connected, the "Propose to the community" buttons (rules, a mod's registry, a list) open the pull request for you. Without it, they open GitHub's page with everything filled in. Press **Connect with GitHub**: a code appears (already copied) and GitHub's page opens; type the code there and approve **PZ Mod Studio**, and the Studio is connected. Or press **Make a token**, make one on GitHub, paste it and press **Check and save**. The token is checked with GitHub and kept in Windows Credential Manager on this PC only; **Remove** deletes it.
 
 ## Diagnostics
 
@@ -75,4 +73,3 @@ Only with **Developer features** on. Pick your AI client, press **Copy MCP JSON*
 ## Good to know
 
 - Folder, language, window and warning choices apply right away; nothing needs a restart except the shim switches, which the game reads on its next launch.
-- The GitHub token never leaves this PC except to talk to GitHub.

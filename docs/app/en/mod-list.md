@@ -59,7 +59,7 @@ With a profile active, the list shows that profile's mods. The **Profile's mods*
 
 **Switch on/off**, **Add to the profile** / **Take out of the profile** (taken out also switches it off), **Move to the top**, **Move to the bottom**, **Open in Mod Browser** (**Search for it in Mod Browser** for a mod that is not installed), **Open its folder**, **Add a note…** (**Edit the note…** once it has one), **Groups…**, **Load-order rules…**, **Keep this version**, **Kept versions…**, **Favorite**, **Add to a list…**, **Add to a profile…**, **Copy the mod id** and **Unsubscribe from its Workshop item** (Steam deletes its files; other mods in the same item go too).
 
-- **Load-order rules…**: say a mod must load after another (things you found by playing). Auto-Sort follows the rule and Mod Health warns when the list breaks it. **Share this rule** offers it to the community on GitHub.
+- **Load-order rules…**: say a mod must load after another (things you found by playing). Auto-Sort follows the rule and Mod Health warns when the list breaks it. To pass your order on to someone else, export a preset: it carries the list in the order your rules gave it.
 - **Keep this version** copies the mod as it is today to `Zomboid/PZModStudio_Snapshots`. **Kept versions…** lists the copies: **Use this version** puts one back as a local copy the game reads instead of the Workshop one.
 
 ## Row tags

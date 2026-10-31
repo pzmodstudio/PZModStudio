@@ -59,7 +59,7 @@ Con un perfil activo, la lista muestra los mods de ese perfil. El botón **Mods 
 
 **Activar/Desactivar**, **Agregar al perfil** / **Sacar del perfil** (sacarlo también lo apaga), **Mover al principio**, **Mover al final**, **Abrir en Explorar mods** (**Buscarlo en Explorar mods** para un mod que no está instalado), **Abrir su carpeta**, **Agregar una nota…** (**Editar la nota…** cuando ya tiene una), **Grupos…**, **Reglas de orden de carga…**, **Guardar esta versión**, **Versiones guardadas…**, **Favorito**, **Agregar a una lista…**, **Agregar a un perfil…**, **Copiar el id del mod** y **Desuscribirse de su ítem del Workshop** (Steam borra sus archivos; los otros mods del mismo ítem se van también).
 
-- **Reglas de orden de carga…**: decí que un mod debe cargar después de otro (lo que descubriste jugando). Ordenar sigue la regla y Salud de mods avisa cuando la lista la rompe. **Compartir esta regla** la ofrece a la comunidad en GitHub.
+- **Reglas de orden de carga…**: decí que un mod debe cargar después de otro (lo que descubriste jugando). Ordenar sigue la regla y Salud de mods avisa cuando la lista la rompe. Para pasarle tu orden a otra persona, exportá un preset: lleva la lista en el orden que le dieron tus reglas.
 - **Guardar esta versión** copia el mod tal como está hoy en `Zomboid/PZModStudio_Snapshots`. **Versiones guardadas…** lista las copias: **Usar esta versión** repone una como copia local que el juego lee en vez de la del Workshop.
 
 ## Etiquetas de las filas

@@ -18,33 +18,10 @@ const run = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8',
 // the workflows (no Actions here), loose error reports and scratch files.
 const EXCLUDE = /^(private\/|publish-repo\/|docs\/(RESEARCH|COMPETITORS|AUDIT|ROADMAP|BRIEF)|docs\/forum\/|\.github\/(?!ISSUE_TEMPLATE\/)|dist-local\/|pz-error-|PZ MODDING AGENT GUIDE\.md$|DOCUMENTACION_SISTEMA\.md$)|\.exe$|\.exe\.old|\.old-/;
 
-// Contributions merged on GitHub (a registry, a list, a rule) come into the project first: the mirror
-// below deletes whatever the project does not have, so without this a merged proposal would vanish.
-// Only community/index/, community/reports/, community/lists/ and community/rules.json are taken, and only when the
-// project's own copy has not changed since the two sides last agreed; anything else is reported.
-try {
-  run(dest, 'fetch', '-q', 'origin', 'main');
-  const base = run(dest, 'merge-base', 'HEAD', 'origin/main');
-  const changed = run(dest, 'diff', '--name-only', base, 'origin/main').split('\n').filter(Boolean);
-  const show = (rev, f) => { try { return execFileSync('git', ['show', rev + ':' + f], { cwd: dest, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { return null; } };
-  for (const f of changed) {
-    const theirs = show('origin/main', f);
-    const target = path.join(root, f);
-    if (!/^community\/(index\/|reports\/|lists\/|rules\.json$)/.test(f)) { console.log('Changed on GitHub, not imported: ' + f); continue; }
-    if (theirs === null) { console.log('Removed on GitHub, left in the project: ' + f); continue; }
-    const mine = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null;
-    const before = show(base, f);
-    if (mine === null || mine === before) { fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, theirs); console.log('Imported from GitHub: ' + f); }
-    else if (mine !== theirs) console.log('EDITED BOTH SIDES, kept the project\'s: ' + f + ' (compare it with the one on GitHub)');
-  }
-  if (changed.length) run(dest, 'merge', '--no-edit', '-X', 'ours', 'origin/main');
-} catch (e) { console.log('Could not look for contributions on GitHub (' + String(e.message).split('\n')[0] + '); going on without.'); }
-
-// What the community workflow used to do on every merge: the registries and lists are checked and
-// index.json / lists.json rebuilt from them, so a sync never ships a stale or malformed index.
+// The Studio's knowledge (built into the app) is checked and index.json rebuilt from the registries,
+// so a sync never ships a stale or malformed index.
 const node = (...args) => execFileSync('node', args, { cwd: root, stdio: 'inherit' });
 node(path.join(__dirname, 'community-index.js'), 'build');
-node(path.join(__dirname, 'community-lists.js'), 'build');
 const rules = JSON.parse(fs.readFileSync(path.join(root, 'community', 'rules.json'), 'utf8'));
 for (const x of rules.load_after || []) if (!x.mod_id || !x.after || x.mod_id === x.after) throw new Error('bad load_after rule ' + JSON.stringify(x));
 for (const x of rules.incompatible || []) if (!x.a || !x.b || x.a === x.b) throw new Error('bad incompatible pair ' + JSON.stringify(x));

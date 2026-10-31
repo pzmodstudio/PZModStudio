@@ -464,9 +464,14 @@ impl CardMaker {
         }
         let is_error_level = level && trimmed.starts_with("ERROR");
         let culprit = self.blame.of(line);
+        if self.blame.java_echo() {
+            return out;
+        }
         if let Some(mut card) = translate_log_error(line, self.counter) {
             self.counter += 1;
-            card.mod_name = culprit.clone();
+            if card.code != "java_mod_error" {
+                card.mod_name = culprit.clone();
+            }
             if !level && self.pending.is_some() {
                 // A pattern the Studio knows, in the exception under an ERROR: that card for it.
                 let held = self.pending.take().unwrap();
@@ -542,6 +547,11 @@ pub struct ModBlame {
     /// read on its own it is one more anonymous Java exception, which is how 413 of them in one
     /// session went unattributed.
     recent: Option<(String, usize)>,
+    /// A Java mod's own error line (`[BloodFX] drawing disabled: java.lang.X: ...`) and the
+    /// exception it names: the mod's printStackTrace repeats that exception on the next line.
+    java_last: Option<String>,
+    /// This line is that repeat: the same error, already carded under the mod's name.
+    java_echo: bool,
 }
 
 /// How many lines a mod's name carries forward. The frame and its error are next to each other;
@@ -549,9 +559,21 @@ pub struct ModBlame {
 const BLAME_WINDOW: usize = 3;
 
 impl ModBlame {
+    /// The line just observed repeats the exception of a Java mod's own error line above it.
+    pub fn java_echo(&self) -> bool {
+        self.java_echo
+    }
+
     /// Reads `mod "X" overrides <path>` lines as they go by, and remembers a mod named in a
     /// stack frame for the few lines that follow it.
     pub fn observe(&mut self, line: &str) {
+        self.java_echo = self.java_last.take().is_some_and(|thrown| {
+            let text = line.split_once("> ").map(|(_, rest)| rest).unwrap_or(line).trim();
+            text.starts_with("java.") && thrown.starts_with(text.get(..text.len().min(120)).unwrap_or(text))
+        });
+        if java_mod_own_error(line).is_some() {
+            self.java_last = line.split_once(": java.").map(|(_, rest)| format!("java.{}", rest.trim()));
+        }
         self.recent = match self.recent.take() {
             Some((name, age)) if age + 1 < BLAME_WINDOW => Some((name, age + 1)),
             _ => None,
@@ -897,6 +919,18 @@ pub fn translate_log_error(line: &str, counter: usize) -> Option<TranslatedError
     Some(card)
 }
 
+/// `[Tag] what: java.x.SomeException ...` written by a Java mod (the game's own lines never start
+/// with a bracketed tag): the tag and what the mod says happened.
+fn java_mod_own_error(line: &str) -> Option<(String, String)> {
+    let text = line.split_once("> ").map(|(_, rest)| rest).unwrap_or(line).trim_start();
+    let rest = text.strip_prefix('[')?;
+    let (tag, rest) = rest.split_once(']')?;
+    let (what, thrown) = rest.split_once(": java.")?;
+    let class = thrown.split(|c: char| c == ':' || c.is_whitespace()).next().unwrap_or("");
+    let ok_tag = !tag.is_empty() && tag.len() <= 40 && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ');
+    (ok_tag && (class.ends_with("Exception") || class.ends_with("Error"))).then(|| (tag.trim().to_string(), what.trim().to_string()))
+}
+
 fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErrorPayload> {
     // A card says something went wrong. The rules below match on names a mod puts in the log --
     // "FancyHandwork", "SaucedCarts", "dSAG" -- and the game writes those names when the mod
@@ -1069,6 +1103,28 @@ fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErro
             recommended_action: "Close the game and join again: what it downloaded is kept, so this time it goes straight in. A warning just before (\"required mod ... not found\") is a mod the game only sees after it restarts.".to_string(),
             mod_name: None,
             severity: Severity::Exception,
+            polyfill_rule_id_suggestion: None,
+        })
+    } else if let Some((tag, what)) = java_mod_own_error(line) {
+        // A Java mod's own log line about an exception in its own code ("[BloodFX] drawing
+        // disabled: java.lang.NullPointerException ..."): no Lua is involved, so neither a merge
+        // package nor a polyfill reaches it.
+        let mut params = BTreeMap::new();
+        params.insert("mod".to_string(), tag.clone());
+        params.insert("what".to_string(), what.clone());
+        Some(TranslatedErrorPayload {
+            called_from: Vec::new(),
+            id: format!("err_{}", counter),
+            code: "java_mod_error".to_string(),
+            params,
+            raw_error: line.to_string(),
+            source_file: None,
+            line_number: None,
+            title: format!("{} (a Java mod) hit an error in its own code", tag),
+            explanation: format!("{} runs Java, not Lua, and wrote this itself: \"{}\". The error is inside its own code (the lines under it in the log name its classes); no Lua mod called it with something wrong.", tag, what),
+            recommended_action: "The game carries on. What the mod says it turned off stays off until the game starts again. Only its author can mend it: Save report and send it to them. A merge package or a polyfill cannot reach Java.".to_string(),
+            mod_name: Some(tag),
+            severity: Severity::Warning,
             polyfill_rule_id_suggestion: None,
         })
     } else if line.contains("NullPointerException") {
@@ -1643,6 +1699,20 @@ mod card_gate_tests {
         assert_eq!(text.polyfill_rule_id_suggestion, None);
         assert_eq!(text.source_file, None);
 
+        // A Java mod's own error: named after its tag, no merge package or polyfill offered.
+        let java = translate_log_error(
+            "LOG  : General      f:3201> [BloodFX] drawing disabled: java.lang.NullPointerException: Cannot read field \"dataid\" because \"this.result\" is null",
+            4,
+        )
+        .expect("a card");
+        assert_eq!(java.code, "java_mod_error");
+        assert_eq!(java.mod_name.as_deref(), Some("BloodFX"));
+        assert_eq!(java.params.get("what").map(String::as_str), Some("drawing disabled"));
+        assert_eq!(java.polyfill_rule_id_suggestion, None);
+        // A bare NPE line, from nobody in particular, is still the generic card.
+        let bare = translate_log_error("LOG  : General      f:3201> java.lang.NullPointerException: Cannot read field", 5).expect("a card");
+        assert_eq!(bare.code, "java_npe");
+
         let threw = translate_log_error(
             "ERROR: General      f:304> 20)).FHhandleKeybinds> Exception thrown aFancyHandwork.lua:126",
             2,
@@ -1774,6 +1844,19 @@ mod one_card_tests {
             cards.extend(maker.line(l));
         }
         cards
+    }
+
+    #[test]
+    fn a_java_mods_error_is_one_card_under_its_name_without_the_repeat_below_it() {
+        let mut maker = CardMaker::new();
+        let cards = run(&mut maker, &[
+            "LOG  : General      f:3201> [BloodFX] drawing disabled: java.lang.NullPointerException: Cannot read field \"dataid\" because \"this.result\" is null",
+            "LOG  : General      f:3201> java.lang.NullPointerException: Cannot read field \"dataid\" because \"this.result\" is null",
+            "LOG  : General      f:3201> \tat zombie.core.textures.SmartTexture.getID(SmartTexture.java:389)",
+            "LOG  : General      f:3300> java.lang.NullPointerException: something else",
+        ]);
+        let codes: Vec<_> = cards.iter().map(|c| (c.code.as_str(), c.mod_name.as_deref())).collect();
+        assert_eq!(codes, vec![("java_mod_error", Some("BloodFX")), ("java_npe", None)]);
     }
 
     /// The Monitor's cards for this PC's console.txt, folded as the app folds them (title, shape of

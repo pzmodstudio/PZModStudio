@@ -46,11 +46,9 @@ Elegí **English** o **Español** en **Idioma**. Si a un idioma le falta una lí
 - **Recordar el inicio del juego**: encendido, el botón de inicio arranca en el modo que usaste la última vez (depuración, ventana, normal...). Apagado, siempre arranca en Modo depuración (pantalla completa), el recomendado.
 - **La pantalla de Mods del juego, con otro administrador de mods activo**: solo un administrador de mods puede dibujar la pantalla de Mods del juego. Cuando hay otro activo (DMM, PZMM...), elegí **Preguntarme en el juego**, **La de PZ Mod Studio (vuelve a preguntar si activás el otro)** o **La del otro administrador**. Las copias de partidas y el aviso antes de cargar siguen siendo de PZ Mod Studio en los dos casos.
 
-## Archivos de la comunidad y token de GitHub
+## Actualizaciones de la app
 
-- **Descargar las reglas y el índice de mods de la comunidad**: una vez al día el Studio baja de su propio repositorio de GitHub reglas de orden de carga, pares incompatibles y un registro por mod. Los usan Ordenar, Salud de mods, la Lista de mods y Explorar mods. Apagado, se conserva la última copia y no se descarga nada. Nunca se envía nada. Sus dos botones abren la página web del índice y sus listas de la comunidad.
 - **Buscar versiones nuevas de PZ Mod Studio**: al abrir y cada 6 horas mientras está abierto, el Studio le pregunta a GitHub cuál es la última versión publicada. Si hay una más nueva, una barra debajo del encabezado lo avisa. **Actualizar ahora** baja la versión nueva, comprueba que la firmó el proyecto (la firma de `SHA256SUMS.txt` y el SHA-256 del zip), la pone en lugar de la que tenés y reinicia el Studio; si algo no coincide, no cambia nada. **Descargar** abre la página de la versión en el navegador, y **Ahora no** oculta el aviso hasta la próxima versión. Si el Studio está instalado en una carpeta donde no puede escribir (Archivos de programa, para todos los usuarios), actualizalo con el instalador de la página. Nada se instala sin que lo pidas, y no se envía nada. **Buscar ahora** pregunta en el momento. Si GitHub no responde, el Studio le pregunta a su página de itch.io; entonces el aviso ofrece solo la página de descarga, sin **Actualizar ahora**. Apagado, no se consulta GitHub.
-- **GitHub, para "Compartir" en un clic**: opcional. Conectado, los botones "Compartir con la comunidad" (reglas, el registro de un mod, una lista) abren el pull request por vos. Sin conectar, abren la página de GitHub con todo ya completo. Apretá **Conectar con GitHub**: aparece un código (ya copiado) y se abre la página de GitHub; escribí el código ahí y aprobá **PZ Mod Studio**, y el Studio queda conectado. O apretá **Crear un token**, crealo en GitHub, pegalo y apretá **Verificar y guardar**. El token se verifica con GitHub y se guarda en el Administrador de credenciales de Windows, solo en esta PC; **Quitar** lo borra.
 
 ## Diagnóstico
 
@@ -75,4 +73,3 @@ Solo con **Funciones para desarrolladores** encendido. Elegí tu cliente de IA, 
 ## Bueno saber
 
 - Las carpetas, el idioma, la ventana y los avisos se aplican en el momento; nada necesita reiniciar salvo los interruptores del shim, que el juego lee en el próximo inicio.
-- El token de GitHub no sale de esta PC salvo para hablar con GitHub.

@@ -1,6 +1,6 @@
 [package]
 name = "pz-mod-studio"
-version = "1.7.15"
+version = "1.8.0"
 description = "Project Zomboid Mod Studio"
 authors = ["Pichu6"]
 license = "MIT"

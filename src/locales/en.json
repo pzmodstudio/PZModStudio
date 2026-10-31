@@ -99,19 +99,6 @@
     }
   },
   "settings": {
-    "connect": "Connect with GitHub",
-    "orPaste": "Or paste a token of your own:",
-    "connectTypeCode": "Type this code on the GitHub page that opened (it is copied):",
-    "connectOpenAgain": "Copy and open GitHub again",
-    "connectWaiting": "Waiting for you to approve on GitHub…",
-    "connectCancel": "Cancel",
-    "connectErrors": {
-      "expired": "The code expired before it was approved; press Connect with GitHub again.",
-      "denied": "The connection was cancelled on GitHub.",
-      "cancelled": "Cancelled.",
-      "unreachable": "GitHub could not be reached: {{detail}}",
-      "refused": "GitHub refused: {{detail}}"
-    },
     "language": {
       "title": "Language",
       "blurb": "The language the Studio speaks. English is the source; a language that misses a line shows it in English. The game's own messages (errors, warnings, the Monitor's log lines) stay as the game writes them.",
@@ -167,11 +154,6 @@
     "openLastBlurb": "Loads the previous active profile and takes you directly to the mod list.",
     "rememberMode": "Remember how the game starts",
     "rememberModeBlurb": "The Launch button starts on the mode you used last time (Debug, Windowed, Normal...). Off: it always starts on Debug Mode (Fullscreen), the recommended one.",
-    "community": "Download the community rules and mod index",
-    "communityBlurb": "Once a day, from the Studio's own repository on GitHub: load-order rules, incompatible pairs, and one registry per mod with the builds it runs on, what it clashes with and its known issues with the fix the Studio can apply. Auto-Sort, Mod Health, the Mod List and the Browse page use them. Off: the last copy is kept and nothing is fetched. Nothing is ever sent.",
-    "communityFetchNow": "Fetch now",
-    "communitySite": "The community index on the web",
-    "communityLists": "Community lists on the web",
     "updateCheck": "Check for new versions of PZ Mod Studio",
     "updateCheckBlurb": "At start and every 6 hours while it is open, the Studio asks GitHub which is the latest release of PZ Mod Studio. When there is a newer one, a notice at the top offers Update now (downloads it, checks the project's signature and restarts) or the release page. Nothing is installed unless you ask, and nothing is sent.",
     "updateCheckNow": "Check now",
@@ -180,15 +162,7 @@
     "updateAvailable": "PZ Mod Studio {{latest}} is available; you have {{current}}.",
     "updateFailed": "Could not reach GitHub: {{error}}",
     "updateDownload": "Download",
-    "github": "GitHub, for \"Propose\" in one click",
-    "githubBlurb": "Optional. With a personal token saved, \"Propose to the community\" (a load-order rule, a mod's registry) forks the Studio's repository on your account once, writes the file on a branch and opens the pull request by itself. Without one, the same buttons open GitHub's page with the JSON filled in and you press \"Propose changes\" there. Receiving the community files needs no account at all. The token is checked with GitHub and kept in Windows Credential Manager on this PC only; nothing else is ever sent.",
-    "githubHow": "Connect with GitHub shows a code; type it on the page that opens and approve \"PZ Mod Studio\" (it may open pull requests on public repositories, and is used only for these proposals). Or make a fine-grained token yourself (Settings → Developer settings → Personal access tokens) with \"Contents\" and \"Pull requests\" read and write, and paste it.",
-    "tokenSaved": "A token is saved{{account}}.",
-    "tokenAccount": " (GitHub account {{login}})",
     "remove": "Remove",
-    "makeToken": "Make a token",
-    "pasteToken": "Paste your GitHub token",
-    "tokenLabel": "GitHub token",
     "checkAndSave": "Check and save",
     "translate": {
       "title": "Translation",
@@ -203,7 +177,6 @@
       "clear": "Delete them",
       "clearConfirm": "Delete the {{count}} kept translation(s)? The next Translate sends the text out again."
     },
-    "removeTokenConfirm": "Remove the saved GitHub token from this PC?",
     "developer": "Developer features",
     "developerBlurb": "Shows the Developer screen, the MCP agent server, which lets an AI assistant drive the Studio, and the companion mod that runs commands inside the game. Nothing a player needs; leave it off unless you are building with it.",
     "shimTitle": "Build 42 compatibility shim",
@@ -594,8 +567,8 @@
         "dependency_after": "Loads before what it needs",
         "load_after_order": "Loads too early",
         "user_rule_order": "Before a mod you said it must follow",
-        "community_rule_order": "Before a mod the community says it must follow",
-        "community_incompatible": "The community says these clash",
+        "community_rule_order": "Before a mod the Studio says it must follow",
+        "community_incompatible": "The Studio says these clash",
         "community_known_issue": "Known issue",
         "community_successor": "There is a version for this build",
         "load_before_order": "Loads too late",
@@ -767,15 +740,9 @@
     "activeCount": "{{count}} active",
     "errorsCount": "{{count}} errors",
     "warningsCount": "{{count}} warnings",
-    "communityFetched": "Community files fetched: {{rules}} load-order rule(s), {{pairs}} incompatible pair(s), {{mods}} mod registr(y/ies){{updated}}.",
     "indexUpdated": " (index updated {{date}})",
-    "communityTitle": "From the community, in use: {{rules}} load-order rule(s), {{pairs}} incompatible pair(s), {{mods}} mod registr(y/ies) with known issues and fixes{{updated}}. Fetched once a day from the Studio's repository (community/); click to fetch now.{{off}}",
-    "communitySite": "Community index",
-    "communitySiteTitle": "Opens the community index in your browser: each mod's known issues and their fixes, searchable, and how to report one.",
-    "communityOff": " Downloads are off in Settings: this is the last copy.",
-    "communityNone": "Nothing from the community at hand yet (fetched once a day from the Studio's repository, community/). Click to fetch now.",
-    "community": "community: {{rules}} rules, {{mods}} mods",
-    "communityNoneShort": "community: none yet",
+    "communityTitle": "What the Studio carries inside: {{rules}} load-order rule(s), {{pairs}} incompatible pair(s), {{mods}} mod registr(y/ies) with known issues and fixes{{updated}}. It comes with each version of the app; nothing is downloaded.",
+    "community": "the Studio's knowledge: {{rules}} rules, {{mods}} mods",
     "mergeAllTitle": "Merges every conflicting file that has no overlapping changes into your patch package",
     "mergeAll": "Merge {{count}} files automatically",
     "fixAllTitle": "Enables missing requirements and moves libraries before the mods that need them",
@@ -821,7 +788,8 @@
       "shimOn": "Switch the shim's {{name}} patch on",
       "removeCopyTitle": "Optional. Removes the compatible copy so the game uses the Workshop original again: for when its author has updated it for Build 42.",
       "removeFromPackage": "Take out of the package",
-      "replace": "Use {{id}} instead of {{entry}}"
+      "replace": "Use {{id}} instead of {{entry}}",
+      "dismissKnown": "No longer happens"
     },
     "freshCopy": "{{mod}} already has a compatible copy. Make a fresh one? The current copy is moved to Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "Take {{file}} out of {{package}}?\n\nThe package is published again without it, and the game reads the mod's own file on its next launch. If you edited the copy, those edits go.",
@@ -847,7 +815,7 @@
       "performance": "Performance",
       "problemsIntro": "What breaks the game or will: missing or switched-off requirements, mods in the wrong order, mods your build cannot load, pairs that do not go together. Fix these first.",
       "conflictsIntro": "Two mods give the same file, item, recipe or text, and the game uses only one. Nothing is broken by itself: merge them, or choose which version you want.",
-      "infoIntro": "Nothing to fix here: compatible copies the Studio made, copies the game ignores, mods updated since you last played, what the community index says about your mods. A button here is optional: it undoes something the Studio did.",
+      "infoIntro": "Nothing to fix here: compatible copies the Studio made, copies the game ignores, mods updated since you last played, what the Studio's index says about your mods. A button here is optional: it undoes something the Studio did.",
       "conflictsEmpty": "No two of your mods give the same file, item or text.",
       "infoEmpty": "Nothing else worth knowing about this list.",
       "security": "Security",
@@ -869,7 +837,11 @@
       "settled": "Settled",
       "settledTag": "Settled"
     },
-    "replaced": "{{name}} took {{entry}}'s place, switched on."
+    "replaced": "{{name}} took {{entry}}'s place, switched on.",
+    "dismissedDone": "Done: that warning about {{name}} is no longer shown. If it happens again, you can bring back the warnings you marked from the top of this screen.",
+    "dismissedCount": "{{count}} warning(s) marked as solved ↺",
+    "dismissedTitle": "Index warnings you marked with \"No longer happens\". Click to show them all again.",
+    "dismissedRestored": "{{count}} warning(s) you had marked are shown again."
   },
   "dialogs": {
     "kept": {
@@ -920,17 +892,9 @@
       "none": "No rule of yours mentions this mod yet.",
       "loadsAfter": "loads after",
       "loadsAfterThis": "loads after this mod",
-      "share": "Share this rule",
-      "shareTitle": "Offers this rule to every player of the Studio: opens it on GitHub (community/rules.json), where a pull request adds it. Sends nothing by itself.",
       "remove": "Remove",
       "removeTitle": "Remove this rule",
-      "added": "{{name}} now loads after {{after}}. Auto-Sort puts it there; Mod Health says if the list breaks it.",
-      "defaultNote": "{{name}} has to load after {{after}}",
-      "testedOn": "tested on {{build}}",
-      "buildUnknown": "build ?",
-      "openingPr": "Opening a pull request with the rule…",
-      "prOpened": "Pull request opened: {{url}}",
-      "clipboard": "The rule is on the clipboard as JSON. On GitHub, add it under \"load_after\" in community/rules.json and open a pull request."
+      "added": "{{name}} now loads after {{after}}. Auto-Sort puts it there; Mod Health says if the list breaks it."
     },
     "keep": {
       "favorite": "Favorite",
@@ -1157,6 +1121,7 @@
       "showOriginal": "Show original",
       "showTranslation": "Show translation",
       "translateFailed": "Could not translate: {{reason}}",
+      "translateLimited": "Google paused translations from this PC for a while (too many requests) and the backup service (MyMemory) could not take this text either. Try again later, or save a free DeepL key in Settings.",
       "translateSummaries": "Translate titles and summaries",
       "translateSummariesTitle": "Translates the titles and summaries on this page; each one is sent once.",
       "loadingNexus": "Loading the Nexus mod",
@@ -1218,33 +1183,6 @@
       "missingSection": "Missing ({{count}})"
     },
     "lists": {
-      "mode": {
-        "mine": "My lists",
-        "community": "From the community"
-      },
-      "community": {
-        "intro": "Lists other players shared through the Studio's repository (each one read by a person before it is published). Copying one makes it your own list; nothing is installed until you press Subscribe to all missing.",
-        "filter": "Search lists or mods",
-        "refresh": "Fetch the lists now",
-        "none": "No one has shared a list yet. Share one of yours from My lists.",
-        "noMatch": "No list matches.",
-        "byline": "by {{author}} · {{count}} mod(s)",
-        "have": "You have {{have}} of its {{count}} Workshop mod(s).",
-        "copy": "Copy to my lists",
-        "source": "See on GitHub",
-        "all": "All lists on the web",
-        "allTitle": "Opens the community lists page in your browser: every shared list with its mods, and how to make one."
-      },
-      "share": {
-        "button": "Share with the community",
-        "title": "Proposes this list for the community repository; it is published once a person reads it.",
-        "author": "Your name as the list's author (shown with the list):",
-        "description": "A line about \"{{name}}\": what it is for, what you played it with (optional).",
-        "prConfirm": "This opens a public pull request on GitHub with the list \"{{name}}\":\n\n{{json}}\n\nGo ahead?",
-        "prOpened": "Pull request opened: {{url}}",
-        "taken": "Someone else already shared a list with that name: rename yours and share it again.",
-        "githubOpened": "GitHub's new-file page is open with the list filled in (also copied): sign in and press \"Propose changes\"."
-      },
       "newPlaceholder": "New list…",
       "newLabel": "New list name",
       "newTitle": "Makes a list of yours",
@@ -1274,7 +1212,7 @@
       "nexus": "Nexus"
     },
     "index": {
-      "title": "Community index",
+      "title": "The Studio's index",
       "build": "Build {{build}}",
       "notForBuild": "Not for Build {{build}}, per the index",
       "incompatible": "{{count}} incompatible",
@@ -1482,7 +1420,8 @@
       "scanDone": "Scan complete! Mods analyzed and integrated successfully.",
       "unsaved": "You have edits here that are not saved. Leave them behind?",
       "noLongerConflict": "{{path}} is no longer a conflict.",
-      "notReadFile": "{{file}} is not a file this build reads from the mod; pick one."
+      "notReadFile": "{{file}} is not a file this build reads from the mod; pick one.",
+      "jsonUnreadable": "The text in the editor or the mod's is not valid JSON, so their keys cannot be joined. Pick one of the versions above, or fix it in the editor."
     },
     "choices": {
       "mergeThem": "Merge them",
@@ -1574,7 +1513,6 @@
       "Deleting the kept version": "Deleting the kept version",
       "Deleting the package": "Deleting the package",
       "Exporting the package": "Exporting the package",
-      "Fetching the community rules and index": "Fetching the community rules and index",
       "Generating the merge package": "Generating the merge package",
       "Importing the package": "Importing the package",
       "Installing from that link": "Installing from that link",
@@ -1590,8 +1528,6 @@
       "Merging conflicting files": "Merging conflicting files",
       "Opening the file": "Opening the file",
       "Opening the folder": "Opening the folder",
-      "Proposing a community rule": "Proposing a community rule",
-      "Proposing to the community index": "Proposing to the community index",
       "Publishing the patched file": "Publishing the patched file",
       "Putting the kept version back": "Putting the kept version back",
       "Reloading Lua in the game": "Reloading Lua in the game",
@@ -1610,7 +1546,6 @@
       "Sorting the load order": "Sorting the load order",
       "Starting the map tool": "Starting the map tool",
       "Switching a shim patch": "Switching a shim patch",
-      "Switching the community downloads": "Switching the community downloads",
       "Taking out of a list": "Taking out of a list",
       "Unpacking the merge package": "Unpacking the merge package",
       "Updating the package in the mod list": "Updating the package in the mod list",
@@ -1621,7 +1556,9 @@
       "Studio background job": "A background job of the Studio",
       "Gathering the diagnostics": "Gathering the diagnostics",
       "Opening the logs folder": "Opening the logs folder",
-      "Reading the map mods": "Reading the map mods"
+      "Reading the map mods": "Reading the map mods",
+      "Marking a known issue": "Marking a known issue",
+      "Showing the dismissed issues again": "Showing the dismissed issues again"
     },
     "explain": {
       "noZomboid": "The Studio cannot find your Zomboid folder. Set it in App Settings.",
@@ -2494,7 +2431,8 @@
       "shimDraft": "Your package \"{{package}}\" is open (a draft), so the shim is not in the game. Publish it in the Merger (Package & Publish) and restart the game.",
       "openMergerTitle": "The Build 42 shim ships inside a merge package: build one in the Mod Merger",
       "openMerger": "A merge package may fix this — open the Mod Merger",
-      "shimCovers": "The Build 42 shim already covers this"
+      "shimCovers": "The Build 42 shim already covers this",
+      "fixPathQuiet": "Fix the path (only quiets the warning)"
     },
     "bisect": {
       "startConfirm": "Start halving your mod list?\n\n{{count}} mods are switched on. The hunt switches half of them off, you play, and it halves again until one mod is left — about 8 launches for a list this size.\n\nYour list is kept and put back when the hunt ends, whichever way it ends.",
@@ -2525,6 +2463,14 @@
       "switchOff": "Switch it off",
       "keepOn": "Keep it on",
       "close": "Close"
+    },
+    "require": {
+      "theGame": "the game",
+      "nowhere": "No module called {{wanted}} exists in the game or in any mod you have switched on. The mod is asking for something that is not there: either it needs another mod you do not have, or it is a bug for its author.",
+      "samePath": "{{owner}} does have {{path}}, at exactly that path, under {{phase}}/. The file is there, so the failure is about where or when it was asked for: the game keeps client, server and shared apart, and a file in one cannot require a module in another; and a module is not there yet if the mod that owns it loads later. Changing the path fixes neither.",
+      "gameMovedNoise": "The game has this module at {{path}} (under {{phase}}/), not at {{wanted}}: Build 42 moved it. But the game loads its own Lua before any mod's, so the module has already run when the mod asks for it, and no error from this file follows in the log. The mod works: this line is only noise.",
+      "gameMovedFailed": "The game has this module at {{path}} (under {{phase}}/), not at {{wanted}}: Build 42 moved it. Further down the log {{file}} fails, so here it does count: fixing the path is what mends it.",
+      "moved": "It is {{owner}} that has this module, at {{path}} (under {{phase}}/), not at {{wanted}}. Patching that line of the mod to ask for the path on the right is what fixes it."
     }
   },
   "backendText": {
@@ -2554,12 +2500,12 @@
       "security_lua": "{{mod}}'s Lua does things the game's own scripts never do: {{rules}} ({{where}}{{more}}). The game's Lua cannot run programs or reach the internet by itself, so this is odd rather than dangerous; the file says what it is for.",
       "updated_since_last_play": "{{n}} active mods were updated since you last played: {{mods}}{{andMore}}. If a save misbehaves, start with these.",
       "user_rule_order": "You asked for {{mod}} to load after {{after}}{{note}}, and it comes before it in the list",
-      "community_rule_order_rules": "The community has it that {{mod}} loads after {{after}}{{note}}{{sourceText}}, and it comes before it in the list",
-      "community_incompatible_rules": "The community has it that {{mod}} and {{other}} do not go together{{note}}{{sourceText}}, and both are on",
-      "community_rule_order_index": "The community index has it that {{mod}} loads after {{after}} ({{note}}{{seen}}), and it comes before it in the list",
-      "community_incompatible_index": "The community index has it that {{mod}} and {{other}} do not go together ({{note}}{{seen}}), and both are on",
-      "community_known_issue": "{{mod}} has a known issue, per the community index: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
-      "community_successor": "{{mod}} has a version for this build, per the community index: {{successor}}{{note}}",
+      "community_rule_order_rules": "The Studio's rules have it that {{mod}} loads after {{after}}{{note}}{{sourceText}}, and it comes before it in the list",
+      "community_incompatible_rules": "The Studio's rules have it that {{mod}} and {{other}} do not go together{{note}}{{sourceText}}, and both are on",
+      "community_rule_order_index": "The Studio's mod index has it that {{mod}} loads after {{after}} ({{note}}{{seen}}), and it comes before it in the list",
+      "community_incompatible_index": "The Studio's mod index has it that {{mod}} and {{other}} do not go together ({{note}}{{seen}}), and both are on",
+      "community_known_issue": "{{mod}} has a known issue, per the Studio's mod index: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
+      "community_successor": "{{mod}} has a version for this build, per the Studio's mod index: {{successor}}{{note}}",
       "package_built_for_other_list": "{{package}} was built with a different list: {{missing}}{{sep}}{{extra}}. A package is a mod of its own, so it shows in every profile; its merges only settle the mods it was built with. In the Mod Merger, open it, rescan and publish to rebuild it for this list, or switch it off in this profile.",
       "definition": "{{losers}} and {{winner}} {{all}} set {{properties}} on {{what}}, in different files ({{files}}). The game applies {{each}} to the same {{things}}, so everything else each of them sets is kept; only {{props}} decided by the load order, and {{winner}} loads last.{{example}}{{settled}}",
       "definition_nested": "{{losers}} and {{winner}} all declare {{what}}, in different files ({{files}}), and their contents differ. What differs is inside nested blocks, which the Studio does not compare, so it cannot say what is at stake here — only that {{winner}} loads last.{{settled}}",
@@ -2581,7 +2527,7 @@
       "server_base_map_last": "Map= ends with {{map}}, which is not one of the game's own maps. The base map (for example Muldraugh, KY) belongs last.",
       "two_mod_managers": "{{mod}} also draws the game's Mods screen. While it is on, the Studio leaves that screen to it (the save backups and the check before a save loads stay the Studio's). Turn it off in this profile to use the Studio's screen.",
       "floods_console": "{{mod}} filled the console in the last session: {{lines}} lines of errors ({{share}}% of all of them), from {{exceptions}} exceptions and {{warnings}} warnings. Writing them slows the game, and other mods' errors are lost among them. Look at them in the Monitor, or turn it off in this profile.",
-      "missing_mod_renamed": "{{mod}} is not installed: its folder now holds {{renamed}} ({{name}}). The author changed its id in an update."
+      "missing_mod_renamed": "{{mod}} is not installed: the same Workshop mod is now called {{renamed}} ({{name}}). The author changed its id in an update."
     },
     "fragments": {
       "beside_others": ", beside {{others}}",
@@ -2691,6 +2637,11 @@
         "title": "Uninitialized Global Table Access",
         "explanation": "Mod code attempted to access properties of a nil/uninitialized table before PZ Build 42 instantiated it.",
         "action": "Apply Polyfill Rule: SAFE_GLOBAL_TABLE_ACCESS"
+      },
+      "java_mod_error": {
+        "title": "{{mod}} (a Java mod) hit an error in its own code",
+        "explanation": "{{mod}} runs Java, not Lua, and wrote this itself: \"{{what}}\". The error is inside its own code (the lines under it in the log name its classes); no Lua mod called it with something wrong.",
+        "action": "The game carries on. What the mod says it turned off stays off until the game starts again. Only its author can mend it: Save report and send it to them. A merge package or a polyfill cannot reach Java."
       },
       "java_npe": {
         "title": "Java Interop Null Pointer Exception",
@@ -2942,6 +2893,7 @@
     "blurb": "Your Workshop mods updated since you last played, and the ones whose update is waiting in Steam, with each update's change notes: read them before you load a save in progress. An update still waiting in Steam can be headed off by keeping the version you have first.",
     "refresh": "Refresh",
     "sinceLast": "Since you last played ({{date}})",
+    "emptySinceLast": "Nothing new since your last session ({{when}}): earlier updates were already installed when you played. Recent ones are under “Last 7 days”.",
     "onlyActive": "Only mods on in my list",
     "count": "{{count}} mod(s)",
     "readingNotes": "Reading the change notes...",
@@ -3445,7 +3397,7 @@
       },
       "settings": {
         "title": "Settings",
-        "body": "Folders, language, notices, how the Studio starts, the daily download of the community rules, and the Build 42 fixes.",
+        "body": "Folders, language, notices, how the Studio starts, app updates, and the Build 42 fixes.",
         "points": [
           "Options are saved as soon as you change them.",
           "Developer features are switched on here."

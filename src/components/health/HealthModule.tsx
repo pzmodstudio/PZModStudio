@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Gauge, GitMerge, HardDrive, HeartPulse, Info, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, Info, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, XCircle } from 'lucide-react';
 import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, HealthSeverity, ModInfo } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
-import { COMMUNITY_MODS } from '../../utils/communityIndex';
 import { loadCommunityIndex } from '../../services/communityIndex';
 import { applyFix } from '../../utils/healthFix';
 import { useTranslation } from 'react-i18next';
@@ -42,7 +41,7 @@ interface HealthModuleProps {
 /** Fixes handled here (not by rewriting the mod list). */
 const ACTION_FIXES = new Set<HealthFix['action']>([
   'subscribe_workshop', 'open_workshop_page', 'make_compatible_copy', 'keep_version', 'remove_compatible_copy', 'merge_files', 'open_in_merger',
-  'enable_shim_patch', 'remove_from_package',
+  'enable_shim_patch', 'remove_from_package', 'dismiss_known_issue',
 ]);
 
 /** Fixes the "fix all" button may apply without asking: they only enable or reorder. */
@@ -106,6 +105,8 @@ const fixLabel = (fix: HealthFix): string => {
       return t('health.fix.shimOn', { name: fix.name });
     case 'remove_from_package':
       return t('health.fix.removeFromPackage');
+    case 'dismiss_known_issue':
+      return t('health.fix.dismissKnown');
   }
 };
 
@@ -258,6 +259,19 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     }
     if (fix.action === 'remove_from_package') {
       void removeFromPackage(fix.package, fix.relative_path);
+      return;
+    }
+    if (fix.action === 'dismiss_known_issue') {
+      void (async () => {
+        try {
+          await TauriService.dismissIndexIssue(paths, fix.mod_id, fix.title);
+          void loadCommunityIndex(paths, true);
+          say(t('health.dismissedDone', { name: nameOf(fix.mod_id) }));
+          onRecheck();
+        } catch {
+          // Already shown by TauriService.
+        }
+      })();
       return;
     }
     if (fix.action === 'enable_shim_patch') {
@@ -525,37 +539,35 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                   {t('health.gameBuild', { build: report.game_version ?? t('health.unknown') })}
                 </span>
                 <span className="px-2 py-0.5 rounded border border-slate-700 text-slate-300">{t('health.activeCount', { count: report.active_count })}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        const c = await TauriService.refreshCommunity(paths); // The Mod List's marks read the index too: theirs is the fresh one from now.
-                        void loadCommunityIndex(paths, true);
-                        say(t('health.communityFetched', { rules: c.rules, pairs: c.pairs, mods: c.mods, updated: c.index_updated ? t('health.indexUpdated', { date: c.index_updated }) : '' }));
-                        onRecheck();
-                      } catch {
-                        // Already shown by TauriService.
-                      }
-                    })();
-                  }}
-                  className="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer"
-                  title={
-                    report.community
-                      ? t('health.communityTitle', { rules: report.community.rules, pairs: report.community.pairs, mods: report.community.mods, updated: report.community.index_updated ? t('health.indexUpdated', { date: report.community.index_updated }) : '', off: report.community.downloads ? '' : t('health.communityOff') })
-                      : t('health.communityNone')
-                  }
-                >
-                  {report.community ? t('health.community', { rules: report.community.rules + report.community.pairs, mods: report.community.mods }) : t('health.communityNoneShort')} ↻
-                </button>
-                <button
-                  type="button"
-                  onClick={() => TauriService.openExternalUrl(COMMUNITY_MODS)}
-                  title={t('health.communitySiteTitle')}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer"
-                >
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('health.communitySite')}
-                </button>
+                {report.community && (
+                  <span
+                    className="px-2 py-0.5 rounded border border-slate-700 text-slate-300"
+                    title={t('health.communityTitle', { rules: report.community.rules, pairs: report.community.pairs, mods: report.community.mods, updated: report.community.index_updated ? t('health.indexUpdated', { date: report.community.index_updated }) : '' })}
+                  >
+                    {t('health.community', { rules: report.community.rules + report.community.pairs, mods: report.community.mods })}
+                  </span>
+                )}
+                {!!report.community?.dismissed && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          const n = await TauriService.restoreIndexIssues(paths);
+                          void loadCommunityIndex(paths, true);
+                          say(t('health.dismissedRestored', { count: n }));
+                          onRecheck();
+                        } catch {
+                          // Already shown by TauriService.
+                        }
+                      })();
+                    }}
+                    title={t('health.dismissedTitle')}
+                    className="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer"
+                  >
+                    {t('health.dismissedCount', { count: report.community.dismissed })}
+                  </button>
+                )}
               </div>
             )}
           </div>

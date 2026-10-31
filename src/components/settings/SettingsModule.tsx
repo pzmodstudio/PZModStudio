@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { DiagnosticsCard } from './DiagnosticsCard';
-import { FolderOpen, CheckCircle, AlertTriangle, RefreshCw, HardDrive, Wrench, Bell, Bot, Copy, Check, Terminal, Radio, Code2, Layers, Info, Lightbulb, KeyRound, ExternalLink, Loader2, Languages } from 'lucide-react';
+import { FolderOpen, CheckCircle, AlertTriangle, RefreshCw, HardDrive, Wrench, Bell, Bot, Copy, Check, Terminal, Radio, Code2, Layers, Info, Lightbulb, ExternalLink, Loader2, Languages } from 'lucide-react';
 import { AppUpdateStatus, PolyfillSection, ShimPatch } from '../../types';
 import { TauriService } from '../../services/tauri';
-import { COMMUNITY_LISTS, COMMUNITY_MODS } from '../../utils/communityIndex';
-import { loadCommunityIndex } from '../../services/communityIndex';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
 import { LANGUAGES, setLanguage } from '../../i18n';
@@ -109,14 +107,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
     setRememberLaunchMode(on);
     localStorage.setItem('pz_remember_launch_mode', String(on));
   };
-  /** Whether the Studio fetches the community rules and mod index once a day (kept beside the mod list). */
-  const [communityDownloads, setCommunityDownloads] = useState<boolean>(true);
-  const [communityFetching, setCommunityFetching] = useState(false);
-  const [communityNote, setCommunityNote] = useState('');
-  useEffect(() => {
-    if (!paths.user_zomboid_dir) return;
-    void TauriService.communityDownloads(paths.user_zomboid_dir).then(setCommunityDownloads);
-  }, [paths.user_zomboid_dir, changeRev]);
   // The check for a newer PZ Mod Studio: its switch and "Check now".
   const [appUpdate, setAppUpdate] = useState<AppUpdateStatus | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -134,72 +124,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
     setCheckingUpdate(true);
     setAppUpdate(await TauriService.appUpdateStatus(paths.user_zomboid_dir, true));
     setCheckingUpdate(false);
-  };
-  const toggleCommunityDownloads = async (on: boolean) => {
-    try {
-      await TauriService.setCommunityDownloads(paths.user_zomboid_dir, on);
-      setCommunityDownloads(on);
-    } catch {
-      // Already shown by TauriService.
-    }
-  };
-  /** A personal GitHub token, kept in Windows Credential Manager; only whether one is saved comes back. */
-  const [githubTokenSaved, setGithubTokenSaved] = useState(false);
-  const [githubLogin, setGithubLogin] = useState<string | null>(() => localStorage.getItem('pz_github_login'));
-  const [githubTokenInput, setGithubTokenInput] = useState('');
-  const [githubBusy, setGithubBusy] = useState(false);
-  const [githubError, setGithubError] = useState<string | null>(null);
-  /** The code GitHub gave for "Connect with GitHub", while it waits for the player. */
-  const [deviceCode, setDeviceCode] = useState<{ user_code: string; verification_uri: string } | null>(null);
-  const connectGithub = async () => {
-    setGithubError(null);
-    setGithubBusy(true);
-    try {
-      const code = await TauriService.githubDeviceStart();
-      setDeviceCode(code);
-      void navigator.clipboard.writeText(code.user_code).catch(() => undefined);
-      TauriService.openExternalUrl(code.verification_uri);
-      const login = await TauriService.githubDeviceWait();
-      setGithubTokenSaved(true);
-      setGithubLogin(login);
-      localStorage.setItem('pz_github_login', login);
-    } catch (err) {
-      const text = String(err);
-      const m = text.match(/^(expired|denied|cancelled|unreachable|refused): (.*)$/s);
-      if (!m || m[1] !== 'cancelled') setGithubError(m ? t(`settings.connectErrors.${m[1]}`, { detail: m[2] }) : text);
-    } finally {
-      setDeviceCode(null);
-      setGithubBusy(false);
-    }
-  };
-  useEffect(() => {
-    void TauriService.githubTokenStatus().then(setGithubTokenSaved);
-  }, []);
-  const saveGithubToken = async () => {
-    setGithubBusy(true);
-    setGithubError(null);
-    try {
-      const login = await TauriService.setGithubToken(githubTokenInput);
-      setGithubTokenSaved(true);
-      setGithubLogin(login);
-      localStorage.setItem('pz_github_login', login);
-      setGithubTokenInput('');
-    } catch (err) {
-      setGithubError(String(err));
-    } finally {
-      setGithubBusy(false);
-    }
-  };
-  const removeGithubToken = async () => {
-    if (!confirm(t('settings.removeTokenConfirm'))) return;
-    try {
-      await TauriService.deleteGithubToken();
-      setGithubTokenSaved(false);
-      setGithubLogin(null);
-      localStorage.removeItem('pz_github_login');
-    } catch (err) {
-      setGithubError(String(err));
-    }
   };
   /** A DeepL API key, kept in Windows Credential Manager; translations use it before the free services. */
   const [deeplSaved, setDeeplSaved] = useState(false);
@@ -910,62 +834,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
         {activeSubTab === 'PATHS' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <div className="text-xs font-bold text-slate-200">{t('settings.community')}</div>
-              <p className="text-[11px] text-slate-400 max-w-2xl">
-                {t('settings.communityBlurb')}
-              </p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {/* Without waiting for the daily fetch: a registry merged a minute ago, here now. */}
-                <button
-                  type="button"
-                  disabled={communityFetching}
-                  onClick={() => {
-                    void (async () => {
-                      setCommunityFetching(true);
-                      try {
-                        const c = await TauriService.refreshCommunity(paths);
-                        void loadCommunityIndex(paths, true);
-                        setCommunityNote(t('health.communityFetched', { rules: c.rules, pairs: c.pairs, mods: c.mods, updated: c.index_updated ? t('health.indexUpdated', { date: c.index_updated }) : '' }));
-                      } catch {
-                        // Already shown by TauriService.
-                      } finally {
-                        setCommunityFetching(false);
-                      }
-                    })();
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-700/70 text-[11px] text-emerald-300 hover:bg-emerald-950/40 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3 h-3 ${communityFetching ? 'animate-spin' : ''}`} aria-hidden="true" /> {t('settings.communityFetchNow')}
-                </button>
-                <button type="button" onClick={() => TauriService.openExternalUrl(COMMUNITY_MODS)}
-                  className="flex items-center gap-1 px-2 py-1 rounded border border-slate-700 text-[11px] text-slate-300 hover:bg-slate-800 cursor-pointer">
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.communitySite')}
-                </button>
-                <button type="button" onClick={() => TauriService.openExternalUrl(COMMUNITY_LISTS)}
-                  className="flex items-center gap-1 px-2 py-1 rounded border border-slate-700 text-[11px] text-slate-300 hover:bg-slate-800 cursor-pointer">
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.communityLists')}
-                </button>
-              </div>
-              {communityNote && <p className="text-[11px] text-emerald-300 pt-1">{communityNote}</p>}
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={communityDownloads}
-              aria-label={t('settings.community')}
-              onClick={() => void toggleCommunityDownloads(!communityDownloads)}
-              className={`w-10 h-5 shrink-0 rounded-full p-0.5 flex items-center transition cursor-pointer ${
-                communityDownloads ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-              }`}
-            >
-              <span className="w-4 h-4 rounded-full bg-white shadow-md" />
-            </button>
-          </div>
-        )}
-
-        {activeSubTab === 'PATHS' && (
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
-            <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.updateCheck')}</div>
               <p className="text-[11px] text-slate-400 max-w-2xl">{t('settings.updateCheckBlurb')}</p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -1010,73 +878,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
         )}
 
         {activeSubTab === 'PATHS' && <DiagnosticsCard paths={paths} />}
-
-        {activeSubTab === 'PATHS' && (
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
-            <div className="space-y-1">
-              <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
-                <KeyRound className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" /> {t('settings.github')}
-              </div>
-              <p className="text-[11px] text-slate-400 max-w-2xl">
-                {t('settings.githubBlurb')}
-              </p>
-              <p className="text-[11px] text-slate-500 max-w-2xl">
-                {t('settings.githubHow')}
-              </p>
-            </div>
-            {githubTokenSaved ? (
-              <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                <span className="flex items-center gap-1.5 text-emerald-300">
-                  <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> {t('settings.tokenSaved', { account: githubLogin ? t('settings.tokenAccount', { login: githubLogin }) : '' })}
-                </span>
-                <button type="button" onClick={() => void removeGithubToken()}
-                  className="px-2.5 py-1 rounded-lg text-[11px] text-slate-300 hover:text-red-300 border border-slate-800 hover:border-red-900 cursor-pointer transition">
-                  {t('settings.remove')}
-                </button>
-              </div>
-            ) : deviceCode ? (
-              <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-sky-800/60 bg-sky-950/30">
-                <div className="space-y-1">
-                  <div className="text-[11px] text-slate-300">{t('settings.connectTypeCode')}</div>
-                  <div className="font-mono text-xl font-bold tracking-widest text-sky-200 select-all">{deviceCode.user_code}</div>
-                </div>
-                <button type="button" onClick={() => { void navigator.clipboard.writeText(deviceCode.user_code); TauriService.openExternalUrl(deviceCode.verification_uri); }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer">
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.connectOpenAgain')}
-                </button>
-                <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> {t('settings.connectWaiting')}
-                </span>
-                <button type="button" onClick={() => void TauriService.githubDeviceCancel()}
-                  className="px-2.5 py-1 rounded-lg text-[11px] text-slate-300 border border-slate-800 hover:border-slate-600 cursor-pointer">
-                  {t('settings.connectCancel')}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-              <button type="button" disabled={githubBusy} onClick={() => void connectGithub()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer disabled:opacity-50">
-                {githubBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />} {t('settings.connect')}
-              </button>
-              <p className="text-[10.5px] text-slate-500">{t('settings.orPaste')}</p>
-              <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); void saveGithubToken(); }}>
-                <button type="button" onClick={() => TauriService.openExternalUrl('https://github.com/settings/personal-access-tokens/new')}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer">
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.makeToken')}
-                </button>
-                <input type="password" autoComplete="off" spellCheck={false} value={githubTokenInput} onChange={(e) => setGithubTokenInput(e.target.value)}
-                  placeholder={t('settings.pasteToken')} aria-label={t('settings.tokenLabel')}
-                  className="flex-1 min-w-[220px] px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:border-sky-700 text-[11px] text-slate-100 outline-none placeholder:text-slate-600 font-mono" />
-                <button type="submit" disabled={githubBusy || !githubTokenInput.trim()}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer disabled:opacity-50">
-                  {githubBusy && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />} {t('settings.checkAndSave')}
-                </button>
-              </form>
-              </div>
-            )}
-            {githubError && <p className="text-[11px] text-red-300">{githubError}</p>}
-          </div>
-        )}
 
         {activeSubTab === 'PATHS' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">

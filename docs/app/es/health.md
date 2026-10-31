@@ -5,12 +5,12 @@ Salud de mods revisa tus mods activos como los lee el juego y lista cada problem
 ## Qué ves
 
 - Arriba: tu **Build del juego** y cuántos mods hay activos.
-- El botón de la **comunidad** (por ejemplo **comunidad: 40 reglas, 120 mods ↻**): lo que suman a la revisión los archivos compartidos de la comunidad. Hacé clic para descargarlos ahora. **Índice de la comunidad**, al lado, abre la página web del índice: los problemas conocidos de cada mod y sus arreglos.
+- **conocimiento del Studio** (por ejemplo **conocimiento del Studio: 40 reglas, 120 mods**): las reglas de orden, los pares incompatibles y los problemas conocidos que la app trae adentro. Si marcaste avisos con **Ya no pasa**, un botón al lado dice cuántos y los vuelve a mostrar todos.
 - **Revisar de nuevo** vuelve a hacer la revisión. También se hace sola cuando cambia tu lista.
 - Seis pestañas; las cuatro primeras muestran cuántas filas tienen:
   - **Problemas**: lo que rompe el juego o lo va a romper (requisitos que faltan o están apagados, orden de carga, mods que tu versión no carga, pares incompatibles). Acá está **Arreglar N problema(s) automáticamente**.
   - **Conflictos**: dos mods que traen el mismo archivo, ítem, receta o texto; el juego usa uno, y cuál es decisión tuya. Acá está **Fusionar N archivos automáticamente**. Las filas se separan en **Sin resolver**, **Resueltos antes de un cambio** y **Resueltos**; la cantidad de la pestaña no cuenta los resueltos.
-  - **Para saber**: nada que arreglar (copias ignoradas, mods actualizados desde la última vez que jugaste, notas de la comunidad).
+  - **Para saber**: nada que arreglar (copias ignoradas, mods actualizados desde la última vez que jugaste, notas del índice del Studio).
   - **Seguridad**: lo que un mod podría hacer más allá de modificar el juego (más abajo).
   - **Rendimiento**: memoria, arranque del juego, tiempo por mod y frames (más abajo).
   - **Disco**: cuánto ocupa cada mod y cuáles se pueden sacar (más abajo).
@@ -42,7 +42,7 @@ Cada sección se puede plegar haciendo clic en su título.
 - `script_definition_conflict` y `translation_conflict`: dos mods definen el mismo ítem, receta o nombre de forma distinta; gana el que carga último. Las filas que terminan en `_stale` significan que ya lo fusionaste, pero un mod cambió después; `_settled` significa que tu paquete ya lo resuelve.
 - `floods_console` (en la Lista de mods se ve como **Llena la consola**): en tu última sesión este mod escribió más de 1000 líneas de errores en la consola. Eso hace más lento el juego y esconde los errores de otros mods. Miralos en el Centro de monitoreo, o apagá el mod.
 - `user_rule_order`: no se cumple una de tus propias reglas de orden de carga.
-- `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: lo que dicen los archivos de la comunidad sobre tus mods.
+- `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: lo que dicen las reglas y el índice del Studio sobre tus mods. Un problema conocido tiene **Ya no pasa**: deja de mostrarse en esta PC.
 - `package_built_for_other_list`: tu paquete del Studio se armó con una lista de mods distinta a la de este perfil.
 - `package_file_stale`: tu paquete lleva una copia vieja de un archivo de un mod, y el mod cambió ese archivo después. El juego lee la copia vieja.
 - `package_file_differs`, `package_file_orphan`: tu paquete lleva un archivo que trae un solo mod de la lista, o que no trae ningún mod de la lista. Sacalo si ya no lo necesitás.
@@ -70,9 +70,9 @@ Una línea verde confirma cada cambio, con **Guardado en tu lista de mods.**
 - **Arreglar N problema(s) automáticamente** activa los requisitos que faltan y sube mods en el orden donde hace falta. Nunca apaga nada y se saltea las filas "a tu criterio". Pregunta primero, y la Lista de mods puede deshacerlo.
 - **Fusionar N archivos automáticamente** fusiona en tu paquete de parche todos los archivos en conflicto que no tienen cambios superpuestos. Los archivos donde los dos mods cambian las mismas líneas quedan listados para que decidas en el Fusionador.
 
-## Reglas e índice de la comunidad
+## Reglas e índice del Studio
 
-El Studio descarga una vez al día reglas compartidas desde su propio repositorio: reglas de orden de carga, pares de mods que no van juntos y un índice de problemas conocidos con su arreglo. Aparecen como filas `community_*`. Podés apagar la descarga diaria en Configuración; entonces se usa la última copia.
+El Studio trae reglas de orden de carga, pares de mods que no van juntos y un índice de problemas conocidos con su arreglo. Vienen con cada versión de la app; no se descarga nada y no se envía nada. Aparecen como filas `community_*`. Un problema conocido se deja de mostrar solo cuando los archivos del mod muestran que ya no está (una actualización arregló el archivo del que hablaba), o cuando el mod cambió después de que se vio y su línea del log ya no aparece en tu sesión. **Ya no pasa** lo saca a mano.
 
 ## Seguridad
 

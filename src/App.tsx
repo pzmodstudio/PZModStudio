@@ -90,10 +90,23 @@ export const App: React.FC = () => {
 
   /** Mods on in the list updated since the last session or waiting in Steam (offline count). */
   const [whatsNewCount, setWhatsNewCount] = useState(0);
+  // "Since you last played" moves with every session, so the count is read again when the game
+  // enters or leaves a save and when the window comes back; counted once, it kept a badge for
+  // updates the player had already played with while the page itself showed nothing.
+  const [whatsNewTick, setWhatsNewTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setWhatsNewTick((n) => n + 1);
+    const off = TauriService.listenLinkGameState(bump);
+    window.addEventListener('focus', bump);
+    return () => {
+      window.removeEventListener('focus', bump);
+      void off.then((u) => u());
+    };
+  }, []);
   useEffect(() => {
     if (!paths.is_valid || !paths.user_zomboid_dir) return;
     void TauriService.whatsNew(paths, false, null).then((w) => setWhatsNewCount(w ? w.items.filter((i) => i.active).length : 0));
-  }, [paths, mods]);
+  }, [paths, mods, whatsNewTick, activeTab]);
 
   /**
    * Mod Health's warnings go to the game too: the Studio Link mod marks those mods in the game's
@@ -835,6 +848,19 @@ export const App: React.FC = () => {
     autoPersistProfileChanges(updated);
   };
 
+  /**
+   * Unsubscribed in Browse: the player does not want it, so it leaves the list (and the profile)
+   * instead of staying on as "not installed" once Steam deletes it. Subscribing again brings it back.
+   */
+  const handleUnsubscribed = (modIds: string[]) => {
+    if (modIds.length === 0) return;
+    const gone = new Set(modIds);
+    const updated = mods.filter((m) => !gone.has(m.mod_id));
+    if (updated.length === mods.length) return;
+    setMods(updated);
+    autoPersistProfileChanges(updated);
+  };
+
   const handleToggleMod = (modId: string) => {
     const target = mods.find((m) => m.mod_id === modId);
     if (!target) return;
@@ -1118,7 +1144,6 @@ export const App: React.FC = () => {
               errorStats={errorStats}
               loadTimes={loadTimes}
               gameShares={gameShares}
-              installedBuild={health.report?.game_version ?? null}
               onOpenMerger={(relativePath) => {
                 setMergerFocusPath(relativePath);
                 setActiveTab('MERGER');
@@ -1164,6 +1189,7 @@ export const App: React.FC = () => {
               catalog={health.catalog}
               onInstalled={handleRefreshMods}
               onSubscribed={handleSubscribed}
+              onUnsubscribed={handleUnsubscribed}
               focusWorkshopId={browseFocusWorkshopId}
               onFocusHandled={() => setBrowseFocusWorkshopId(null)}
               focusSearch={browseFocusSearch}
