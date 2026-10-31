@@ -33,7 +33,7 @@ description=[list]
 description=[*][b]What's new[/b]: your mods updated since you last played, with their change notes and which ones may break saves.
 description=[*][b]Mod authors come first[/b]: their Ko-fi, Patreon and other support links shown beside each of their mods; error reports ready to send them; their mods never edited or re-uploaded.
 description=[*][b]Browse[/b]: the Steam Workshop and Nexus inside the app; subscribe to a whole collection in one click.
-description=[*][b]Community lists[/b]: mod lists shared by other players, copied into yours in one click, and an index of known issues and their fixes. Both on the [url=https://pzmodstudio.github.io/PZModStudio/mods.html]community index[/url].
+description=[*][b]Known issues, built in[/b]: what the Studio knows about a mod's problems on your build and how it fixes them, checked against the mod's own files so a fixed mod stops being flagged.
 description=[*][b]Maps[/b]: every map mod drawn on the real map of Knox Country, and where two of them claim the same ground.
 description=[*][b]Servers[/b]: find a server and make a profile with its mods, or host a dedicated server with yours, with a Discord channel and bot.
 description=[*][b]For modders[/b]: save a .lua and it runs in the game in about 0.3 s, no restart. Also: create a mod, check its files, a multiplayer check.
@@ -69,7 +69,7 @@ description=[/list]
 description=[b]The app[/b]
 description=[list]
 description=[*]Open source under the MIT license: every line of the app and of this mod is on GitHub, to read or to build yourself.
-description=[*]No account, no telemetry, no ads. It goes online only to browse the Workshop or Nexus, to fetch the community rules and look for a new version once a day (both can be switched off), and to GitHub if you propose a rule.
+description=[*]No account, no telemetry, no ads. It goes online only to browse the Workshop or Nexus, to translate a description when you ask, and to look for a new version once a day (it can be switched off).
 description=[*]It never edits Workshop mods: fixes are separate mod folders you can delete. Your mod list is backed up every time it changes.
 description=[*]A save is only changed when you say yes, and after a backup. The one game file it can touch is a Java-agent mod's launch line in ProjectZomboid64.json, backed up each time; Steam's "Verify integrity" restores it.
 description=[*]Windows may show a SmartScreen notice the first time only because the program has no paid code-signing certificate.
