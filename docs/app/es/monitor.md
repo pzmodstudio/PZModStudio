@@ -38,7 +38,7 @@ Las líneas de error se ven en rojo y los avisos en ámbar.
 
 Aparece una tarjeta cuando el juego lanza un error, o cuando escribe un aviso y nombra un mod. Todo lo demás queda en el log de la izquierda. Primero van las tarjetas de errores (rojas) y después los avisos (ámbar, marcados **aviso · el juego siguió**). El mismo problema aparece una sola vez, aunque el juego lo repita muchas veces; el número tipo **600×** dice cuántas veces está en el log, y los que se repiten son los que conviene arreglar primero.
 
-Arriba de las tarjetas, una etiqueta cuenta las excepciones (**Requiere acción**) y otra los avisos, con una línea que resume el log. Cuando el Studio recuerda sesiones anteriores, cada tarjeta dice **nuevo** o **visto en N sesiones desde** una fecha, y **Solo los nuevos** oculta el resto.
+Arriba de las tarjetas, una etiqueta cuenta las excepciones y otra los avisos (cada tarjeta dice si hay algo para hacer), con una línea que resume el log. Cuando el Studio recuerda sesiones anteriores, cada tarjeta dice **nuevo** o **visto en N sesiones desde** una fecha, y **Solo los nuevos** oculta el resto.
 
 Una tarjeta puede mostrar:
 

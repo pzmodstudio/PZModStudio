@@ -127,6 +127,13 @@ pub fn generate_master_patch(req: MasterPatchRequest) -> Result<MasterPatchResul
     // the load of a broken one, and a merge once glued two objects together with Lua comments.
     // A draft saved before the Merger knew better is mended on the way: its objects joined.
     let mut req = req;
+    // A file put in on its own goes out with every publish (the request's copy wins).
+    let kept_drafts = get_draft_resolutions(&req.user_zomboid_dir, &clean_pkg_name);
+    for draft in kept_drafts.into_values().filter(|d| d.kept && d.status == "RESOLVED") {
+        if !req.merged_files.iter().any(|f| f.relative_path == draft.relative_path) {
+            req.merged_files.push(MergedFilePayload { relative_path: draft.relative_path, content: draft.resolved_content });
+        }
+    }
     for file in &mut req.merged_files {
         if file.relative_path.to_lowercase().ends_with(".json") && !is_one_json_object(&file.content) {
             if let Some(mended) = join_glued_json(&file.content) {
@@ -312,12 +319,14 @@ pub fn generate_master_patch(req: MasterPatchRequest) -> Result<MasterPatchResul
         // unpacked or reopened.
         let mut draft_resolutions = get_draft_resolutions(&req.user_zomboid_dir, &clean_pkg_name);
         for file in &req.merged_files {
+            let kept = draft_resolutions.get(&file.relative_path).is_some_and(|d| d.kept);
             draft_resolutions.insert(
                 file.relative_path.clone(),
                 DraftResolutionItem {
                     relative_path: file.relative_path.clone(),
                     resolved_content: file.content.clone(),
                     status: "RESOLVED".to_string(),
+                    kept,
                 },
             );
         }
@@ -433,14 +442,16 @@ pub fn publish_file_into_package(
         .map(|d| MergedFilePayload { relative_path: d.relative_path, content: d.resolved_content })
         .collect();
     merged_files.push(MergedFilePayload { relative_path: relative_path.to_string(), content: content.to_string() });
-    generate_master_patch(MasterPatchRequest {
+    let result = generate_master_patch(MasterPatchRequest {
         workshop_dir: None,
         pz_install_dir: None,
         user_zomboid_dir: user_zomboid_dir.to_string(),
         mod_list_ini_path: mod_list_ini_path.to_string(),
         merged_files,
-        package_folder_name: Some(package),
-    })
+        package_folder_name: Some(package.clone()),
+    })?;
+    mark_draft_kept(user_zomboid_dir, &package, relative_path)?;
+    Ok(result)
 }
 
 /// Takes one file out of a package, published in place: its draft goes, everything else the
@@ -771,6 +782,41 @@ mod publish_keeps_files {
         }
         let drafts = get_draft_resolutions(&zomboid.to_string_lossy(), "Z_PZModStudio_Test");
         assert_eq!(drafts.len(), 3);
+        let _ = fs::remove_dir_all(&zomboid);
+    }
+
+    /// A Merger publish sends only today's conflicts; a file put in on its own is not one of them
+    /// and must not be dropped by it (a translation fix once vanished that way, draft and all).
+    #[test]
+    fn a_merger_publish_keeps_a_file_put_in_on_its_own() {
+        let zomboid = package_dir("kept");
+        let ini = zomboid.join("mods").join("default.txt");
+        fs::write(&ini, "VERSION = 1,\n\nmods\n{\n    mod = A,\n}\n").unwrap();
+        publish(&zomboid, vec![("media/lua/shared/a.lua", "a")]);
+        publish_file_into_package(
+            &zomboid.to_string_lossy(),
+            &ini.to_string_lossy(),
+            "Z_PZModStudio_Test",
+            "media/lua/shared/Translate/EN/Sandbox.json",
+            "{ \"Sandbox_X\": \"10%%\" }",
+        )
+        .expect("published");
+
+        // The Merger publishes again with only its conflict.
+        publish(&zomboid, vec![("media/lua/shared/a.lua", "a2")]);
+
+        let shared = zomboid.join("mods").join("Z_PZModStudio_Test").join("42").join("media").join("lua").join("shared");
+        assert_eq!(fs::read_to_string(shared.join("a.lua")).unwrap(), "a2");
+        assert!(shared.join("Translate").join("EN").join("Sandbox.json").is_file(), "the fix stays published");
+        let drafts = get_draft_resolutions(&zomboid.to_string_lossy(), "Z_PZModStudio_Test");
+        assert!(drafts["media/lua/shared/Translate/EN/Sandbox.json"].kept);
+        assert!(!drafts["media/lua/shared/a.lua"].kept);
+
+        // Taken out on purpose, it goes, and the next publish does not bring it back.
+        remove_file_from_package(&zomboid.to_string_lossy(), &ini.to_string_lossy(), "Z_PZModStudio_Test", "Sandbox.json")
+            .expect("taken out");
+        publish(&zomboid, vec![("media/lua/shared/a.lua", "a3")]);
+        assert!(!shared.join("Translate").join("EN").join("Sandbox.json").exists());
         let _ = fs::remove_dir_all(&zomboid);
     }
 

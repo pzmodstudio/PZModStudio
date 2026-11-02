@@ -1,8 +1,15 @@
 {
  "latest": "1.8.0",
  "count": 26,
- "built": "2026-10-31",
+ "built": "2026-11-02",
  "releases": [
+  {
+   "version": null,
+   "date": "2026-11-02",
+   "notes": [
+    "Packages: a file put in on its own stays in every publish"
+   ]
+  },
   {
    "version": "1.8.0",
    "date": "2026-10-31",
