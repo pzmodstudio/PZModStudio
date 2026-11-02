@@ -7,6 +7,11 @@ pub struct DraftResolutionItem {
     pub relative_path: String,
     pub resolved_content: String,
     pub status: String,
+    /// Put in on its own (`publish_file_into_package`), not by a merge: every publish carries it,
+    /// whatever the Merger sends, until it is taken out (`remove_file_from_package`). A Merger
+    /// publish sends only today's conflicts, and a translation fix is never one of them.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub kept: bool,
 }
 
 pub fn save_draft_resolution(
@@ -42,12 +47,14 @@ pub fn save_draft_resolution(
         // would publish vanilla over both mods.
         resolutions.remove(relative_path);
     } else {
+        let kept = resolutions.get(relative_path).is_some_and(|d| d.kept);
         resolutions.insert(
             relative_path.to_string(),
             DraftResolutionItem {
                 relative_path: relative_path.to_string(),
                 resolved_content: resolved_content.to_string(),
                 status: status.to_string(),
+                kept,
             },
         );
     }
@@ -56,6 +63,23 @@ pub fn save_draft_resolution(
     crate::load_order::ini_parser::guard_overwrite::<std::collections::HashMap<String, DraftResolutionItem>>(&draft_file)?;
     crate::load_order::ini_parser::atomic_write(draft_file, json_str).map_err(|e| e.to_string())?;
     Ok(true)
+}
+
+/// Marks a package's draft as put in on its own, so every later publish carries it.
+pub fn mark_draft_kept(user_zomboid_dir: &str, package_folder_name: &str, relative_path: &str) -> Result<(), String> {
+    let clean_pkg_name = to_package_folder(package_folder_name)?;
+    let user_dirs = crate::load_order::mod_info::get_all_user_zomboid_dirs(user_zomboid_dir);
+    let Some(user_dir) = user_dirs.first() else {
+        return Err("No valid Zomboid user directories found.".to_string());
+    };
+    let mut drafts = get_draft_resolutions(user_zomboid_dir, &clean_pkg_name);
+    let Some(draft) = drafts.get_mut(relative_path) else {
+        return Ok(());
+    };
+    draft.kept = true;
+    let json = serde_json::to_string_pretty(&drafts).map_err(|e| e.to_string())?;
+    let draft_file = user_dir.join("mods").join(&clean_pkg_name).join("draft_resolutions.json");
+    crate::load_order::ini_parser::atomic_write(draft_file, json).map_err(|e| e.to_string())
 }
 
 pub fn get_draft_resolutions(

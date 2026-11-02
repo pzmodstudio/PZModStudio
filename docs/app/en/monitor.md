@@ -38,7 +38,7 @@ Error lines are shown in red, warnings in amber.
 
 A card appears when the game throws an error, or when it writes a warning and names a mod. Everything else stays in the log on the left. Cards that threw (red) come first, warnings (amber, marked **warning · the game carried on**) after them. The same problem appears once, however many times the game repeats it; the number like **600×** says how many times it is in the log, and the ones that repeat are the ones worth fixing first.
 
-Above the cards, a badge counts the exceptions (**Action Required**) and another the warnings, with a line that sums up the log. When the Studio remembers earlier sessions, each card says **new** or **seen in N sessions since** a date, and **Only the new ones** hides the rest.
+Above the cards, a badge counts the exceptions and another the warnings (each card says whether there is anything to do), with a line that sums up the log. When the Studio remembers earlier sessions, each card says **new** or **seen in N sessions since** a date, and **Only the new ones** hides the rest.
 
 A card can show:
 
