@@ -421,6 +421,23 @@ fn swap_into_place(stage: &Path, live: &Path, aside: &Path) -> Result<(), String
     Ok(())
 }
 
+/// A file's path as a package keeps it: `media/...`, with forward slashes. The publish writes every
+/// file into both layouts itself, so a path given as a mod's own (`42/media/...`, `common/media/...`)
+/// loses that first folder; kept, it became a second copy in `42/42/media/...` that the game never reads.
+fn package_relative_path(raw: &str) -> String {
+    let mut path = raw.trim().replace('\\', "/");
+    while let Some(rest) = path.strip_prefix("./").or_else(|| path.strip_prefix('/')) {
+        path = rest.to_string();
+    }
+    if let Some((first, rest)) = path.split_once('/') {
+        let layout = first == "common" || crate::load_order::mod_info::version_dir_int(first).is_some();
+        if layout && rest.starts_with("media/") {
+            return rest.to_string();
+        }
+    }
+    path
+}
+
 /// Puts one more file into a package the user already has, by the same publish the Merger runs:
 /// every resolved draft the package holds is published again, plus this one. Nothing the package
 /// held is dropped, and a packaged package stays packaged.
@@ -436,6 +453,8 @@ pub fn publish_file_into_package(
     content: &str,
 ) -> Result<MasterPatchResult, String> {
     let package = to_package_folder(package_folder_name)?;
+    let relative_path = package_relative_path(relative_path);
+    let relative_path = relative_path.as_str();
     let mut merged_files: Vec<MergedFilePayload> = get_draft_resolutions(user_zomboid_dir, &package)
         .into_values()
         .filter(|d| d.status == "RESOLVED" && d.relative_path != relative_path)
@@ -817,6 +836,32 @@ mod publish_keeps_files {
             .expect("taken out");
         publish(&zomboid, vec![("media/lua/shared/a.lua", "a3")]);
         assert!(!shared.join("Translate").join("EN").join("Sandbox.json").exists());
+        let _ = fs::remove_dir_all(&zomboid);
+    }
+
+    /// A path written as a mod's own (`42/media/...`) lands where `media/...` does, once, and
+    /// replaces it: the package writes both layouts itself.
+    #[test]
+    fn a_mod_layout_path_lands_once() {
+        assert_eq!(package_relative_path("42/media/lua/client/a.lua"), "media/lua/client/a.lua");
+        assert_eq!(package_relative_path("42.13/media/lua/client/a.lua"), "media/lua/client/a.lua");
+        assert_eq!(package_relative_path("common\\media\\lua\\a.lua"), "media/lua/a.lua");
+        assert_eq!(package_relative_path("./media/lua/a.lua"), "media/lua/a.lua");
+        assert_eq!(package_relative_path("media/lua/42/a.lua"), "media/lua/42/a.lua");
+
+        let zomboid = package_dir("layout");
+        let ini = zomboid.join("mods").join("default.txt");
+        fs::write(&ini, "VERSION = 1,\n\nmods\n{\n    mod = A,\n}\n").unwrap();
+        let (z, i) = (zomboid.to_string_lossy().to_string(), ini.to_string_lossy().to_string());
+        publish_file_into_package(&z, &i, "Z_PZModStudio_Test", "media/lua/client/a.lua", "a1").expect("published");
+        let result = publish_file_into_package(&z, &i, "Z_PZModStudio_Test", "42/media/lua/client/a.lua", "a2").expect("published");
+        assert_eq!(result.files_written, 1);
+
+        let pkg = zomboid.join("mods").join("Z_PZModStudio_Test");
+        assert!(!pkg.join("42").join("42").exists(), "no copy under 42/42");
+        let file = pkg.join("42").join("media").join("lua").join("client").join("a.lua");
+        assert_eq!(fs::read_to_string(&file).unwrap(), "a2");
+        assert_eq!(get_draft_resolutions(&z, "Z_PZModStudio_Test").len(), 1);
         let _ = fs::remove_dir_all(&zomboid);
     }
 
