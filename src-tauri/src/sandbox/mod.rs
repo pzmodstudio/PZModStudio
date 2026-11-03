@@ -944,7 +944,47 @@ fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErro
     if !is_trouble {
         return None;
     }
-    if line.contains("isLocalPlayer()") || line.contains("ToggleDoorActual") || line.contains("ToggleWindow") {
+    if (line.contains("ToggleDoorActual") || line.contains("isLocalPlayer()")) && line.contains("ThumpState") {
+        // `... at IsoDoor.ToggleDoorActual(IsoDoor.java:1620). Message: State execute error:
+        // ThumpState`: a zombie's thumping opened the door, the door asks the player who opened it
+        // whether it is the local one for the music cue, and a zombie is no player. The door is
+        // already open by then; only the cue and the door's animation are skipped. No mod involved.
+        Some(TranslatedErrorPayload {
+            called_from: Vec::new(),
+            id: format!("err_{}", counter),
+            code: "door_npc".to_string(),
+            params: crate::catalog::issue_params(&[("variant", "zombie")]),
+            raw_error: line.to_string(),
+            source_file: Some("zombie/iso/objects/IsoDoor.java".to_string()),
+            line_number: None,
+            title: "A zombie banged a door open: a bug in the game itself (B42)".to_string(),
+            explanation: "A zombie thumped a door until it opened, and the game's Java (IsoDoor.ToggleDoorActual) then asked the player who opened it whether they are the local one, to play the tension music. A zombie is no player, so that question fails. The door is already open when it does: only that music cue and the door's animation are skipped. No mod takes part.".to_string(),
+            recommended_action: "Nothing to do: it is the game's own code and changes nothing in play.".to_string(),
+            mod_name: None,
+            severity: Severity::Exception,
+            polyfill_rule_id_suggestion: None,
+        })
+    } else if line.contains("BufferOverflowException") {
+        // Under an ERROR naming a mod: the mod asked for an object as an item and the game packs it
+        // into bytes to make one; IsoDeadBody.getItem packs the whole body with all it carries, and
+        // a body with a bag of fluid containers outgrows the buffer (Computer Mod checks every
+        // object near a right-click this way).
+        Some(TranslatedErrorPayload {
+            called_from: Vec::new(),
+            id: format!("err_{}", counter),
+            code: "item_too_big".to_string(),
+            params: BTreeMap::new(),
+            raw_error: line.to_string(),
+            source_file: None,
+            line_number: None,
+            title: "The game ran out of room packing an item".to_string(),
+            explanation: "The game packs an item into bytes to save it or to make an item of an object, and this one held more than its buffer has room for. It is nearly always a mod asking a body on the ground for its item (IsoDeadBody:getItem), which packs the whole body with everything it carries: a body with a bag of liquids is enough. Nothing is lost: the body stays as it is.".to_string(),
+            recommended_action: "Nothing to do to play: the mod catches it and goes on. If it comes back each time you right-click near bodies, that mod checks every object around you that way; its author is the one to tell.".to_string(),
+            mod_name: None,
+            severity: Severity::Exception,
+            polyfill_rule_id_suggestion: None,
+        })
+    } else if line.contains("isLocalPlayer()") || line.contains("ToggleDoorActual") || line.contains("ToggleWindow") {
         Some(TranslatedErrorPayload {
             called_from: Vec::new(),
             id: format!("err_{}", counter),
@@ -1857,6 +1897,33 @@ mod one_card_tests {
         ]);
         let codes: Vec<_> = cards.iter().map(|c| (c.code.as_str(), c.mod_name.as_deref())).collect();
         assert_eq!(codes, vec![("java_mod_error", Some("BloodFX")), ("java_npe", None)]);
+    }
+
+    /// A zombie thumping a door open is the game's own bug, not an NPC mod's; and a mod's caught
+    /// BufferOverflowException is the corpse it asked for an item, under that mod's name (42.21 log).
+    #[test]
+    fn a_zombies_door_and_a_corpse_too_big_to_pack() {
+        let mut maker = CardMaker::new();
+        let mut cards = run(&mut maker, &[
+            "ERROR: Multiplayer  f:262136> StateMachine.stateExecute> Exception thrown",
+            "\tjava.lang.NullPointerException: Cannot invoke \"zombie.characters.IsoPlayer.isLocalPlayer()\" because \"player\" is null at IsoDoor.ToggleDoorActual(IsoDoor.java:1620). Message: State execute error: ThumpState",
+            "\tStack trace:",
+            "\t\tzombie.iso.objects.IsoDoor.ToggleDoorActual(IsoDoor.java:1620)",
+            "ERROR: General      f:275597 at KahluaThread.flushErrorMessage      > dumping Lua stack trace",
+            "\tLua((MOD:Computer Mod)).pcall(ComputerMod_ComputerTypes.lua:49)",
+            "\tLua((MOD:Computer Mod)).getInventoryItem(ComputerMod_ComputerTypes.lua:49)",
+            "ERROR: General      f:275597> Lua((MOD:Computer Mod)).pcall> Exception thrown",
+            "\tjava.nio.BufferOverflowException at Buffer.nextPutIndex(null:-1).",
+            "\tStack trace:",
+            "\t\tzombie.iso.objects.IsoDeadBody.getItem(IsoDeadBody.java:693)",
+            "LOG  : General      f:275600> done",
+        ]);
+        cards.extend(maker.flush());
+        let got: Vec<_> = cards
+            .iter()
+            .map(|c| (c.code.as_str(), c.params.get("variant").map(|v| v.as_str()), c.mod_name.as_deref()))
+            .collect();
+        assert_eq!(got, vec![("door_npc", Some("zombie"), None), ("item_too_big", None, Some("Computer Mod"))]);
     }
 
     /// The Monitor's cards for this PC's console.txt, folded as the app folds them (title, shape of

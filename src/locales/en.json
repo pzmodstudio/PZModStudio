@@ -2598,6 +2598,16 @@
         "explanation": "A zombie or an NPC opened, thumped or broke a door or window, and the game's Java (IsoDoor.ToggleDoorActual) asked a player that does not exist whether it is the local one. It is the game's code, reached without any Lua: NPC mods (Project A-Life, Bandits) make it happen more often. The game catches it and carries on.",
         "action": "Nothing to patch: no Lua runs on that path, so no package or shim can reach it. Ignore it unless it floods the log; then the mod that moves the NPC through the door is the one to report it to."
       },
+      "door_npc_zombie": {
+        "title": "A zombie banged a door open: a bug in the game itself (B42)",
+        "explanation": "A zombie thumped a door until it opened, and the game's Java (IsoDoor.ToggleDoorActual) then asked the player who opened it whether they are the local one, to play the tension music. A zombie is no player, so that question fails. The door is already open when it does: only that music cue and the door's animation are skipped. No mod takes part.",
+        "action": "Nothing to do: it is the game's own code and changes nothing in play."
+      },
+      "item_too_big": {
+        "title": "The game ran out of room packing an item",
+        "explanation": "The game packs an item into bytes to save it or to make an item of an object, and this one held more than its buffer has room for. It is nearly always a mod asking a body on the ground for its item (IsoDeadBody:getItem), which packs the whole body with everything it carries: a body with a bag of liquids is enough. Nothing is lost: the body stays as it is.",
+        "action": "Nothing to do to play: the mod catches it and goes on. If it comes back each time you right-click near bodies, that mod checks every object around you that way; its author is the one to tell."
+      },
       "bandits_room": {
         "title": "Bandits Week One Dining Room Safety (B42)",
         "explanation": "Bandits Week One room program attempted to query getName() on an outdoor/unzoned tile where getRoom() is nil, generating error floods on each AI tick.",

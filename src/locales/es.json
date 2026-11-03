@@ -2598,6 +2598,16 @@
         "explanation": "Un zombi o un NPC abrió, golpeó o rompió una puerta o ventana, y el Java del juego (IsoDoor.ToggleDoorActual) le preguntó a un jugador que no existe si era el local. Es código del juego, al que se llega sin pasar por Lua: los mods de NPC (Project A-Life, Bandits) hacen que pase más seguido. El juego lo atrapa y sigue.",
         "action": "No hay nada que parchear: por ese camino no corre Lua, así que ningún paquete ni shim llega. Ignoralo salvo que inunde el log; en ese caso el mod que mueve al NPC por la puerta es al que hay que reportárselo."
       },
+      "door_npc_zombie": {
+        "title": "Un zombi abrió una puerta a golpes: un error del propio juego (B42)",
+        "explanation": "Un zombi golpeó una puerta hasta abrirla, y después el Java del juego (IsoDoor.ToggleDoorActual) le preguntó al jugador que la abrió si era el local, para poner la música de tensión. Un zombi no es un jugador, así que esa pregunta falla. Para entonces la puerta ya está abierta: solo se pierden esa música y la animación de la puerta. Ningún mod tiene que ver.",
+        "action": "No hay nada que hacer: es código del propio juego y no cambia nada al jugar."
+      },
+      "item_too_big": {
+        "title": "Al juego no le alcanzó el espacio para empaquetar un objeto",
+        "explanation": "El juego empaqueta un objeto en bytes para guardarlo o para convertir algo del mundo en objeto, y este traía más de lo que entra en su buffer. Casi siempre es un mod que le pide su objeto a un cadáver del suelo (IsoDeadBody:getItem), y eso empaqueta el cuerpo entero con todo lo que lleva: alcanza con un cuerpo con una bolsa con líquidos. No se pierde nada: el cuerpo queda como estaba.",
+        "action": "No hay nada que hacer para jugar: el mod lo atrapa y sigue. Si vuelve cada vez que hacés clic derecho cerca de cadáveres, es que ese mod revisa así todos los objetos a tu alrededor; a su autor es a quien hay que avisarle."
+      },
       "bandits_room": {
         "title": "Protección del comedor de Bandits Week One (B42)",
         "explanation": "El programa de habitaciones de Bandits Week One llamó a getName() en una casilla exterior o sin zona, donde getRoom() es nil, y llena el log de errores en cada tick de la IA.",
