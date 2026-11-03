@@ -1,12 +1,15 @@
 {
- "latest": "1.8.0",
- "count": 26,
- "built": "2026-11-02",
+ "latest": "1.8.1",
+ "count": 27,
+ "built": "2026-11-03",
  "releases": [
   {
-   "version": null,
-   "date": "2026-11-02",
+   "version": "1.8.1",
+   "date": "2026-11-03",
    "notes": [
+    "Release 1.8.1",
+    "Monitor: a zombie banging a door open (ThumpState) gets its own card, a bug in the game itself with nothing to do, instead of blaming NPC mods; a mod's caught BufferOverflowException gets a card under that mod's name saying the game ran out of room packing a body it asked for as an item",
+    "Packages: a file put in with a mod's own layout path (42/media/..., common/media/...) lands at media/... once, instead of a second copy under 42/42/ that the game never reads",
     "Packages: a file put in on its own stays in every publish"
    ]
   },
@@ -162,13 +165,6 @@
    "date": "2026-10-27",
    "notes": [
     "Link 1.18.1: a new game no longer inherits a refused save's empty mod list"
-   ]
-  },
-  {
-   "version": "1.7.5",
-   "date": "2026-10-27",
-   "notes": [
-    "Profiles: deleting one offers to unsubscribe the Workshop items only it uses"
    ]
   }
  ]
