@@ -11,7 +11,12 @@
 --   - Copy report: the error, the mods and the stack on the clipboard, to paste where it helps;
 --   - Show in Mods (menu): the Mods screen with that mod picked, to turn it off with what
 --     depends on it;
---   - See in the Studio (only while PZ Mod Studio runs): its Monitor, with the error's card.
+--   - See in the Studio (only while PZ Mod Studio runs): its Monitor, with the error's card;
+--   - Close: gone until the next error;
+--   - "-" (top right): hidden as a small badge with the count, which takes no clicks around it;
+--     a click on the badge shows the notice again, a drag moves it. New errors keep it a badge.
+-- In game it starts left of the clock and the speed controls, not over their buttons; it and
+-- the badge can be dragged anywhere, and come back where they were left.
 -- With another mod that already shows these errors on, it shows nothing.
 
 require "PZModStudio_Link"
@@ -282,6 +287,15 @@ function Notice:createChildren()
         end)
     end
     self:addButton(text("errClose"), function() Errors.close() end)
+    -- Hide, top right: the notice becomes a small badge there, which brings it back.
+    local size = 18
+    local hide = ISButton:new(self.width - size - 6, 6, size, size, "-", self, function() Errors.hide() end)
+    hide:initialise()
+    hide:instantiate()
+    hide:setFont(UIFont.Small)
+    hide.borderColor = { r = 0.5, g = 0.5, b = 0.55, a = 0.9 }
+    hide.tooltip = text("errHideTip")
+    self:addChild(hide)
 end
 
 function Notice:prerender()
@@ -311,23 +325,160 @@ function Notice:prerender()
     end
 end
 
-function Errors.close()
-    Errors.batch = {}
-    if Errors.panel then
-        Errors.panel:setVisible(false)
-        Errors.panel:removeFromUIManager()
-        Errors.panel = nil
+-- ------------------------------------------------------------------ the badge
+-- The notice hidden: a small "N Lua error(s)" that clicks bring the notice back from and that
+-- can be dragged anywhere. It takes clicks only where it is drawn.
+
+local Badge = ISPanel:derive("StudioLinkErrorBadge")
+local BADGE_PAD = 8
+
+function Badge:new(x, y, w, h)
+    local o = ISPanel.new(self, x, y, w, h)
+    o.backgroundColor = { r = 0.3, g = 0.05, b = 0.06, a = 0.85 }
+    o.borderColor = { r = 0.97, g = 0.44, b = 0.44, a = 0.9 }
+    o.moveWithMouse = true
+    return o
+end
+
+function Badge:onMouseDown(x, y)
+    self.pressX, self.pressY = getMouseX(), getMouseY()
+    ISPanel.onMouseDown(self, x, y)
+    return true
+end
+
+function Badge:onMouseUp(x, y)
+    local wasPressed = self.pressX ~= nil
+    local still = wasPressed and math.abs(getMouseX() - self.pressX) + math.abs(getMouseY() - self.pressY) <= 4
+    self.pressX, self.pressY = nil, nil
+    ISPanel.onMouseUp(self, x, y)
+    if still then Errors.unhide() end
+    return true
+end
+
+function Badge:onMouseUpOutside(x, y)
+    self.pressX, self.pressY = nil, nil
+    ISPanel.onMouseUpOutside(self, x, y)
+end
+
+function Badge:label()
+    return text("errBadge", #Errors.batch)
+end
+
+--- Its size for its label; the right edge stays where it is, as the count grows.
+function Badge:fit()
+    local w = getTextManager():MeasureStringX(UIFont.Small, self:label()) + BADGE_PAD * 2
+    if w ~= self.width then
+        self:setX(self:getX() + self.width - w)
+        self:setWidth(w)
     end
 end
 
-function Errors.show()
-    if Errors.panel then return end
-    local w = 420
-    local h = 8 + getTextManager():getFontHeight(UIFont.Medium) + 4 + (getTextManager():getFontHeight(UIFont.Small) + 2) * 3 + 38
+function Badge:prerender()
+    self:fit()
+    -- Errors that came after it was hidden: it pulses until the notice is looked at.
+    local newer = #Errors.batch > (Errors.hiddenWith or 0)
+    if newer then
+        self.backgroundColor.a = 0.65 + 0.3 * math.abs(math.sin(getTimestampMs() / 300))
+    else
+        self.backgroundColor.a = 0.85
+    end
+    ISPanel.prerender(self)
+    local fh = getTextManager():getFontHeight(UIFont.Small)
+    self:drawText(self:label(), BADGE_PAD, math.floor((self.height - fh) / 2), 1, 0.85, 0.85, 1, UIFont.Small)
+end
+
+-- ------------------------------------------------------------------ showing and hiding
+
+local NOTICE_W = 420
+
+local function remove(panel)
+    if not panel then return end
+    panel:setVisible(false)
+    panel:removeFromUIManager()
+end
+
+local function onScreen(x, y, w, h)
+    local sw, sh = getCore():getScreenWidth(), getCore():getScreenHeight()
+    return math.max(0, math.min(x, sw - w)), math.max(0, math.min(y, sh - h))
+end
+
+--- Where the notice goes first. On the menu, under PZ Mod Studio's card (or its invitation).
+--- In game, at the top, left of the clock and the speed controls: over them it took their clicks.
+local function firstSpot(w)
     local sw = getCore():getScreenWidth()
-    -- Under PZ Mod Studio's card (or its invitation) on the menu; near the top in game.
-    local y = Link.inGame and 70 or 150
-    local panel = Notice:new(sw - w - 20, y, w, h)
+    if not Link.inGame then return sw - w - 20, 150 end
+    local right = sw - 20
+    for _, get in ipairs({ UIManager.getSpeedControls, UIManager.getClock }) do
+        local ok, x = pcall(function()
+            local e = get and get()
+            return e and e:isVisible() and e:getX() or nil
+        end)
+        if ok and x and x - 20 < right then right = x - 20 end
+    end
+    return math.max(10, right - w), 10
+end
+
+function Errors.close()
+    Errors.batch = {}
+    Errors.hidden = false
+    if Errors.panel then
+        Errors.at = { x = Errors.panel:getX(), y = Errors.panel:getY() }
+        remove(Errors.panel)
+        Errors.panel = nil
+    end
+    remove(Errors.badge)
+    Errors.badge = nil
+end
+
+--- The notice as a badge where its hide button was. New errors keep it a badge, counting them.
+function Errors.hide()
+    local panel = Errors.panel
+    if not panel then return end
+    Errors.hidden = true
+    Errors.hiddenWith = #Errors.batch
+    Errors.at = { x = panel:getX(), y = panel:getY() }
+    Errors.badgeAt = { right = panel:getX() + panel.width - 6, y = panel:getY() + 6 }
+    remove(panel)
+    Errors.panel = nil
+    Errors.show()
+end
+
+--- The notice again, its hide button where the badge was.
+function Errors.unhide()
+    local badge = Errors.badge
+    Errors.hidden = false
+    if badge then
+        Errors.at = { x = badge:getX() + badge.width + 6 - NOTICE_W, y = badge:getY() - 6 }
+        remove(badge)
+        Errors.badge = nil
+    end
+    Errors.show()
+end
+
+local function showBadge()
+    if Errors.badge then return end
+    local h = getTextManager():getFontHeight(UIFont.Small) + 8
+    local at = Errors.badgeAt
+    local right = at and at.right or (getCore():getScreenWidth() - 20)
+    local x, y = onScreen(right - 60, at and at.y or 10, 60, h)
+    local badge = Badge:new(x, y, 60, h)
+    badge:initialise()
+    badge:instantiate()
+    badge:addToUIManager()
+    badge:setAlwaysOnTop(true)
+    badge:fit()
+    Errors.badge = badge
+end
+
+function Errors.show()
+    if Errors.hidden then return showBadge() end
+    if Errors.panel then return end
+    local w = NOTICE_W
+    local h = 8 + getTextManager():getFontHeight(UIFont.Medium) + 4 + (getTextManager():getFontHeight(UIFont.Small) + 2) * 3 + 38
+    local x, y
+    if Errors.at then x, y = Errors.at.x, Errors.at.y else x, y = firstSpot(w) end
+    x, y = onScreen(x, y, w, h)
+    local panel = Notice:new(x, y, w, h)
     panel:initialise()
     panel:instantiate()
     panel:addToUIManager()
@@ -359,4 +510,12 @@ end
 if Events.OnFETick then Events.OnFETick.Add(safeCheck) end
 if Events.OnTickEvenPaused then Events.OnTickEvenPaused.Add(safeCheck) elseif Events.OnTick then Events.OnTick.Add(safeCheck) end
 -- Entering a game or the menu rebuilds the screen: the notice is made again for what is new.
-if Events.OnGameStart then Events.OnGameStart.Add(function() Errors.panel = nil end) end
+-- Its spots from the menu are not the game's (the game has its clock up there).
+if Events.OnGameStart then
+    Events.OnGameStart.Add(function()
+        Errors.panel = nil
+        Errors.badge = nil
+        Errors.at = nil
+        Errors.badgeAt = nil
+    end)
+end

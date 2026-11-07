@@ -210,6 +210,8 @@
     "UI_StudioLink_errShowMods": "Ver en Mods",
     "UI_StudioLink_errSeeStudio": "Ver en el Studio",
     "UI_StudioLink_errClose": "Cerrar",
+    "UI_StudioLink_errHideTip": "Ocultarlo como un botoncito: un clic en él lo vuelve a mostrar, arrastrándolo se mueve.",
+    "UI_StudioLink_errBadge": "{1} error(es) de Lua",
     "UI_StudioLink_errReportTitle": "Error de Lua en Project Zomboid {1}",
     "UI_StudioLink_errReportMod": "Mod: {1}",
     "UI_StudioLink_errReportCalled": "Llamado desde: {1}",
