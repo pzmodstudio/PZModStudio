@@ -66,6 +66,15 @@ pub fn parse(workshop_log: &str, content_log: &str) -> SteamDownloads {
         } else if line.contains("Starting Workshop download job") {
             let items = std::mem::take(&mut pending);
             job = Some((time.to_string(), items));
+        } else if line.contains("Update canceled") {
+            // Steam stopped the job without finishing it ("Update canceled: Disabled (Suspended)":
+            // the game was started, Steam does not update its mods while it runs). No "Finished"
+            // line follows, so the job ends here; what it carried waits for Steam's next job.
+            if let Some((_, items)) = job.take() {
+                for id in items {
+                    push(&mut pending, &id);
+                }
+            }
         } else if let Some(result) = line.split("Finished Workshop download job : ").nth(1) {
             let items = job.take().map(|(_, items)| items).unwrap_or_else(|| std::mem::take(&mut pending));
             let result = result.trim().to_string();
@@ -293,6 +302,32 @@ mod tests {
         assert!(f.ok);
         assert_eq!(f.items, vec!["2335368829".to_string()]);
         assert_eq!(f.at, "2026-10-30 17:18:18");
+    }
+
+    #[test]
+    fn a_job_steam_cancels_is_over() {
+        // Seen 2026-11-04: the game closed, Steam started updating mods, the game was started again
+        // and Steam suspended the job. The bar used to stay at 100 % for good.
+        let workshop = "\
+[2026-11-04 21:28:19] [AppID 108600] Starting Workshop download job ( updating )
+[2026-11-04 21:29:59] [AppID 108600] Update canceled: Disabled (Suspended)
+[2026-11-04 21:30:01] [AppID 108600] Requesting updated subscription list
+";
+        let content = "\
+[2026-11-04 21:28:27] AppID 108600 update started : download 0/16293296, store 0/0, reuse 0/30682129, delta 0/0, stage 0/68052772
+[2026-11-04 21:28:27] AppID 108600 Workshop update changed : Running Update,Downloading,Staging,
+[2026-11-04 21:29:59] AppID 108600 Workshop update changed : Running Update,Downloading,Staging,Stopping,
+[2026-11-04 21:30:13] AppID 108600 Workshop update changed : None
+";
+        let s = parse(workshop, content);
+        assert_eq!(s.phase, "idle");
+        assert!(s.started.is_none());
+        assert!(s.finished.is_none());
+        // A job that carried items: they wait (queued) until Steam's next job.
+        let with_item = format!("[2026-11-04 21:28:18] [AppID 108600] Subscribed to item 3794824552 @ Wed\n{}", workshop);
+        let s = parse(&with_item, content);
+        assert_eq!(s.phase, "queued");
+        assert_eq!(s.items, vec!["3794824552".to_string()]);
     }
 
     #[test]

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use crate::load_order::mod_info::get_all_user_zomboid_dirs;
 
+pub mod java_mods;
 pub mod mod_sync;
 mod rcon;
 
@@ -22,6 +23,9 @@ pub struct DedicatedServerStatus {
     pub server_name: Option<String>,
     pub memory_gb: Option<u32>,
     pub start_timestamp: Option<u64>,
+    /// Started without Steam (`-nosteam`): players join with `-nosteam` too.
+    #[serde(default)]
+    pub nosteam: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,16 +137,47 @@ pub fn sync_client_to_server(
 }
 
 /// What the server's `.ini` says about mods, and everything in it that will not do what the admin
-/// meant: a mod that is never downloaded, an item that is never loaded, a map that is ignored.
+/// meant: a mod that is never downloaded, an item that is never loaded, a map that is ignored, a
+/// Java mod whose jar ZombieBuddy has not approved on this PC (the server refuses it), a Workshop
+/// mod linked into `Zomboid/mods` or copied there and outdated since, and, for a server started
+/// without Steam (`nosteam`), a mod that is only in the Workshop folder.
 #[tauri::command(async)]
 pub fn check_server_mods(
     paths: crate::vfs::StudioPaths,
     file_path: String,
+    nosteam: Option<bool>,
 ) -> Result<mod_sync::ServerModReport, String> {
     let content = fs::read_to_string(Path::new(&file_path))
         .map_err(|e| format!("Cannot read {}: {}", file_path, e))?;
     let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
-    Ok(mod_sync::check(&catalog, &content, &paths.pz_install_dir))
+    let mut report = mod_sync::check(&catalog, &content, &paths.pz_install_dir);
+    let approvals = java_mods::approvals_path().map(|p| java_mods::read_approvals(&p)).unwrap_or_default();
+    report.issues.extend(java_mods::java_issues(&catalog, &report.mods, &approvals));
+    report.issues.extend(java_mods::copy_issues(&java_mods::copies_needed(&catalog, &report.mods, nosteam.unwrap_or(false))));
+    report.issues.sort_by(|a, b| a.severity.cmp(&b.severity));
+    Ok(report)
+}
+
+/// Copies into `Zomboid/mods` the mods of this server's `Mods=` the check asks for: only in the
+/// Steam Workshop folder (`nosteam`), linked there instead of copied, or copied and outdated
+/// since. Returns the copies made.
+#[tauri::command(async)]
+pub fn copy_workshop_mods_for_server(
+    paths: crate::vfs::StudioPaths,
+    file_path: String,
+    nosteam: Option<bool>,
+) -> Result<Vec<String>, String> {
+    let content = fs::read_to_string(Path::new(&file_path))
+        .map_err(|e| format!("Cannot read {}: {}", file_path, e))?;
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let found = java_mods::copies_needed(&catalog, &mod_sync::ini_list(&content, "Mods"), nosteam.unwrap_or(false));
+    java_mods::copy_into_mods(&primary_dir(&paths.user_zomboid_dir), &found)
+}
+
+/// The name the Studio keeps a server's admin password under in Windows Credential Manager, so
+/// an MCP client can start that server again without being handed the password.
+pub fn admin_password_secret(server_name: &str) -> String {
+    format!("server_admin_password:{}", server_name)
 }
 
 /// 32 hex characters from the process's random hash keys (no RNG crate needed for this).
@@ -387,12 +422,30 @@ pub fn launch_dedicated_server(
     if clean_admin_pass.chars().any(|c| "&|<>^%\"!()".contains(c) || c.is_control()) {
         return Err("The admin password cannot contain any of: & | < > ^ % \" ! ( )".to_string());
     }
+    if !clean_admin_pass.is_empty() {
+        // Kept where the API keys are (never a file or the window's storage), for MCP starts.
+        if let Err(e) = crate::secrets::set(&admin_password_secret(&clean_name), &clean_admin_pass) {
+            crate::diagnostics::error(format!("[Servers] Could not keep the admin password of {}: {}", clean_name, e));
+        }
+    }
 
     // A server the game made has no RCON password: give it one, so Stop saves before quitting and
     // the Discord commands can talk to it.
     let ini_path = Path::new(&user_zomboid_dir).join("Server").join(format!("{}.ini", clean_name));
     if let Err(e) = ensure_rcon_password(&ini_path, &Path::new(&user_zomboid_dir).join("PZModStudio_Backups")) {
         crate::diagnostics::error(format!("[Servers] Could not set an RCON password for {}: {}", clean_name, e));
+    }
+
+    // ZombieBuddy (B42 Java mods) only works with its native agent on the JVM's command line.
+    // Without zbNative.dll the JVM would refuse to start at all ("Could not find agent library"),
+    // so the server then starts without it, and says why its Java mods are missing.
+    let mut agent_arg = fs::read_to_string(&ini_path).ok().as_deref().and_then(java_mods::agent_arg_for);
+    if agent_arg.is_some() && !install_path.join("zbNative.dll").is_file() {
+        crate::diagnostics::error(format!(
+            "[Servers] {} lists ZombieBuddy but the game folder has no zbNative.dll: its Java mods will not load (start the game once with ZombieBuddy on).",
+            clean_name
+        ));
+        agent_arg = None;
     }
 
     let java_exe = install_path.join("jre64").join("bin").join("java.exe");
@@ -424,6 +477,11 @@ pub fn launch_dedicated_server(
 
         let mut cmd = if java_exe.exists() {
             let mut c = Command::new(&java_exe);
+            if let Some(agent) = agent_arg {
+                // policy=deny-new: only jars approved on this PC load; the approval window would
+                // wait for good on a server, where no one sees it.
+                c.arg(agent);
+            }
             c.arg("-Djava.awt.headless=true");
             c.arg("--enable-native-access=ALL-UNNAMED");
             c.arg("--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED");
@@ -504,6 +562,7 @@ pub fn launch_dedicated_server(
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .ok(),
+            nosteam: Some(is_nosteam),
         };
 
         let state_file = primary_user_dir.join("pz_server_state.json");
@@ -706,6 +765,38 @@ pub fn stop_dedicated_server(user_zomboid_dir: String, _pid: Option<u32>) -> Res
     }
 }
 
+/// Whether the server's log (`server-console.txt`, written since `started`) ends with the server
+/// giving up, and has been quiet for 20 s since: a normal quit also says it, and then exits.
+fn server_gave_up(zomboid_dir: &Path, started: Option<u64>) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+    let path = zomboid_dir.join("server-console.txt");
+    let Some(mtime) = path
+        .metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+    else {
+        return false;
+    };
+    let Ok(mut file) = fs::File::open(&path) else { return false };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let _ = file.seek(SeekFrom::Start(len.saturating_sub(64 * 1024)));
+    let mut tail = Vec::new();
+    let _ = file.read_to_end(&mut tail);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    gave_up(&String::from_utf8_lossy(&tail), mtime, started, now)
+}
+
+fn gave_up(log_tail: &str, log_mtime: u64, started: Option<u64>, now: u64) -> bool {
+    let this_run = started.is_none_or(|s| log_mtime + 5 >= s);
+    let quiet = now.saturating_sub(log_mtime) >= 20;
+    // The last word of the log: a server that says it and then goes on is not stuck.
+    let last = log_tail.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("");
+    let said = log_tail.lines().rev().take(40).any(|l| l.to_ascii_lowercase().contains("server terminated"));
+    this_run && quiet && said && !last.contains("SERVER STARTED")
+}
+
 #[tauri::command(async)]
 pub fn get_dedicated_server_status(user_zomboid_dir: String) -> Result<DedicatedServerStatus, String> {
     let primary_user_dir = if !user_zomboid_dir.is_empty() {
@@ -727,6 +818,7 @@ pub fn get_dedicated_server_status(user_zomboid_dir: String) -> Result<Dedicated
                 server_name: None,
                 memory_gb: None,
                 start_timestamp: None,
+                nosteam: None,
             })
     } else {
         DedicatedServerStatus {
@@ -735,13 +827,27 @@ pub fn get_dedicated_server_status(user_zomboid_dir: String) -> Result<Dedicated
             server_name: None,
             memory_gb: None,
             start_timestamp: None,
+            nosteam: None,
         }
     };
 
     #[cfg(target_os = "windows")]
     {
         // Only the process this app launched counts; any other java.exe is not our server.
-        if state.pid.is_some_and(is_tracked_server_alive) {
+        let alive = state.pid.is_some_and(is_tracked_server_alive);
+        // A server that gave up ("Server Terminated": its world could not be made) can keep its
+        // process: it is not running, and the process is ended so it frees its ports.
+        if alive && server_gave_up(&primary_user_dir, state.start_timestamp) {
+            if let Some(pid) = state.pid {
+                use std::os::windows::process::CommandExt;
+                crate::diagnostics::error(format!(
+                    "[Servers] {} logged \"Server Terminated\" and stayed up: ending process {} (see server-console.txt for why it stopped)",
+                    state.server_name.as_deref().unwrap_or("The server"),
+                    pid
+                ));
+                let _ = Command::new("taskkill").args(["/F", "/T", "/PID", &pid.to_string()]).creation_flags(0x08000000).output();
+            }
+        } else if alive {
             state.is_running = true;
             if state.server_name.is_none() {
                 state.server_name = Some("servertest".to_string());
@@ -1363,6 +1469,16 @@ pub fn save_server_quick_settings(file_path: String, settings: ServerQuickSettin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_server_that_gave_up_is_told_from_one_that_runs() {
+        let tail = "LOG  : Lua f:0> WorldGenOverride.lua:4 attempted index: biomes of non-table: null\nLOG  : General f:0> Server Terminated\n";
+        let start = 1_000;
+        assert!(gave_up(tail, start + 40, Some(start), start + 70), "quiet for 30 s after giving up");
+        assert!(!gave_up(tail, start + 40, Some(start), start + 50), "a normal quit says it too, then exits: give it 20 s");
+        assert!(!gave_up(tail, start - 100, Some(start), start + 70), "the log of an earlier run");
+        assert!(!gave_up("LOG  : Network f:0> *** SERVER STARTED ****\n", start + 40, Some(start), start + 900));
+    }
 
     #[test]
     fn player_actions_become_console_commands() {

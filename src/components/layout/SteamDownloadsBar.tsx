@@ -66,11 +66,33 @@ export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI }> = ({ paths })
   };
 
   const active = state && state.phase !== 'idle' ? state : null;
+  const shown = !!(active || done);
+
+  // While the bar shows, the screens end above it (App's <main> pads by --downloads-bar-h), so it
+  // never covers the bottom of a page, such as Explore's page buttons.
+  const bar = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = bar.current;
+    if (!shown || !el) {
+      root.style.setProperty('--downloads-bar-h', '0px');
+      return;
+    }
+    const fit = () => root.style.setProperty('--downloads-bar-h', `${el.offsetHeight + 24}px`);
+    fit();
+    const watch = new ResizeObserver(fit);
+    watch.observe(el);
+    return () => {
+      watch.disconnect();
+      root.style.setProperty('--downloads-bar-h', '0px');
+    };
+  }, [shown, !!active]);
+
   if (!active && !done) return null;
 
   if (!active && done) {
     return (
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] w-[26rem] max-w-[calc(100vw-2rem)]" role="status" aria-live="polite">
+      <div ref={bar} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] w-[26rem] max-w-[calc(100vw-2rem)]" role="status" aria-live="polite">
         <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border shadow-lg ${done.ok ? 'border-emerald-600/50 bg-emerald-950/95 text-emerald-100' : 'border-amber-600/50 bg-amber-950/95 text-amber-100'}`}>
           {done.ok ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />}
           <div className="flex-1 min-w-0 text-[11px] truncate">
@@ -89,7 +111,7 @@ export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI }> = ({ paths })
   const shownPct = s.phase === 'installing' ? 100 : pct;
   const Icon = s.phase === 'installing' ? PackageOpen : Download;
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] w-[26rem] max-w-[calc(100vw-2rem)]" role="status" aria-live="polite">
+    <div ref={bar} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] w-[26rem] max-w-[calc(100vw-2rem)]" role="status" aria-live="polite">
       <div className="px-3 py-2 rounded-lg border border-sky-700/50 bg-slate-900/95 shadow-lg text-slate-100">
         <div className="flex items-center gap-2 text-[11px]">
           <Icon className="w-4 h-4 shrink-0 text-sky-400" />

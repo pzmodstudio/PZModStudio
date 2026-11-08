@@ -3,8 +3,8 @@
 //! The text is Steam's BBCode: tags, line breaks and runs without letters are kept as they are,
 //! only the words between them go to the service. Every text translated is kept on disk, so a
 //! description is sent once. Services, in order: DeepL when the player saved a key, else
-//! Google's free endpoint (no account; unofficial, so it may stop one day), else MyMemory for
-//! the pieces whose language the script gives away.
+//! Google's free endpoint (no account; unofficial, so it may stop one day), else Google's second
+//! free endpoint, else MyMemory.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -150,11 +150,49 @@ fn google(agent: &ureq::Agent, pieces: &[String], target: &str) -> Result<(Vec<S
     Ok((parts, source))
 }
 
+/// Google's other free endpoint, the one Chrome's dictionary uses: each piece goes as its own `q`,
+/// so nothing has to split back. Tried when the first one refuses.
+fn google_dict(agent: &ureq::Agent, pieces: &[String], target: &str) -> Result<(Vec<String>, String), String> {
+    let url = format!("https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl={}", percent_encode(target));
+    let body = pieces.iter().map(|p| format!("q={}", percent_encode(p))).collect::<Vec<_>>().join("&");
+    let mut resp = agent
+        .post(&url)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .send(body.as_bytes())
+        .map_err(|e| format!("Google's second service did not answer: {}", e))?;
+    let status = resp.status().as_u16();
+    if status != 200 {
+        return Err(format!("Google's second service answered {}", status));
+    }
+    let v: serde_json::Value = resp.body_mut().read_json().map_err(|e| format!("Google's second answer is not JSON: {}", e))?;
+    let list = v.as_array().ok_or("Google's second service gave no list")?;
+    // Each answer is ["text", "de"], or just "text" when it names no language.
+    let mut source = String::new();
+    let texts: Vec<String> = list
+        .iter()
+        .map(|e| match e {
+            serde_json::Value::String(s) => s.clone(),
+            _ => {
+                if source.is_empty() {
+                    source = e.get(1).and_then(|s| s.as_str()).unwrap_or("").to_string();
+                }
+                e.get(0).and_then(|t| t.as_str()).unwrap_or("").to_string()
+            }
+        })
+        .collect();
+    if texts.len() != pieces.len() {
+        return Err(format!("Google's second service gave {} texts for {}", texts.len(), pieces.len()));
+    }
+    Ok((texts, source))
+}
+
 /// MyMemory takes up to 500 bytes a call, and a few thousand words a day for free.
 const MYMEMORY_BYTES: usize = 480;
 const MYMEMORY_CALLS: usize = 25;
+/// MyMemory's word for "find the language yourself".
+const MYMEMORY_GUESS: &str = "Autodetect";
 
-/// MyMemory, one piece at a time, only when the script says the language (it needs one).
+/// MyMemory, one piece at a time, from `source` ("ru", or MYMEMORY_GUESS).
 fn mymemory(agent: &ureq::Agent, piece: &str, source: &str, target: &str) -> Result<String, String> {
     let url = format!(
         "https://api.mymemory.translated.net/get?q={}&langpair={}|{}",
@@ -361,9 +399,32 @@ fn translate_pieces(user_zomboid_dir: &str, pieces: &[String], source_hint: Opti
     if !google_failed {
         return Ok((out, source, "google".to_string()));
     }
-    // MyMemory, when the caller or the script says what language it is.
+    // Google's second endpoint, same batches.
+    let mut out: Vec<String> = Vec::with_capacity(pieces.len());
+    let mut source = String::new();
+    let mut dict_failed = false;
+    for b in &batches {
+        match google_dict(&agent, b, target) {
+            Ok((texts, src)) => {
+                out.extend(texts);
+                if source.is_empty() {
+                    source = src;
+                }
+            }
+            Err(e) => {
+                errors.push(e);
+                dict_failed = true;
+                break;
+            }
+        }
+    }
+    if !dict_failed {
+        return Ok((out, source, "google".to_string()));
+    }
+    // MyMemory, with the language the caller or the script gives, else its own guess.
     let whole = pieces.join("\n");
-    if let Some(src) = source_hint.or_else(|| script_language(&whole)) {
+    {
+        let src = source_hint.or_else(|| script_language(&whole)).unwrap_or(MYMEMORY_GUESS);
         // Pieces joined by line breaks up to MyMemory's 500 bytes a call; a call whose answer
         // does not split back goes piece by piece. Counted first: a description that needs more
         // calls than the free daily share is refused at once, not after 40 calls.
@@ -390,6 +451,7 @@ fn translate_pieces(user_zomboid_dir: &str, pieces: &[String], source_hint: Opti
                     }
                 }
             }
+            let src = if src == MYMEMORY_GUESS { "" } else { src };
             return Ok((out, src.to_string(), "mymemory".to_string()));
         }
     }
@@ -511,6 +573,20 @@ mod tests {
     }
 
     /// Needs the network: `cargo test -- --ignored google_answers`.
+    #[test]
+    #[ignore]
+    fn the_second_google_and_mymemory_take_german() {
+        let agent = agent();
+        let pieces = vec!["Augsburg und Umgebung".to_string(), "Erstellt aus echten Kartendaten".to_string()];
+        let (texts, source) = google_dict(&agent, &pieces, "es").expect("Google's second service");
+        println!("{:?} {}", texts, source);
+        assert_eq!(texts.len(), 2);
+        assert_eq!(source, "de");
+        assert!(!texts[1].contains("Kartendaten"));
+        let got = mymemory(&agent, "Erstellt aus echten Kartendaten", MYMEMORY_GUESS, "es").expect("MyMemory");
+        assert!(!got.contains("Kartendaten"));
+    }
+
     #[test]
     #[ignore]
     fn google_answers_a_russian_bbcode_text() {

@@ -33,7 +33,8 @@ const ORDER: Record<HealthSeverity, number> = { error: 0, warning: 1, info: 2 };
 /** Fixes the row can apply by rewriting the list, the way Mod Health does. */
 const LIST_FIX_ACTIONS = new Set<HealthFix['action']>(['enable_mod', 'disable_mod', 'move_before', 'remove_from_list', 'replace_in_list']);
 
-const fixLabel = (fix: HealthFix, nameOf: (id: string) => string): string => {
+/** `rowModId`: the mod whose row shows the fix; a move of another mod above it names that one. */
+const fixLabel = (fix: HealthFix, nameOf: (id: string) => string, rowModId?: string | null): string => {
   const t = i18next.t;
   switch (fix.action) {
     case 'enable_mod':
@@ -41,7 +42,9 @@ const fixLabel = (fix: HealthFix, nameOf: (id: string) => string): string => {
     case 'disable_mod':
       return t('modList.health.fix.disable', { name: nameOf(fix.mod_id) });
     case 'move_before':
-      return t('modList.health.fix.moveBefore', { name: nameOf(fix.before) });
+      return fix.before === rowModId && fix.mod_id !== rowModId
+        ? t('modList.health.fix.moveAbove', { name: nameOf(fix.mod_id) })
+        : t('modList.health.fix.moveBefore', { name: nameOf(fix.before) });
     case 'remove_from_list':
       return t('modList.health.fix.remove');
     case 'replace_in_list':
@@ -209,7 +212,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
             {fix && (
               <Tip
                 content={
-                  <TipBody title={fixLabel(fix, nameOf)} tone="cyan">
+                  <TipBody title={fixLabel(fix, nameOf, issue.mod_id)} tone="cyan">
                     {fixHint(fix) && <RichText mods={modWords} text={fixHint(fix)} />}
                   </TipBody>
                 }
@@ -223,7 +226,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
                   className={`flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-r border border-l-0 transition cursor-pointer shadow-sm ${style.chip}`}
                 >
                   <Wrench className="w-3 h-3 shrink-0" aria-hidden="true" />
-                  <span>{fixLabel(fix, nameOf)}</span>
+                  <span>{fixLabel(fix, nameOf, issue.mod_id)}</span>
                 </button>
               </Tip>
             )}

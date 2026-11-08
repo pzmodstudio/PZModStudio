@@ -58,7 +58,7 @@ use load_order::mod_info::{scan_all_installed_mods, ModManifest};
 use patch_generator::{generate_master_patch, MasterPatchRequest, MasterPatchResult};
 use preset_manager::{check_missing_preset_mods, export_preset_file, import_preset_file};
 use sandbox::{launch_sandbox_and_watch, SandboxLaunchConfig};
-use server_manager::check_server_mods;
+use server_manager::{check_server_mods, copy_workshop_mods_for_server};
 use server_manager::{
     create_new_server_config, delete_server_config, get_connected_players,
     get_dedicated_server_logs, get_dedicated_server_status, get_server_quick_settings,
@@ -152,6 +152,12 @@ fn nexus_mod_details_cmd(mod_id: u64) -> Result<nexus::NexusModDetails, String> 
 #[tauri::command(async)]
 fn workshop_item_details_cmd(id: String) -> Result<workshop::WorkshopItemDetails, String> {
     workshop::item_details(&id)
+}
+
+/// One page of a Workshop item's public comments, newest first (`start` 0 = newest).
+#[tauri::command(async)]
+fn workshop_comments_cmd(id: String, start: u32, count: u32) -> Result<workshop::WorkshopComments, String> {
+    workshop::comments(&id, start, count)
 }
 
 /// What subscribing to these items needs too: their "Required items", all the way down.
@@ -1917,6 +1923,7 @@ pub fn run() {
             nexus_categories_cmd,
             nexus_mod_details_cmd,
             workshop_item_details_cmd,
+            workshop_comments_cmd,
             workshop_requirements_cmd,
             install_mods_cmd,
             workshop_details_cmd,
@@ -1987,6 +1994,7 @@ pub fn run() {
             list_server_configs,
             sync_client_to_server,
             check_server_mods,
+            copy_workshop_mods_for_server,
             create_new_server_config,
             delete_server_config,
             launch_dedicated_server,

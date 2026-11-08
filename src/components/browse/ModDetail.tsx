@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Download, ExternalLink, FileArchive, Heart, Languages, Layers, Loader2, Play, Plus, Trash2, Users, X } from 'lucide-react';
-import { AuthorLink, NexusMod, NexusModDetails, Translation, WorkshopInstallState, WorkshopItem, WorkshopItemDetails, WorkshopLookup } from '../../types';
+import { AuthorLink, NexusMod, NexusModDetails, Translation, WorkshopComment, WorkshopInstallState, WorkshopItem, WorkshopItemDetails, WorkshopLookup } from '../../types';
 import { TRANSLATION_SERVICES, appLanguage, languageName, scriptLanguage, translateErrorText } from '../../utils/language';
 import { SupportLinks } from '../common/SupportLinks';
 import { TauriService, reportBackendError } from '../../services/tauri';
@@ -185,6 +185,110 @@ const Description: React.FC<{ source?: string | null; fallback?: string | null; 
   );
 };
 
+const COMMENTS_PAGE = 20;
+
+/**
+ * What people say about a Workshop item, newest first, from its public comment thread. Steam is
+ * asked only once the section scrolls into view, and again for each "Load more".
+ */
+const Comments: React.FC<{ id: string }> = ({ id }) => {
+  const [comments, setComments] = useState<WorkshopComment[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const ref = React.useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || visible) return;
+    const seen = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setVisible(true), { rootMargin: '200px' });
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [visible]);
+  const load = async (start: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const page = await TauriService.workshopComments(id, start, COMMENTS_PAGE);
+      setTotal(page.total);
+      setUnavailable(page.unavailable);
+      // A comment posted meanwhile shifts the pages by one: keep each comment once.
+      setComments((prev) => {
+        const have = new Set(prev.map((c) => c.id));
+        return [...(start === 0 ? [] : prev), ...page.comments.filter((c) => start === 0 || !have.has(c.id))];
+      });
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (visible) void load(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+  const left = total !== null ? Math.max(0, total - comments.length) : 0;
+  const title = total ? i18next.t('browse.detail.comments', { count: total }) : i18next.t('browse.detail.commentsTitle');
+  return (
+    <section ref={ref} className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">{title}</h3>
+        <button type="button" onClick={() => TauriService.openExternalUrl(`https://steamcommunity.com/sharedfiles/filedetails/comments/${id}`)}
+          title={i18next.t('browse.detail.commentsOnSteamTitle')}
+          className="flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer">
+          <ExternalLink className="w-3 h-3" aria-hidden="true" />
+          {i18next.t('browse.detail.commentsOnSteam')}
+        </button>
+      </div>
+      {unavailable && <p className="text-[11px] text-slate-500">{i18next.t('browse.detail.commentsUnavailable', { reason: unavailable })}</p>}
+      {!unavailable && total === 0 && comments.length === 0 && <p className="text-[11px] text-slate-500">{i18next.t('browse.detail.commentsNone')}</p>}
+      {comments.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {comments.map((c) => (
+            <article key={c.id} className={`flex flex-col gap-1 px-3 py-2 rounded-lg border bg-slate-950/60 ${c.by_author ? 'border-sky-800/70' : 'border-slate-800'}`}>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                {c.author_profile ? (
+                  <button type="button" onClick={() => c.author_profile && TauriService.openExternalUrl(c.author_profile)}
+                    title={i18next.t('browse.detail.commentsProfile', { author: c.author })}
+                    className="font-bold text-slate-200 hover:text-sky-200 cursor-pointer">
+                    {c.author}
+                  </button>
+                ) : (
+                  <span className="font-bold text-slate-200">{c.author}</span>
+                )}
+                {c.by_author && <Chip className="border-sky-600/60 text-sky-300">{i18next.t('browse.detail.commentsByAuthor')}</Chip>}
+                <span className="text-slate-500" title={c.when_text || undefined}>{formatUnixDate(c.when) || c.when_text}</span>
+              </div>
+              <p className="text-xs text-slate-300 whitespace-pre-line break-words">{c.text}</p>
+            </article>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="text-red-300">{i18next.t('browse.detail.commentsFailed', { reason: error })}</span>
+          <button type="button" onClick={() => void load(comments.length)} className="text-sky-300 hover:text-sky-200 cursor-pointer">
+            {i18next.t('browse.detail.commentsRetry')}
+          </button>
+        </div>
+      )}
+      {busy ? (
+        <span className="flex items-center gap-1 text-[11px] text-slate-500">
+          <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> {i18next.t('browse.detail.commentsLoading')}
+        </span>
+      ) : (
+        !error && left > 0 && comments.length > 0 && (
+          <button type="button" onClick={() => void load(comments.length)}
+            className="self-start flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-800 text-[11px] text-slate-300 hover:text-slate-100 hover:border-slate-600 cursor-pointer">
+            {i18next.t('browse.detail.commentsMore', { left: formatCount(left) })}
+          </button>
+        )
+      )}
+    </section>
+  );
+};
+
 const ActionButton: React.FC<{ onClick: () => void; className: string; title?: string; children: React.ReactNode }> = ({ onClick, className, title, children }) => (
   <button type="button" onClick={onClick} title={title}
     className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer ${className}`}>
@@ -306,6 +410,7 @@ const WorkshopDetail: React.FC<ModDetailProps & { target: { kind: 'workshop' } &
         <>
           <Gallery images={images} videos={data?.videos} />
           <Description source={data?.description} fallback={item?.summary} title={item?.title} onTitle={setTranslatedTitle} />
+          <Comments id={target.id} />
         </>
       }
       side={

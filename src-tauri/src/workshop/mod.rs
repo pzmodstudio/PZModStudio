@@ -3,7 +3,10 @@
 //! Searching the Workshop (`IPublishedFileService/QueryFiles`) needs a Steam Web API key and is
 //! not done here; users subscribe on the item's Workshop page in their browser.
 
+pub mod comments;
 pub mod polite;
+
+pub use comments::{comments, WorkshopComment, WorkshopComments};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -47,6 +50,10 @@ pub struct WorkshopItem {
     /// Steam sent only a short one (a search) or the author put none.
     #[serde(default)]
     pub support: Vec<crate::mod_changelog::AuthorLink>,
+    /// The author's SteamID64 (GetPublishedFileDetails `creator`); the item's comment thread is
+    /// filed under it. None when Steam did not send it (the browse page).
+    #[serde(default)]
+    pub creator: Option<String>,
 }
 
 /// What Steam has installed for one subscribed item (from appworkshop_108600.acf, offline).
@@ -217,6 +224,7 @@ fn parse_item(v: &Value) -> Option<WorkshopItem> {
             .find_map(|k| v.get(*k).and_then(|x| x.as_str()).filter(|s| !s.is_empty()))
             .map(crate::mod_changelog::support_links)
             .unwrap_or_default(),
+        creator: v.get("creator").and_then(|x| x.as_str()).filter(|s| !s.is_empty() && *s != "0").map(str::to_string),
         tags,
         builds,
         workshop_id: id,

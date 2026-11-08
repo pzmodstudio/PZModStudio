@@ -1087,7 +1087,7 @@ export const App: React.FC = () => {
         />
 
         {/* Tab Modules */}
-        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-slate-950">
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-slate-950 pb-[var(--downloads-bar-h,0px)]">
           {activeTab === 'PROFILES' && (
             <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 font-sans">
               <InstanceModule

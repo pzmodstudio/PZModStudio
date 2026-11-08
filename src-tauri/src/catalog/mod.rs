@@ -1629,6 +1629,8 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             }
         }
 
+        // A requirement that is also a loadModAfter is one problem, said once as the requirement.
+        let mut late_deps: HashSet<&str> = HashSet::new();
         for req in &m.info.require {
             match catalog.get(req) {
                 None => {
@@ -1656,6 +1658,7 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
                         list.with(&[("mod", &name), ("dep", &describe(dep))]);
                     }
                     Some(&dep_pos) if dep_pos > idx => {
+                        late_deps.insert(req.as_str());
                         list.push(Severity::Warning, "dependency_after", Some(id),
                         format!("{} requires {}, but {} loads after it", describe(m), dep.id, dep.id),
                         vec![SuggestedFix::MoveBefore { mod_id: dep.id.clone(), before: m.id.clone() }]);
@@ -1676,7 +1679,7 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
 
         for after in &m.info.load_after {
             if let Some(&p) = position.get(after.as_str()) {
-                if p > idx {
+                if p > idx && !late_deps.contains(after.as_str()) {
                     list.push(Severity::Warning, "load_after_order", Some(id),
                         format!("{} asks to load after {}, but {} comes later in the list", describe(m), after, after),
                         vec![SuggestedFix::MoveBefore { mod_id: after.clone(), before: m.id.clone() }]);
@@ -1905,7 +1908,7 @@ mod tests {
         let f = fixture("health");
         let ws = f.root.join("workshop");
         write_mod(&ws.join("1/mods/Lib/42"), "id=Lib\n");
-        write_mod(&ws.join("2/mods/UsesLib/42"), "id=UsesLib\nrequire=\\Lib\n");
+        write_mod(&ws.join("2/mods/UsesLib/42"), "id=UsesLib\nrequire=\\Lib\nloadModAfter=Lib\n");
         write_mod(&ws.join("3/mods/NeedsMissing/42"), "id=NeedsMissing\nrequire=\\Ghost,\\lib\n");
         write_mod(&ws.join("4/mods/Old/"), "id=Old\n");
         write_mod(&ws.join("5/mods/NeedsOld/42"), "id=NeedsOld\nrequire=Old\n");
@@ -1926,6 +1929,7 @@ mod tests {
         let has = |code: &str, id: &str| got.contains(&(code.to_string(), id.to_string()));
 
         assert!(has("dependency_after", "UsesLib"));
+        assert!(!has("load_after_order", "UsesLib"), "a late requirement that is also loadModAfter is said once");
         assert!(has("missing_dependency", "NeedsMissing"), "Ghost and lowercase lib are not installed");
         assert!(has("not_for_build", "Old"));
         assert!(has("dependency_unavailable", "NeedsOld"));

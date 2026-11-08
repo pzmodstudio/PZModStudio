@@ -212,8 +212,29 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
       setModReport(null);
       return;
     }
-    setModReport(await TauriService.checkServerMods(paths, selectedServer.file_path));
-  }, [paths, selectedServer]);
+    setModReport(await TauriService.checkServerMods(paths, selectedServer.file_path, isNoSteam));
+  }, [paths, selectedServer, isNoSteam]);
+
+  /** Workshop mods that need a (fresh) copy in Zomboid/mods: missing for a NoSteam server, linked
+   *  there (a NoSteam server crashes with some links), or copied and outdated since. */
+  const COPY_CODES = ['server_mod_workshop_only', 'server_mod_workshop_linked', 'server_mod_copy_stale'];
+  const toCopy = (modReport?.issues ?? []).filter((i) => COPY_CODES.includes(i.code));
+  const [copying, setCopying] = useState(false);
+  const handleCopyWorkshopMods = async () => {
+    if (!selectedServer) return;
+    setCopying(true);
+    try {
+      const made = await TauriService.copyWorkshopModsForServer(paths, selectedServer.file_path, isNoSteam);
+      setStatusMessage(t('servers.mods.copied', { list: made.join(', ') }));
+      await checkSelectedServer();
+    } catch (err: any) {
+      alert(t('servers.mods.copyError', { error: explainError(err) }));
+    } finally {
+      setCopying(false);
+    }
+  };
+  /** ZombieBuddy in Mods=: the launcher adds its agent (B42 Java mods). */
+  const listsZombieBuddy = (selectedServer?.mods ?? []).some((m) => m.replace(/^\\/, '').toLowerCase() === 'zombiebuddy');
 
   // The three lines are only right together, so they are checked whenever the file or the list
   // changes rather than only after a sync.
@@ -686,6 +707,13 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
                       </div>
                     </div>
 
+                    {listsZombieBuddy && (
+                      <div className="p-3 bg-indigo-950/50 border border-indigo-700/60 rounded-xl text-[11px] leading-relaxed text-indigo-200 flex items-start gap-2.5">
+                        <Cpu className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>{t('servers.host.zombieBuddyAgent')}</span>
+                      </div>
+                    )}
+
                     {/* Server Info Card */}
                     <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2 text-xs">
                       <div className="flex items-center justify-between text-slate-400">
@@ -793,6 +821,19 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
                                 <span className="text-slate-300">{issueText(issue)}</span>
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {toCopy.length > 0 && (
+                          <div className="px-3 py-2 border-t border-slate-800">
+                            <button
+                              type="button"
+                              disabled={copying}
+                              onClick={() => void handleCopyWorkshopMods()}
+                              title={t('servers.mods.copyWorkshopTitle')}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/50 text-amber-100 cursor-pointer disabled:opacity-50"
+                            >
+                              {copying ? t('servers.mods.copying') : t('servers.mods.copyWorkshop', { count: toCopy.length })}
+                            </button>
                           </div>
                         )}
                         {modReport.maps.length > 0 && (

@@ -232,7 +232,7 @@ mod win {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, EnumWindows, GetClientRect, GetForegroundWindow, GetWindowPlacement, GetWindowRect,
-        GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, IsZoomed, PostMessageW, SetForegroundWindow,
+        GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, PostMessageW, SetForegroundWindow,
         WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE,
         SetWindowPos, ShowWindow, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_RESTORE,
         SW_MAXIMIZE, SW_SHOWMINNOACTIVE, SW_SHOWNOACTIVATE, WINDOWPLACEMENT,
@@ -339,10 +339,6 @@ mod win {
 
     pub fn foreground_window() -> isize {
         unsafe { GetForegroundWindow() as isize }
-    }
-
-    pub fn is_window(h: isize) -> bool {
-        h != 0 && unsafe { IsWindow(to_hwnd(h)) != 0 }
     }
 
     /// Restores if minimized (minimized GL windows stop presenting) and sends the window to the
@@ -539,6 +535,17 @@ mod win {
         }
     }
 
+    /// Maximizes a window that spills out of its monitor's work area; true when it did.
+    pub fn fit(h: isize) -> bool {
+        if !spills_off_screen(h) {
+            return false;
+        }
+        unsafe {
+            ShowWindow(to_hwnd(h), SW_MAXIMIZE);
+        }
+        true
+    }
+
     /// After a windowed launch: the game opens its window at the size it saved (the screen's
     /// size, after it was maximized once) with the title bar on top, so it runs off the bottom.
     /// Maximized it fits; a window the player made smaller is left alone. Watched for a minute,
@@ -552,46 +559,51 @@ mod win {
             let guard_until = Instant::now() + Duration::from_secs(60);
             while Instant::now() < guard_until {
                 if let Some(h) = find_game_window() {
-                    if spills_off_screen(h) {
-                        unsafe {
-                            ShowWindow(to_hwnd(h), SW_MAXIMIZE);
-                        }
-                    }
+                    fit(h);
                 }
                 thread::sleep(Duration::from_millis(500));
             }
         });
     }
 
-    /// After a launch: wait for the game window, then for a while keep it parked at the bottom of
-    /// the z-order and hand focus back to `prev_fg` whenever the booting game steals it.
-    pub fn park_after_launch(prev_fg: isize, park_it: bool, keep_focus: bool, width: i32, height: i32) {
-        thread::spawn(move || {
-            let wait_until = Instant::now() + Duration::from_secs(180);
-            let mut found = None;
-            while Instant::now() < wait_until {
-                if let Some(h) = find_game_window() {
-                    found = Some(h);
-                    break;
-                }
-                thread::sleep(Duration::from_millis(250));
-            }
-            if found.is_none() {
-                return;
-            }
-            let guard_until = Instant::now() + Duration::from_secs(45);
-            while Instant::now() < guard_until {
-                if let Some(h) = find_game_window() {
-                    if park_it {
-                        park(h, width, height);
-                    }
-                    if keep_focus && is_window(prev_fg) && foreground_window() == h {
-                        force_foreground(prev_fg);
+    /// After a launch (blocking): wait for the game window, then for two minutes maximize it whenever
+    /// it is not (the game puts its saved size back more than once while it boots; one maximize at
+    /// a fixed moment was undone). The window is never sent behind and focus is never taken back:
+    /// the player who clicks it gets it (`park`/`keep_focus` did both and the user could not select
+    /// the game while it booted).
+    pub fn guard_launch(_prev_fg: isize, _park: bool, _keep_focus: bool, maximize_it: bool) {
+        if !maximize_it {
+            return;
+        }
+        let wait_until = Instant::now() + Duration::from_secs(180);
+        while Instant::now() < wait_until && find_game_window().is_none() {
+            thread::sleep(Duration::from_millis(250));
+        }
+        let guard_until = Instant::now() + Duration::from_secs(120);
+        while Instant::now() < guard_until {
+            if let Some(h) = find_game_window() {
+                let hwnd = to_hwnd(h);
+                unsafe {
+                    if IsIconic(hwnd) == 0 && IsZoomed(hwnd) == 0 {
+                        ShowWindow(hwnd, SW_MAXIMIZE);
                     }
                 }
-                thread::sleep(Duration::from_millis(250));
             }
-        });
+            thread::sleep(Duration::from_millis(500));
+        }
+    }
+
+    pub fn no_inherit_std() {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAG_INHERIT};
+        let handles = [std::io::stdin().as_raw_handle(), std::io::stdout().as_raw_handle(), std::io::stderr().as_raw_handle()];
+        for h in handles {
+            if !h.is_null() {
+                unsafe {
+                    SetHandleInformation(h as HANDLE, HANDLE_FLAG_INHERIT, 0);
+                }
+            }
+        }
     }
 }
 
@@ -699,7 +711,9 @@ pub fn game_window_action(mode: &str, width: i32, height: i32) -> Result<(String
             }
             "show" => {
                 let ok = win::force_foreground(h);
-                format!("Shown and brought to the foreground (foreground={}).", ok)
+                // A parked window has the screen's size at 0,0 and runs under the taskbar: fit it.
+                let fitted = win::fit(h);
+                format!("Shown and brought to the foreground (foreground={}{}).", ok, if fitted { ", maximized to fit the screen" } else { "" })
             }
             other => return Err(format!("Unknown mode '{}'. Use park, minimize, show or info.", other)),
         };
@@ -868,18 +882,66 @@ pub fn start_fit_window_guard() {
     win::fit_after_launch();
 }
 
-/// Background watcher started after a launch: parks the new game window and/or returns focus.
-pub fn start_launch_window_guard(prev_fg: isize, park: bool, keep_focus: bool, width: i32, height: i32) {
+/// Background watcher started after a windowed launch (`fit`): maximizes the game window while it
+/// boots. `park` and `keep_focus` are no longer acted on (the user could not select the game).
+///
+/// It runs in its own small process (`pz-mcp-server.exe --window-guard ...`): a client that calls
+/// one tool and closes the server (a script) used to end the guard with it before the window even
+/// appeared, so the game stayed off-centre at its saved size. Falls back to a thread.
+pub fn start_launch_window_guard(prev_fg: isize, park: bool, keep_focus: bool, fit: bool) {
+    if !fit {
+        return;
+    }
     #[cfg(windows)]
     {
-        if park || keep_focus {
-            win::park_after_launch(prev_fg, park, keep_focus, width, height);
+        if spawn_guard_process(prev_fg, park, keep_focus, fit) {
+            return;
         }
+        std::thread::spawn(move || win::guard_launch(prev_fg, park, keep_focus, fit));
     }
     #[cfg(not(windows))]
     {
-        let _ = (prev_fg, park, keep_focus, width, height);
+        let _ = (prev_fg, park, keep_focus, fit);
     }
+}
+
+/// The guard itself, blocking (the `--window-guard` process).
+pub fn run_window_guard(prev_fg: isize, park: bool, keep_focus: bool, fit: bool) {
+    #[cfg(windows)]
+    win::guard_launch(prev_fg, park, keep_focus, fit);
+    #[cfg(not(windows))]
+    {
+        let _ = (prev_fg, park, keep_focus, fit);
+    }
+}
+
+#[cfg(windows)]
+fn spawn_guard_process(prev_fg: isize, park: bool, keep_focus: bool, fit: bool) -> bool {
+    use std::os::windows::process::CommandExt;
+    let Ok(me) = std::env::current_exe() else { return false };
+    let is_server = me.file_name().map(|n| n.to_string_lossy().to_lowercase().contains("pz-mcp-server")).unwrap_or(false);
+    let exe = if is_server { me } else { me.with_file_name("pz-mcp-server.exe") };
+    if !exe.is_file() {
+        return false;
+    }
+    let b = |v: bool| if v { "1" } else { "0" };
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    std::process::Command::new(exe)
+        .args(["--window-guard", &prev_fg.to_string(), b(park), b(keep_focus), b(fit)])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+        .spawn()
+        .is_ok()
+}
+
+/// Our own stdin/stdout/stderr are not handed down to the programs we start: a client waiting for
+/// our output to end (one tool call from a script) otherwise waited until the game was closed.
+pub fn keep_std_handles_private() {
+    #[cfg(windows)]
+    win::no_inherit_std();
 }
 
 /// Default screenshot path: `<temp>/pz-mod-studio/game_screenshot.png`.

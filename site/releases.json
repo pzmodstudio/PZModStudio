@@ -1,8 +1,26 @@
 {
- "latest": "1.8.1",
- "count": 27,
- "built": "2026-11-03",
+ "latest": "1.8.2",
+ "count": 28,
+ "built": "2026-11-08",
  "releases": [
+  {
+   "version": "1.8.2",
+   "date": "2026-11-08",
+   "notes": [
+    "Release 1.8.2, Link 1.18.4",
+    "NoSteam servers: copy Workshop mods into Zomboid/mods instead of linking them, and end a server that gave up. With some Workshop mods linked into Zomboid/mods as junctions (MoodleFramework, PlayableChildren, NaturesCall, the TABAS pair, ...) a NoSteam server crashes while it creates the world (\"NetChecksum$Checksummer.addFile ... absPath:null\" from ScriptManager.Load, then WorldGenOverride.lua \"biomes of non-table\", \"Server Terminated\"), measured on knoxtest by the KnoxLives session; real copies start. Mods & Sync now copies (button \"Copy N Workshop mod(s) into Zomboid/mods\"), with a marker (.pzms_workshop_copy.json: item, source, newest file time) so a copy the Workshop item has outgrown is flagged (server_mod_copy_stale) and copied again; a junction to the Workshop folder is flagged (server_mod_workshop_linked) and replaced by a copy (the link removed, never its target); a folder of that name the Studio did not put there is never touched. The server status ends a server whose log says \"Server Terminated\" and has been quiet 20 s while its process stays up (it held its ports and showed as running). Seen: on this PC's knoxlab.ini (NoSteam) the hand-made copies are left alone, the ZombieBuddy junction is flagged, the KnoxLives junction (not a Workshop folder) is not",
+    "Host a server with ZombieBuddy Java mods, and host/join from the MCP. A server whose Mods= has ZombieBuddy (also \\ZombieBuddy) starts with -agentlib:zbNative=policy=deny-new: only jars this PC approved in ~/.zombie_buddy/mod_approvals.json load, and ZombieBuddy's approval window, which would hang a server, never shows (left out, with a diagnostic, when the game folder has no zbNative.dll: the JVM would not start). Mods & Sync flags a Java mod whose jar (SHA-256, per mod id) is not approved yet or was refused, Java mods without ZombieBuddy, and, with NoSteam chosen, mods only in the Workshop folder (a NoSteam server reads only Zomboid/mods and drops what requires them too), with a button that links them there as junctions. A Workshop mod linked or copied into Zomboid/mods keeps its item in WorkshopItems= (the sync dropped it). The admin password typed when starting is kept in Windows Credential Manager. MCP: server_start (password from a file or the stored value, never echoed), server_status, server_stop, server_join (+connect ip:port, -nosteam, -debug; a Steam client is refused 127.0.0.1). Seen: knoxlab started by server_start loaded KnoxLives.jar (\"[ZB] added to classpath\", \"loading KnoxLives\", SERVER STARTED in 30 s); server_join opened the game's connect window for 192.168.0.192:16261; server_stop quit over RCON and saved; the check flagged 9 Workshop-only mods of knoxlab in NoSteam and an unapproved jar",
+    "Lua error notice: hideable and off the speed controls. A \"-\" at its top right hides it as a small badge with the count (\"9 Lua error(s)\"), which takes clicks only where it is drawn; a click on the badge shows the notice again, a drag moves it, and new errors keep it a badge (pulsing). In game it starts left of the clock and the speed controls (it sat over their buttons and took their clicks); the notice and the badge come back where they were left",
+    "Steam downloads bar: a Workshop job Steam cancels ('Update canceled: Disabled (Suspended)', when the game is started: Steam does not update its mods while it runs) is over; the bar stayed at 100 % for good because no 'Finished' line follows. What the job carried waits as queued for Steam's next job",
+    "Workshop comments: read what people say about a mod before installing it",
+    "MCP workshop_search: the Explore page's Workshop search (text, order, build, category, page) for agents; read-only",
+    "MCP workshop_item: what the Steam Workshop says about one item (id or page link) - title, author, builds, dates, subscribers, favourites, size, tags, description, screenshots, videos, required items - and Steam's record of it on this PC; the Explore page's own reading, read-only",
+    "MCP launch_game: the game window is maximized while it boots, every time, and never kept from the player. The window guard is a detached helper (pz-mcp-server.exe --window-guard) that outlives a one-shot server (the guard thread died with it before the window appeared) and maximizes the window whenever it is not for two minutes (the game puts its saved size back while it boots); park no longer shrinks it to a corner or sends it behind, and focus is never taken back. The game no longer inherits the server's stdio, so the call returns at once instead of waiting for the game to close",
+    "MCP launch_game: a windowed game that is not parked is maximized when it does not fit the screen, as a launch from the app is",
+    "Agent: game_window show maximizes a window that does not fit the screen",
+    "Explore: the Steam downloads bar no longer covers the page buttons; translations try Google's second service and MyMemory for any language; Mod List says a late requirement once"
+   ]
+  },
   {
    "version": "1.8.1",
    "date": "2026-11-03",
@@ -158,13 +176,6 @@
     "Screens refresh right after a change, without leaving the tab",
     "Multiplayer check: does the list work in MP, with the mods that would not",
     "Link: named PZ Mod Manager Studio Link on the Workshop and in the Mods list"
-   ]
-  },
-  {
-   "version": "1.7.6",
-   "date": "2026-10-27",
-   "notes": [
-    "Link 1.18.1: a new game no longer inherits a refused save's empty mod list"
    ]
   }
  ]

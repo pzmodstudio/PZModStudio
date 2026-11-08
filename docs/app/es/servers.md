@@ -34,9 +34,11 @@ A la izquierda, **Configuraciones de servidor (.ini)** lista las configuraciones
 ## Host y lanzador
 
 - **Memoria (-Xmx)**: 4, 8, 12 o 16 GB para el servidor.
-- **Contraseña de admin**: fija la contraseña de la cuenta `admin` cuando arranca el servidor.
+- **Contraseña de admin**: fija la contraseña de la cuenta `admin` cuando arranca el servidor. El Studio la guarda en el Administrador de credenciales de Windows (nunca en un archivo), así un asistente conectado al Studio puede volver a iniciar este servidor sin que se la den.
 - **Autenticación y red**: **Steam activado** o **NoSteam (LAN)**.
 - **Iniciar servidor dedicado (nombre)** lo arranca en su propia ventana de consola. Mientras corre, **Detener servidor dedicado** detiene el servidor que inició el Studio (nunca otros programas Java), y **Reiniciar** lo detiene y lo vuelve a arrancar.
+
+**Mods con Java (ZombieBuddy).** Los mods de Build 42 con código Java necesitan ZombieBuddy, y ZombieBuddy necesita su agente en la línea de comandos del servidor. Cuando el `Mods=` del servidor tiene ZombieBuddy (también escrito `\ZombieBuddy`), el Studio lo inicia con `-agentlib:zbNative=policy=deny-new`, y una nota en esta pestaña lo dice. *deny-new* quiere decir que el servidor carga solo los jars que esta PC ya aprobó en la ventana de ZombieBuddy (quedan en `.zombie_buddy/mod_approvals.json` en tu carpeta de usuario) y rechaza los demás sin preguntar: un servidor no tiene ventana, y la pregunta lo dejaría parado para siempre. **Mods y sincronización** dice qué jars faltan aprobar.
 
 ## Mods y sincronización
 
@@ -45,6 +47,10 @@ Esto compara tus mods activos con lo que tiene el `.ini` del servidor. Un servid
 **Escribir mi lista en este servidor (Mods, WorkshopItems y Map)** escribe las tres líneas a partir de tus mods activos, en el orden de carga, y deja todo lo demás como estaba. El archivo anterior queda en `Zomboid/PZModStudio_Backups`.
 
 Un paquete de PZ Mod Studio (`Z_PZModStudio_*`) activo también entra en `Mods=`, pero es un mod local, no un ítem del Workshop: el servidor en esta PC lo tiene, los jugadores no lo reciben al descargar, y el juego no los deja entrar sin él. Compartiles el paquete, o apagalo antes de escribir la lista.
+
+El mismo chequeo lee qué va a hacer el servidor con los **mods con Java**: un jar que ZombieBuddy todavía no aprobó en esta PC (nuevo, o cambiado desde entonces: una actualización del mod o una recompilación es un jar nuevo) el servidor lo rechaza. Iniciá el juego una vez con ese mod activo, permitilo en la ventana de ZombieBuddy, y después iniciá el servidor. También se marcan un jar que le dijiste a ZombieBuddy que rechace, y mods con Java en una lista sin ZombieBuddy (solo carga su Lua).
+
+Con **NoSteam (LAN)** elegido en **Host y lanzador**, además lista los mods que están solo en la carpeta del Workshop de Steam. Un servidor iniciado sin Steam lee solo `Zomboid/mods`: los reporta "not found", y descarta también cada mod que los requiere. **Copiar N mod(s) del Workshop en Zomboid/mods** copia ahí la carpeta del Workshop de cada uno. Una copia, no un enlace: con algunos mods del Workshop enlazados en `Zomboid/mods` (un enlace de directorio o junction) un servidor NoSteam se cae mientras crea el mundo, así que un enlace a una carpeta del Workshop también se marca y el mismo botón lo reemplaza por una copia. Una copia además le gana al ítem del Workshop en tu propio juego. Cuando el ítem del Workshop se actualiza después de que el Studio lo copió, la copia se marca como desactualizada y el botón la vuelve a copiar. Una carpeta con el mismo nombre que no puso el Studio (tu propia copia) nunca se reemplaza.
 
 **¿Esta lista funciona en multijugador?** (**Chequear**) da un veredicto para la lista y uno por mod. Lee lo que la descripción de cada mod dice sobre multijugador, y lista llamadas que el código de cliente de un mod hace directamente donde el juego las pasa por el servidor; en multijugador cambian solo el mundo de ese jugador, o se rechazan.
 
@@ -101,3 +107,5 @@ Le hablan al servidor por RCON: un servidor que creó el juego no tiene contrase
 - Discord solo recibe mensajes mientras PZ Mod Studio está abierto y alojando el servidor.
 - Para iniciar un servidor hace falta la carpeta del juego configurada en **Configuración**.
 - Entrar a un servidor abre el juego: cerralo antes.
+- Para entrar a tu propio servidor desde esta PC, usá su dirección de la red local (por ejemplo `192.168.0.10:16261`): un cliente de Steam no puede entrar a `127.0.0.1` ni a la IP pública de esta misma PC. Un servidor iniciado con **NoSteam (LAN)** necesita un juego iniciado con `-nosteam` (ahí `127.0.0.1` sí funciona), y un juego iniciado con `-debug` solo puede entrar como admin.
+- Los asistentes conectados al Studio (MCP) pueden hacer lo mismo: `server_start`, `server_status`, `server_stop` y `server_join`.

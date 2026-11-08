@@ -34,9 +34,11 @@ On the left, **Server Configs (.ini)** lists the server configurations in `Zombo
 ## Host & Launcher
 
 - **Memory (-Xmx)**: 4, 8, 12 or 16 GB for the server.
-- **Admin Password**: sets the password of the `admin` account when the server starts.
+- **Admin Password**: sets the password of the `admin` account when the server starts. The Studio keeps it in Windows Credential Manager (never in a file), so an assistant connected to the Studio can start this server again without being given it.
 - **Auth & Network**: **Steam Enabled** or **NoSteam (LAN)**.
 - **Launch Dedicated Server (name)** starts it in its own console window. While it runs, **Stop Dedicated Server** stops the server the Studio started (never other Java programs), and **Restart** stops and starts it again.
+
+**Java mods (ZombieBuddy).** Build 42 mods with Java code need ZombieBuddy, and ZombieBuddy needs its agent on the server's command line. When the server's `Mods=` has ZombieBuddy (written `\ZombieBuddy` too), the Studio starts it with `-agentlib:zbNative=policy=deny-new`, and a note on this tab says so. *deny-new* means the server loads only the jars this PC already approved in ZombieBuddy's window (they are kept in `.zombie_buddy/mod_approvals.json` in your user folder) and refuses the rest without asking: a server has no window, and the question would stop it for good. **Mods & Sync** says which jars are not approved yet.
 
 ## Mods & Sync
 
@@ -45,6 +47,10 @@ This compares your active mods with what the server's `.ini` has. A server does 
 **Write my list into this server (Mods, WorkshopItems and Map)** writes all three lines from your active mods, in load order, and keeps every other setting as it was. The previous file is saved in `Zomboid/PZModStudio_Backups`.
 
 A PZ Mod Studio package (`Z_PZModStudio_*`) that is on goes into `Mods=` too, but it is a local mod, not a Workshop item: the server on this PC has it, players do not get it by downloading, and the game does not let them join without it. Share the package with them, or switch it off before you write the list.
+
+The same check reads what the server will do with **Java mods**: a jar ZombieBuddy has not approved on this PC yet (new, or changed since: a mod update or a rebuild is a new jar) is refused by the server. Start the game once with that mod on, allow it in ZombieBuddy's window, and then start the server. A jar you told ZombieBuddy to refuse, and Java mods in a list without ZombieBuddy (only their Lua loads), are pointed out too.
+
+With **NoSteam (LAN)** chosen on **Host & Launcher**, it also lists the mods that are only in the Steam Workshop folder. A server started without Steam reads only `Zomboid/mods`: it reports those "not found", and drops every mod that requires them too. **Copy N Workshop mod(s) into Zomboid/mods** copies each one's Workshop folder there. A copy, not a link: with some Workshop mods linked into `Zomboid/mods` (a directory junction) a NoSteam server crashes while it creates the world, so a link to a Workshop folder is flagged too and the same button replaces it with a copy. A copy also wins over the Workshop item in your own game. When the Workshop item is updated after the Studio copied it, the copy is flagged as outdated and the button copies it again. A folder of the same name the Studio did not put there (your own copy) is never replaced.
 
 **Does this list work in multiplayer?** (**Check**) gives one verdict for the list and one per mod. It reads what each mod's description says about multiplayer, and lists calls that a mod's client code makes directly where the game routes them through the server; in multiplayer they change only that player's world, or are refused.
 
@@ -101,3 +107,5 @@ They talk to the server over RCON: a server the game made has no RCON password, 
 - Posting to Discord only happens while PZ Mod Studio is open and hosting the server.
 - Launching a server needs the game folder set in **App Settings**.
 - Joining starts the game: close it first.
+- To join your own server from this PC, use its LAN address (for example `192.168.0.10:16261`): a Steam client cannot join `127.0.0.1` or this PC's own public IP. A server started with **NoSteam (LAN)** needs a game started with `-nosteam` (there `127.0.0.1` works), and a game started with `-debug` may only join as an admin.
+- Assistants connected to the Studio (MCP) can do the same: `server_start`, `server_status`, `server_stop` and `server_join`.

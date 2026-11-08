@@ -5,7 +5,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
 
 export interface LuaSyntaxResult {
   is_valid: boolean;
@@ -429,6 +429,11 @@ export const TauriService = {
   /** Full description, screenshots and required items of one Workshop item (no key). Throws on failure. */
   workshopItemDetails: async (id: string): Promise<WorkshopItemDetails> => {
     return await cached(`workshop:item:${id}`, () => invoke<WorkshopItemDetails>('workshop_item_details_cmd', { id }));
+  },
+
+  /** One page of a Workshop item's public comments, newest first (start 0 = newest). Throws on failure. */
+  workshopComments: async (id: string, start: number, count: number): Promise<WorkshopComments> => {
+    return await cached(`workshop:comments:${id}:${start}:${count}`, () => invoke<WorkshopComments>('workshop_comments_cmd', { id, start, count }));
   },
 
   /**
@@ -1803,9 +1808,14 @@ export const TauriService = {
   },
 
   /** Everything in a server's .ini that will not do what the admin meant. */
-  checkServerMods: async (paths: StudioPathsUI, filePath: string): Promise<ServerModReport | null> => {
+  /** Copies into Zomboid/mods the server's Workshop mods the check asks for (missing without Steam, linked, outdated copies); returns the copies made. */
+  copyWorkshopModsForServer: (paths: StudioPathsUI, filePath: string, nosteam = false): Promise<string[]> =>
+    invoke<string[]>('copy_workshop_mods_for_server', { paths, filePath, nosteam }),
+
+  /** `nosteam`: the server will be started without Steam, so mods only in the Workshop folder are flagged. */
+  checkServerMods: async (paths: StudioPathsUI, filePath: string, nosteam = false): Promise<ServerModReport | null> => {
     try {
-      return await invoke<ServerModReport>('check_server_mods', { paths, filePath });
+      return await invoke<ServerModReport>('check_server_mods', { paths, filePath, nosteam });
     } catch {
       // An .ini that cannot be read is reported by the list itself; no need to shout twice.
       return null;

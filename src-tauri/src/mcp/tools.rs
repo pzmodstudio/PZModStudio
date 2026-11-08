@@ -17,6 +17,12 @@ use std::path::Path;
 
 /// Returns all tool definitions exposed by the MCP server.
 pub fn get_available_tools() -> Vec<McpTool> {
+    let mut tools = available_tools();
+    tools.extend(super::server_tools::tools());
+    tools
+}
+
+fn available_tools() -> Vec<McpTool> {
     vec![
         McpTool {
             name: "get_studio_paths".to_string(),
@@ -47,10 +53,10 @@ pub fn get_available_tools() -> Vec<McpTool> {
                     "nosteam": { "type": "boolean", "description": "If true, launches with -nosteam (default: false)" },
                     "extra_args": { "type": "array", "items": { "type": "string" }, "description": "Optional extra CLI arguments" },
                     "agent_mode": { "type": "boolean", "description": "Agent play preset: no -debug, -windowed, park the window and give focus back (default: false)" },
-                    "park": { "type": "boolean", "description": "Keep the new game window parked at the bottom of the z-order, not activated (default: agent_mode)" },
+                    "park": { "type": "boolean", "description": "No longer acted on: a windowed game is always maximized while it boots and never kept from the player" },
                     "no_focus_steal": { "type": "boolean", "description": "Hand focus back to the previously focused window while the game boots (default: agent_mode)" },
-                    "park_width": { "type": "integer", "description": "Parked window width (default: 1280)" },
-                    "park_height": { "type": "integer", "description": "Parked window height (default: 720)" }
+                    "park_width": { "type": "integer", "description": "Unused since the launch no longer resizes the window (kept for old callers)" },
+                    "park_height": { "type": "integer", "description": "Unused since the launch no longer resizes the window (kept for old callers)" }
                 }
             }),
         },
@@ -529,6 +535,46 @@ pub fn get_available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "workshop_item".to_string(),
+            description: "What the Steam Workshop says about one item (its id or its page link): title, author, the builds it is tagged for, when it was posted and last updated, subscribers and favourites, size, tags, the full description (Steam BBCode), screenshots, videos and the items the author lists as required; and `installed`: Steam's record on this PC (null when not subscribed). Read from Steam's public Web API and the item's public page, no key or login, cached and polite, the same as the app's Explore page. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "A Workshop id or its steamcommunity.com page link" },
+                    "workshop_dir": { "type": "string", "description": "Optional custom .../workshop/content/108600" }
+                },
+                "required": ["id"]
+            }),
+        },
+        McpTool {
+            name: "workshop_search".to_string(),
+            description: "Searches the Steam Workshop for Project Zomboid mods the way the app's Explore page does (its public browse page; no key or login, cached and polite): text, order, build, category, page. Each result has id, title, summary, builds, tags, subscribers, favourites, size, last update and page link; `total` and `pages`. Use workshop_item on a result for the full description and required items. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string", "description": "Words to search for" },
+                    "sort": { "type": "string", "description": "relevance (default with text), trending, most_subscribed, recently_updated, newest, top_rated" },
+                    "build": { "type": "string", "description": "\"41\" or \"42\": only items tagged for that build" },
+                    "category": { "type": "string", "description": "A Workshop tag such as Vehicles, Map, Items, Interface" },
+                    "page": { "type": "integer", "description": "1 and up (default 1)" },
+                    "per_page": { "type": "integer", "description": "Up to 30 (default 30)" }
+                }
+            }),
+        },
+        McpTool {
+            name: "workshop_comments".to_string(),
+            description: "What people say about one Workshop item (its id or page link) in its public comment thread, newest first: per comment its author, the author's profile link, when (unix seconds and Steam's own wording), the text (plain, line breaks kept) and `by_author` (the item's author replying). `total` is how many the item has; page with `start` (0 = newest) and `count` (default 20, at most 50). `unavailable` carries Steam's reason when the thread is not public (an author with a private profile). Read from steamcommunity.com, no key or login, cached for five minutes and polite; the app's Explore page shows the same. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "A Workshop id or its steamcommunity.com page link" },
+                    "start": { "type": "integer", "description": "How many of the newest to skip (default 0)" },
+                    "count": { "type": "integer", "description": "How many to read, 1 to 50 (default 20)" }
+                },
+                "required": ["id"]
+            }),
+        },
+        McpTool {
             name: "community_index_lookup".to_string(),
             description: "What the Studio's mod index says about one mod (or every mod, without mod_id): builds it runs on, requires, incompatible with, load after, its Build 42 successor, and known issues each with the fix the Studio can apply (shim_patch, require_path, compatible_copy, none), every entry with the build it was seen on and whether it was verified or reported. Carried inside the app (community/index.json when it was built), nothing downloaded; the issues this player dismissed are left out.".to_string(),
             input_schema: json!({
@@ -722,6 +768,9 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "get_frame_report" => handle_get_frame_report(args),
         "keep_mod_version" => handle_keep_mod_version(args),
         "community_index_lookup" => handle_community_index_lookup(args),
+        "workshop_item" => handle_workshop_item(args),
+        "workshop_search" => handle_workshop_search(args),
+        "workshop_comments" => handle_workshop_comments(args),
         "mp_check_mods" => handle_mp_check_mods(args),
         "save_mod_maps" => handle_save_mod_maps(args),
         "save_inside" => handle_save_inside(args),
@@ -731,12 +780,15 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "list_load_rules" => handle_list_load_rules(args),
         "add_load_rule" => handle_add_load_rule(args),
         "remove_load_rule" => handle_remove_load_rule(args),
-        _ => ToolCallResult {
+        other => match super::server_tools::execute(other, &args, &resolve_paths(&args)) {
+            Some(result) => result,
+            None => ToolCallResult {
             content: vec![ToolContent {
                 content_type: "text".to_string(),
                 text: format!("Unknown tool: '{}'", name),
             }],
             is_error: true,
+            },
         },
     }
 }
@@ -1268,9 +1320,13 @@ fn handle_launch_game(args: Value) -> ToolCallResult {
     }
 
     let prev_foreground = claude_agent::current_foreground_window();
+    claude_agent::keep_std_handles_private();
     match launch_pz_direct(&paths.pz_install_dir, &paths.user_zomboid_dir, debug_mode, windowed, nosteam, &extra_args) {
         Ok(pid) => {
-            claude_agent::start_launch_window_guard(prev_foreground, park, no_focus_steal, park_width, park_height);
+            let _ = (park_width, park_height);
+            // A windowed game is maximized while it boots, parked or not (the player always wants it
+            // maximized, and parking kept them from selecting it).
+            claude_agent::start_launch_window_guard(prev_foreground, park, no_focus_steal, windowed);
             ToolCallResult {
                 content: vec![ToolContent {
                     content_type: "text".to_string(),
@@ -1285,7 +1341,7 @@ fn handle_launch_game(args: Value) -> ToolCallResult {
                         "no_focus_steal": no_focus_steal,
                         "extra_args": extra_args,
                         "message": if park || no_focus_steal {
-                            format!("Project Zomboid launched with PID: {}. A background guard waits for the window and keeps it parked / returns focus for ~45s after it appears.", pid)
+                            format!("Project Zomboid launched with PID: {}. A windowed game is maximized while it boots.", pid)
                         } else {
                             format!("Project Zomboid launched successfully with PID: {}", pid)
                         }
@@ -1989,6 +2045,45 @@ fn handle_save_mod_maps(args: Value) -> ToolCallResult {
         "saves": saves,
         "note": "Each entry: `listed` (what the save loads, map_ver.bin), `missing` (folder, mod, cells, empty_chunks already generated bare, over_listed cells a loaded map covers too). Fix with fix: true and save_id, game closed."
     })))
+}
+
+fn handle_workshop_item(args: Value) -> ToolCallResult {
+    let ids = crate::workshop::parse_ids(arg_str(&args, "id"));
+    let Some(id) = ids.first() else {
+        return error_result("id: a Workshop id or its page link".to_string());
+    };
+    let paths = resolve_paths(&args);
+    let installed = crate::workshop::local_state(&paths.workshop_dir).and_then(|s| s.items.get(id).cloned());
+    json_result(crate::workshop::item_details(id).map(|d| json!({ "details": d, "installed": installed })))
+}
+
+fn handle_workshop_search(args: Value) -> ToolCallResult {
+    let mut q = json!({});
+    for (from, to) in [("text", "text"), ("sort", "sort"), ("build", "build"), ("category", "category"), ("page", "page"), ("per_page", "perPage")] {
+        if let Some(v) = args.get(from) {
+            if !v.is_null() {
+                q[to] = v.clone();
+            }
+        }
+    }
+    if q.get("sort").is_none() && q.get("text").and_then(|t| t.as_str()).map(|t| !t.trim().is_empty()).unwrap_or(false) {
+        q["sort"] = json!("relevance");
+    }
+    let query: crate::workshop::BrowseQuery = match serde_json::from_value(q) {
+        Ok(q) => q,
+        Err(e) => return error_result(format!("search arguments: {}", e)),
+    };
+    json_result(crate::workshop::search_public(&query))
+}
+
+fn handle_workshop_comments(args: Value) -> ToolCallResult {
+    let ids = crate::workshop::parse_ids(arg_str(&args, "id"));
+    let Some(id) = ids.first() else {
+        return error_result("id: a Workshop id or its page link".to_string());
+    };
+    let start = args.get("start").and_then(|v| v.as_u64()).unwrap_or(0).min(u32::MAX as u64) as u32;
+    let count = args.get("count").and_then(|v| v.as_u64()).unwrap_or(20).min(crate::workshop::comments::COMMENTS_MAX as u64) as u32;
+    json_result(crate::workshop::comments(id, start, count))
 }
 
 fn handle_community_index_lookup(args: Value) -> ToolCallResult {

@@ -726,7 +726,7 @@ mod tests {
         let item = |id: &str, title: &str, t: u64| crate::workshop::WorkshopItem {
             workshop_id: id.into(), found: true, title: title.into(), summary: String::new(), preview_url: None,
             time_updated: Some(t), time_created: None, subscriptions: 0, favorited: 0, file_size: 0, tags: vec![], builds: vec![],
-            is_project_zomboid: true, banned: false, page_url: String::new(), children: vec![], is_collection: false, support: vec![],
+            is_project_zomboid: true, banned: false, page_url: String::new(), children: vec![], is_collection: false, support: vec![], creator: None,
         };
         let mut seen = Seen { started_at: Some(1000), ..Default::default() };
         let items = vec![item("1", "Old", 900), item("2", "Fresh", 1500)];

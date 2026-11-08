@@ -481,6 +481,8 @@ export interface DedicatedServerStatus {
   server_name?: string | null;
   memory_gb?: number | null;
   start_timestamp?: number | null;
+  /** Started without Steam (-nosteam). */
+  nosteam?: boolean | null;
 }
 
 export interface ConnectedPlayer {
@@ -1522,6 +1524,8 @@ export interface WorkshopItem {
   is_collection: boolean;
   /** Where to support its author (Ko-fi, Patreon...), from the full Workshop description. */
   support?: AuthorLink[];
+  /** The author's SteamID64 (not sent by the browse page). */
+  creator?: string | null;
 }
 
 /** What to list on the Workshop browse page. */
@@ -1554,6 +1558,31 @@ export interface WorkshopItemDetails {
   /** YouTube video ids. */
   videos: string[];
   required_items: WorkshopRequiredItem[];
+}
+
+export interface WorkshopComment {
+  id: string;
+  author: string;
+  /** The commenter's Steam profile page. */
+  author_profile: string | null;
+  /** Unix seconds. */
+  when: number | null;
+  /** Steam's own wording of the date. */
+  when_text: string;
+  /** Plain text, line breaks kept. */
+  text: string;
+  /** Written by the item's author. */
+  by_author: boolean;
+}
+
+/** One page of a Workshop item's public comments, newest first. */
+export interface WorkshopComments {
+  workshop_id: string;
+  total: number;
+  start: number;
+  comments: WorkshopComment[];
+  /** Steam's reason when the thread is not public. */
+  unavailable: string | null;
 }
 
 export type WorkshopSort = 'relevance' | 'trending' | 'most_subscribed' | 'recently_updated' | 'newest' | 'top_rated';

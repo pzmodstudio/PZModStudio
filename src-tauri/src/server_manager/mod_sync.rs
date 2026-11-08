@@ -26,6 +26,13 @@ fn workshop_id_of(m: &crate::catalog::CatalogMod) -> Option<&str> {
     }
 }
 
+/// The Workshop item that brings this mod to a server: its own, or, for a copy in `Zomboid/mods`
+/// of a mod also subscribed here (a link made for a server without Steam, a local copy), the
+/// subscribed item's. A Steam server downloads that item, so it still belongs in `WorkshopItems=`.
+fn workshop_item_for<'a>(catalog: &'a ModCatalog, m: &'a crate::catalog::CatalogMod) -> Option<&'a str> {
+    workshop_id_of(m).or_else(|| catalog.mods.iter().filter(|c| c.id == m.id).find_map(workshop_id_of))
+}
+
 /// What a server's `.ini` says about mods, and what does not add up.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerModReport {
@@ -114,7 +121,7 @@ pub fn lines_for(
         if !mods.iter().any(|x| x == &m.id) {
             mods.push(m.id.clone());
         }
-        if let Some(ws) = workshop_id_of(m) {
+        if let Some(ws) = workshop_item_for(catalog, m) {
             if !workshop_items.iter().any(|x| x == ws) {
                 workshop_items.push(ws.to_string());
             }
@@ -191,7 +198,7 @@ pub fn check(catalog: &ModCatalog, content: &str, pz_install_dir: &str) -> Serve
             );
             continue;
         };
-        match workshop_id_of(m) {
+        match workshop_item_for(catalog, m) {
             Some(ws) => {
                 covered_items.insert(ws.to_string());
                 if !workshop_items.iter().any(|x| x == ws) {
@@ -362,6 +369,24 @@ mod tests {
     }
 
     #[test]
+    fn a_workshop_mod_linked_into_zomboid_mods_keeps_its_item() {
+        let base = std::env::temp_dir().join(format!("pzms-modsync-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let workshop = base.join("108600");
+        let zomboid = base.join("Zomboid");
+        for root in [workshop.join("111").join("mods").join("Moodle"), zomboid.join("mods").join("Moodle")] {
+            std::fs::create_dir_all(root.join("42")).unwrap();
+            std::fs::write(root.join("42").join("mod.info"), "id=MoodleFramework\nname=Moodle Framework\n").unwrap();
+        }
+        let catalog = crate::catalog::build_catalog(&workshop.to_string_lossy(), &zomboid.to_string_lossy(), None);
+        let lines = lines_for(&catalog, &["MoodleFramework".to_string()], &[], "");
+        assert_eq!(lines.workshop_items, vec!["111"], "the sync keeps the item players download");
+        let report = check(&catalog, "Mods=\\MoodleFramework\nWorkshopItems=111\n", "");
+        assert!(report.issues.is_empty(), "{:?}", report.issues.iter().map(|i| &i.code).collect::<Vec<_>>());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
     fn the_base_map_stays_at_the_end_and_mod_maps_go_in_front() {
         // The map line already there names a base map; the list adds two mod maps.
         let existing = vec!["Riverside, KY".to_string()];
@@ -376,8 +401,10 @@ mod tests {
 mod live_tests {
     use super::*;
 
-    /// Reads a real server .ini against a real install and prints what does not add up.
-    /// PZMS_PZ_DIR=... PZMS_WORKSHOP_DIR=... PZMS_ZOMBOID_DIR=... PZMS_SERVER_INI=...
+    /// Reads a real server .ini against a real install and prints what does not add up, the way
+    /// the Servers screen does (Java jars against ZombieBuddy's approvals; with PZMS_NOSTEAM=1,
+    /// the mods a server without Steam cannot find).
+    /// PZMS_PZ_DIR=... PZMS_WORKSHOP_DIR=... PZMS_ZOMBOID_DIR=... PZMS_SERVER_INI=... [PZMS_NOSTEAM=1]
     /// cargo test --release a_real_server_ini -- --ignored --nocapture
     #[test]
     #[ignore]
@@ -392,7 +419,13 @@ mod live_tests {
         };
         let content = std::fs::read_to_string(&ini).expect("the .ini reads");
         let catalog = crate::catalog::build_catalog(&workshop, &zomboid, None);
-        let report = check(&catalog, &content, &pz);
+        let mut paths = crate::vfs::studio_paths();
+        paths.pz_install_dir = pz.clone();
+        paths.workshop_dir = workshop.clone();
+        paths.user_zomboid_dir = zomboid.clone();
+        let nosteam = std::env::var("PZMS_NOSTEAM").is_ok_and(|v| v == "1");
+        let report = crate::server_manager::check_server_mods(paths, ini.clone(), Some(nosteam)).expect("the check runs");
+        println!("nosteam={} agent={:?}", nosteam, super::super::java_mods::agent_arg_for(&content));
         println!(
             "Mods={} WorkshopItems={} Map={:?}",
             report.mods.len(),
@@ -401,7 +434,7 @@ mod live_tests {
         );
         println!("{} issue(s):", report.issues.len());
         for i in &report.issues {
-            println!("  [{:?}] {}", i.severity, i.message);
+            println!("  [{:?}] {} {}", i.severity, i.code, i.message);
         }
 
         // And what a sync from the player's own active list would write.
