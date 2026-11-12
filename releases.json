@@ -1,8 +1,43 @@
 {
- "latest": "1.8.2",
- "count": 28,
- "built": "2026-11-08",
+ "latest": "1.8.3",
+ "count": 29,
+ "built": "2026-11-12",
  "releases": [
+  {
+   "version": "1.8.3",
+   "date": "2026-11-12",
+   "notes": [
+    "Multiplayer test: restart one game on its own, say whether player 2 is up to date, the Link in player 2 knows the app",
+    "Multiplayer test: spawn place and player 2 as admin are tick boxes of their own; Clear on game 1 stays cleared",
+    "Shim: PropertyContainer:Val is given back as :get (42.22 renamed it)",
+    "Multiplayer test: it makes the character, clicks \"click to start\" and watches both games, each step a tick box",
+    "Monitor: console tabs dragged into any order, game 2 kept, game 1 read from its file when nothing streams",
+    "Copies into Zomboid/mods never leave the mod missing",
+    "Multiplayer test: the account filled in and connected by the Studio Link, what each process is doing, a console tab per game",
+    "Merger: a package belongs to the profile it was built with",
+    "Mod List: the not-in-any-profile filter can be cleared, and ends when there is nothing left",
+    "Mod List: 'Show them' on the not-in-any-profile banner shows those mods only",
+    "Multiplayer test: each game's account filled in on the connect window",
+    "Multiplayer test: both game windows maximized, as every launch from the app",
+    "Multiplayer test: CPU from two readings, memory said against the Java heap",
+    "A compatible copy that fixed more than loading is not 'no longer needed'",
+    "Compatible copy over a copy of the same mod: asked, then made",
+    "Multiplayer test on one PC: the server and one or two games joined to it, with a card per process",
+    "Mod List: a Studio package that is gone from disk can be taken out, and leaves the profile",
+    "Build check: a mod's own jars define names too",
+    "Security scan: hidden folders and a linked mod's tooling are not the mod",
+    "Mod Health: copies of Workshop mods made by hand in Zomboid/mods, and a server's copies are never offered for removal",
+    "Shim: getOnlinePlayers() on a dedicated server is the game's own list again",
+    "What each screen is for: a short guide on Mod Health, the Merger and the Developer page",
+    "Roadmap: the multiplayer test on one PC, next after the flow redesign",
+    "Mod Health says whose move each finding is: act, worth doing, good to know, already fixed by the Studio",
+    "Roadmap: open defects reported after 1.8.2 (ghost package id, mod Java globals in the build check, security scan of a linked repo, the confusing flow)",
+    "Developer page and pictures: a mod folder linked into Zomboid/mods is inside the player's folders",
+    "Mod List: a mod folder linked into Zomboid/mods (a junction to a mod in development) is listed",
+    "Mod Health after a game update: compatible copies made again or let go, and a locked folder named",
+    "Installed build read from the game's jar, not only Zomboid/version.txt"
+   ]
+  },
   {
    "version": "1.8.2",
    "date": "2026-11-08",
@@ -167,15 +202,6 @@
    "notes": [
     "Diagnostics: a window drawing during the Lua reload is a warning with nothing to do",
     "Saves: the mod maps a save does not load, with a fix; the door error no longer offers the Merger"
-   ]
-  },
-  {
-   "version": "1.7.7",
-   "date": "2026-10-27",
-   "notes": [
-    "Screens refresh right after a change, without leaving the tab",
-    "Multiplayer check: does the list work in MP, with the mods that would not",
-    "Link: named PZ Mod Manager Studio Link on the Workshop and in the Mods list"
    ]
   }
  ]
