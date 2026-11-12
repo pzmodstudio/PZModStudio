@@ -94,7 +94,7 @@ pub fn tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "mp_test_status".to_string(),
-            description: "The multiplayer test as it is now: every server and game process on this PC with role, PID, name (server config, or player 1/2), its Zomboid folder and log, RAM used and its Java heap limit, CPU %, state (server: starting/started; game: menu/connecting/in_game, from its console.txt), ERROR lines in its log, the address it joins; the PC's total and free memory; the second player's folder and whether it is ready; the started test's phase (waiting_for_server, players_launched, server_did_not_start, player_N_failed, stopped).".to_string(),
+            description: "The multiplayer test as it is now: every server and game process on this PC with role, PID, name (server config, or player 1/2), its Zomboid folder and log, RAM used and its Java heap limit, CPU %, state (server: starting/started; game: menu/connecting/in_game, from its console.txt), ERROR lines in its log, the address it joins; the PC's total and free memory; the second player's folder and whether it is ready; the started test's phase (waiting_for_server, players_launched, watching, all_in_game, server_did_not_start, player_N_failed, player_N_closed, player_N_out_of_memory, watch_ended, stopped).".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

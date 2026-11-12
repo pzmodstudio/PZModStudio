@@ -2230,6 +2230,10 @@
         "server_did_not_start": "The server did not start: look at its log.",
         "player_1_failed": "Game 1 could not be opened.",
         "player_2_failed": "Game 2 could not be opened.",
+        "player_1_closed": "Game 1 closed before it got into the world: look at its log.",
+        "player_2_closed": "Game 2 closed before it got into the world: look at its log.",
+        "player_1_out_of_memory": "Game 1 ran out of memory and closed (OutOfMemoryError in its log). Close other programs, or give the server or the games less memory, and restart it.",
+        "player_2_out_of_memory": "Game 2 ran out of memory and closed (OutOfMemoryError in its log). Close other programs, or give the server or the games less memory, and restart it.",
         "watching": "Watching the games every 2 seconds: each card says which screen it is on and what the test does for it.",
         "all_in_game": "Both games are in the world.",
         "watch_ended": "The test stopped watching (half an hour passed): do what is left by hand."

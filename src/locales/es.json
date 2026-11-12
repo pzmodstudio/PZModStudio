@@ -2230,6 +2230,10 @@
         "server_did_not_start": "El servidor no llegó a arrancar: mirá su log.",
         "player_1_failed": "No se pudo abrir el juego 1.",
         "player_2_failed": "No se pudo abrir el juego 2.",
+        "player_1_closed": "El juego 1 se cerró antes de entrar a la partida: mirá su log.",
+        "player_2_closed": "El juego 2 se cerró antes de entrar a la partida: mirá su log.",
+        "player_1_out_of_memory": "El juego 1 se quedó sin memoria y se cerró (OutOfMemoryError en su log). Cerrá otros programas, o dale menos memoria al servidor o a los juegos, y reinicialo.",
+        "player_2_out_of_memory": "El juego 2 se quedó sin memoria y se cerró (OutOfMemoryError en su log). Cerrá otros programas, o dale menos memoria al servidor o a los juegos, y reinicialo.",
         "watching": "Vigilando los juegos cada 2 segundos: cada tarjeta dice en qué pantalla está y qué hace la prueba por ellos.",
         "all_in_game": "Los dos juegos están en la partida.",
         "watch_ended": "La prueba dejó de vigilar (pasó media hora): lo que falte, hacelo a mano."

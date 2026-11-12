@@ -233,6 +233,38 @@ pub fn marker_is_stale(copy_root: &Path, source: &Path) -> Option<bool> {
     read_marker(copy_root).map(|m| newest_mtime(source) > m.source_newest)
 }
 
+/// Whether a folder without the Studio's marker holds something else than `source`: another
+/// number of files, another total size, or a source file newer than every file in it. For the second
+/// player's folder of a multiplayer test, where a copy put by a script must still match the server's.
+pub fn unmarked_differs(copy_root: &Path, source: &Path) -> bool {
+    if read_marker(copy_root).is_some() {
+        return false;
+    }
+    let shape = |root: &Path| {
+        walkdir::WalkDir::new(root)
+            .into_iter()
+            .flatten()
+            .filter(|e| e.file_type().is_file() && e.file_name().to_string_lossy() != COPY_MARKER)
+            .fold((0u64, 0u64, 0u64), |(n, bytes, newest), e| {
+                let meta = e.metadata().ok();
+                let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                let time = meta.and_then(|m| m.modified().ok()).map(unix_secs).unwrap_or(0);
+                (n + 1, bytes + size, newest.max(time))
+            })
+    };
+    // Files only: a folder's own date is when it was copied, which says nothing of its content.
+    let (copy, src) = (shape(copy_root), shape(source));
+    (copy.0, copy.1) != (src.0, src.1) || src.2 > copy.2
+}
+
+/// Makes a folder without a marker the Studio's own, as an outgrown copy of `id`, so
+/// `copy_into_mods` replaces it the safe way (the old one aside, the new one in, then the old one let go).
+pub fn adopt_unmarked(copy_root: &Path, id: &str, workshop_id: &str, source: &Path) -> Result<(), String> {
+    let marker = CopyMarker { id: id.to_string(), workshop_id: workshop_id.to_string(), source: source.to_string_lossy().to_string(), source_newest: 0, copied_at: 0 };
+    std::fs::write(copy_root.join(COPY_MARKER), serde_json::to_string_pretty(&marker).unwrap_or_default())
+        .map_err(|e| format!("Could not write {} in {}: {}", COPY_MARKER, copy_root.display(), e))
+}
+
 fn read_marker(copy_root: &Path) -> Option<CopyMarker> {
     serde_json::from_str(&std::fs::read_to_string(copy_root.join(COPY_MARKER)).ok()?).ok()
 }
@@ -654,6 +686,26 @@ mod tests {
     fn write_mod(root: &Path, info: &str) {
         fs::create_dir_all(root.join("42")).unwrap();
         fs::write(root.join("42").join("mod.info"), info).unwrap();
+    }
+
+    #[test]
+    fn a_copy_without_a_marker_differs_only_when_its_files_do() {
+        let base = temp("unmarked");
+        let (source, copy) = (base.join("source").join("Mod"), base.join("second").join("Mod"));
+        write_mod(&source, "id=Mod\nname=Mod\n");
+        copy_tree(&source, &copy).unwrap();
+        // The same files: the same, whenever the folders themselves were made, and with the
+        // Studio's marker in the source (a copy kept for a server has one).
+        fs::write(source.join(COPY_MARKER), "{}").unwrap();
+        assert!(!unmarked_differs(&copy, &source));
+        // A file rewritten to another size (a compatible copy rewrites require paths).
+        fs::write(source.join("42").join("mod.info"), "id=Mod\nname=Mod\nversionMax=42.22\n").unwrap();
+        assert!(unmarked_differs(&copy, &source));
+        // Made the Studio's, it is no longer judged this way: the marker's date decides.
+        adopt_unmarked(&copy, "Mod", "", &source).unwrap();
+        assert!(!unmarked_differs(&copy, &source));
+        assert_eq!(marker_is_stale(&copy, &source), Some(true));
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

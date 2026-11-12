@@ -152,6 +152,11 @@ fn read_answer(out_path: &Path, id: &str) -> Option<(String, String)> {
 
 /// Runs Lua inside the game through the Z_ClaudeAgent mod and waits for its answer.
 pub fn eval_lua(user_zomboid_dir: &str, code: &str, timeout_ms: u64) -> Result<AgentEvalOutcome, String> {
+    // A folder that is not there is a mistyped path (a caller's lost backslashes made
+    // "UsersjavieZomboid2" once): say so instead of making it and waiting for a game that never reads it.
+    if !Path::new(user_zomboid_dir).is_dir() {
+        return Err(format!("The Zomboid folder \"{}\" does not exist: check user_zomboid_dir (player 2 of a multiplayer test is <home>/Zomboid2).", user_zomboid_dir));
+    }
     let lua_dir = Path::new(user_zomboid_dir).join("Lua");
     let out_path = lua_dir.join(OUT_FILE);
     let id = fresh_id();

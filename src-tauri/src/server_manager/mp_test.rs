@@ -121,7 +121,8 @@ fn make_link(link: &Path, target: &Path) -> Result<(), String> {
 /// Puts the second player's Zomboid folder in order for the server `server`: the folder itself,
 /// the player's options.ini the first time (resolution, keys), and in its `mods` every mod of the
 /// server's `Mods=`: copied with the Studio's marker (again when the source got newer), or linked
-/// when the mod is a link to a mod in development. A folder there the Studio did not put is kept.
+/// when the mod is a link to a mod in development. A folder there without the Studio's marker is kept
+/// while it still holds what the server runs, and copied again once it differs.
 pub fn prepare_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Result<PrepareReport, String> {
     let ini = primary.join("Server").join(format!("{}.ini", server));
     let content = std::fs::read_to_string(&ini).map_err(|e| format!("Cannot read {}: {}", ini.display(), e))?;
@@ -179,6 +180,12 @@ pub fn prepare_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Res
             CopyNeed::Missing
         } else if java_mods::marker_is_stale(&dest, &source) == Some(true) {
             CopyNeed::Stale
+        } else if !is_link(&dest) && java_mods::unmarked_differs(&dest, &source) {
+            // Put there by a script or by hand, and no longer what the server runs (the mod was
+            // updated, or got a compatible copy): this folder exists only for the test, so it is
+            // made the Studio's and copied again. One that still matches is left as it is.
+            java_mods::adopt_unmarked(&dest, &id, &workshop_id, &source)?;
+            CopyNeed::Stale
         } else {
             report.kept.push(id);
             continue;
@@ -225,7 +232,9 @@ pub fn check_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Secon
         let dest = mods_dir.join(&folder);
         if std::fs::symlink_metadata(&dest).is_err() {
             check.missing.push(id);
-        } else if java_mods::marker_is_stale(&dest, &std::fs::canonicalize(&source).unwrap_or(source.clone())) == Some(true) {
+        } else if java_mods::marker_is_stale(&dest, &std::fs::canonicalize(&source).unwrap_or(source.clone())) == Some(true)
+            || (!is_link(&dest) && !is_link(&source) && java_mods::unmarked_differs(&dest, &source))
+        {
             check.outdated.push(id);
         }
     }
@@ -642,9 +651,16 @@ fn watch_games(primary: PathBuf, settings: TestSettings, mut watched: Vec<Watche
             return;
         }
         let mut all_in = true;
+        // A game that is gone before it got in: the test says so (and why, when its log does)
+        // instead of counting it as arrived.
+        let mut gone: Option<String> = None;
         for w in watched.iter_mut() {
             if !super::server_pid_alive(w.pid) {
-                continue; // closed: nothing more to do for it
+                if read_game_state(&w.dir).as_deref() != Some("in_game") || closed_by_error(&w.dir) {
+                    let why = if read_text(&w.dir.join("console.txt")).contains("OutOfMemoryError") { "out_of_memory" } else { "closed" };
+                    gone.get_or_insert(format!("player_{}_{}", w.slot, why));
+                }
+                continue;
             }
             let state = read_game_state(&w.dir);
             // Past the connect window the account exists on the server: an admin, when asked
@@ -669,11 +685,20 @@ fn watch_games(primary: PathBuf, settings: TestSettings, mut watched: Vec<Watche
             }
         }
         if all_in {
-            set_phase(&primary, "all_in_game");
+            set_phase(&primary, gone.as_deref().unwrap_or("all_in_game"));
             return;
         }
     }
     set_phase(&primary, "watch_ended");
+}
+
+/// Whether a game's log ends on an error that closed it (the Link's last word may still be
+/// "in game" when the game dies in the world).
+fn closed_by_error(dir: &Path) -> bool {
+    let log = read_text(&dir.join("console.txt"));
+    let start = (log.len().saturating_sub(4000)..log.len()).find(|i| log.is_char_boundary(*i)).unwrap_or(0);
+    let tail = &log[start..];
+    tail.contains("OutOfMemoryError") || tail.contains("uncaughtException")
 }
 
 /// Starts the test: the server without Steam, then, once its log says SERVER STARTED, the games

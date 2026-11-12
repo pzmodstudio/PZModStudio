@@ -1,8 +1,15 @@
 {
- "latest": "1.8.3",
- "count": 29,
+ "latest": "1.8.4",
+ "count": 30,
  "built": "2026-11-12",
  "releases": [
+  {
+   "version": "1.8.4",
+   "date": "2026-11-12",
+   "notes": [
+    "Multiplayer test: player 2's script-made copies are checked too, a game that closed is not counted as arrived; compatible copies from the MCP"
+   ]
+  },
   {
    "version": "1.8.3",
    "date": "2026-11-12",
@@ -194,14 +201,6 @@
    "notes": [
     "Shim: the network shield runs on multiplayer clients only and leaves the action in its callback arguments",
     "Rest works again: the shim's B42.20 rest block is gone, and packages take this build's shim at launch"
-   ]
-  },
-  {
-   "version": "1.7.8",
-   "date": "2026-10-28",
-   "notes": [
-    "Diagnostics: a window drawing during the Lua reload is a warning with nothing to do",
-    "Saves: the mod maps a save does not load, with a fix; the door error no longer offers the Merger"
    ]
   }
  ]

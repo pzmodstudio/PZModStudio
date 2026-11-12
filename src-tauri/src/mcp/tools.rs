@@ -472,6 +472,32 @@ fn available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "make_compatible_copy".to_string(),
+            description: "What Mod Health offers as \"make_compatible_copy\": copies a Workshop mod the installed build will not load, or loads with errors, into Zomboid/mods and adapts the copy (version limits, require paths Build 42 moved, JSON translations); the Workshop original is never touched and the copy wins over it. Returns the folder, what was changed and what could not be fixed. With replace_existing a folder of that name already in Zomboid/mods is replaced. Refused while the game runs. remove_compatible_copy undoes it.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_id": { "type": "string", "description": "The mod id as in mod.info" },
+                    "replace_existing": { "type": "boolean", "description": "Replace a copy already in Zomboid/mods (default false)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
+                },
+                "required": ["mod_id"]
+            }),
+        },
+        McpTool {
+            name: "remove_compatible_copy".to_string(),
+            description: "Back to the original: moves a compatible copy out of Zomboid/mods (to Zomboid/PZModStudio_Backups/mods) so the game reads the Workshop mod again. Refused while the game runs.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "folder": { "type": "string", "description": "The copy's folder name in Zomboid/mods (the folder make_compatible_copy returned)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["folder"]
+            }),
+        },
+        McpTool {
             name: "mp_check_mods".to_string(),
             description: "The multiplayer check: the calls a mod's client or shared Lua makes directly that the game, in multiplayer, only does on the server (the handlers of media/lua/server/ClientCommands.lua and Vehicles/VehicleCommands.lua, 42.21), one row per call with file, line, the game's handler as evidence, whether it sits in an isClient() branch (guarded) and whether the file mentions isClient() at all (aware). Checks only those calls. Default: every active mod.".to_string(),
             input_schema: json!({
@@ -767,6 +793,8 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "remove_file_from_package" => handle_remove_file_from_package(args),
         "get_frame_report" => handle_get_frame_report(args),
         "keep_mod_version" => handle_keep_mod_version(args),
+        "make_compatible_copy" => handle_make_compatible_copy(args),
+        "remove_compatible_copy" => handle_remove_compatible_copy(args),
         "community_index_lookup" => handle_community_index_lookup(args),
         "workshop_item" => handle_workshop_item(args),
         "workshop_search" => handle_workshop_search(args),
@@ -1960,6 +1988,56 @@ fn handle_keep_mod_version(args: Value) -> ToolCallResult {
             crate::snapshots::keep_version(&paths.user_zomboid_dir, &m.id, &m.name, Path::new(&m.root_dir), m.info.mod_version.clone(), workshop_id)
         });
     json_result(result)
+}
+
+/// The Mod Health fix "make_compatible_copy", as the app's button does it.
+fn handle_make_compatible_copy(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let mod_id = arg_str(&args, "mod_id");
+    if mod_id.is_empty() {
+        return json_result::<()>(Err("'mod_id' is required.".to_string()));
+    }
+    if let Some(pid) = find_running_pz_pid() {
+        return json_result::<()>(Err(format!("The game is running (PID {}): close it first, it holds the mod's files.", pid)));
+    }
+    let replace = args.get("replace_existing").and_then(|v| v.as_bool()).unwrap_or(false);
+    let result = crate::load_order::mod_info::read_installed_game_version(&paths.user_zomboid_dir)
+        .ok_or_else(|| "The installed game version is unknown: start Project Zomboid once so Zomboid/version.txt exists.".to_string())
+        .and_then(|game| {
+            let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, Some(game));
+            let original = catalog
+                .mods
+                .iter()
+                .find(|m| m.id == mod_id && m.source != crate::catalog::ModSource::Local)
+                .ok_or_else(|| format!("{} is not installed from the Workshop.", mod_id))?;
+            let workshop_id = match &original.source {
+                crate::catalog::ModSource::Workshop { workshop_id } => Some(workshop_id.clone()),
+                _ => None,
+            };
+            let active = crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+            let index = crate::sandbox::requires::index_modules(&paths, &catalog, &active);
+            crate::compat::make_compatible_copy_with_index(Path::new(&original.root_dir), &paths.user_zomboid_dir, game, workshop_id, replace, &index)
+        });
+    json_result(result)
+}
+
+fn handle_remove_compatible_copy(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let folder = arg_str(&args, "folder");
+    if folder.is_empty() {
+        return json_result::<()>(Err("'folder' is required.".to_string()));
+    }
+    if let Some(pid) = find_running_pz_pid() {
+        return json_result::<()>(Err(format!("The game is running (PID {}): close it first.", pid)));
+    }
+    // As the app's button: a server's list keeps the copy (a server without Steam reads only Zomboid/mods).
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    for m in catalog.mods.iter().filter(|m| m.source == crate::catalog::ModSource::Local && Path::new(&m.root_dir).file_name().is_some_and(|n| n.to_string_lossy() == folder)) {
+        if let Some(servers) = crate::catalog::listed_by_a_server(&paths.user_zomboid_dir, &m.id) {
+            return json_result::<()>(Err(format!("The copy of {} stays: the server {} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.", m.id, servers)));
+        }
+    }
+    json_result(crate::compat::remove_compatible_copy(&paths.user_zomboid_dir, folder).map(|_| json!({ "removed": folder })))
 }
 
 fn handle_mp_check_mods(args: Value) -> ToolCallResult {
