@@ -173,6 +173,14 @@ fn sync_java_agents_for_launch(install_dir: &Path, user_zomboid_dir: &str) {
     if !refreshed.is_empty() {
         crate::diagnostics::log("INFO", &format!("[Shim] {} package copies brought up to this build", refreshed.len()));
     }
+    // A copy an older Studio could not move into Zomboid/mods (a server held the files) left the
+    // mod missing and a half-made folder the game loaded: put right, here and in the multiplayer
+    // test's second folder.
+    for dir in [z_dir.clone(), crate::server_manager::mp_test::second_dir(&z_dir)] {
+        for done in crate::server_manager::java_mods::repair_copy_leftovers(&dir) {
+            crate::diagnostics::log("INFO", &format!("[Copies] {}: {}", dir.display(), done));
+        }
+    }
 }
 
 /// Spawns or attaches to an active Project Zomboid process and monitors console.txt in real time.

@@ -237,72 +237,12 @@ if Events and Events.OnMainMenuEnter then
     end)
 end
 
--- ----------------------------------------------------------------------------
--- 4.3 Safe getOnlinePlayers() Metatable Proxy (Shields against Java IndexOutOfBoundsException)
--- ----------------------------------------------------------------------------
-if _G and _G.getOnlinePlayers and not _G._pzms_online_players_wrapped then
-    _G._pzms_online_players_wrapped = true
-    local orig_getOnlinePlayers = _G.getOnlinePlayers
-    _G.getOnlinePlayers = function(...)
-        local list = orig_getOnlinePlayers(...)
-        if not list then return list end
-        
-        local proxy = {}
-        local mt = {
-            __index = function(t, k)
-                if k == "get" then
-                    return function(self, idx)
-                        if idx == nil or type(idx) ~= "number" or idx < 0 then return nil end
-                        local sz = 0
-                        if list.size then
-                            local ok, s = pcall(function() return list:size() end)
-                            if ok and type(s) == "number" then sz = s end
-                        end
-                        if idx >= sz then return nil end
-                        local ok, res = pcall(function() return list:get(idx) end)
-                        if ok then return res end
-                        return nil
-                    end
-                elseif k == "size" then
-                    return function(self)
-                        if list.size then
-                            local ok, s = pcall(function() return list:size() end)
-                            if ok and type(s) == "number" then return s end
-                        end
-                        return 0
-                    end
-                elseif k == "isEmpty" then
-                    return function(self)
-                        if list.size then
-                            local ok, s = pcall(function() return list:size() end)
-                            if ok and type(s) == "number" then return s == 0 end
-                        end
-                        return true
-                    end
-                elseif k == "_raw" or k == "rawList" then
-                    return list
-                else
-                    local val = list[k]
-                    if type(val) == "function" then
-                        return function(self, ...)
-                            return val(list, ...)
-                        end
-                    end
-                    return val
-                end
-            end,
-            __len = function(t)
-                if list.size then
-                    local ok, s = pcall(function() return list:size() end)
-                    if ok and type(s) == "number" then return s end
-                end
-                return 0
-            end
-        }
-        setmetatable(proxy, mt)
-        return proxy
-    end
-end
+-- (No 4.3 any more: getOnlinePlayers() and IsoPlayer.getPlayers() are left as the game returns them.
+-- They returned a Lua table standing in for the ArrayList (list:contains, list:indexOf and Java
+-- methods taking the list broke), and on a dedicated server always an empty one: the "network
+-- is up" test read a global named zombie, which Lua does not have. Mods counting players on a
+-- server saw nobody, with nothing in the log.)
+
 
 
 -- ----------------------------------------------------------------------------
@@ -1534,41 +1474,6 @@ local function initVanillaGuards()
     end
 
     -- ----------------------------------------------------------------------------
-    -- Dedicated Server & Multiplayer Null-Pointer Shield for getOnlinePlayers
-    -- ----------------------------------------------------------------------------
-    if _G and _G.getOnlinePlayers and not _G.__pzms_getOnlinePlayers_wrapped then
-        _G.__pzms_getOnlinePlayers_wrapped = true
-        local orig_getOnlinePlayers = _G.getOnlinePlayers
-        _G.getOnlinePlayers = function(...)
-            if isServer and isServer() then
-                if not (zombie and zombie.network and zombie.network.GameServer and zombie.network.GameServer.udpEngine) then
-                    return createSafeArrayListProxy(nil)
-                end
-            end
-            local ok, res = pcall(orig_getOnlinePlayers, ...)
-            if ok and res ~= nil then
-                return createSafeArrayListProxy(res)
-            end
-            return createSafeArrayListProxy(nil)
-        end
-    end
-
-    -- ----------------------------------------------------------------------------
-    -- Multiplayer & Bounds Safety Shield for IsoPlayer.getPlayers
-    -- ----------------------------------------------------------------------------
-    if IsoPlayer and IsoPlayer.getPlayers and not IsoPlayer.__pzms_getPlayers_wrapped then
-        IsoPlayer.__pzms_getPlayers_wrapped = true
-        local orig_getPlayers = IsoPlayer.getPlayers
-        IsoPlayer.getPlayers = function(...)
-            local ok, res = pcall(orig_getPlayers, ...)
-            if ok and res ~= nil then
-                return createSafeArrayListProxy(res)
-            end
-            return createSafeArrayListProxy(nil)
-        end
-    end
-
-    -- ----------------------------------------------------------------------------
     -- Global Vehicle Spawn Guard for MP Clients (Suppresses Unauthorized AddVehicle Commands)
     -- ----------------------------------------------------------------------------
     if isClient and isClient() then
@@ -1642,6 +1547,16 @@ local function initVanillaGuards()
             return orig_getKey(self, name, ...)
         end
         coreIndex.__pzms_getKey = true
+    end
+
+    -- PropertyContainer:Val(name) is PropertyContainer:get(name) since 42.22; mods written before
+    -- (Abundant and visible TV remote, among many) stopped with "tried to call nil" on every
+    -- television they looked at. The old name is given back as the new method.
+    local okProps, propsClass = pcall(function() return PropertyContainer.class end)
+    local propsIndex = okProps and propsClass and __classmetatables and __classmetatables[propsClass]
+    propsIndex = propsIndex and propsIndex.__index
+    if type(propsIndex) == "table" and propsIndex.get and not propsIndex.Val then
+        propsIndex.Val = propsIndex.get
     end
 
 end
@@ -1997,11 +1912,13 @@ local function initModPatches()
     if Grid and type(Grid.Reconcile) == "function" and not Grid.__pzms_patched then
         Grid.__pzms_patched = true
         local old_grid_reconcile = Grid.Reconcile
+        -- A reconcile that throws while the server starts is logged instead of stopping the start.
+        -- (It used to be skipped on every server: the test read a global named zombie, which Lua
+        -- does not have.)
         Grid.Reconcile = function(...)
-            if isServer and isServer() and not (zombie and zombie.network and zombie.network.GameServer and zombie.network.GameServer.udpEngine) then
-                return
-            end
-            return old_grid_reconcile(...)
+            local ok, res = pcall(old_grid_reconcile, ...)
+            if ok then return res end
+            print("[PZ Mod Studio Polyfill] Exhaustive Power Rework Grid.Reconcile failed: " .. tostring(res))
         end
     end
 

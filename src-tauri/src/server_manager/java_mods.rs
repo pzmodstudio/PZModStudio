@@ -228,6 +228,11 @@ fn newest_mtime(root: &Path) -> u64 {
         .unwrap_or(0)
 }
 
+/// Whether the Studio's copy at `copy_root` is older than `source` (None: no marker, not the Studio's).
+pub fn marker_is_stale(copy_root: &Path, source: &Path) -> Option<bool> {
+    read_marker(copy_root).map(|m| newest_mtime(source) > m.source_newest)
+}
+
 fn read_marker(copy_root: &Path) -> Option<CopyMarker> {
     serde_json::from_str(&std::fs::read_to_string(copy_root.join(COPY_MARKER)).ok()?).ok()
 }
@@ -315,6 +320,142 @@ pub fn copies_needed(catalog: &ModCatalog, mods: &[String], nosteam: bool) -> Ve
     out
 }
 
+/// A real folder in `Zomboid/mods` holding a mod that is also in the Workshop folder (same id):
+/// a copy, made by the Studio (marker) or by hand. It wins over the Workshop in every profile the
+/// Studio starts (`-modfolders mods,...`) and in a NoSteam server, and does not follow updates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModCopy {
+    pub id: String,
+    pub name: String,
+    pub folder: String,
+    pub copy_root: PathBuf,
+    pub workshop_root: PathBuf,
+    pub workshop_id: String,
+    /// None: no marker (made by hand). Some(true): the Studio's copy, the Workshop item updated since.
+    pub stale: Option<bool>,
+}
+
+/// The copies of Workshop mods among `mods` (the active list) in `Zomboid/mods`. Links (to the
+/// Workshop or to a mod in development) and the Studio's compatible copies are not copies here.
+pub fn mod_copies(catalog: &ModCatalog, mods: &[String]) -> Vec<ModCopy> {
+    let mut out: Vec<ModCopy> = Vec::new();
+    for entry in mods {
+        let Some(resolved) = catalog.resolve(entry.trim()) else { continue };
+        // The copy in Zomboid/mods, whichever of the two the catalog's own order has first (the
+        // Studio starts the game with -modfolders mods,..., which puts it first).
+        let Some(m) = catalog.mods.iter().find(|c| c.id == resolved.id && matches!(c.source, ModSource::Local)) else { continue };
+        if out.iter().any(|c| c.id == m.id) {
+            continue;
+        }
+        if matches!(m.origin, Some(crate::origins::ModOrigin::Compat { .. })) {
+            continue;
+        }
+        let root = Path::new(&m.root_dir);
+        if is_link(root) {
+            continue;
+        }
+        let Some((ws, workshop_id)) = catalog.mods.iter().find_map(|c| match &c.source {
+            ModSource::Workshop { workshop_id } if c.id == m.id => Some((c, workshop_id.clone())),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let stale = read_marker(root).map(|marker| newest_mtime(Path::new(&ws.root_dir)) > marker.source_newest);
+        out.push(ModCopy {
+            id: m.id.clone(),
+            name: m.name.clone(),
+            folder: root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+            copy_root: root.to_path_buf(),
+            workshop_root: PathBuf::from(&ws.root_dir),
+            workshop_id,
+            stale,
+        });
+    }
+    out
+}
+
+/// Mod Health's rows for the copies: one made by hand wins and freezes without anyone knowing
+/// (recommended: let the Studio mark it, so a Workshop update shows); the Studio's own copy is
+/// handled while current and recommended to copy again once the Workshop item is newer.
+pub fn mod_copy_issues(copies: &[ModCopy], servers: &std::collections::BTreeMap<String, Vec<String>>) -> Vec<HealthIssue> {
+    copies
+        .iter()
+        .map(|c| {
+            let listed = servers.get(&c.id).map(|s| s.join(", ")).unwrap_or_default();
+            let on_server = if listed.is_empty() { String::new() } else { format!(" The server {} lists it.", listed) };
+            let (severity, code, message, fixes) = match c.stale {
+                None => (
+                    Severity::Warning,
+                    "workshop_copy_by_hand",
+                    format!(
+                        "{} runs from a copy in Zomboid/mods ({}) made by hand of Workshop item {}. It wins over the Workshop in every profile the Studio starts and in a NoSteam server, and it does not update when the author does.{} Let the Studio keep it: it then says when the Workshop item is newer and copies it again.",
+                        c.name, c.folder, c.workshop_id, on_server
+                    ),
+                    vec![crate::catalog::SuggestedFix::AdoptWorkshopCopy { folder: c.folder.clone() }],
+                ),
+                Some(true) => (
+                    Severity::Warning,
+                    "workshop_copy_stale",
+                    format!(
+                        "{}: its copy in Zomboid/mods is older than Workshop item {}, which was updated since. Your games and a NoSteam server still load the old copy.{} Copy it again.",
+                        c.name, c.workshop_id, on_server
+                    ),
+                    vec![crate::catalog::SuggestedFix::RecopyWorkshop { mod_id: c.id.clone() }],
+                ),
+                Some(false) => (
+                    Severity::Info,
+                    "workshop_copy_kept",
+                    format!(
+                        "{} runs from the Studio's copy in Zomboid/mods (for a server without Steam), up to date with Workshop item {}. It wins over the Workshop in your games too; the Studio says when the item is updated.{}",
+                        c.name, c.workshop_id, on_server
+                    ),
+                    vec![],
+                ),
+            };
+            let mut issue = issue(severity, code, message, &[("mod", c.name.as_str()), ("folder", c.folder.as_str()), ("item", c.workshop_id.as_str()), ("servers", listed.as_str())], &c.id);
+            if !listed.is_empty() {
+                issue.params.insert("variant".to_string(), "server".to_string());
+            }
+            issue.fixes = fixes;
+            issue
+        })
+        .collect()
+}
+
+/// Marks a copy made by hand as the Studio's: from now on a Workshop update shows as stale. The
+/// copy's own newest file stands for how new its source was when copied.
+pub fn adopt_copy(c: &ModCopy) -> Result<(), String> {
+    if c.stale.is_some() {
+        return Ok(()); // already marked
+    }
+    let marker = CopyMarker {
+        id: c.id.clone(),
+        workshop_id: c.workshop_id.clone(),
+        source: c.workshop_root.to_string_lossy().to_string(),
+        source_newest: newest_mtime(&c.copy_root),
+        copied_at: unix_secs(std::time::SystemTime::now()),
+    };
+    std::fs::write(c.copy_root.join(COPY_MARKER), serde_json::to_string_pretty(&marker).unwrap_or_default())
+        .map_err(|e| format!("Could not write {}: {}", c.copy_root.join(COPY_MARKER).display(), e))
+}
+
+/// Copies a marked copy again from its Workshop folder (the old one replaced).
+pub fn recopy(user_zomboid_dir: &Path, c: &ModCopy) -> Result<Vec<String>, String> {
+    if c.stale.is_none() {
+        return Err(format!("{} in Zomboid/mods was not copied by the Studio: let the Studio keep it first.", c.folder));
+    }
+    let w = WorkshopCopy {
+        id: c.id.clone(),
+        name: c.name.clone(),
+        source: c.workshop_root.to_string_lossy().to_string(),
+        folder: c.folder.clone(),
+        workshop_id: c.workshop_id.clone(),
+        need: CopyNeed::Stale,
+        required_by: vec![],
+    };
+    copy_into_mods(user_zomboid_dir, &[w])
+}
+
 pub fn copy_issues(found: &[WorkshopCopy]) -> Vec<HealthIssue> {
     found
         .iter()
@@ -361,9 +502,42 @@ pub fn copy_issues(found: &[WorkshopCopy]) -> Vec<HealthIssue> {
 /// from and how new it was (so a later Workshop update shows as stale). Replaces only what the
 /// check found there: a link to that same Workshop folder, or the Studio's own stale copy; any
 /// other folder of that name is never touched. Returns the copies made.
+/// Where copies are made before they are moved into Zomboid/mods.
+fn copying_dir(user_zomboid_dir: &Path) -> PathBuf {
+    user_zomboid_dir.join("PZModStudio_Cache").join("copying")
+}
+
+/// Puts right what an older Studio could leave in Zomboid/mods when a copy could not be moved in:
+/// a `.<folder>.pzms-copying` folder (the game loaded it as a mod) with the mod itself gone.
+/// A complete leftover (it carries the marker) takes the mod's place when that is empty; one
+/// whose mod is there is removed. Returns what was done, for the log.
+pub fn repair_copy_leftovers(user_zomboid_dir: &Path) -> Vec<String> {
+    let mods_dir = user_zomboid_dir.join("mods");
+    let mut done = Vec::new();
+    let Ok(entries) = std::fs::read_dir(&mods_dir) else { return done };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let Some(folder) = name.strip_prefix('.').and_then(|n| n.strip_suffix(".pzms-copying")) else { continue };
+        if folder.is_empty() || folder.contains(['/', '\\']) {
+            continue;
+        }
+        let leftover = entry.path();
+        let dest = mods_dir.join(folder);
+        if std::fs::symlink_metadata(&dest).is_err() && leftover.join(COPY_MARKER).is_file() {
+            if std::fs::rename(&leftover, &dest).is_ok() {
+                done.push(format!("restored {}", folder));
+            }
+        } else if std::fs::symlink_metadata(&dest).is_ok() && std::fs::remove_dir_all(&leftover).is_ok() {
+            done.push(format!("removed the leftover copy of {}", folder));
+        }
+    }
+    done
+}
+
 pub fn copy_into_mods(user_zomboid_dir: &Path, found: &[WorkshopCopy]) -> Result<Vec<String>, String> {
     let mods_dir = user_zomboid_dir.join("mods");
     std::fs::create_dir_all(&mods_dir).map_err(|e| format!("Cannot create {}: {}", mods_dir.display(), e))?;
+    repair_copy_leftovers(user_zomboid_dir);
     let mut made = Vec::new();
     for w in found {
         if w.folder.is_empty() || w.folder.contains(['/', '\\']) || w.folder.contains("..") {
@@ -386,8 +560,11 @@ pub fn copy_into_mods(user_zomboid_dir: &Path, found: &[WorkshopCopy]) -> Result
         }
 
         let newest = newest_mtime(source);
-        let tmp = mods_dir.join(format!(".{}.pzms-copying", w.folder));
+        // Built outside Zomboid/mods (the game reads every folder there as a mod, a half-made copy
+        // too), on the same disk so it can be moved in at once.
+        let tmp = copying_dir(user_zomboid_dir).join(&w.folder);
         let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.parent().unwrap_or(user_zomboid_dir)).map_err(|e| e.to_string())?;
         if let Err(e) = copy_tree(source, &tmp) {
             let _ = std::fs::remove_dir_all(&tmp);
             return Err(format!("Could not copy {}: {}", w.name, e));
@@ -402,19 +579,32 @@ pub fn copy_into_mods(user_zomboid_dir: &Path, found: &[WorkshopCopy]) -> Result
         std::fs::write(tmp.join(COPY_MARKER), serde_json::to_string_pretty(&marker).unwrap_or_default())
             .map_err(|e| format!("Could not write {}: {}", COPY_MARKER, e))?;
 
+        // What is there goes aside first (a rename: nothing deleted yet), the copy goes in, and only
+        // then is the old one let go. If the copy cannot go in, the old one comes back: the mod is
+        // never left missing (a server holding the files open used to leave it so).
+        let aside = copying_dir(user_zomboid_dir).join(format!("{}.old", w.folder));
         if exists {
-            let removed = if w.need == CopyNeed::Linked {
-                // Removes the link itself, never what it points to.
-                std::fs::remove_dir(&dest)
-            } else {
-                std::fs::remove_dir_all(&dest)
-            };
-            if let Err(e) = removed {
+            let _ = std::fs::remove_dir_all(&aside);
+            if let Err(e) = std::fs::rename(&dest, &aside) {
                 let _ = std::fs::remove_dir_all(&tmp);
                 return Err(format!("Could not replace {} (is the game or a server using it?): {}", dest.display(), e));
             }
         }
-        std::fs::rename(&tmp, &dest).map_err(|e| format!("Could not put the copy of {} in place: {}", w.name, e))?;
+        if let Err(e) = std::fs::rename(&tmp, &dest) {
+            if exists {
+                let _ = std::fs::rename(&aside, &dest);
+            }
+            let _ = std::fs::remove_dir_all(&tmp);
+            return Err(format!("Could not put the copy of {} in place (is the game or a server using it?): {}", w.name, e));
+        }
+        if exists {
+            if w.need == CopyNeed::Linked {
+                // Removes the link itself, never what it points to.
+                let _ = std::fs::remove_dir(&aside);
+            } else {
+                let _ = std::fs::remove_dir_all(&aside);
+            }
+        }
         made.push(dest.to_string_lossy().to_string());
     }
     Ok(made)
@@ -439,6 +629,7 @@ fn issue(severity: Severity, code: &str, message: String, params: &[(&str, &str)
         params: crate::catalog::issue_params(params),
         details: vec![],
         severity,
+        state: crate::catalog::issue_state(severity, code),
         code: code.to_string(),
         mod_id: (!mod_id.is_empty()).then(|| mod_id.to_string()),
         message,
@@ -526,6 +717,82 @@ mod tests {
             ]
         );
         assert!(read_approvals(&base.join("missing.json")).is_empty());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_half_moved_copy_is_put_right_and_copies_are_made_outside_mods() {
+        let base = temp("leftover");
+        let zomboid = base.join("Zomboid");
+        let mods = zomboid.join("mods");
+        // As found on this PC: the mod gone, its complete copy left under the temporary name.
+        let left = mods.join(".ZombieBuddy.pzms-copying");
+        write_mod(&left, "id=ZombieBuddy\n");
+        fs::write(left.join(COPY_MARKER), "{}").unwrap();
+        // And one whose mod is still there: the leftover only goes.
+        write_mod(&mods.join("NaturesCall"), "id=NC\n");
+        write_mod(&mods.join(".NaturesCall.pzms-copying"), "id=NC\n");
+        let done = repair_copy_leftovers(&zomboid);
+        assert_eq!(done.len(), 2, "{:?}", done);
+        assert!(mods.join("ZombieBuddy").join(COPY_MARKER).is_file(), "the copy is back under its name");
+        assert!(!left.exists() && !mods.join(".NaturesCall.pzms-copying").exists());
+
+        // A copy now: nothing under mods but the copy itself.
+        let ws_root = base.join("108600").join("1").join("mods").join("Wsh");
+        write_mod(&ws_root, "id=Wsh\n");
+        let w = WorkshopCopy { id: "Wsh".into(), name: "Wsh".into(), source: ws_root.to_string_lossy().to_string(), folder: "Wsh".into(), workshop_id: "1".into(), need: CopyNeed::Missing, required_by: vec![] };
+        copy_into_mods(&zomboid, &[w]).unwrap();
+        let names: Vec<String> = fs::read_dir(&mods).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        assert!(names.iter().all(|n| !n.starts_with('.')), "{:?}", names);
+        assert!(mods.join("Wsh").join(COPY_MARKER).is_file());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_copy_made_by_hand_is_named_kept_when_asked_and_copied_again_once_stale() {
+        let base = temp("handcopy");
+        let workshop = base.join("108600");
+        let zomboid = base.join("Zomboid");
+        let ws_root = workshop.join("3396446795").join("mods").join("MoodleFramework");
+        write_mod(&ws_root, "id=MoodleFramework\nname=Moodle Framework\n");
+        // Copied by hand: the same mod as a real folder in Zomboid/mods, no marker.
+        write_mod(&zomboid.join("mods").join("MoodleFramework"), "id=MoodleFramework\nname=Moodle Framework\n");
+        let mods = vec!["MoodleFramework".to_string()];
+        let catalog = || crate::catalog::build_catalog(&workshop.to_string_lossy(), &zomboid.to_string_lossy(), None);
+        let mut servers = std::collections::BTreeMap::new();
+        servers.insert("MoodleFramework".to_string(), vec!["knoxtest".to_string()]);
+
+        let copies = mod_copies(&catalog(), &mods);
+        assert_eq!(copies.len(), 1);
+        assert_eq!((copies[0].stale, copies[0].workshop_id.as_str()), (None, "3396446795"));
+        let issues = mod_copy_issues(&copies, &servers);
+        assert_eq!(issues[0].code, "workshop_copy_by_hand");
+        assert_eq!(issues[0].state, crate::catalog::IssueState::Recommended);
+        assert!(issues[0].message.contains("knoxtest"), "{}", issues[0].message);
+        assert!(matches!(issues[0].fixes[0], crate::catalog::SuggestedFix::AdoptWorkshopCopy { .. }));
+        assert!(recopy(&zomboid, &copies[0]).is_err(), "a copy made by hand is not replaced before it is kept");
+
+        // Kept: the Studio's now, up to date, nothing to do.
+        adopt_copy(&copies[0]).unwrap();
+        let kept = mod_copies(&catalog(), &mods);
+        assert_eq!(kept[0].stale, Some(false));
+        let issues = mod_copy_issues(&kept, &std::collections::BTreeMap::new());
+        assert_eq!((issues[0].code.as_str(), issues[0].state), ("workshop_copy_kept", crate::catalog::IssueState::Handled));
+
+        // The Workshop item updates: worth copying again, and copying again makes it current.
+        let dest = zomboid.join("mods").join("MoodleFramework");
+        let mut marker = read_marker(&dest).unwrap();
+        marker.source_newest = 0;
+        fs::write(dest.join(COPY_MARKER), serde_json::to_string(&marker).unwrap()).unwrap();
+        let stale = mod_copies(&catalog(), &mods);
+        assert_eq!(stale[0].stale, Some(true));
+        assert_eq!(mod_copy_issues(&stale, &servers)[0].code, "workshop_copy_stale");
+        recopy(&zomboid, &stale[0]).unwrap();
+        assert_eq!(mod_copies(&catalog(), &mods)[0].stale, Some(false));
+
+        // A mod only in the Workshop has no copy to speak of.
+        fs::remove_dir_all(&dest).unwrap();
+        assert!(mod_copies(&catalog(), &mods).is_empty());
         let _ = fs::remove_dir_all(&base);
     }
 

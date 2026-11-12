@@ -514,6 +514,14 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   );
   const orphanKey = orphanMods.map((m) => m.mod_id).sort().join('|');
   const [dismissedOrphans, setDismissedOrphans] = useState<string>('');
+  /** "Show them" of the banner: only the mods no profile lists, until cleared. */
+  const [onlyOrphans, setOnlyOrphans] = useState(false);
+  const orphanIds = useMemo(() => new Set(orphanMods.map((m) => m.mod_id)), [orphanMods]);
+  // Once every such mod joined a profile there is nothing left to show: the filter ends with the
+  // banner instead of leaving an empty list.
+  useEffect(() => {
+    if (onlyOrphans && orphanMods.length === 0) setOnlyOrphans(false);
+  }, [onlyOrphans, orphanMods.length]);
   const addOrphansToProfile = async () => {
     if (!activeProfile || orphanMods.length === 0) return;
     const current = await freshProfile(paths.user_zomboid_dir || '', activeProfile);
@@ -677,6 +685,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   const filteredMods = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const shown = scopeMods.filter((m) => {
+      if (onlyOrphans && !orphanIds.has(m.mod_id)) return false;
       if (sourceFilter !== 'all' && (m.not_installed || sourceOf(m.mod_id, catalogById?.get(m.mod_id)).kind !== sourceFilter)) return false;
       if (!matchesFilter(m, stateFilter)) return false;
       if (tagFilter !== 'all' && !(modTags.get(m.mod_id) ?? []).includes(tagFilter)) return false;
@@ -707,6 +716,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     groupFilter,
     groupsByMod,
     meta,
+    onlyOrphans,
+    orphanIds,
     scopeMods,
     searchQuery,
     sourceFilter,
@@ -1272,8 +1283,9 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     );
   }
 
-  const anyFilter = stateFilter !== 'all' || sourceFilter !== 'all' || tagFilter !== 'all' || groupFilter !== 'all' || searchQuery !== '';
+  const anyFilter = onlyOrphans || stateFilter !== 'all' || sourceFilter !== 'all' || tagFilter !== 'all' || groupFilter !== 'all' || searchQuery !== '';
   const clearFilters = () => {
+    setOnlyOrphans(false);
     setStateFilter('all');
     setSourceFilter('all');
     setTagFilter('all');
@@ -1797,9 +1809,26 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
               >
                 {t('modList.orphans.add', { count: orphanMods.length })}
               </button>
-              {!showEveryMod && (
+              {onlyOrphans ? (
                 <button
-                  onClick={() => setShowEveryMod(true)}
+                  onClick={() => setOnlyOrphans(false)}
+                  className="px-2 py-1 rounded hover:bg-sky-900/60 text-sky-300 cursor-pointer"
+                >
+                  {t('modList.orphans.showAll')}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    // Those mods, and only them: they are outside the profile, so the list has to
+                    // show every installed mod, and the other filters would hide them.
+                    setShowEveryMod(true);
+                    setStateFilter('all');
+                    setSourceFilter('all');
+                    setTagFilter('all');
+                    setGroupFilter('all');
+                    setSearchQuery('');
+                    setOnlyOrphans(true);
+                  }}
                   className="px-2 py-1 rounded hover:bg-sky-900/60 text-sky-300 cursor-pointer"
                 >
                   {t('modList.orphans.show')}

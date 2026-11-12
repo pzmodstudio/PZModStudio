@@ -91,6 +91,9 @@ export const formatLogDisplayName = (file: LogFileInfoUI): string => {
   return file.file_name;
 };
 
+/** The order the player dragged the live console tabs into. */
+const TAB_ORDER_KEY = 'pz_monitor_tab_order';
+
 export const SandboxModule: React.FC<SandboxModuleProps> = ({
   paths,
   mods,
@@ -136,7 +139,24 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
       isLive: true,
       lines: serverConsoleHeader(),
     },
+    {
+      // The second game of a multiplayer test on this PC (its own Zomboid2 folder).
+      id: 'live_player2',
+      title: t('monitor.console.player2Tab'),
+      isLive: true,
+      lines: [t('monitor.console.player2Empty')],
+    },
   ]);
+  useEffect(() => {
+    try {
+      const order = JSON.parse(localStorage.getItem(TAB_ORDER_KEY) ?? '[]') as string[];
+      if (order.length > 0) {
+        setTabs((prev) => [...prev].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99)));
+      }
+    } catch {
+      // the default order
+    }
+  }, []);
   const [activeTabId, setActiveTabId] = useState<string>('live_console');
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [clearedAnchors, setClearedAnchors] = useState<Record<string, string>>({});
@@ -162,6 +182,26 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
         const srvStatus = await TauriService.getDedicatedServerStatus(paths.user_zomboid_dir);
         if (!isMounted) return;
 
+        // The tab says which server and whether it runs with Steam or without.
+        const serverTitle = srvStatus.is_running && srvStatus.server_name
+          ? t('monitor.console.serverTabNamed', { name: srvStatus.server_name, mode: srvStatus.nosteam ? 'NoSteam' : 'Steam' })
+          : t('monitor.console.serverTab');
+        setTabs((prev) => prev.map((tab) => (tab.id === 'live_server' && tab.title !== serverTitle ? { ...tab, title: serverTitle } : tab)));
+        // Game 1's console.txt while the live stream has nothing (the app did not start that game).
+        const headerOnly = liveConsoleLines().length === 0;
+        if (headerOnly) {
+          const p1 = await TauriService.mpTestPlayer2Log(paths, 1500, 1).catch(() => [] as string[]);
+          if (p1.length > 0 && isMounted) {
+            const cleanedP1 = p1.map((l) => l.replace(/^\[\d{2}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\]\s*/, ''));
+            setTabs((prev) => prev.map((tab) => (tab.id === 'live_console' ? { ...tab, lines: [...liveConsoleHeader(), t('monitor.console.fromFile'), ...cleanedP1] } : tab)));
+          }
+        }
+        // Player 2's console, when the multiplayer test has made its folder.
+        const p2 = await TauriService.mpTestPlayer2Log(paths, 1500).catch(() => [] as string[]);
+        if (p2.length > 0 && isMounted) {
+          const cleanedP2 = p2.map((l) => l.replace(/^\[\d{2}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\]\s*/, ''));
+          setTabs((prev) => prev.map((tab) => (tab.id === 'live_player2' ? { ...tab, lines: cleanedP2 } : tab)));
+        }
         if (srvStatus.is_running) {
           const srvLines = await TauriService.getDedicatedServerLogs(paths.user_zomboid_dir, 1500);
           if (srvLines && srvLines.length > 0 && isMounted) {
@@ -260,7 +300,27 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     setActiveTabId(newTab.id);
   };
 
-  const isPermanentTab = (tabId: string) => tabId === 'live_console' || tabId === 'live_server';
+  const isPermanentTab = (tabId: string) => tabId === 'live_console' || tabId === 'live_server' || tabId === 'live_player2';
+
+  /** Tabs are reordered by dragging one onto another; the order of the three live ones is kept. */
+  const [draggedTab, setDraggedTab] = useState<string | null>(null);
+  const moveTab = (from: string, to: string) => {
+    if (from === to) return;
+    setTabs((prev) => {
+      const list = [...prev];
+      const i = list.findIndex((x) => x.id === from);
+      const j = list.findIndex((x) => x.id === to);
+      if (i < 0 || j < 0) return prev;
+      const [moved] = list.splice(i, 1);
+      list.splice(j, 0, moved);
+      try {
+        localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(list.filter((x) => isPermanentTab(x.id)).map((x) => x.id)));
+      } catch {
+        // only a convenience
+      }
+      return list;
+    });
+  };
 
   const handleCloseTab = (tabId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -334,10 +394,11 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
 
   const handleClearActiveTab = () => {
     if (!activeTab) return;
-    // The game's console is a shared store: empty it, so the header and new lines show.
+    // The game's console is a shared store: empty it, so the header and new lines show. When the
+    // tab shows the game's console.txt instead (a game the app did not start), that is read again
+    // every two seconds: the anchor below keeps what was cleared off the screen.
     if (activeTab.id === 'live_console') {
       clearLiveConsole();
-      return;
     }
     if (activeTab.lines.length === 0) return;
     setClearedAnchors((prev) => ({
@@ -434,6 +495,20 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
                 return (
                   <button
                     key={tab.id}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedTab(tab.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      if (draggedTab) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedTab) moveTab(draggedTab, tab.id);
+                      setDraggedTab(null);
+                    }}
+                    onDragEnd={() => setDraggedTab(null)}
                     onClick={() => setActiveTabId(tab.id)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-xs font-medium border-t border-x transition cursor-pointer shrink-0 max-w-[200px] truncate ${
                       isActive

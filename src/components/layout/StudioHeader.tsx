@@ -12,7 +12,7 @@ interface StudioHeaderProps {
   resolvedConflictCount?: number;
   onNavigateToMerger?: () => void;
   activeProfileName?: string;
-  /** The game build installed now, from Zomboid/version.txt ("42.21"). */
+  /** The game build installed now, from the installed game's jar ("42.21"). */
   installedBuild?: string | null;
   /** The build the active profile was last played on from the Studio. */
   profileBuild?: string | null;

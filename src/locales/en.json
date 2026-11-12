@@ -45,7 +45,7 @@
     "buildCrossed": "This profile was last played on build {{played}}; the game installed now is {{installed}}. Saves never cross a major build: a {{playedMajor}} save will not open on {{installedMajor}}. Switch Steam's beta branch back to play it.",
     "buildOther": "This profile was last played on build {{played}}; the game installed now is {{installed}}. A save from an earlier build usually opens on a later one of the same major; the other way round it does not.",
     "buildSame": "Installed build {{installed}}; this profile was last played on it.{{steam}}",
-    "buildUnknown": "Installed build {{installed}}, from Zomboid/version.txt.{{steam}} Play this profile from the Studio once and it remembers the build.",
+    "buildUnknown": "Installed build {{installed}} (the game's own files).{{steam}} Play this profile from the Studio once and it remembers the build.",
     "steamBranch": " Steam branch: {{branch}}{{updated}}.",
     "steamUpdated": ", last updated {{date}}",
     "conflictsTitle": "Files several active mods ship at the same path. {{pending}} still need a decision, {{resolved}} are resolved or merged automatically. Click to open the Mod Merger.",
@@ -584,6 +584,7 @@
         "security_java": "Java that reaches out",
         "security_lua": "Unusual Lua calls",
         "compatible_copy": "Compatible copy",
+        "compatible_copy_unneeded": "Compatible copy no longer needed",
         "workshop_update_pending": "Update waiting",
         "updated_since_last_play": "Updated since you last played",
         "script_definition_conflict": "Same definition as another mod",
@@ -598,7 +599,10 @@
         "package_file_orphan": "Package copy of no mod",
         "package_built_for_other_list": "Built for another list",
         "two_mod_managers": "Two mod managers",
-        "floods_console": "Fills the console"
+        "floods_console": "Fills the console",
+        "workshop_copy_by_hand": "Copy made by hand",
+        "workshop_copy_stale": "Copy out of date",
+        "workshop_copy_kept": "Copy for a server"
       },
       "fix": {
         "enable": "Switch on {{name}}",
@@ -656,7 +660,8 @@
       "add": "Add to the profile",
       "show": "Show them",
       "dismiss": "Hide until another one appears",
-      "added": "{{count}} mod(s) added to \"{{name}}\", switched off."
+      "added": "{{count}} mod(s) added to \"{{name}}\", switched off.",
+      "showAll": "Show all"
     },
     "understood": "Understood",
     "enableAllConfirm": "Switch on the {{count}} mod(s) shown here that are off?",
@@ -790,7 +795,9 @@
       "removeCopyTitle": "Optional. Removes the compatible copy so the game uses the Workshop original again: for when its author has updated it for Build 42.",
       "removeFromPackage": "Take out of the package",
       "replace": "Use {{id}} instead of {{entry}}",
-      "dismissKnown": "No longer happens"
+      "dismissKnown": "No longer happens",
+      "adoptCopy": "Let the Studio keep it",
+      "recopy": "Copy it again"
     },
     "freshCopy": "{{mod}} already has a compatible copy. Make a fresh one? The current copy is moved to Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "Take {{file}} out of {{package}}?\n\nThe package is published again without it, and the game reads the mod's own file on its next launch. If you edited the copy, those edits go.",
@@ -810,11 +817,11 @@
     "confirmFixAll": "This will {{what}}.\n\nNothing is switched off, and the Mod List can undo it.",
     "and": " and ",
     "tabs": {
-      "problems": "Problems",
+      "problems": "What to do now",
       "conflicts": "Conflicts",
       "info": "Good to know",
       "performance": "Performance",
-      "problemsIntro": "What breaks the game or will: missing or switched-off requirements, mods in the wrong order, mods your build cannot load, pairs that do not go together. Fix these first.",
+      "problemsIntro": "First what breaks the game, then what is worth fixing. Below, folded, what the Studio already fixed and what is only good to know: nothing to do there.",
       "conflictsIntro": "Two mods give the same file, item, recipe or text, and the game uses only one. Nothing is broken by itself: merge them, or choose which version you want.",
       "infoIntro": "Nothing to fix here: compatible copies the Studio made, copies the game ignores, mods updated since you last played, what the Studio's index says about your mods. A button here is optional: it undoes something the Studio did.",
       "conflictsEmpty": "No two of your mods give the same file, item or text.",
@@ -842,7 +849,98 @@
     "dismissedDone": "Done: that warning about {{name}} is no longer shown. If it happens again, you can bring back the warnings you marked from the top of this screen.",
     "dismissedCount": "{{count}} warning(s) marked as solved ↺",
     "dismissedTitle": "Index warnings you marked with \"No longer happens\". Click to show them all again.",
-    "dismissedRestored": "{{count}} warning(s) you had marked are shown again."
+    "dismissedRestored": "{{count}} warning(s) you had marked are shown again.",
+    "state": {
+      "act": {
+        "title": "You need to act",
+        "word": "Act",
+        "hint": "The game breaks or does not load these mods until you do something. Start here."
+      },
+      "recommended": {
+        "title": "Worth doing",
+        "word": "Worth doing",
+        "hint": "It works, but it is worth fixing: the button says what it changes."
+      },
+      "info": {
+        "title": "Good to know",
+        "word": "Good to know",
+        "hint": "Nothing to do: just so you know."
+      },
+      "handled": {
+        "title": "Already fixed by the Studio",
+        "word": "Already fixed",
+        "hint": "Leave these alone: this is how they work. Each can be undone if you need to."
+      }
+    },
+    "effect": {
+      "enable_mod": "Switches it on in your mod list.",
+      "disable_mod": "Switches it off in your mod list. Nothing is deleted.",
+      "move_before": "Changes the load order in your mod list. No files are touched.",
+      "remove_from_list": "Takes that line out of your mod list. No files are deleted.",
+      "replace_in_list": "Replaces that line of your list with the right mod.",
+      "subscribe_workshop": "Opens the Workshop so you can subscribe. Nothing changes on your PC.",
+      "open_workshop_page": "Opens the mod's Workshop page. Nothing changes on your PC.",
+      "make_compatible_copy": "Makes a copy adapted to your build in Zomboid/mods; the game uses it instead of the Workshop one. An older copy goes to the backups.",
+      "keep_version": "Keeps a copy of the mod as it is today, in case an update breaks your save. What the game loads does not change.",
+      "remove_compatible_copy": "Deletes the copy in Zomboid/mods (kept in the backups); the game uses the Workshop one again.",
+      "merge_files": "Combines those files in the Studio's package, which loads last. The mods are not touched.",
+      "open_in_merger": "Opens the Merger so you choose by hand what stays.",
+      "enable_shim_patch": "Switches on a Studio fix for that mod. It can be switched off in Settings.",
+      "remove_from_package": "Takes the file out of the Studio's package; the game reads the mod's own again.",
+      "dismiss_known_issue": "Stops showing this warning on this PC. It can be shown again.",
+      "adopt_workshop_copy": "Puts the Studio's marker in the copy. No file of the mod changes; from then on the app says when the Workshop has a newer version.",
+      "recopy_workshop": "Replaces the copy in Zomboid/mods with the current Workshop version. Your games and a server without Steam load the new one."
+    },
+    "group": {
+      "compatible_copy_unneeded": {
+        "title_one": "{{count}} compatible copy is no longer needed",
+        "title_other": "{{count}} compatible copies are no longer needed",
+        "body": "Their authors updated the originals, which now load on your build. The copies hide those updates from you.",
+        "button_one": "Back to the original",
+        "button_other": "Back to the {{count}} originals"
+      },
+      "compatible_copy": {
+        "title_one": "{{count}} mod runs from a Studio compatible copy",
+        "title_other": "{{count}} mods run from Studio compatible copies",
+        "body": "Their Workshop originals do not load on your build; these copies do. Leave them. When an author updates a mod, it shows under \"Worth doing\"."
+      },
+      "community_known_issue": {
+        "title_one": "{{count}} known issue, from the Studio index:",
+        "title_other": "{{count}} known issues, from the Studio index:"
+      },
+      "workshop_copy_by_hand": {
+        "title_one": "{{count}} mod runs from a copy made by hand",
+        "title_other": "{{count}} mods run from copies made by hand",
+        "body": "They are in Zomboid/mods as copies of their Workshop version: they win over the Workshop in all your profiles and in a server without Steam, and they do not update when the author does. Nothing says when they get old.",
+        "button_one": "Let the Studio keep it",
+        "button_other": "Let the Studio keep all {{count}}"
+      },
+      "workshop_copy_stale": {
+        "title_one": "{{count}} copy is out of date",
+        "title_other": "{{count}} copies are out of date",
+        "body": "The Workshop has a newer version of these mods, but your games and a server without Steam still load the copy in Zomboid/mods.",
+        "button_one": "Copy it again",
+        "button_other": "Copy all {{count}} again"
+      },
+      "workshop_copy_kept": {
+        "title_one": "{{count}} mod runs from a Studio copy for servers",
+        "title_other": "{{count}} mods run from Studio copies for servers",
+        "body": "They are up to date with the Workshop. They win over the Workshop in your games too; when an author updates, it shows under \"Worth doing\" to copy again."
+      },
+      "andMore": " and {{count}} more.",
+      "usedByServers": "The server {{servers}} uses them: a server without Steam reads only Zomboid/mods, so the copies stay. Letting the Studio keep them changes nothing for the server."
+    },
+    "undoPrefix": "Undo: {{what}}",
+    "nothingMore": "Nothing more to do.",
+    "copyRemovedDone": "Done: the copy {{folder}} is gone and the game uses the original.",
+    "copiesRemovedDone_one": "Done: {{count}} copy removed; the game uses the original.",
+    "copiesRemovedDone_other": "Done: {{count}} copies removed; the game uses the originals.",
+    "removeCopiesConfirm": "Go back to the originals of {{count}} mod(s)? The copies {{folders}} are taken out (kept in Zomboid/PZModStudio_Backups/mods) and the game uses the Workshop versions.",
+    "copiesAdoptedDone_one": "Done: the Studio keeps {{count}} copy and says when it gets old.",
+    "copiesAdoptedDone_other": "Done: the Studio keeps {{count}} copies and says when they get old.",
+    "recopiedDone_one": "Done: {{count}} mod copied again from the Workshop.",
+    "recopiedDone_other": "Done: {{count}} mods copied again from the Workshop.",
+    "replaceSameModCopy": "{{mod}} already has a copy in Zomboid/mods (made by hand or for a server). Replace it with a compatible copy? It is the same mod adapted to your build: your games and a server without Steam still have it. The current copy is kept in Zomboid/PZModStudio_Backups/mods."
   },
   "dialogs": {
     "kept": {
@@ -1648,6 +1746,8 @@
       "noModFound": "No Project Zomboid mod found: there is no mod.info (directly, in common/ or in a 42/ folder).",
       "badFolderName": "Unusable mod folder name: {{what}}",
       "sourceInside": "The source folder is inside Zomboid/mods already.",
+      "copyAsideServer": "Cannot move the old copy aside: the dedicated server {{server}} is running and has the mod's files open. Stop it (Servers), then try again.",
+      "copyAsideOpen": "Cannot move the old copy aside ({{why}}): a program has a file of Zomboid/mods/{{what}} open (the game, a server, an Explorer or editor window). Close it, then try again.",
       "cannotMoveAside": "Cannot move the old {{what}} aside: {{why}}",
       "copyFailed": "Copying {{what}} failed: {{why}}",
       "nexusRejected": "Nexus Mods rejected the {{what}}: {{why}}",
@@ -1656,7 +1756,10 @@
       "badApiKey": "Steam rejected the Web API key. Check it in Browse Mods > Steam Workshop (or create a new one at steamcommunity.com/dev/apikey).",
       "noWorkshopItem": "Steam has no public item with this id (removed, private or wrong id).",
       "steamRefused": "Steam refused the request.",
-      "packageInUse": "The package is in use and could not be replaced. Close the game or any window showing its folder, then publish again."
+      "packageInUse": "The package is in use and could not be replaced. Close the game or any window showing its folder, then publish again.",
+      "copyStaysForServer": "The copy of {{what}} stays: the server {{server}} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.",
+      "folderNotCompat": "There is already a folder {{what}} in Zomboid/mods that is not a Studio compatible copy: move or rename it first.",
+      "earlierCompat": "There is already an earlier compatible copy of {{what}} in Zomboid/mods."
     }
   },
   "source": {
@@ -2001,7 +2104,8 @@
       "mods": "Mods & Sync",
       "players": "Players",
       "settings": "Quick .ini",
-      "discord": "Discord"
+      "discord": "Discord",
+      "mpTest": "Multiplayer test"
     },
     "host": {
       "memory": "Memory (-Xmx)",
@@ -2082,6 +2186,79 @@
       "pvp": "PVP Combat:",
       "pauseEmpty": "Pause When Empty:",
       "save": "Save Settings to .ini"
+    },
+    "mpTest": {
+      "title": "Multiplayer test on this PC",
+      "what": "Starts this server without Steam and opens one or two games joined to it, to test mods in multiplayer without another PC. Each game shows the server's connect window: type an account name and a password (a new name makes the account).",
+      "touches": "Player 2 uses a Zomboid folder of its own ({{dir}}): its options, saves and logs do not mix with yours. \"Get player 2 ready\" copies the server's mods there (with the Studio's marker, copied again when they change); the first time it can take several GB.",
+      "players": "Players",
+      "serverMemory": "Server memory",
+      "prepare": "Get player 2 ready",
+      "prepareAgain": "Update player 2's mods",
+      "prepareFirst": "Get it ready first: player 2 needs the server's mods in its folder.",
+      "start_one": "Start server and {{count}} game",
+      "start_other": "Start server and {{count}} games",
+      "stop": "End test",
+      "stopConfirm": "End the test? The games close and the server stops, saving the world.",
+      "pcMemory": "PC's free memory: {{free}} of {{total}} GB.",
+      "needs": "The test asks for about {{need}} GB.",
+      "notEnough": "Not enough: lower the server memory or test with 1 player.",
+      "prepared": "Player 2 ready: {{copied}} mod(s) copied, {{linked}} linked, {{kept}} already there.",
+      "missing": "The server lists mods that are not on this PC: {{mods}}.",
+      "nothingRunning": "No server or game is open. Start the test and each one shows here with its memory, CPU, folder and log.",
+      "server": "Server {{name}}",
+      "player": "Player {{n}}",
+      "ramOf": "{{used}} GB in use (Java up to {{max}} GB)",
+      "ram": "{{used}} GB",
+      "cpu": "CPU {{pct}} %",
+      "folder": "Folder:",
+      "usesServerList": "Loads the server's mod list, not your profile's.",
+      "openFolder": "Folder",
+      "openLog": "Log",
+      "errors_one": "{{count}} error in the log",
+      "errors_other": "{{count}} errors in the log",
+      "state": {
+        "starting": "Starting",
+        "started": "Ready",
+        "menu": "In the menu",
+        "connecting": "Connecting",
+        "in_game": "In game"
+      },
+      "phase": {
+        "waiting_for_server": "Waiting for the server to finish starting (with many mods it takes minutes); then the games open.",
+        "players_launched": "Games open: each one's account is already filled in on the connect window (player 1 signs in as admin when the app knows the admin password). Press Connect in each game.",
+        "server_did_not_start": "The server did not start: look at its log.",
+        "player_1_failed": "Game 1 could not be opened.",
+        "player_2_failed": "Game 2 could not be opened.",
+        "watching": "Watching the games every 2 seconds: each card says which screen it is on and what the test does for it.",
+        "all_in_game": "Both games are in the world.",
+        "watch_ended": "The test stopped watching (half an hour passed): do what is left by hand."
+      },
+      "nowDoing": "Now (started {{time}} ago):",
+      "noLogYet": "Nothing in its log yet.",
+      "auto": {
+        "title": "What the test does by itself",
+        "login": "Fill in the account and connect (player 1 as admin, player 2 with its test account).",
+        "character": "Make the character by itself, when the account is new:",
+        "random": "random (random traits and look)",
+        "first": "the first one shown (default profession and look)",
+        "startClick": "Click \"click to start\" once the world has loaded.",
+        "note": "Untick what you want to do by hand, for example building a character with something specific to test. To make the character, the Studio Link mod has to be in the server's mod list: when it is missing the test adds it (with a backup of the .ini).",
+        "spawn": "Choose the spawn place by itself (the first the server offers).",
+        "adminAll": "Player 2 an admin too (given over RCON as soon as its account exists; player 1 signs in as admin already)."
+      },
+      "screen": {
+        "spawn_select": "Choosing a place",
+        "character_profession": "Making the character",
+        "character_look": "Look",
+        "in_game": "In game",
+        "launching": "Opening"
+      },
+      "secondReady": "Player 2 up to date ✓ (check again)",
+      "secondOutdated_one": "Update player 2 ({{count}} thing out of date)",
+      "secondOutdated_other": "Update player 2 ({{count}} things out of date)",
+      "restart": "Restart",
+      "restartTitle": "Closes this game and opens it again with the same account and automation; the server and the other game keep running."
     }
   },
   "developer": {
@@ -2329,7 +2506,7 @@
       "header2": "[PZ Monitor Center] Start the game (the launch button at the top, or from Steam) and its live output shows here.",
       "serverHeader1": "[PZ Monitor Center] Dedicated server monitor ready.",
       "serverHeader2": "[PZ Monitor Center] Dedicated server is currently offline. Start the server in \"SERVERS\" tab to begin live monitoring.",
-      "clientTab": "🔴 console.txt (Client)",
+      "clientTab": "🔴 Game 1 (console.txt)",
       "serverTab": "🖥️ Dedicated Server (Live)",
       "onDisk": "console.txt (On Disk)",
       "emptyLog": "(The log file is empty)",
@@ -2352,7 +2529,11 @@
       "noLines": "No lines found matching the filters.",
       "tryChangingSearch": "Try changing or clearing the search term: \"{{query}}\"",
       "linesCount": "Lines: {{shown}} / {{total}}",
-      "activeFilter": "Active filter: \"{{query}}\""
+      "activeFilter": "Active filter: \"{{query}}\"",
+      "player2Tab": "🟣 Game 2 (Zomboid2)",
+      "player2Empty": "The multiplayer test's game 2 has not written its console yet (Zomboid2/console.txt).",
+      "serverTabNamed": "🖥️ Server {{name}} ({{mode}})",
+      "fromFile": "[PZ Monitor Center] This game was not started by the app: its console.txt is shown (refreshed every 2 seconds)."
     },
     "launch": {
       "setupTitle": "Setup Required: Game Directory",
@@ -2512,6 +2693,7 @@
       "incompatible": "{{mod}} is marked incompatible with {{other}}, and both are enabled",
       "workshop_update_pending": "Steam has a newer version of {{mod}}{{published}} that is not downloaded yet. Let Steam download it (restart Steam if it is stuck): servers reject players whose mod versions differ (\"Workshop item version is different than the server's\").",
       "compatible_copy": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods ({{changes}}); the Workshop original is ignored meanwhile. It is used when the game is started from PZ Mod Studio; starting it from Steam needs the launch option -modfolders mods,workshop,steam. Nothing to do: once the author updates the mod for Build 42, \"Back to the original\" removes the copy.",
+      "compatible_copy_unneeded": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods, but the Workshop original now loads on build {{build}} as it is. The copy keeps the older files running and hides the author's updates: go back to the original.",
       "shadowed_copy": "Another copy of {{mod}} at {{ignored}} is ignored: the game uses the one at {{used}}",
       "security_executable": "{{mod}} ships {{count}} program file(s): {{files}}{{more}}. A program in a mod runs with your rights, outside the game's Lua; keep the mod only if you trust its author. Nothing here says the file is harmful.",
       "security_script": "{{mod}} ships {{count}} script(s): {{files}}{{more}}. A script in a mod folder runs only if you run it yourself (these are usually the author's build helpers); nothing to do unless you open them.",
@@ -2553,7 +2735,15 @@
       "server_mod_copy_stale": "{{mod}}: its copy in Zomboid/mods is older than its Workshop item ({{item}}), which was updated since. The server, and the game on this PC, still load the old copy. Copy it again.",
       "two_mod_managers": "{{mod}} also draws the game's Mods screen. While it is on, the Studio leaves that screen to it (the save backups and the check before a save loads stay the Studio's). Turn it off in this profile to use the Studio's screen.",
       "floods_console": "{{mod}} filled the console in the last session: {{lines}} lines of errors ({{share}}% of all of them), from {{exceptions}} exceptions and {{warnings}} warnings. Writing them slows the game, and other mods' errors are lost among them. Look at them in the Monitor, or turn it off in this profile.",
-      "missing_mod_renamed": "{{mod}} is not installed: the same Workshop mod is now called {{renamed}} ({{name}}). The author changed its id in an update."
+      "missing_mod_renamed": "{{mod}} is not installed: the same Workshop mod is now called {{renamed}} ({{name}}). The author changed its id in an update.",
+      "workshop_copy_by_hand": "{{mod}} runs from a copy in Zomboid/mods ({{folder}}) made by hand of Workshop item {{item}}. It wins over the Workshop in every profile the Studio starts and in a server without Steam, and it does not update when the author does. Let the Studio keep it: it then says when the Workshop item is newer and copies it again.",
+      "workshop_copy_by_hand_server": "{{mod}} runs from a copy in Zomboid/mods ({{folder}}) made by hand of Workshop item {{item}}. It wins over the Workshop in every profile the Studio starts, and the server {{servers}} uses it. It does not update when the author does. Let the Studio keep it: it then says when the Workshop item is newer and copies it again.",
+      "workshop_copy_stale": "{{mod}}: its copy in Zomboid/mods is older than Workshop item {{item}}, which was updated since. Your games and a server without Steam still load the old copy. Copy it again.",
+      "workshop_copy_stale_server": "{{mod}}: its copy in Zomboid/mods is older than Workshop item {{item}}, which was updated since. Your games and the server {{servers}} still load the old copy. Copy it again.",
+      "workshop_copy_kept": "{{mod}} runs from the Studio's copy in Zomboid/mods (for a server without Steam), up to date with Workshop item {{item}}. It wins over the Workshop in your games too; the Studio says when the item is updated.",
+      "workshop_copy_kept_server": "{{mod}} runs from the Studio's copy in Zomboid/mods, up to date with Workshop item {{item}}; the server {{servers}} uses it. It wins over the Workshop in your games too; the Studio says when the item is updated.",
+      "compatible_copy_unneeded_server": "{{mod}} runs from a Studio compatible copy in Zomboid/mods, and the Workshop original now loads on {{build}} as it is. But the server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it.",
+      "compatible_copy_server": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods ({{changes}}). The server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it."
     },
     "fragments": {
       "beside_others": ", beside {{others}}",
@@ -3490,5 +3680,31 @@
     "andMore": "{{name}} and {{count}} more",
     "done": "Steam finished downloading {{name}}. The mod list has it now.",
     "failed": "Steam could not download {{name}}: {{result}}"
+  },
+  "guide": {
+    "title": "What this screen is",
+    "whatIsThis": "What is this screen for?",
+    "gotIt": "Got it",
+    "what": "What it is for",
+    "who": "Do you need it?",
+    "touches": "What it changes on your PC",
+    "flow": "How you get here",
+    "health": {
+      "what": "Checks your mod list the way the game will read it and tells you what to do about each thing: act, worth doing, good to know, or already fixed by the Studio.",
+      "who": "Yes, anyone. Look at it before playing if you changed mods or the game updated.",
+      "touches": "Looking changes nothing. Each button says below it what it changes before you press it, and almost everything can be undone.",
+      "flow": "The coloured tags in the Mod List are these same findings: a click on one brings you straight to it."
+    },
+    "merger": {
+      "what": "When two mods ship the same file, the game uses only one and the other's changes are lost. Here a package is made that combines both.",
+      "who": "Only if Mod Health sends you here (Conflicts tab) or you want to fix a file by hand. If you just play and Mod Health shows no conflicts, you don't need it.",
+      "touches": "Makes a Studio mod (Z_PZModStudio_…) in Zomboid/mods that loads last and wins. The original mods are not touched: switching the package off or deleting it undoes it.",
+      "flow": "Mod List → conflict tag → Mod Health, Conflicts tab → \"Merge automatically\" (done for you) or \"Open in the Merger\" (you choose, here)."
+    },
+    "developer": {
+      "what": "Tools for people who make mods: check a mod's files, see whether it uses things your game build does not have, test it alone, translate it and upload it to the Workshop.",
+      "who": "If you just play, no. It is for making or fixing a mod.",
+      "touches": "Checking files, the build check and Multiplayer only read. \"Start the game with only this mod\" changes your list while the game is open and puts it back when it closes. \"New mod\" makes a folder in Zomboid/mods."
+    }
   }
 }

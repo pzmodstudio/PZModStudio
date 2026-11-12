@@ -450,7 +450,12 @@ pub fn save_master_load_order(
 
     // With a profile active, the Studio Link mod stays on whatever the list says.
     let dir = get_instances_dir(&user_zomboid_dir);
-    let mut active_mod_ids = active_mod_ids;
+    // A Studio package (Z_PZModStudio_*) with no folder any more was deleted or renamed: the
+    // profile does not keep it (no screen could show it, so no one could take it out), and an id
+    // is in the list once.
+    let gone_package = |id: &str| id.starts_with("Z_PZModStudio_") && !z_dir.join("mods").join(id).is_dir();
+    let mut seen_ids = std::collections::HashSet::new();
+    let mut active_mod_ids: Vec<String> = active_mod_ids.into_iter().filter(|id| !gone_package(id) && seen_ids.insert(id.clone())).collect();
     let link = crate::studio_link::LINK_MOD_ID.to_string();
     if find_active(&dir).is_some() && !active_mod_ids.contains(&link) {
         active_mod_ids.push(link);
@@ -473,13 +478,13 @@ pub fn save_master_load_order(
                             let remembered: Vec<String> = inst
                                 .load_order
                                 .iter()
-                                .filter(|id| !installed.contains(id) && !forget.contains(*id))
+                                .filter(|id| !installed.contains(id) && !forget.contains(*id) && !gone_package(id))
                                 .cloned()
                                 .collect();
                             let still_wanted: Vec<String> = inst
                                 .active_mod_ids
                                 .iter()
-                                .filter(|id| !installed.contains(id) && !forget.contains(*id))
+                                .filter(|id| !installed.contains(id) && !forget.contains(*id) && !gone_package(id) && !active_mod_ids.contains(id))
                                 .cloned()
                                 .collect();
 
@@ -487,9 +492,13 @@ pub fn save_master_load_order(
                             inst.load_order.extend(remembered);
                             inst.active_mod_ids = active_mod_ids.clone();
                             inst.active_mod_ids.extend(still_wanted);
+                            let mut once = std::collections::HashSet::new();
+                            inst.active_mod_ids.retain(|id| once.insert(id.clone()));
+                            let mut once = std::collections::HashSet::new();
+                            inst.load_order.retain(|id| once.insert(id.clone()));
                             // A mod switched on is one of the profile's mods from then on.
                             let mut members = inst.member_ids();
-                            members.retain(|id| !forget.contains(id));
+                            members.retain(|id| !forget.contains(id) && !gone_package(id));
                             for id in &inst.active_mod_ids {
                                 if !members.contains(id) {
                                     members.push(id.clone());
@@ -647,6 +656,30 @@ mod build_tests {
         // The Link file names the other profile's mods, so the game can tell the new ones.
         let link = fs::read_to_string(z.join("Lua").join(crate::studio_link::LINK_FILE)).unwrap();
         assert!(link.contains("member=N\n") && link.contains("other=X\n") && link.contains("other=Y\n"), "{}", link);
+        let _ = fs::remove_dir_all(&z);
+    }
+
+    #[test]
+    fn a_studio_package_with_no_folder_leaves_the_profile_and_ids_are_kept_once() {
+        let z = std::env::temp_dir().join(format!("pzms-profile-ghost-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&z);
+        let dir = z.join("PZModStudio_Instances");
+        fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(z.join("mods").join("Z_PZModStudio_Real")).unwrap();
+        // As seen on the KnoxLives test profile: the generic package id, gone from disk, twice.
+        let p: AppInstance = serde_json::from_str(
+            r#"{"id":"a","name":"A","created_at":"","is_active":true,"active_mod_ids":["A","Z_PZModStudio_MergedPatch","Gone","Z_PZModStudio_MergedPatch"],"load_order":["A","Z_PZModStudio_MergedPatch","Gone"],"members":["A","Z_PZModStudio_MergedPatch","Gone"]}"#,
+        ).unwrap();
+        write_instance(&dir.join("a.json"), &p).unwrap();
+        let user = z.to_string_lossy().to_string();
+        save_master_load_order(user, ids(&["A", "Z_PZModStudio_Real"]), ids(&["A", "Z_PZModStudio_MergedPatch", "Z_PZModStudio_Real", "A"]), None).unwrap();
+        let after = read_instance(&dir.join("a.json")).unwrap();
+        // The gone package is out; a mod only not installed ("Gone") is still remembered; once each.
+        assert_eq!(after.active_mod_ids, ids(&["A", "Z_PZModStudio_Real", crate::studio_link::LINK_MOD_ID, "Gone"]));
+        assert!(!after.load_order.iter().any(|id| id == "Z_PZModStudio_MergedPatch"), "{:?}", after.load_order);
+        assert!(!after.member_ids().iter().any(|id| id == "Z_PZModStudio_MergedPatch"));
+        let list = fs::read_to_string(z.join("mods").join("default.txt")).unwrap_or_default();
+        assert!(!list.contains("Z_PZModStudio_MergedPatch"), "{}", list);
         let _ = fs::remove_dir_all(&z);
     }
 

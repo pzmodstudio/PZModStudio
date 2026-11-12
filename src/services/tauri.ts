@@ -5,6 +5,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
+import { MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport } from '../types';
 import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
 
 export interface LuaSyntaxResult {
@@ -154,6 +155,11 @@ const SAID: [RegExp, string][] = [
   [/^No Project Zomboid mod found: there is no mod\.info/, 'noModFound'],
   [/^Unusable mod folder name: (?<what>.+)$/s, 'badFolderName'],
   [/^The source folder is inside Zomboid\/mods already/, 'sourceInside'],
+  [/^Zomboid\/mods\/(?<what>.+?) already exists and is not a compatible copy made by the Studio/s, 'folderNotCompat'],
+  [/^Zomboid\/mods\/(?<what>.+?) already exists \(an earlier compatible copy\)/s, 'earlierCompat'],
+  [/^The copy of (?<what>.+?) stays: the server (?<server>.+?) lists it/s, 'copyStaysForServer'],
+  [/^Cannot move the old copy aside: the dedicated server (?<server>.*?) is running and has the mod's files open/s, 'copyAsideServer'],
+  [/^Cannot move the old copy aside \((?<why>.+?)\): a program has a file of Zomboid\/mods\/(?<what>.+?) open/s, 'copyAsideOpen'],
   [/^Cannot move the old (?<what>.+?) aside: (?<why>.+)$/s, 'cannotMoveAside'],
   [/^Copying (?<what>.+?) failed: (?<why>.+)$/s, 'copyFailed'],
   [/^Nexus Mods rejected the (?<what>.+?): (?<why>.+)$/s, 'nexusRejected'],
@@ -468,6 +474,31 @@ export const TauriService = {
   /** Removes a compatible copy (moved to Zomboid/PZModStudio_Backups/mods). */
   removeCompatibleCopy: async (paths: StudioPathsUI, folder: string): Promise<void> => {
     await invoke('remove_compatible_copy_cmd', { paths, folder });
+  },
+  /** The multiplayer test on this PC: server and games, memory, CPU, folders, logs, states. */
+  mpTestStatus: async (paths: StudioPathsUI): Promise<MpTestStatus> => invoke<MpTestStatus>('mp_test_status_cmd', { paths }),
+  /** Gets the second player's Zomboid folder ready for this server (its mods copied or linked). */
+  mpTestPrepare: async (paths: StudioPathsUI, server: string): Promise<MpTestPrepareReport> => invoke<MpTestPrepareReport>('mp_test_prepare_cmd', { paths, server }),
+  /** Starts the server without Steam, then the games once it has started. */
+  mpTestStart: async (paths: StudioPathsUI, server: string, memoryGb: number, players: number, automation: MpAutomation, adminPassword?: string): Promise<number> =>
+    invoke<number>('mp_test_start_cmd', { paths, server, memoryGb, players, automation, adminPassword: adminPassword || null }),
+  /** Closes the games and stops the server (it saves). */
+  mpTestStop: async (paths: StudioPathsUI): Promise<number[]> => invoke<number[]>('mp_test_stop_cmd', { paths }),
+  /** Whether player 2's folder has what the server needs. */
+  mpTestSecondCheck: async (paths: StudioPathsUI, server: string): Promise<MpSecondCheck> => invoke<MpSecondCheck>('mp_test_second_check_cmd', { paths, server }),
+  /** Starts one game of the running test again (1 or 2). */
+  mpTestRestart: async (paths: StudioPathsUI, slot: number): Promise<number> => invoke<number>('mp_test_restart_cmd', { paths, slot }),
+  /** The last lines of player 2's console (Zomboid2/console.txt). */
+  mpTestPlayer2Log: async (paths: StudioPathsUI, lines = 1500, player = 2): Promise<string[]> => invoke<string[]>('mp_test_player2_log_cmd', { paths, lines, player }),
+  /** Opens a test process's Zomboid folder or log (pid 0: the second player's folder). */
+  mpTestOpen: async (paths: StudioPathsUI, pid: number, log: boolean): Promise<void> => invoke('mp_test_open_cmd', { paths, pid, log }),
+  /** Lets the Studio keep a copy of a Workshop mod made by hand in Zomboid/mods (writes its marker). */
+  adoptWorkshopCopy: async (paths: StudioPathsUI, folder: string): Promise<void> => {
+    await invoke('adopt_workshop_copy_cmd', { paths, folder });
+  },
+  /** Copies a Workshop mod into Zomboid/mods again, over the Studio's outgrown copy. */
+  recopyWorkshop: async (paths: StudioPathsUI, modId: string): Promise<string[]> => {
+    return await invoke<string[]>('recopy_workshop_cmd', { paths, modId });
   },
 
   /** Keeps a copy of the mod as installed today, under Zomboid/PZModStudio_Snapshots. */

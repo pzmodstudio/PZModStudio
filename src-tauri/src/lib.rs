@@ -519,7 +519,128 @@ fn make_compatible_copy_cmd(paths: StudioPaths, mod_id: String, replace_existing
 
 #[tauri::command(async)]
 fn remove_compatible_copy_cmd(paths: StudioPaths, folder: String) -> Result<(), String> {
+    // A server's list keeps the copy in use (a server without Steam reads only Zomboid/mods).
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let ids: Vec<String> = catalog
+        .mods
+        .iter()
+        .filter(|m| m.source == catalog::ModSource::Local && std::path::Path::new(&m.root_dir).file_name().is_some_and(|n| n.to_string_lossy() == folder))
+        .map(|m| m.id.clone())
+        .collect();
+    for id in &ids {
+        if let Some(servers) = catalog::listed_by_a_server(&paths.user_zomboid_dir, id) {
+            return Err(format!("The copy of {} stays: the server {} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.", id, servers));
+        }
+    }
     compat::remove_compatible_copy(&paths.user_zomboid_dir, &folder)
+}
+
+/// The multiplayer test on this PC: the server and the games, with memory, CPU, folder, log and state.
+#[tauri::command(async)]
+fn mp_test_status_cmd(paths: StudioPaths) -> Result<server_manager::mp_test::MpStatus, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    Ok(server_manager::mp_test::status(&primary, std::path::Path::new(&vfs::trusted_install_dir())))
+}
+
+/// Gets the second player's Zomboid folder ready for this server (its mods copied or linked).
+#[tauri::command(async)]
+fn mp_test_prepare_cmd(paths: StudioPaths, server: String) -> Result<server_manager::mp_test::PrepareReport, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    server_manager::mp_test::prepare_second(&catalog, &primary, &server)
+}
+
+/// Starts the test: the server without Steam, then the games once it says SERVER STARTED.
+#[tauri::command(async)]
+fn mp_test_start_cmd(paths: StudioPaths, server: String, memory_gb: Option<u32>, players: Option<u32>, admin_password: Option<String>, automation: Option<server_manager::mp_test::MpAutomation>) -> Result<u32, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    if sandbox::find_running_pz_pid().is_some() {
+        return Err("The game is already running: close it first, the test opens its own.".to_string());
+    }
+    if server_manager::get_dedicated_server_status(paths.user_zomboid_dir.clone()).is_ok_and(|s| s.is_running) {
+        return Err("A Studio server is already running: stop it first.".to_string());
+    }
+    let password = admin_password
+        .filter(|p| !p.trim().is_empty())
+        .or_else(|| secrets::get(&server_manager::admin_password_secret(&server)).ok().flatten());
+    server_manager::mp_test::start(std::path::PathBuf::from(vfs::trusted_install_dir()), primary, server, memory_gb.unwrap_or(4).clamp(2, 32), players.unwrap_or(2), password, automation.unwrap_or_default())
+}
+
+/// Opens the Zomboid folder or the log of one process of the test (by PID), or the second
+/// player's folder (pid 0): only paths the status itself found, never one the page names.
+#[tauri::command(async)]
+fn mp_test_open_cmd(paths: StudioPaths, pid: u32, log: bool) -> Result<(), String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let st = server_manager::mp_test::status(&primary, std::path::Path::new(&vfs::trusted_install_dir()));
+    let target = if pid == 0 {
+        st.second_dir.clone()
+    } else {
+        let p = st.processes.iter().find(|p| p.pid == pid).ok_or("That process is not part of the test any more.")?;
+        if log { p.log_path.clone() } else { p.zomboid_dir.clone() }
+    };
+    open::that(&target).map_err(|e| format!("Could not open {}: {}", target, e))
+}
+
+/// The last lines of player 2's console (Zomboid2/console.txt), for the Monitor's "Game 2" tab;
+/// empty when that folder has none.
+#[tauri::command(async)]
+fn mp_test_player2_log_cmd(paths: StudioPaths, lines: Option<usize>, player: Option<u32>) -> Result<Vec<String>, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    // Player 1's console when asked (a game the app did not start streams nothing), else player 2's.
+    let dir = if player == Some(1) { primary.clone() } else { server_manager::mp_test::second_dir(&primary) };
+    let log = dir.join("console.txt");
+    let Ok(bytes) = std::fs::read(&log) else { return Ok(Vec::new()) };
+    let text = String::from_utf8_lossy(&bytes);
+    let all: Vec<&str> = text.lines().collect();
+    let n = lines.unwrap_or(1500).min(5000);
+    Ok(all[all.len().saturating_sub(n)..].iter().map(|l| l.to_string()).collect())
+}
+
+/// Whether player 2's folder has what the server needs (for the "Get player 2 ready" button).
+#[tauri::command(async)]
+fn mp_test_second_check_cmd(paths: StudioPaths, server: String) -> Result<server_manager::mp_test::SecondCheck, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    Ok(server_manager::mp_test::check_second(&catalog, &primary, &server))
+}
+
+/// Starts one game of the running test again (the server and the other game keep running).
+#[tauri::command(async)]
+fn mp_test_restart_cmd(paths: StudioPaths, slot: u32) -> Result<u32, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let server = server_manager::get_dedicated_server_status(paths.user_zomboid_dir.clone()).ok().and_then(|s| s.server_name).unwrap_or_default();
+    let password = secrets::get(&server_manager::admin_password_secret(&server)).ok().flatten();
+    server_manager::mp_test::restart_player(std::path::PathBuf::from(vfs::trusted_install_dir()), primary, slot, password)
+}
+
+/// Ends the test: the server quits (it saves) and the games are closed.
+#[tauri::command(async)]
+fn mp_test_stop_cmd(paths: StudioPaths) -> Result<Vec<u32>, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    server_manager::mp_test::stop(&primary)
+}
+
+/// The copies of Workshop mods in Zomboid/mods among the active list.
+fn active_mod_copies(paths: &StudioPaths) -> Vec<server_manager::java_mods::ModCopy> {
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let active = load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+    server_manager::java_mods::mod_copies(&catalog, &active)
+}
+
+/// Lets the Studio keep a copy of a Workshop mod made by hand in Zomboid/mods (a marker is
+/// written into it), so a Workshop update shows in Mod Health.
+#[tauri::command(async)]
+fn adopt_workshop_copy_cmd(paths: StudioPaths, folder: String) -> Result<(), String> {
+    let copy = active_mod_copies(&paths).into_iter().find(|c| c.folder == folder).ok_or_else(|| format!("Zomboid/mods/{} is not a copy of a Workshop mod in your list.", folder))?;
+    server_manager::java_mods::adopt_copy(&copy)
+}
+
+/// Copies a Workshop mod into Zomboid/mods again, over the Studio's outgrown copy.
+#[tauri::command(async)]
+fn recopy_workshop_cmd(paths: StudioPaths, mod_id: String) -> Result<Vec<String>, String> {
+    let copy = active_mod_copies(&paths).into_iter().find(|c| c.id == mod_id).ok_or_else(|| format!("{} has no copy in Zomboid/mods.", mod_id))?;
+    let zomboid = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    server_manager::java_mods::recopy(&zomboid, &copy)
 }
 
 /// Keeps a copy of the mod as it is installed today, for when an update breaks a save.
@@ -844,13 +965,16 @@ fn mod_error_stats_cmd(paths: StudioPaths) -> Vec<sandbox::ModErrorStat> {
 /// Whether a (canonical) path is inside the game, Workshop or Zomboid folder the Studio saved.
 /// The page's own idea of those folders is not asked: a page that could name them could open,
 /// or have the editor open, anything on the disk.
+/// A mod folder linked into Zomboid/mods (a junction to a mod in development, which the game
+/// loads) counts too: canonical paths land on the link's target, outside those folders.
 fn inside_studio_folders(target: &std::path::Path) -> bool {
     let paths = vfs::studio_paths();
-    [&paths.workshop_dir, &paths.user_zomboid_dir, &paths.pz_install_dir]
+    let inside = [&paths.workshop_dir, &paths.user_zomboid_dir, &paths.pz_install_dir]
         .iter()
         .filter(|d| !d.is_empty())
         .filter_map(|d| std::fs::canonicalize(d).ok())
-        .any(|root| target.starts_with(root))
+        .any(|root| target.starts_with(root));
+    inside || vfs::linked_mod_roots(&paths.user_zomboid_dir).iter().any(|root| target.starts_with(root))
 }
 
 /// The names a mod's Lua calls that the installed build does not have (globals, methods,
@@ -1824,6 +1948,16 @@ pub fn run() {
             remove_load_rule_cmd,
             make_compatible_copy_cmd,
             remove_compatible_copy_cmd,
+            adopt_workshop_copy_cmd,
+            mp_test_status_cmd,
+            mp_test_prepare_cmd,
+            mp_test_start_cmd,
+            mp_test_stop_cmd,
+            mp_test_open_cmd,
+            mp_test_player2_log_cmd,
+            mp_test_second_check_cmd,
+            mp_test_restart_cmd,
+            recopy_workshop_cmd,
             keep_mod_version_cmd,
             list_kept_versions_cmd,
             mark_profile_played_cmd,

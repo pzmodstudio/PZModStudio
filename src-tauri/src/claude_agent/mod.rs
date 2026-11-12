@@ -313,6 +313,56 @@ mod win {
         best.map(|(_, h)| h)
     }
 
+    /// The process a window belongs to.
+    pub fn window_pid(h: isize) -> u32 {
+        let mut pid: u32 = 0;
+        unsafe {
+            GetWindowThreadProcessId(to_hwnd(h), &mut pid);
+        }
+        pid
+    }
+
+    /// The main window of every running ProjectZomboid64.exe (the largest visible one of each
+    /// process): two games of a multiplayer test on one PC are two windows.
+    pub fn find_game_windows() -> Vec<isize> {
+        let mut all: Vec<isize> = Vec::new();
+        unsafe {
+            EnumWindows(Some(enum_cb), &mut all as *mut Vec<isize> as LPARAM);
+        }
+        let mut exe_cache: HashMap<u32, bool> = HashMap::new();
+        let mut best: HashMap<u32, (i64, isize)> = HashMap::new();
+        for h in all {
+            let hwnd = to_hwnd(h);
+            unsafe {
+                if IsWindowVisible(hwnd) == 0 {
+                    continue;
+                }
+                let mut pid: u32 = 0;
+                GetWindowThreadProcessId(hwnd, &mut pid);
+                let is_game = *exe_cache
+                    .entry(pid)
+                    .or_insert_with(|| process_exe_name(pid).map(|n| n == GAME_EXE).unwrap_or(false));
+                if !is_game {
+                    continue;
+                }
+                let mut wp: WINDOWPLACEMENT = std::mem::zeroed();
+                wp.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+                let r = if GetWindowPlacement(hwnd, &mut wp) != 0 {
+                    wp.rcNormalPosition
+                } else {
+                    let mut r: RECT = std::mem::zeroed();
+                    GetWindowRect(hwnd, &mut r);
+                    r
+                };
+                let area = ((r.right - r.left) as i64) * ((r.bottom - r.top) as i64);
+                if area > 0 && best.get(&pid).map(|(a, _)| area > *a).unwrap_or(true) {
+                    best.insert(pid, (area, h));
+                }
+            }
+        }
+        best.into_values().map(|(_, h)| h).collect()
+    }
+
     pub fn window_info(h: isize) -> GameWindowInfo {
         let hwnd = to_hwnd(h);
         unsafe {
@@ -581,7 +631,8 @@ mod win {
         }
         let guard_until = Instant::now() + Duration::from_secs(120);
         while Instant::now() < guard_until {
-            if let Some(h) = find_game_window() {
+            // Every game window, not only the largest: a multiplayer test opens two.
+            for h in find_game_windows() {
                 let hwnd = to_hwnd(h);
                 unsafe {
                     if IsIconic(hwnd) == 0 && IsZoomed(hwnd) == 0 {
@@ -806,6 +857,23 @@ pub fn send_game_key(combo: &str, hold_ms: u64) -> Result<String, String> {
 }
 
 /// Posts a left click at (x_frac, y_frac) of the game window's client area without focusing it.
+/// Posts a click to the main window of one game process (a multiplayer test has two windows).
+pub fn click_window_of_pid(pid: u32, x_frac: f64, y_frac: f64) -> Result<(i32, i32), String> {
+    #[cfg(windows)]
+    {
+        let h = win::find_game_windows()
+            .into_iter()
+            .find(|h| win::window_pid(*h) == pid)
+            .ok_or_else(|| NO_WINDOW.to_string())?;
+        win::click(h, x_frac, y_frac)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (pid, x_frac, y_frac);
+        Err(NOT_WINDOWS.to_string())
+    }
+}
+
 pub fn click_game_window(x_frac: f64, y_frac: f64) -> Result<(i32, i32), String> {
     #[cfg(windows)]
     {

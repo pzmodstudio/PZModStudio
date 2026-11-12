@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, Info, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, XCircle } from 'lucide-react';
-import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, HealthSeverity, ModInfo } from '../../types';
+import { PageGuide } from '../common/PageGuide';
+import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, ListChecks, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, X } from 'lucide-react';
+import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, IssueState, ModInfo } from '../../types';
+import { STATE_ORDER, STATE_STYLE, UNDO_ACTIONS, issueStateOf } from '../../utils/issueState';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { loadCommunityIndex } from '../../services/communityIndex';
@@ -41,7 +43,7 @@ interface HealthModuleProps {
 /** Fixes handled here (not by rewriting the mod list). */
 const ACTION_FIXES = new Set<HealthFix['action']>([
   'subscribe_workshop', 'open_workshop_page', 'make_compatible_copy', 'keep_version', 'remove_compatible_copy', 'merge_files', 'open_in_merger',
-  'enable_shim_patch', 'remove_from_package', 'dismiss_known_issue',
+  'enable_shim_patch', 'remove_from_package', 'dismiss_known_issue', 'adopt_workshop_copy', 'recopy_workshop',
 ]);
 
 /** Fixes the "fix all" button may apply without asking: they only enable or reorder. */
@@ -57,13 +59,18 @@ const YOUR_CALL_CODES = new Set(['script_definition_conflict', 'script_definitio
 
 
 /**
- * The screen in tabs, so each kind of row is read on its own: what breaks or will break the game,
- * which mod's file or item wins where two mods give the same one (your call), what is only worth
- * knowing, and what the mods cost while the game runs.
+ * The screen in tabs. The first one is "what to do now": what breaks the game, then what is worth
+ * doing, and folded below them what the Studio already fixed and what is only worth knowing. Every
+ * row on every tab says one of those four states (`issueStateOf`), the same words the Mod List
+ * uses. Conflicts (which mod's file or item wins) and Security keep tabs of their own.
  */
-type HealthTab = 'problems' | 'conflicts' | 'info' | 'security' | 'performance' | 'disk';
-const TABS: HealthTab[] = ['problems', 'conflicts', 'info', 'security', 'performance', 'disk'];
-const TAB_ICON: Record<HealthTab, React.ElementType> = { problems: XCircle, conflicts: GitMerge, info: Info, security: ShieldCheck, performance: Gauge, disk: HardDrive };
+type HealthTab = 'problems' | 'conflicts' | 'security' | 'performance' | 'disk';
+const TABS: HealthTab[] = ['problems', 'conflicts', 'security', 'performance', 'disk'];
+const TAB_ICON: Record<HealthTab, React.ElementType> = { problems: ListChecks, conflicts: GitMerge, security: ShieldCheck, performance: Gauge, disk: HardDrive };
+/** Rows of one code that are the same thing for several mods: one card with one button. */
+const GROUP_CODES = new Set(['compatible_copy_unneeded', 'compatible_copy', 'workshop_copy_by_hand', 'workshop_copy_stale', 'workshop_copy_kept']);
+/** What a button changes, said before it is pressed: the key under health.effect. */
+const effectKey = (fix: HealthFix): string => `health.effect.${fix.action}`;
 const TAB_KEY = 'pz_health_tab';
 /** Performance has four panels, each a screen of its own: one at a time. */
 type PerfTab = 'memory' | 'boot' | 'time' | 'frames';
@@ -107,24 +114,41 @@ const fixLabel = (fix: HealthFix): string => {
       return t('health.fix.removeFromPackage');
     case 'dismiss_known_issue':
       return t('health.fix.dismissKnown');
+    case 'adopt_workshop_copy':
+      return t('health.fix.adoptCopy');
+    case 'recopy_workshop':
+      return t('health.fix.recopy');
   }
 };
 
-/** Where a conflict stands: the package settles it, did but a mod changed since, or does not. */
-type ConflictState = 'open' | 'stale' | 'settled';
-const CONFLICT_STATES: ConflictState[] = ['open', 'stale', 'settled'];
-const conflictStateOf = (code: string): ConflictState =>
-  code.endsWith('_settled') ? 'settled' : code.endsWith('_stale') || code === 'package_built_for_other_list' ? 'stale' : 'open';
-const CONFLICT_STYLE: Record<ConflictState, { icon: React.ElementType; row: string; iconColor: string; tag: string }> = {
-  open: { icon: GitMerge, row: 'border-l-4 border-orange-500/70 bg-orange-950/20', iconColor: 'text-orange-400', tag: 'border-orange-600/70 text-orange-300 bg-orange-950/50' },
-  stale: { icon: AlertTriangle, row: 'border-l-4 border-amber-500/70 bg-amber-950/20', iconColor: 'text-amber-400', tag: 'border-amber-600/70 text-amber-300 bg-amber-950/50' },
-  settled: { icon: CheckCircle2, row: 'border-l-4 border-emerald-600/70 bg-emerald-950/15', iconColor: 'text-emerald-400', tag: 'border-emerald-700/70 text-emerald-300 bg-emerald-950/50' },
-};
-
-const SEVERITY_STYLE: Record<HealthSeverity, { icon: React.ElementType; row: string; iconColor: string }> = {
-  error: { icon: XCircle, row: 'border-red-500/40 bg-red-950/30', iconColor: 'text-red-400' },
-  warning: { icon: AlertTriangle, row: 'border-amber-500/40 bg-amber-950/20', iconColor: 'text-amber-400' },
-  info: { icon: Info, row: 'border-slate-700 bg-slate-900/50', iconColor: 'text-slate-400' },
+/** A row of a section: one issue, or several of one code shown as one card. */
+type SectionItem = { kind: 'one'; issue: HealthIssue } | { kind: 'group'; code: string; issues: HealthIssue[] };
+/**
+ * Which rows are one card: copies across mods by code; a mod's known issues by mod (the index
+ * lists one row per broken require, with the same fix).
+ */
+const groupKey = (i: HealthIssue): string | null =>
+  // A copy a server keeps in use says so on its own row.
+  GROUP_CODES.has(i.code) && !(i.code.startsWith('compatible_copy') && i.params?.variant === 'server') ? i.code : i.code === 'community_known_issue' && i.mod_id ? `${i.code}|${i.mod_id}` : null;
+const groupItems = (issues: HealthIssue[]): SectionItem[] => {
+  const groups = new Map<string, HealthIssue[]>();
+  issues.forEach((i) => {
+    const key = groupKey(i);
+    if (key) groups.set(key, [...(groups.get(key) ?? []), i]);
+  });
+  const placed = new Set<string>();
+  const out: SectionItem[] = [];
+  issues.forEach((i) => {
+    const key = groupKey(i);
+    const group = key ? groups.get(key) : undefined;
+    if (key && group && group.length > 1) {
+      if (!placed.has(key)) out.push({ kind: 'group', code: i.code, issues: group });
+      placed.add(key);
+    } else {
+      out.push({ kind: 'one', issue: i });
+    }
+  });
+  return out;
 };
 
 export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report, checking, onRecheck, onApplyModList, onModsChanged, onOpenMerger, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled }) => {
@@ -191,8 +215,15 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       try {
         result = await TauriService.makeCompatibleCopy(paths, modId, false);
       } catch (err) {
-        if (!String(err).includes('earlier compatible copy')) throw err;
-        if (!confirm(t('health.freshCopy', { mod: modId }))) return;
+        const text = String(err);
+        if (text.includes('earlier compatible copy')) {
+          if (!confirm(t('health.freshCopy', { mod: modId }))) return;
+        } else if (text.includes('as a copy of the same mod')) {
+          // A copy made by hand or for a server: the compatible copy is that mod, adapted.
+          if (!confirm(t('health.replaceSameModCopy', { mod: nameOf(modId) }))) return;
+        } else {
+          throw err;
+        }
         result = await TauriService.makeCompatibleCopy(paths, modId, true);
       }
       setCompatResult(result);
@@ -210,11 +241,66 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     try {
       await TauriService.removeCompatibleCopy(paths, folder);
       setCompatResult(null);
+      say(t('health.copyRemovedDone', { folder }));
       onModsChanged();
       onRecheck();
     } catch (err) {
       reportBackendError('Removing the compatible copy', err);
     }
+  };
+
+  /** Copies of Workshop mods made by hand in Zomboid/mods: the Studio keeps them (a marker each). */
+  const adoptCopies = async (folders: string[]) => {
+    let kept = 0;
+    for (const folder of folders) {
+      try {
+        await TauriService.adoptWorkshopCopy(paths, folder);
+        kept += 1;
+      } catch (err) {
+        reportBackendError('Keeping the copy', err);
+      }
+    }
+    if (kept > 0) say(t('health.copiesAdoptedDone', { count: kept }));
+    onRecheck();
+  };
+
+  /** The Studio's copies a Workshop update outgrew, copied again. */
+  const recopyAll = async (modIds: string[]) => {
+    setCompatBusy(true);
+    let copied = 0;
+    try {
+      for (const id of modIds) {
+        try {
+          await TauriService.recopyWorkshop(paths, id);
+          copied += 1;
+        } catch (err) {
+          reportBackendError('Copying the mod again', err);
+        }
+      }
+    } finally {
+      setCompatBusy(false);
+    }
+    if (copied > 0) say(t('health.recopiedDone', { count: copied }));
+    onModsChanged();
+    onRecheck();
+  };
+
+  /** Several copies the originals no longer need, in one go (one question for all). */
+  const removeCompatibleCopies = async (folders: string[]) => {
+    if (!confirm(t('health.removeCopiesConfirm', { count: folders.length, folders: folders.join(', ') }))) return;
+    let removed = 0;
+    for (const folder of folders) {
+      try {
+        await TauriService.removeCompatibleCopy(paths, folder);
+        removed += 1;
+      } catch (err) {
+        reportBackendError('Removing the compatible copy', err);
+      }
+    }
+    setCompatResult(null);
+    if (removed > 0) say(t('health.copiesRemovedDone', { count: removed }));
+    onModsChanged();
+    onRecheck();
   };
 
   /** Takes a mod file's copy out of the package; the game reads the mod's own file again. */
@@ -230,15 +316,13 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
   };
 
   /**
-   * What the last button did, in words. A load-order change is invisible from this screen -- the
-   * row stays, because two mods still define the same thing -- so without this the app looks
-   * like it did nothing.
+   * What the last button did, in words, and that nothing more is needed. A load-order change is
+   * invisible from this screen -- the row stays, because two mods still define the same thing --
+   * so without this the app looks like it did nothing. It stays until closed or the next button:
+   * it went away by itself after six seconds, before it was read.
    */
   const [done, setDone] = useState<string | null>(null);
-  const say = (what: string) => {
-    setDone(what);
-    window.setTimeout(() => setDone((current) => (current === what ? null : current)), 6000);
-  };
+  const say = (what: string) => setDone(what);
 
   const handleFix = (fix: HealthFix, issue?: HealthIssue) => {
     if (fix.action === 'merge_files') {
@@ -259,6 +343,14 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     }
     if (fix.action === 'remove_from_package') {
       void removeFromPackage(fix.package, fix.relative_path);
+      return;
+    }
+    if (fix.action === 'adopt_workshop_copy') {
+      void adoptCopies([fix.folder]);
+      return;
+    }
+    if (fix.action === 'recopy_workshop') {
+      void recopyAll([fix.mod_id]);
       return;
     }
     if (fix.action === 'dismiss_known_issue') {
@@ -411,9 +503,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     ).length ?? 0;
 
   const tabOf = (i: HealthIssue): Exclude<HealthTab, 'performance' | 'disk'> =>
-    i.code.startsWith('security_') ? 'security' : CONFLICT_CODE.test(i.code) || YOUR_CALL_CODES.has(i.code) ? 'conflicts' : i.severity === 'info' ? 'info' : 'problems';
+    i.code.startsWith('security_') ? 'security' : CONFLICT_CODE.test(i.code) || YOUR_CALL_CODES.has(i.code) ? 'conflicts' : 'problems';
   const byTab = useMemo(() => {
-    const out: Record<Exclude<HealthTab, 'performance' | 'disk'>, HealthIssue[]> = { problems: [], conflicts: [], info: [], security: [] };
+    const out: Record<Exclude<HealthTab, 'performance' | 'disk'>, HealthIssue[]> = { problems: [], conflicts: [], security: [] };
     report?.issues.forEach((i) => out[tabOf(i)].push(i));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -434,9 +526,11 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       return {};
     }
   });
-  const toggleSection = (key: string) => {
+  /** What the Studio already fixed and what is only worth knowing start folded: nothing to do there. */
+  const isCollapsed = (key: string, state: IssueState) => collapsed[key] ?? (state === 'handled' || state === 'info');
+  const toggleSection = (key: string, state: IssueState) => {
     setCollapsed((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
+      const next = { ...prev, [key]: !(prev[key] ?? (state === 'handled' || state === 'info')) };
       try {
         localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
       } catch {
@@ -469,51 +563,318 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       // only a convenience
     }
   };
-  // A Mod List chip points at one issue: its tab first, so the row is there to scroll to.
+  // A Mod List chip points at one issue: its tab first, and its section open, so the row is there
+  // to scroll to (not saved: the player's own folding stays as it was).
   useEffect(() => {
-    if (focusIssue) setTab(tabOf(focusIssue));
+    if (!focusIssue) return;
+    const focusTab = tabOf(focusIssue);
+    setTab(focusTab);
+    setCollapsed((prev) => ({ ...prev, [`${focusTab}:${issueStateOf(focusIssue)}`]: false }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusIssue]);
-  const errorsCount = byTab.problems.filter((i) => i.severity === 'error').length;
+  /** What wants something done on a tab: the rows that act or are worth acting on. */
+  const toDo = (issues: HealthIssue[]) => issues.filter((i) => ['act', 'recommended'].includes(issueStateOf(i)));
+  const actCount = (issues: HealthIssue[]) => issues.filter((i) => issueStateOf(i) === 'act').length;
   const tabCount: Record<HealthTab, number | null> = {
-    problems: byTab.problems.length,
-    // Those that want something done: the settled ones are only there to be seen.
-    conflicts: byTab.conflicts.filter((i) => conflictStateOf(i.code) !== 'settled').length,
-    info: byTab.info.length,
-    security: byTab.security.length,
+    problems: toDo(byTab.problems).length,
+    conflicts: toDo(byTab.conflicts).length,
+    security: toDo(byTab.security).length,
     performance: null,
     disk: null,
   };
 
   /**
-   * The rows of the tab in front, in sections: by severity, except on Conflicts, where what
-   * matters is whether the package settles each one, so they go by that (the open ones first),
-   * each with its colour and a word saying so.
+   * The rows of the tab in front, in sections by state, most pressing first: act, worth doing,
+   * worth knowing, already fixed by the Studio. The same four on every tab.
    */
   const sections = useMemo(() => {
     if (tab === 'performance' || tab === 'disk') return [];
-    if (tab === 'conflicts') {
-      const by: Record<ConflictState, HealthIssue[]> = { open: [], stale: [], settled: [] };
-      byTab.conflicts.forEach((i) => by[conflictStateOf(i.code)].push(i));
-      return CONFLICT_STATES.map((state) => ({
-        key: state,
-        title: t(`health.conflictState.${state}`),
-        issues: by[state],
-        style: CONFLICT_STYLE[state],
-        tag: t(`health.conflictState.${state}Tag`),
-      }));
-    }
-    const by: Record<HealthSeverity, HealthIssue[]> = { error: [], warning: [], info: [] };
-    byTab[tab].forEach((i) => by[i.severity].push(i));
-    return (['error', 'warning', 'info'] as HealthSeverity[]).map((sev) => ({
-      key: sev,
-      title: t(`health.severity.${sev}`),
-      issues: by[sev],
-      style: SEVERITY_STYLE[sev],
-      tag: null as string | null,
-    }));
+    const by: Record<IssueState, HealthIssue[]> = { act: [], recommended: [], info: [], handled: [] };
+    byTab[tab].forEach((i) => by[issueStateOf(i)].push(i));
+    return STATE_ORDER.map((state) => ({ key: state, state, issues: by[state], items: groupItems(by[state]) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byTab, tab, i18next.language]);
+
+  /** The fixes a row offers, as buttons; "Enable X" + "Move X before Y" are one button doing both. */
+  const fixesOf = (issue: HealthIssue) => {
+    const applicable = issue.fixes.filter((f) => ACTION_FIXES.has(f.action) || applyFix(mods, f) !== null);
+    const enableThenMove = applicable.length === 2 && applicable[0].action === 'enable_mod' && applicable[1].action === 'move_before';
+    return { applicable, enableThenMove, fixes: enableThenMove ? [applicable[0]] : applicable };
+  };
+  const labelOf = (issue: HealthIssue, fix: HealthFix) =>
+    YOUR_CALL_CODES.has(issue.code) && fix.action === 'move_before' ? t('health.useVersionInstead', { name: nameOf(fix.before) }) : fixLabel(fix);
+
+  /**
+   * One row: the state in words, the mod, what is going on, what the first button changes (said
+   * before it is pressed) and the buttons. On a row the Studio already fixed, a button only undoes
+   * what it did: quiet, and called so.
+   */
+  const renderIssue = (issue: HealthIssue, state: IssueState, key: string) => {
+    const style = STATE_STYLE[state];
+    const Icon = style.icon;
+    const { applicable, enableThenMove, fixes } = fixesOf(issue);
+    const undoOnly = state === 'handled' || state === 'info';
+    const primary = fixes.find((f) => !(undoOnly && UNDO_ACTIONS.has(f.action)));
+    return (
+      <div
+        key={key}
+        data-issue-key={issueKey(issue)}
+        data-issue-code={`${issue.code}|${issue.mod_id ?? ''}`}
+        className={`flex items-start gap-3 p-3 rounded-lg border ${style.card} ${litKey === issueKey(issue) ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-900/50' : ''}`}
+      >
+        <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
+            {issue.mod_id && (
+              <span className="text-[12.5px] font-bold text-slate-100 truncate">
+                {nameOf(issue.mod_id)}
+                {nameOf(issue.mod_id) !== issue.mod_id && <span className="ml-1.5 text-[10px] font-mono font-normal text-slate-500">{issue.mod_id}</span>}
+              </span>
+            )}
+          </div>
+          <RichText text={issueText(issue)} mods={modWords} foldAt={320} className="text-xs text-slate-300 leading-relaxed" />
+          {primary && (
+            <div className="flex items-start gap-1.5 mt-1 text-[11px] text-slate-400">
+              <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+              <span>{t(effectKey(primary))}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] font-mono text-slate-600">{issue.code}</span>
+            <button
+              type="button"
+              onClick={() => void copyForAssistant(issue)}
+              className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-200 cursor-pointer"
+              title={t('assistant.copyTitle')}
+            >
+              <MessageSquare className="w-3 h-3" aria-hidden="true" /> {t('assistant.copy')}
+            </button>
+          </div>
+          {issue.details && issue.details.length > 0 && (
+            <details className="mt-1.5">
+              <summary className="text-[11px] text-sky-300 cursor-pointer select-none">{t('health.byFile', { count: issue.details.length })}</summary>
+              <div className="mt-1.5 flex flex-col gap-1.5">
+                {issue.details.map((d) => (
+                  <div key={`${d.mod_id}:${d.file}`} className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5">
+                    <div className="text-[11px] text-slate-300">
+                      <b className="text-slate-100">{d.mod_name}</b> <span className="font-mono text-slate-400">{d.file}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {d.declares.map((thing) => (
+                        <button
+                          key={thing.definition}
+                          type="button"
+                          onClick={() => onOpenMerger(thing.merged_path)}
+                          title={`${thing.definition}: ${thing.state === 'merged' ? t('health.thingMerged') : thing.state === 'stale' ? t('health.thingStale') : t('health.thingPending')}${t('health.thingClick')}`}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer ${
+                            thing.state === 'merged'
+                              ? 'border-emerald-800 text-emerald-300 bg-emerald-950/40'
+                              : thing.state === 'stale'
+                              ? 'border-amber-800 text-amber-300 bg-amber-950/40'
+                              : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          {thing.definition}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+        {fixes.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[45%]">
+            {fixes.map((fix, i) => {
+              const quiet = undoOnly && UNDO_ACTIONS.has(fix.action);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => (enableThenMove ? handleFixes(applicable) : handleFix(fix, issue))}
+                  disabled={fix.action === 'merge_files' && mergeBusy}
+                  title={t(effectKey(fix))}
+                  className={
+                    quiet
+                      ? 'px-2 py-1 rounded text-[11px] text-slate-400 hover:text-slate-200 border border-slate-700/70 hover:bg-slate-800/60 cursor-pointer'
+                      : fix === primary && (state === 'act' || state === 'recommended')
+                      ? 'px-2 py-1 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white border border-sky-600 cursor-pointer'
+                      : 'px-2 py-1 rounded text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 cursor-pointer'
+                  }
+                >
+                  {quiet ? t('health.undoPrefix', { what: labelOf(issue, fix) }) : labelOf(issue, fix)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /**
+   * Several rows of one code that are the same thing for several mods: one card with their names
+   * and one button for all (copies the originals no longer need), or the list with an undo each
+   * (copies the Studio keeps running).
+   */
+  const renderGroup = (code: string, issues: HealthIssue[], state: IssueState, key: string) => {
+    const style = STATE_STYLE[state];
+    const Icon = style.icon;
+    if (code === 'community_known_issue') {
+      // One mod's known issues: what each one is, with its own "no longer happens", and the fix
+      // they share once (a compatible copy fixes them all).
+      const shared: HealthFix[] = [];
+      issues.forEach((i) =>
+        fixesOf(i).fixes.forEach((f) => {
+          if (f.action !== 'dismiss_known_issue' && !shared.some((s) => JSON.stringify(s) === JSON.stringify(f))) shared.push(f);
+        })
+      );
+      const modId = issues[0].mod_id ?? '';
+      return (
+        <div
+          key={key}
+          className={`flex items-start gap-3 p-3 rounded-lg border ${style.card} ${issues.some((i) => litKey === issueKey(i)) ? 'ring-2 ring-cyan-400' : ''}`}
+        >
+          <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
+              <span className="text-[12.5px] font-bold text-slate-100 truncate">{nameOf(modId)}</span>
+            </div>
+            <div className="text-xs text-slate-300">{t('health.group.community_known_issue.title', { count: issues.length })}</div>
+            <ul className="mt-1 flex flex-col gap-1">
+              {issues.map((i, n) => {
+                const dismiss = i.fixes.find((f) => f.action === 'dismiss_known_issue');
+                return (
+                  <li key={n} data-issue-key={issueKey(i)} data-issue-code={`${i.code}|${i.mod_id ?? ''}`} className="flex items-start justify-between gap-2 rounded border border-slate-800/80 bg-slate-950/40 px-2 py-1">
+                    <RichText text={issueText(i)} mods={modWords} foldAt={200} className="text-[11px] text-slate-300 leading-relaxed min-w-0" />
+                    {dismiss && (
+                      <button
+                        type="button"
+                        onClick={() => handleFix(dismiss, i)}
+                        title={t(effectKey(dismiss))}
+                        className="px-2 py-0.5 rounded text-[10px] text-slate-400 hover:text-slate-200 border border-slate-700/70 hover:bg-slate-800/60 cursor-pointer shrink-0"
+                      >
+                        {fixLabel(dismiss)}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {shared[0] && (
+              <div className="flex items-start gap-1.5 mt-1 text-[11px] text-slate-400">
+                <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{t(effectKey(shared[0]))}</span>
+              </div>
+            )}
+          </div>
+          {shared.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[45%]">
+              {shared.map((fix, n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => handleFix(fix, issues[0])}
+                  title={t(effectKey(fix))}
+                  className={
+                    n === 0
+                      ? 'px-2 py-1 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white border border-sky-600 cursor-pointer'
+                      : 'px-2 py-1 rounded text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 cursor-pointer'
+                  }
+                >
+                  {labelOf(issues[0], fix)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    // The one action the whole card takes, on every mod in it: the copies the originals no longer
+    // need go, the copies made by hand are kept by the Studio, the outgrown ones copied again.
+    const bulkAction: HealthFix['action'] | null =
+      code === 'compatible_copy_unneeded' ? 'remove_compatible_copy' : code === 'workshop_copy_by_hand' ? 'adopt_workshop_copy' : code === 'workshop_copy_stale' ? 'recopy_workshop' : null;
+    const bulkFixes = bulkAction ? issues.flatMap((i) => i.fixes.filter((f) => f.action === bulkAction)) : [];
+    const folders = bulkFixes.flatMap((f) => (f.action === 'remove_compatible_copy' || f.action === 'adopt_workshop_copy' ? [f.folder] : []));
+    const runBulk = () => {
+      if (bulkAction === 'remove_compatible_copy') void removeCompatibleCopies(folders);
+      else if (bulkAction === 'adopt_workshop_copy') void adoptCopies(folders);
+      else if (bulkAction === 'recopy_workshop') void recopyAll(bulkFixes.flatMap((f) => (f.action === 'recopy_workshop' ? [f.mod_id] : [])));
+    };
+    const firstFix = bulkFixes[0];
+    const bulk = bulkAction !== null;
+    return (
+      <div
+        key={key}
+        data-issue-key={bulk ? issueKey(issues[0]) : undefined}
+        className={`flex items-start gap-3 p-3 rounded-lg border ${style.card} ${bulk && issues.some((i) => litKey === issueKey(i)) ? 'ring-2 ring-cyan-400' : ''}`}
+      >
+        <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <span className={`text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
+          <div className="text-[12.5px] font-bold text-slate-100">{t(`health.group.${code}.title`, { count: issues.length })}</div>
+          <div className="text-xs text-slate-300 leading-relaxed">{t(`health.group.${code}.body`)}</div>
+          {bulk ? (
+            <>
+              <div className="text-xs text-slate-200 mt-1">
+                {issues.slice(0, 15).map((i) => nameOf(i.mod_id ?? '')).join(', ')}
+                {issues.length > 15 && <span className="text-slate-400">{t('health.group.andMore', { count: issues.length - 15 })}</span>}
+              </div>
+              {(() => {
+                const servers = Array.from(new Set(issues.flatMap((i) => (i.params?.servers ? i.params.servers.split(', ') : []))));
+                return servers.length > 0 ? <div className="text-[11px] text-amber-200/90 mt-1">{t('health.group.usedByServers', { servers: servers.join(', ') })}</div> : null;
+              })()}
+            </>
+          ) : (
+            <ul className="mt-1.5 flex flex-col gap-1">
+              {issues.map((i, n) => {
+                const fix = i.fixes.find((f) => f.action === 'remove_compatible_copy');
+                return (
+                  <li
+                    key={`${i.mod_id}-${n}`}
+                    data-issue-key={issueKey(i)}
+                    data-issue-code={`${i.code}|${i.mod_id ?? ''}`}
+                    className={`flex items-center justify-between gap-2 text-xs text-slate-200 rounded px-1 ${litKey === issueKey(i) ? 'ring-2 ring-cyan-400' : ''}`}
+                  >
+                    <span className="truncate">{nameOf(i.mod_id ?? '')}</span>
+                    {fix && (
+                      <button
+                        type="button"
+                        onClick={() => handleFix(fix, i)}
+                        title={t(effectKey(fix))}
+                        className="px-2 py-0.5 rounded text-[10px] text-slate-400 hover:text-slate-200 border border-slate-700/70 hover:bg-slate-800/60 cursor-pointer shrink-0"
+                      >
+                        {t('health.undoPrefix', { what: fixLabel(fix) })}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {bulk && firstFix && (
+            <div className="flex items-start gap-1.5 mt-1 text-[11px] text-slate-400">
+              <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+              <span>{t(effectKey(firstFix))}</span>
+            </div>
+          )}
+        </div>
+        {bulk && bulkFixes.length > 0 && (
+          <button
+            type="button"
+            onClick={runBulk}
+            disabled={compatBusy}
+            className="px-2 py-1 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white border border-sky-600 cursor-pointer shrink-0 disabled:opacity-60"
+          >
+            {t(`health.group.${code}.button`, { count: bulkFixes.length })}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   if (!paths.is_valid) {
     return (
@@ -583,17 +944,15 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         </button>
       </div>
 
+      <PageGuide page="health" />
+
       <div role="tablist" className="flex items-end gap-1 border-b border-slate-800">
         {TABS.map((id) => {
           const Icon = TAB_ICON[id];
           const count = tabCount[id];
           const active = tab === id;
-          const badge =
-            id === 'problems' && errorsCount > 0
-              ? 'bg-red-600 text-white'
-              : id === 'problems'
-              ? 'bg-amber-500 text-slate-950'
-              : 'bg-slate-700 text-slate-200';
+          const issuesHere = id === 'problems' || id === 'conflicts' || id === 'security' ? byTab[id] : [];
+          const badge = actCount(issuesHere) > 0 ? STATE_STYLE.act.badge : STATE_STYLE.recommended.badge;
           return (
             <button
               key={id}
@@ -711,136 +1070,59 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       )}
 
       {done && (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-800/60 bg-emerald-950/30 text-emerald-200 text-xs">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
-          <span>{done}</span>
-          <span className="text-emerald-500/70">{t('health.savedToList')}</span>
+        <div className="flex items-start gap-2 px-4 py-3 rounded-lg border border-emerald-700/70 bg-emerald-950/40 text-emerald-100 text-xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold">{done}</div>
+            <div className="text-emerald-300/80">{t('health.nothingMore')}</div>
+          </div>
+          <button type="button" onClick={() => setDone(null)} className="text-emerald-400/70 hover:text-emerald-200 cursor-pointer" aria-label={t('health.close')}>
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
         </div>
       )}
 
-      {report && tab !== 'performance' && tab !== 'disk' && byTab[tab].length === 0 && (
+      {report && tab !== 'performance' && tab !== 'disk' && toDo(byTab[tab]).length === 0 && (
         <div className="flex items-center gap-3 p-5 rounded-xl border border-emerald-800/60 bg-emerald-950/30 text-emerald-200 text-sm">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-hidden="true" />
           {tab === 'problems' ? t('health.noProblems', { count: report.active_count }) : t(`health.tabs.${tab}Empty`)}
         </div>
       )}
 
-      {sections.map((sec) =>
-        sec.issues.length === 0 ? null : (
+      {sections.map((sec) => {
+        if (sec.issues.length === 0) return null;
+        const style = STATE_STYLE[sec.state];
+        const StateIcon = style.icon;
+        const key = `${tab}:${sec.state}`;
+        const folded = isCollapsed(key, sec.state);
+        return (
           <section key={sec.key} className="flex flex-col gap-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-mono">
-              <button type="button" onClick={() => toggleSection(`${tab}:${sec.key}`)} className="flex items-center gap-1 cursor-pointer hover:text-slate-300" aria-expanded={!collapsed[`${tab}:${sec.key}`]}>
-                {collapsed[`${tab}:${sec.key}`] ? <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
-                {sec.title} ({sec.issues.length})
-              </button>
-            </h2>
-            {!collapsed[`${tab}:${sec.key}`] && sec.issues.map((issue, idx) => {
-              const style = sec.style;
-              const Icon = style.icon;
-              // "Enable X" + "Move X before Y" for the same issue are shown as one button doing both.
-              const applicable = issue.fixes.filter((f) => ACTION_FIXES.has(f.action) || applyFix(mods, f) !== null);
-              const enableThenMove = applicable.length === 2 && applicable[0].action === 'enable_mod' && applicable[1].action === 'move_before';
-              const fixes = enableThenMove ? [applicable[0]] : applicable;
-              return (
-                <div
-                  key={`${issue.code}-${issue.mod_id}-${idx}`}
-                  data-issue-key={issueKey(issue)}
-                  data-issue-code={`${issue.code}|${issue.mod_id ?? ''}`}
-                  className={`flex items-start gap-3 p-3 rounded-lg border ${style.row} ${litKey === issueKey(issue) ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-900/50' : ''}`}
-                >
-                  <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
-                  <div className="flex-1 min-w-0">
-                    {(issue.mod_id || sec.tag) && (
-                      <div className="flex items-center gap-2 min-w-0">
-                        {sec.tag && (
-                          <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${'tag' in style ? style.tag : ''}`}>{sec.tag}</span>
-                        )}
-                        {issue.mod_id && (
-                          <span className="text-[12.5px] font-bold text-slate-100 truncate">
-                            {nameOf(issue.mod_id)}
-                            {nameOf(issue.mod_id) !== issue.mod_id && <span className="ml-1.5 text-[10px] font-mono font-normal text-slate-500">{issue.mod_id}</span>}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <RichText text={issueText(issue)} mods={modWords} foldAt={320} className="text-xs text-slate-300 leading-relaxed" />
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-mono text-slate-600">{issue.code}</span>
-                      <button
-                        type="button"
-                        onClick={() => void copyForAssistant(issue)}
-                        className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-200 cursor-pointer"
-                        title={t('assistant.copyTitle')}
-                      >
-                        <MessageSquare className="w-3 h-3" aria-hidden="true" /> {t('assistant.copy')}
-                      </button>
-                    </div>
-                    {issue.details && issue.details.length > 0 && (
-                      <details className="mt-1.5">
-                        <summary className="text-[11px] text-sky-300 cursor-pointer select-none">
-                          {t('health.byFile', { count: issue.details.length })}
-                        </summary>
-                        <div className="mt-1.5 flex flex-col gap-1.5">
-                          {issue.details.map((d) => (
-                            <div key={`${d.mod_id}:${d.file}`} className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5">
-                              <div className="text-[11px] text-slate-300">
-                                <b className="text-slate-100">{d.mod_name}</b> <span className="font-mono text-slate-400">{d.file}</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {d.declares.map((thing) => (
-                                  <button
-                                    key={thing.definition}
-                                    type="button"
-                                    onClick={() => onOpenMerger(thing.merged_path)}
-                                    title={`${thing.definition}: ${thing.state === 'merged' ? t('health.thingMerged') : thing.state === 'stale' ? t('health.thingStale') : t('health.thingPending')}${t('health.thingClick')}`}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer ${
-                                      thing.state === 'merged'
-                                        ? 'border-emerald-800 text-emerald-300 bg-emerald-950/40'
-                                        : thing.state === 'stale'
-                                        ? 'border-amber-800 text-amber-300 bg-amber-950/40'
-                                        : 'border-slate-700 text-slate-300 hover:bg-slate-800'
-                                    }`}
-                                  >
-                                    {thing.definition}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                  {fixes.length > 0 && (
-                    <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[45%]">
-                      {fixes.map((fix, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => (enableThenMove ? handleFixes(applicable) : handleFix(fix, issue))}
-                          disabled={fix.action === 'merge_files' && mergeBusy}
-                          title={fix.action === 'remove_compatible_copy' ? t('health.fix.removeCopyTitle') : undefined}
-                          className={
-                            // Undoing something the Studio did is there if wanted, not a thing to do.
-                            fix.action === 'remove_compatible_copy'
-                              ? 'px-2 py-1 rounded text-[11px] text-slate-400 hover:text-slate-200 border border-slate-700/70 hover:bg-slate-800/60 cursor-pointer'
-                              : 'px-2 py-1 rounded text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 cursor-pointer'
-                          }
-                        >
-                          {YOUR_CALL_CODES.has(issue.code) && fix.action === 'move_before'
-                            ? t('health.useVersionInstead', { name: nameOf(fix.before) })
-                            : fixLabel(fix)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => toggleSection(key, sec.state)}
+              aria-expanded={!folded}
+              className={`flex items-start gap-2 text-left px-3 py-2 rounded-lg border cursor-pointer ${style.card} hover:brightness-125`}
+            >
+              {folded ? <ChevronRight className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden="true" /> : <ChevronDown className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden="true" />}
+              <StateIcon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
+              <span className="flex flex-col min-w-0">
+                <span className={`text-[13px] font-bold ${style.label}`}>
+                  {t(`health.state.${sec.state}.title`)} ({sec.issues.length})
+                </span>
+                <span className="text-[11px] text-slate-400">{t(`health.state.${sec.state}.hint`)}</span>
+              </span>
+            </button>
+            {!folded &&
+              sec.items.map((item, idx) =>
+                item.kind === 'group' ? (
+                  renderGroup(item.code, item.issues, sec.state, `${item.code}-${idx}`)
+                ) : (
+                  renderIssue(item.issue, sec.state, `${item.issue.code}-${item.issue.mod_id}-${idx}`)
+                )
+              )}
           </section>
-        )
-      )}
-
+        );
+      })}
       {tab === 'performance' && (
         <div role="tablist" className="flex flex-wrap items-center gap-1">
           {PERF_TABS.map((id) => (

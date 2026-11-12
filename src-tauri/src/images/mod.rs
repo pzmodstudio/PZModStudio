@@ -42,6 +42,8 @@ fn allowed_roots(paths: &StudioPaths) -> Vec<PathBuf> {
         .iter()
         .filter(|d| !d.is_empty())
         .filter_map(|d| std::fs::canonicalize(d).ok())
+        // Mod folders linked into Zomboid/mods: their pictures sit at the link's target.
+        .chain(crate::vfs::linked_mod_roots(&paths.user_zomboid_dir))
         .collect()
 }
 

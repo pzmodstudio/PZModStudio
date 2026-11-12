@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -558,12 +558,161 @@ pub fn version_dir_int(name: &str) -> Option<u32> {
 }
 
 /// The game build last run from this Zomboid folder, from `Zomboid/version.txt` ("42.21.0 <rev>").
-pub fn read_installed_game_version(user_zomboid_dir: &str) -> Option<u32> {
+/// The game writes it when it starts, so after a Steam update it names the old build until the
+/// game is run once: `read_installed_game_version` asks the installed jar first.
+pub fn read_last_run_game_version(user_zomboid_dir: &str) -> Option<u32> {
     get_existing_user_zomboid_dirs(user_zomboid_dir).iter().find_map(|dir| {
         fs::read_to_string(dir.join("version.txt"))
             .ok()
             .and_then(|text| text.split_whitespace().next().and_then(version_dir_int))
     })
+}
+
+/// The build the installed game starts as: what its `projectzomboid.jar` says (right after a
+/// Steam update too), else `Zomboid/version.txt` (the build last run).
+pub fn read_installed_game_version(user_zomboid_dir: &str) -> Option<u32> {
+    installed_jar_game_version().or_else(|| read_last_run_game_version(user_zomboid_dir))
+}
+
+/// The version of the game in the folder the Studio saved or detected, from its jar.
+pub fn installed_jar_game_version() -> Option<u32> {
+    if cfg!(test) {
+        return None; // never the real game of the PC running the tests
+    }
+    let dir = crate::vfs::trusted_install_dir();
+    if dir.is_empty() {
+        return None;
+    }
+    jar_game_version(&Path::new(&dir).join("projectzomboid.jar"))
+}
+
+/// `GameVersion(major, minor)` as `zombie/core/Core` builds it in its static init, read from the
+/// jar; cached per jar size and date (one class out of the jar, read once per game update).
+pub fn jar_game_version(jar: &Path) -> Option<u32> {
+    use std::sync::Mutex;
+    static CACHE: Mutex<Option<(PathBuf, u64, std::time::SystemTime, Option<u32>)>> = Mutex::new(None);
+    let meta = fs::metadata(jar).ok()?;
+    let (len, modified) = (meta.len(), meta.modified().ok()?);
+    if let Ok(cache) = CACHE.lock() {
+        if let Some((path, l, m, v)) = cache.as_ref() {
+            if path == jar && *l == len && *m == modified {
+                return *v;
+            }
+        }
+    }
+    let version = (|| {
+        let mut archive = zip::ZipArchive::new(fs::File::open(jar).ok()?).ok()?;
+        let mut entry = archive.by_name("zombie/core/Core.class").ok()?;
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut bytes).ok()?;
+        core_class_game_version(&bytes)
+    })();
+    if let Ok(mut cache) = CACHE.lock() {
+        *cache = Some((jar.to_path_buf(), len, modified, version));
+    }
+    version
+}
+
+/// An int pushed by one JVM instruction at `i`: (value, instruction length).
+fn pushed_int(b: &[u8], i: usize) -> Option<(u32, usize)> {
+    match *b.get(i)? {
+        op @ 0x03..=0x08 => Some(((op - 0x03) as u32, 1)),        // iconst_0..5
+        0x10 => {
+            // bipush
+            let v = *b.get(i + 1)? as i8;
+            (v >= 0).then_some((v as u32, 2))
+        }
+        0x11 => {
+            // sipush
+            let v = i16::from_be_bytes([*b.get(i + 1)?, *b.get(i + 2)?]);
+            (v >= 0).then_some((v as u32, 3))
+        }
+        _ => None,
+    }
+}
+
+/// Finds `new GameVersion; dup; <major>; <minor>; ...; invokespecial` in Core's bytecode: the
+/// `new` must name the class `zombie/core/GameVersion` of the constant pool.
+/// Core builds more than one (`VERSION_BUILD_42` is 42.0): the one taken is the one stored with
+/// `putstatic` into the field named `gameVersion`, within a few bytes after the `new`.
+fn core_class_game_version(b: &[u8]) -> Option<u32> {
+    let pool = ConstantPool::read(b)?;
+    let class_index = pool.class_named("zombie/core/GameVersion")?;
+    let [hi, lo] = class_index.to_be_bytes();
+    (0..b.len().saturating_sub(8)).find_map(|i| {
+        if b[i] != 0xbb || b[i + 1] != hi || b[i + 2] != lo || b[i + 3] != 0x59 {
+            return None;
+        }
+        let (major, n) = pushed_int(b, i + 4)?;
+        let (minor, _) = pushed_int(b, i + 4 + n)?;
+        // invokespecial <init> then putstatic gameVersion, after the constructor's other arguments.
+        let stored = (i + 4..(i + 24).min(b.len().saturating_sub(2))).any(|j| {
+            b[j] == 0xb3 && pool.field_name(u16::from_be_bytes([b[j + 1], b[j + 2]])) == Some("gameVersion")
+        });
+        (stored && (41..=99).contains(&major) && minor <= 999).then_some(major * 1000 + minor)
+    })
+}
+
+/// The parts of a class file's constant pool needed above: Utf8 texts, Class and Fieldref
+/// entries, NameAndType pairs (by pool index).
+#[derive(Default)]
+struct ConstantPool {
+    utf8: HashMap<u16, String>,
+    classes: HashMap<u16, u16>,
+    fieldrefs: HashMap<u16, u16>,
+    names_and_types: HashMap<u16, u16>,
+}
+
+impl ConstantPool {
+    fn read(b: &[u8]) -> Option<ConstantPool> {
+        if b.get(0..4)? != [0xca, 0xfe, 0xba, 0xbe] {
+            return None;
+        }
+        let u16_at = |i: usize| -> Option<u16> { Some(u16::from_be_bytes([*b.get(i)?, *b.get(i + 1)?])) };
+        let count = u16_at(8)?;
+        let mut pool = ConstantPool::default();
+        let mut i = 10usize;
+        let mut index = 1u16;
+        while index < count {
+            let tag = *b.get(i)?;
+            let len = match tag {
+                1 => {
+                    let n = u16_at(i + 1)? as usize;
+                    pool.utf8.insert(index, String::from_utf8_lossy(b.get(i + 3..i + 3 + n)?).into_owned());
+                    3 + n
+                }
+                7 => {
+                    pool.classes.insert(index, u16_at(i + 1)?);
+                    3
+                }
+                9 => {
+                    pool.fieldrefs.insert(index, u16_at(i + 3)?);
+                    5
+                }
+                12 => {
+                    pool.names_and_types.insert(index, u16_at(i + 1)?);
+                    5
+                }
+                8 | 16 | 19 | 20 => 3,
+                15 => 4,
+                3 | 4 | 10 | 11 | 17 | 18 => 5,
+                5 | 6 => 9,
+                _ => return None,
+            };
+            i += len;
+            index += if tag == 5 || tag == 6 { 2 } else { 1 };
+        }
+        Some(pool)
+    }
+
+    fn class_named(&self, name: &str) -> Option<u16> {
+        self.classes.iter().find(|(_, n)| self.utf8.get(n).map(String::as_str) == Some(name)).map(|(c, _)| *c)
+    }
+
+    fn field_name(&self, fieldref: u16) -> Option<&str> {
+        let nat = self.fieldrefs.get(&fieldref)?;
+        self.utf8.get(self.names_and_types.get(nat)?).map(String::as_str)
+    }
 }
 
 /// The mod.info the game reads for the mod folder `mod_root` (e.g. `.../mods/MyMod`) on build
@@ -735,9 +884,22 @@ pub fn scan_all_installed_mods(paths: &StudioPaths) -> Vec<ModManifest> {
     for user_dir in &game_user_dirs {
         let user_mods_path = user_dir.join("mods");
         if user_mods_path.exists() {
-            for entry in WalkDir::new(&user_mods_path).max_depth(8).into_iter().filter_map(|e| e.ok()) {
+            // One walk per mod folder: a folder linked into Zomboid/mods (a junction to a mod in
+            // development, as the game reads it) is followed as a root, which one walk of
+            // Zomboid/mods would not enter.
+            let mod_roots: Vec<PathBuf> = fs::read_dir(&user_mods_path)
+                .map(|entries| entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
+                .unwrap_or_default();
+            let entries = mod_roots.into_iter().flat_map(|root| WalkDir::new(root).max_depth(7).into_iter().filter_map(|e| e.ok()));
+            for entry in entries {
                 // The game refuses to list its example mod (ZomboidFileSystem.getAllModFoldersAux).
                 if entry.path().components().any(|c| c.as_os_str().eq_ignore_ascii_case("examplemod")) {
+                    continue;
+                }
+                // A hidden folder inside a mod (.git, .claude/worktrees, .vscode) is the author's
+                // tooling: a mod.info there is a working copy, never what the game loads.
+                let inside = entry.path().strip_prefix(&user_mods_path).unwrap_or(entry.path());
+                if inside.components().skip(1).any(|c| c.as_os_str().to_string_lossy().starts_with('.')) {
                     continue;
                 }
                 if entry.file_name() == "mod.info" {
@@ -933,7 +1095,8 @@ pub fn scan_all_installed_mods(paths: &StudioPaths) -> Vec<ModManifest> {
                     processed_ids.insert(key);
                 }
             } else if !clean_id.is_empty()
-                && !clean_id.starts_with("Z_PZModStudio_")
+                // A Studio package with no folder shows too, as not installed: hidden, it stayed in
+                // the list with no box to take it out (the next save of the list drops it).
                 && (active_set.contains(&raw_id) || active_set.contains(&clean_id))
                 && missing_seen.insert(clean_id.clone())
             {
@@ -1025,6 +1188,76 @@ pub fn extract_workshop_id_from_path(path: &Path) -> Option<String> {
     None
 }
 
+
+#[cfg(test)]
+mod jar_version_tests {
+    use super::*;
+
+    fn utf8(b: &mut Vec<u8>, s: &str) {
+        b.push(1);
+        b.extend((s.len() as u16).to_be_bytes());
+        b.extend(s.as_bytes());
+    }
+
+    /// A class file with a constant pool as Core.class has it, and the bytes after it:
+    /// #1 Utf8 class name, #2 Class -> #1, #3 Utf8 "gameVersion", #4 NameAndType -> #3,
+    /// #5 Fieldref gameVersion, #6 Utf8 "VERSION_BUILD_42", #7 NameAndType -> #6,
+    /// #8 Fieldref VERSION_BUILD_42, #9-10 a Long (two slots).
+    fn class_with(name: &str, code: &[u8]) -> Vec<u8> {
+        let mut b = vec![0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 65, 0, 11];
+        utf8(&mut b, name);
+        b.extend([7, 0, 1]);
+        utf8(&mut b, "gameVersion");
+        b.extend([12, 0, 3, 0, 1]);
+        b.extend([9, 0, 2, 0, 4]);
+        utf8(&mut b, "VERSION_BUILD_42");
+        b.extend([12, 0, 6, 0, 1]);
+        b.extend([9, 0, 2, 0, 7]);
+        b.extend([5, 0, 0, 0, 0, 0, 0, 0, 9]);
+        b.extend([0; 6]);
+        b.extend(code);
+        b.extend([0; 8]);
+        b
+    }
+
+    /// `new GameVersion; dup; <major>; <minor>; ldc_w ""; invokespecial; putstatic <field>`.
+    fn build(major: &[u8], minor: &[u8], field: u8) -> Vec<u8> {
+        let mut c = vec![0xbb, 0, 2, 0x59];
+        c.extend(major);
+        c.extend(minor);
+        c.extend([0x13, 0, 9, 0xb7, 0, 1, 0xb3, 0, field]);
+        c
+    }
+
+    #[test]
+    fn the_jar_version_is_the_game_version_core_builds() {
+        // VERSION_BUILD_42 = 42.0 first, then gameVersion = 42.22: the second one counts.
+        let mut code = build(&[0x10, 42], &[0x03], 8);
+        code.extend(build(&[0x10, 42], &[0x10, 22], 5));
+        assert_eq!(core_class_game_version(&class_with("zombie/core/GameVersion", &code)), Some(42_022));
+        let sipush = class_with("zombie/core/GameVersion", &build(&[0x10, 42], &[0x11, 0, 200], 5));
+        assert_eq!(core_class_game_version(&sipush), Some(42_200));
+        let iconst = class_with("zombie/core/GameVersion", &build(&[0x10, 41], &[0x08], 5));
+        assert_eq!(core_class_game_version(&iconst), Some(41_005));
+        // Only VERSION_BUILD_42: not the game version.
+        let only_constant = class_with("zombie/core/GameVersion", &build(&[0x10, 42], &[0x03], 8));
+        assert_eq!(core_class_game_version(&only_constant), None);
+        // Another class built the same way is not the game version.
+        let other = class_with("zombie/core/Other", &build(&[0x10, 42], &[0x10, 22], 5));
+        assert_eq!(core_class_game_version(&other), None);
+        assert_eq!(core_class_game_version(b"not a class"), None);
+    }
+
+    /// The real jar of this PC, when there is one: `cargo test -- --ignored real_game_jar`.
+    #[test]
+    #[ignore]
+    fn real_game_jar() {
+        let jar = std::env::var("PZ_JAR").unwrap_or_else(|_| r"D:\apps\steam\steamapps\common\ProjectZomboid\projectzomboid.jar".into());
+        let v = jar_game_version(Path::new(&jar));
+        println!("jar version: {:?}", v);
+        assert!(v.is_some());
+    }
+}
 
 #[cfg(test)]
 mod tests {

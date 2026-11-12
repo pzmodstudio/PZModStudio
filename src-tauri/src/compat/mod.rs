@@ -313,6 +313,36 @@ fn scan_for_problems(roots: &[PathBuf], target_is_b42: bool) -> Vec<String> {
     warnings
 }
 
+/// `path`, or `path-2`, `path-3`... when a backup of that name is already there (two in one second).
+fn free_backup(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+    (2..).map(|n| PathBuf::from(format!("{}-{}", path.display(), n))).find(|p| !p.exists()).unwrap_or(path)
+}
+
+/// The `id=` a mod folder declares (the mod.info the game reads, else the root one).
+fn folder_mod_id(root: &Path) -> Option<String> {
+    let info = select_mod_info_for_build(root, None).unwrap_or_else(|| root.join("mod.info"));
+    let text = fs::read_to_string(info).ok()?;
+    text.lines().find_map(|l| l.trim().strip_prefix("id=").map(|v| v.trim().to_string())).filter(|v| !v.is_empty())
+}
+
+/// A junction or symbolic link (never replaced as if it were a copy).
+fn is_link_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|m| {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            m.file_type().is_symlink() || m.file_attributes() & 0x400 != 0
+        }
+        #[cfg(not(windows))]
+        {
+            m.file_type().is_symlink()
+        }
+    })
+}
+
 /// Creates (or, with `replace_existing`, recreates) a compatible copy of the mod folder
 /// `source_root` in `<Zomboid>/mods`, adapted to `game_version` (major*1000+minor).
 pub fn make_compatible_copy(
@@ -347,16 +377,39 @@ pub fn make_compatible_copy_with_index(
 
     if dest.exists() {
         let is_compat = matches!(origins::load(&zomboid).get(&folder).map(|r| &r.origin), Some(ModOrigin::Compat { .. }));
-        if !is_compat || !replace_existing {
-            return Err(format!(
-                "Zomboid/mods/{} already exists{}.",
-                folder,
-                if is_compat { " (an earlier compatible copy): replace it to make a fresh one" } else { " and is not a compatible copy made by the Studio" }
-            ));
+        // A plain copy of this same mod (made by hand, or by the Studio for a server without
+        // Steam) may give way to the compatible copy, which is that mod adapted; anything else
+        // of that name is not the Studio's to replace.
+        let same_mod_copy = !is_compat && !is_link_dir(&dest) && folder_mod_id(&dest).is_some() && folder_mod_id(&dest) == folder_mod_id(source_root);
+        if !(is_compat || same_mod_copy) || !replace_existing {
+            return Err(if is_compat {
+                format!("Zomboid/mods/{} already exists (an earlier compatible copy): replace it to make a fresh one.", folder)
+            } else if same_mod_copy {
+                format!("Zomboid/mods/{} already exists as a copy of the same mod (made by hand or for a server): replace it with the compatible copy.", folder)
+            } else {
+                format!("Zomboid/mods/{} already exists and is not a compatible copy made by the Studio.", folder)
+            });
         }
-        let backup = zomboid.join("PZModStudio_Backups").join("mods").join(format!("{}-{}", folder, chrono::Local::now().format("%Y%m%d-%H%M%S")));
+        let backup = free_backup(zomboid.join("PZModStudio_Backups").join("mods").join(format!("{}-{}", folder, chrono::Local::now().format("%Y%m%d-%H%M%S"))));
         fs::create_dir_all(backup.parent().unwrap()).map_err(|e| e.to_string())?;
-        fs::rename(&dest, &backup).map_err(|e| format!("Cannot move the old copy aside: {}", e))?;
+        fs::rename(&dest, &backup).map_err(|e| {
+            if e.kind() != std::io::ErrorKind::PermissionDenied {
+                return format!("Cannot move the old copy aside: {}", e);
+            }
+            // Windows refuses while a program has a file of the folder open: the game, a server
+            // started from it (it holds the mods' jars and Lua), an Explorer or editor window.
+            let server = crate::server_manager::get_dedicated_server_status(user_zomboid_dir.to_string()).ok().filter(|s| s.is_running);
+            match server {
+                Some(s) => format!(
+                    "Cannot move the old copy aside: the dedicated server {} is running and has the mod's files open. Stop it (Servers), then try again.",
+                    s.server_name.unwrap_or_default()
+                ),
+                None => format!(
+                    "Cannot move the old copy aside ({}): a program has a file of Zomboid/mods/{} open (the game, a server, an Explorer or editor window). Close it, then try again.",
+                    e, folder
+                ),
+            }
+        })?;
     }
 
     crate::mod_install::copy_tree(source_root, &dest).map_err(|e| {
@@ -741,7 +794,7 @@ pub fn remove_compatible_copy(user_zomboid_dir: &str, folder: &str) -> Result<()
     }
     let dir = zomboid.join("mods").join(folder);
     if dir.is_dir() {
-        let backup = zomboid.join("PZModStudio_Backups").join("mods").join(format!("{}-removed-{}", folder, chrono::Local::now().format("%Y%m%d-%H%M%S")));
+        let backup = free_backup(zomboid.join("PZModStudio_Backups").join("mods").join(format!("{}-removed-{}", folder, chrono::Local::now().format("%Y%m%d-%H%M%S"))));
         fs::create_dir_all(backup.parent().unwrap()).map_err(|e| e.to_string())?;
         fs::rename(&dir, &backup).map_err(|e| format!("Cannot move the copy away: {}", e))?;
     }
@@ -874,6 +927,21 @@ mod tests {
         remove_compatible_copy(&z, "OneBuildingOneKey").unwrap();
         assert!(!zp.join("mods/OneBuildingOneKey").exists());
         assert!(!local_first(zp));
+
+        // A plain copy of the same mod there (by hand, or for a NoSteam server): asked, then replaced.
+        let hand = zp.join("mods/OneBuildingOneKey");
+        crate::mod_install::copy_tree(&src, &hand).unwrap();
+        let err = make_compatible_copy(&src, &z, 42_021, None, false).unwrap_err();
+        assert!(err.contains("as a copy of the same mod"), "{}", err);
+        make_compatible_copy(&src, &z, 42_021, None, true).unwrap();
+        assert!(fs::read_to_string(hand.join("42.0/mod.info")).unwrap().contains("versionMax=42.21"), "now the compatible copy");
+        remove_compatible_copy(&z, "OneBuildingOneKey").unwrap();
+
+        // Another mod's folder of that name is never replaced.
+        fs::create_dir_all(hand.join("42")).unwrap();
+        fs::write(hand.join("42/mod.info"), "id=SomethingElse\n").unwrap();
+        let err = make_compatible_copy(&src, &z, 42_021, None, true).unwrap_err();
+        assert!(err.contains("is not a compatible copy made by the Studio"), "{}", err);
     }
 
     /// Dry run on a real mod folder into a temporary Zomboid folder (the real one is not touched).

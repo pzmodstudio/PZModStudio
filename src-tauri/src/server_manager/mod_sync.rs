@@ -43,6 +43,27 @@ pub struct ServerModReport {
 }
 
 /// The value of a `Key=a;b;c` line, split the way the server reads it.
+/// Every mod id the servers in `<zomboid>/Server/*.ini` list in `Mods=`, with the servers that do.
+pub fn server_mod_lists(zomboid: &std::path::Path) -> std::collections::BTreeMap<String, Vec<String>> {
+    let mut out: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let Ok(entries) = std::fs::read_dir(zomboid.join("Server")) else { return out };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("ini") {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else { continue };
+        let name = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        for id in ini_list(&content, "Mods") {
+            let servers = out.entry(id).or_default();
+            if !servers.contains(&name) {
+                servers.push(name.clone());
+            }
+        }
+    }
+    out
+}
+
 pub fn ini_list(content: &str, key: &str) -> Vec<String> {
     content
         .lines()
@@ -175,6 +196,7 @@ pub fn check(catalog: &ModCatalog, content: &str, pz_install_dir: &str) -> Serve
             params: crate::catalog::issue_params(params),
             details: vec![],
             severity,
+            state: crate::catalog::issue_state(severity, code),
             code: code.to_string(),
             mod_id: None,
             message,

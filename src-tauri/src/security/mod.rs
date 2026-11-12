@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// Bumped when a rule changes: older scans are made again.
-const ENGINE: &str = "security-v3";
+const ENGINE: &str = "security-v4";
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_JAR_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -351,11 +351,57 @@ fn risk_of(findings: &[Finding]) -> Risk {
     findings.iter().map(|f| f.risk).max().unwrap_or(Risk::Info)
 }
 
-/// Scans every file under `root` now (no cache).
+/// Top-level folders of a mod in development that hold the author's tooling, not the mod.
+const DEV_TOOLING_DIRS: &[&str] = &["dev", "tools", "build", "node_modules"];
+
+fn is_link(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink() || is_reparse_point(&m))
+}
+
+#[cfg(windows)]
+fn is_reparse_point(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn is_reparse_point(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
+/// A mod in development: its folder is a link (junction or symlink) to a folder outside the
+/// Workshop, usually the author's repository.
+fn is_dev_link(root: &Path) -> bool {
+    is_link(root)
+        && std::fs::canonicalize(root)
+            .map(|t| !t.to_string_lossy().replace('\\', "/").to_ascii_lowercase().contains("/steamapps/workshop/"))
+            .unwrap_or(false)
+}
+
+/// Whether the walk goes into this entry: never a hidden folder (`.git`, `.claude`, `.vscode`),
+/// which neither the game nor a Workshop download carries; and in a mod in development, not
+/// its top-level tooling folders either.
+fn scanned_entry(e: &walkdir::DirEntry, dev_link: bool) -> bool {
+    if e.depth() == 0 {
+        return true;
+    }
+    let name = e.file_name().to_string_lossy();
+    if e.file_type().is_dir() && name.starts_with('.') {
+        return false;
+    }
+    !(dev_link && e.depth() == 1 && e.file_type().is_dir() && DEV_TOOLING_DIRS.iter().any(|d| d.eq_ignore_ascii_case(&name)))
+}
+
+/// Scans the files under `root` the game reads or a player downloads, now (no cache).
 pub fn scan_tree(mod_id: &str, root: &Path) -> ModScan {
     let mut findings = Vec::new();
-    let (fp, files) = fingerprint(root);
-    for e in walkdir::WalkDir::new(root).into_iter().flatten().filter(|e| e.file_type().is_file()) {
+    let (fp, _) = fingerprint(root);
+    let dev_link = is_dev_link(root);
+    let mut files = 0u32;
+    let walk = walkdir::WalkDir::new(root).into_iter().filter_entry(|e| scanned_entry(e, dev_link));
+    for e in walk.flatten().filter(|e| e.file_type().is_file()) {
+        files += 1;
         let path = e.path();
         let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/");
         let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -559,5 +605,72 @@ mod tests {
         let again = scan_mod(&z, "Test", &dir);
         assert_eq!(first.scanned_at, again.scanned_at);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn scripts_of(scan: &ModScan) -> Vec<String> {
+        scan.findings.iter().filter(|f| f.rule == "script" || f.rule == "executable").map(|f| f.file.clone()).collect()
+    }
+
+    #[test]
+    fn hidden_folders_are_not_scanned_but_a_script_the_game_folder_ships_is() {
+        let dir = std::env::temp_dir().join(format!("pzms_security_hidden_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let put = |rel: &str, body: &str| {
+            let p = dir.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        };
+        put(".claude/worktrees/x/dev/a.sh", "rm -rf /");
+        put(".git/hooks/pre-commit.sh", "x");
+        put(".vscode/run.exe", "x");
+        put("42/media/lua/client/a.lua", "print('hi')");
+        let scan = scan_tree("Hidden", &dir);
+        assert!(scripts_of(&scan).is_empty(), "{:?}", scan.findings);
+        assert_eq!(scan.files_scanned, 1);
+        put("42/media/run.bat", "x");
+        // a plain folder (a Workshop download) keeps its dev/ and tools/: they are what a player gets
+        put("dev/b.sh", "x");
+        let scan = scan_tree("Hidden", &dir);
+        let mut s = scripts_of(&scan);
+        s.sort();
+        assert_eq!(s, vec!["42/media/run.bat".to_string(), "dev/b.sh".to_string()]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_mod_linked_in_from_a_repository_leaves_its_tooling_folders_out() {
+        let base = std::env::temp_dir().join(format!("pzms_security_link_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let repo = base.join("repo");
+        for (rel, body) in [("dev/mp/watch.sh", "x"), ("tools/x.ps1", "x"), ("42/media/lua/client/a.lua", "print(1)"), ("42/media/run.bat", "x"), ("helper.exe", "x")] {
+            let p = repo.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        }
+        let mods = base.join("mods");
+        std::fs::create_dir_all(&mods).unwrap();
+        let link = mods.join("Linked");
+        let ok = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(&link).arg(&repo).output().map(|o| o.status.success()).unwrap_or(false);
+        assert!(ok, "mklink /J failed");
+        assert!(is_dev_link(&link) && !is_dev_link(&repo));
+        let mut s = scripts_of(&scan_tree("Linked", &link));
+        s.sort();
+        assert_eq!(s, vec!["42/media/run.bat".to_string(), "helper.exe".to_string()]);
+        let _ = std::fs::remove_dir(&link);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The real KnoxLives repository linked into Zomboid/mods, read-only (`--ignored`).
+    #[test]
+    #[ignore]
+    fn knoxlives_real_folder() {
+        let root = Path::new(r"C:\Users\javie\Zomboid\mods\KnoxLives");
+        let scan = scan_tree("KnoxLives", root);
+        let s = scripts_of(&scan);
+        println!("dev_link={} files_scanned={} scripts/executables={} {:?}", is_dev_link(root), scan.files_scanned, s.len(), s);
+        for f in &scan.findings {
+            println!("{:?} {} {} {:?} {}", f.risk, f.rule, f.file, f.line, f.detail);
+        }
     }
 }

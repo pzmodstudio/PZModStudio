@@ -323,6 +323,17 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
     add_package_file_issues(&mut report, &catalog, active);
     if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
         add_security_issues(&mut report, &catalog, active, &z);
+        // Copies of Workshop mods in Zomboid/mods (by hand or by the Studio for a NoSteam server),
+        // and the servers whose lists keep a copy in use.
+        let servers = crate::server_manager::mod_sync::server_mod_lists(&z);
+        let copies = crate::server_manager::java_mods::mod_copies(&catalog, active);
+        report.issues.extend(crate::server_manager::java_mods::mod_copy_issues(&copies, &servers));
+        // The copy's own row says the Workshop one is set aside: no second row saying it again.
+        let copied: HashSet<&str> = copies.iter().map(|c| c.id.as_str()).collect();
+        report.issues.retain(|i| !(i.code == "shadowed_copy" && i.mod_id.as_deref().is_some_and(|id| copied.contains(id))));
+        guard_server_copies(&mut report, &servers);
+        report.errors = report.issues.iter().filter(|i| i.severity == Severity::Error).count();
+        report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
     }
     add_console_flood_issues(&mut report, &catalog, active, &crate::sandbox::error_stats_from_console(&paths.user_zomboid_dir));
     // A package is a mod of its own, in every profile's list: it was built for one list, and this
@@ -339,6 +350,33 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
         }
     }
     ModHealth { catalog, report }
+}
+
+/// A compatible copy a server's `Mods=` lists is not offered for removal: a server without Steam
+/// reads only Zomboid/mods, and "back to the original" would take the mod away from it. The row
+/// says which server; one the originals no longer need becomes worth knowing, not worth doing.
+fn guard_server_copies(report: &mut HealthReport, servers: &BTreeMap<String, Vec<String>>) {
+    for issue in report.issues.iter_mut() {
+        if issue.code != "compatible_copy_unneeded" && issue.code != "compatible_copy" {
+            continue;
+        }
+        let Some(listed) = issue.mod_id.as_ref().and_then(|id| servers.get(id)) else { continue };
+        let listed = listed.join(", ");
+        issue.fixes.retain(|f| !matches!(f, SuggestedFix::RemoveCompatibleCopy { .. }));
+        issue.message.push_str(&format!(" The server {} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while it does.", listed));
+        if issue.code == "compatible_copy_unneeded" {
+            issue.severity = Severity::Info;
+            issue.state = IssueState::Info;
+        }
+        issue.params.insert("variant".to_string(), "server".to_string());
+        issue.params.insert("servers".to_string(), listed);
+    }
+}
+
+/// Whether a server's `Mods=` lists this mod (its compatible copy is not to be removed then).
+pub fn listed_by_a_server(user_zomboid_dir: &str, mod_id: &str) -> Option<String> {
+    let z = crate::load_order::mod_info::get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next()?;
+    crate::server_manager::mod_sync::server_mod_lists(&z).get(mod_id).map(|s| s.join(", "))
 }
 
 /// From this many console lines of trouble in one session, a mod "floods the console". Measured
@@ -396,6 +434,7 @@ pub fn package_list_issue(package_id: &str, packaged: &[String], active: &[Strin
     }
     Some(HealthIssue {
         severity: Severity::Info,
+        state: IssueState::Recommended,
         code: "package_built_for_other_list".to_string(),
         mod_id: Some(package_id.to_string()),
         message: format!(
@@ -966,11 +1005,57 @@ pub enum SuggestedFix {
     RemoveFromPackage { relative_path: String, package: String },
     /// Say a known issue of the Studio's index no longer happens: it is not shown again here.
     DismissKnownIssue { mod_id: String, title: String },
+    /// Let the Studio keep a copy of a Workshop mod someone made by hand in Zomboid/mods (a
+    /// marker), so a Workshop update shows.
+    AdoptWorkshopCopy { folder: String },
+    /// Copy a Workshop mod into Zomboid/mods again (the Studio's copy, outgrown by the item).
+    RecopyWorkshop { mod_id: String },
+}
+
+/// What the player has to do about an issue, in the four words every screen uses. Severity says
+/// how bad a thing is for the game; this says whose move it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum IssueState {
+    /// The game breaks or will not load the mod until the player acts.
+    Act,
+    /// It works, but acting makes it better (or keeps it from going wrong later).
+    #[default]
+    Recommended,
+    /// Nothing to do: worth knowing.
+    Info,
+    /// The Studio already fixed it (a copy, a merge, a package file): leave it; it can be undone.
+    Handled,
+}
+
+/// The state of an issue, from its code (and its severity where the code alone does not say).
+pub fn issue_state(severity: Severity, code: &str) -> IssueState {
+    match code {
+        // Breaks the game or the mod does not load, whatever the severity says.
+        "missing_mod" | "not_for_build" | "outside_version_range" | "invalid_mod_info" | "missing_dependency"
+        | "dependency_not_enabled" | "dependency_unavailable" | "dependency_after" | "incompatible"
+        | "server_item_missing" | "server_map_missing" | "server_java_denied" | "server_java_not_approved"
+        | "server_mod_workshop_only" | "server_mod_workshop_linked" | "server_mod_not_for_build" => IssueState::Act,
+        // Something the Studio did that works as it is.
+        "compatible_copy" | "translation_settled" | "script_definition_settled" | "package_file_differs" | "package_file_orphan" | "workshop_copy_kept" => {
+            IssueState::Handled
+        }
+        // Asks for a rebuild or a switch-off though it is told as information.
+        "package_built_for_other_list" => IssueState::Recommended,
+        _ => match severity {
+            Severity::Error => IssueState::Act,
+            Severity::Warning => IssueState::Recommended,
+            Severity::Info => IssueState::Info,
+        },
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthIssue {
     pub severity: Severity,
+    /// Whose move it is: act, recommended, info or handled (see `issue_state`).
+    #[serde(default)]
+    pub state: IssueState,
     /// Stable machine code: missing_mod, not_for_build, outside_version_range, invalid_mod_info,
     /// missing_dependency, dependency_not_enabled, dependency_unavailable, dependency_after,
     /// load_after_order, load_before_order, incompatible, duplicate_entry, shadowed_copy.
@@ -1037,13 +1122,15 @@ impl IssueList {
                 | SuggestedFix::OpenInMerger { .. }
                 | SuggestedFix::EnableShimPatch { .. }
                 | SuggestedFix::RemoveFromPackage { .. }
-                | SuggestedFix::DismissKnownIssue { .. } => None,
+                | SuggestedFix::DismissKnownIssue { .. }
+                | SuggestedFix::AdoptWorkshopCopy { .. }
+                | SuggestedFix::RecopyWorkshop { .. } => None,
             };
             if let Some(other) = other.filter(|o| Some(o.as_str()) != mod_id && !related.contains(o)) {
                 related.push(other.clone());
             }
         }
-        self.0.push(HealthIssue { severity, code: code.to_string(), mod_id: mod_id.map(str::to_string), message, fixes, related, details: vec![], params: BTreeMap::new() });
+        self.0.push(HealthIssue { severity, state: issue_state(severity, code), code: code.to_string(), mod_id: mod_id.map(str::to_string), message, fixes, related, details: vec![], params: BTreeMap::new() });
     }
 
     /// The message's values, on the issue just pushed.
@@ -1588,8 +1675,12 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             continue;
         };
 
-        // Mods from Workshop folders can get an adapted copy in Zomboid/mods.
-        let compat_fix = (m.source != ModSource::Local).then(|| SuggestedFix::MakeCompatibleCopy { mod_id: m.id.clone() });
+        // Mods from Workshop folders can get an adapted copy in Zomboid/mods; a compatible copy the
+        // Studio made for an older build is made again from the Workshop copy (a game update
+        // leaves it outside its range: 42.21 copies on 42.22).
+        let remade_copy = matches!(m.origin, Some(crate::origins::ModOrigin::Compat { .. }))
+            && catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local);
+        let compat_fix = (m.source != ModSource::Local || remade_copy).then(|| SuggestedFix::MakeCompatibleCopy { mod_id: m.id.clone() });
         let name = describe(m);
         let build = catalog.game_version.as_deref().unwrap_or("?");
         match &m.loadability {
@@ -1733,11 +1824,28 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         let compat = matches!(&m.origin, Some(crate::origins::ModOrigin::Compat { .. }));
         if let Some(crate::origins::ModOrigin::Compat { changes, .. }) = &m.origin {
             let folder = std::path::Path::new(&m.root_dir).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+            // The Workshop original loads on this build as it is (its author updated it, or the
+            // game's range now covers it): the copy only keeps an older version running.
+            // Only a copy made just so the mod loads (version range, version folders) is outgrown
+            // by an original that loads: one that also rewrote require paths, item fields or
+            // translations fixes what loading alone does not (a known issue of the index).
+            let only_for_loading = changes.iter().all(|c| {
+                c.contains("blocked build") || c.starts_with("Created the Build 42 layout") || c.starts_with("This mod only had files for build") || c.starts_with("Fixed an invalid version value") || c.starts_with("Nothing needed changing")
+            });
+            let original_loads = only_for_loading && catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local && matches!(o.loadability, Loadability::Loadable));
+            if original_loads {
+                list.push(Severity::Warning, "compatible_copy_unneeded", Some(id),
+                    format!("{} runs from a compatible copy the Studio made in Zomboid/mods, but the Workshop original now loads on build {} as it is. The copy keeps the older files running and hides the author's updates: go back to the original.",
+                        describe(m), build),
+                    vec![SuggestedFix::RemoveCompatibleCopy { folder }]);
+                list.with(&[("mod", &name), ("build", build)]);
+            } else {
             list.push(Severity::Info, "compatible_copy", Some(id),
                 format!("{} runs from a compatible copy the Studio made in Zomboid/mods ({}); the Workshop original is ignored meanwhile. It is used when the game is started from PZ Mod Studio; starting it from Steam needs the launch option -modfolders mods,workshop,steam. Nothing to do: once the author updates the mod for Build 42, \"Back to the original\" removes the copy.",
                     describe(m), changes.join(" ")),
                 vec![SuggestedFix::RemoveCompatibleCopy { folder }]);
             list.with(&[("mod", &name), ("changes", &changes.join(" "))]);
+            }
         }
 
         // A compatible copy shadows the Workshop original on purpose: its own row says so.
@@ -2020,6 +2128,36 @@ name=Off Noisy
     }
 
     #[test]
+    fn every_issue_says_whose_move_it_is() {
+        // What breaks the game is to act on whatever its severity.
+        assert_eq!(issue_state(Severity::Warning, "dependency_after"), IssueState::Act);
+        assert_eq!(issue_state(Severity::Error, "missing_mod"), IssueState::Act);
+        // What the Studio did and works is handled; its undo is not a thing to do.
+        assert_eq!(issue_state(Severity::Info, "compatible_copy"), IssueState::Handled);
+        assert_eq!(issue_state(Severity::Info, "translation_settled"), IssueState::Handled);
+        // Told as information, but asks for a rebuild or a switch-off.
+        assert_eq!(issue_state(Severity::Info, "package_built_for_other_list"), IssueState::Recommended);
+        // Everything else follows its severity.
+        assert_eq!(issue_state(Severity::Warning, "compatible_copy_unneeded"), IssueState::Recommended);
+        assert_eq!(issue_state(Severity::Info, "shadowed_copy"), IssueState::Info);
+        assert_eq!(issue_state(Severity::Error, "some_new_code"), IssueState::Act);
+        // The state travels with the issue to the app and the MCP.
+        let json = serde_json::to_value(HealthIssue {
+            severity: Severity::Info,
+            state: issue_state(Severity::Info, "compatible_copy"),
+            code: "compatible_copy".into(),
+            mod_id: None,
+            message: String::new(),
+            fixes: vec![],
+            related: vec![],
+            details: vec![],
+            params: BTreeMap::new(),
+        })
+        .unwrap();
+        assert_eq!(json["state"], "handled");
+    }
+
+    #[test]
     fn a_compatible_copy_is_one_row_not_two() {
         let f = fixture("compat-row");
         write_mod(&f.root.join("workshop/1/mods/Old/42"), "id=Old\n");
@@ -2034,8 +2172,37 @@ name=Off Noisy
         let used = cat.mods.iter_mut().find(|m| m.id == "Old" && m.shadowed_by.is_none()).unwrap();
         used.origin = Some(crate::origins::ModOrigin::Compat { workshop_id: Some("1".into()), source_dir: "x".into(), changes: vec!["fixed".into()] });
         let after = codes(&cat);
-        assert!(after.contains(&"compatible_copy".to_string()));
         assert!(!after.contains(&"shadowed_copy".to_string()), "{:?}", after);
+
+        // As the Studio starts the game (-modfolders mods,...): the copy in Zomboid/mods is used
+        // and the Workshop original is the one ignored.
+        let local_root = cat.mods.iter().find(|m| m.source == ModSource::Local).unwrap().root_dir.clone();
+        for m in cat.mods.iter_mut() {
+            let local = m.source == ModSource::Local;
+            m.shadowed_by = (!local).then(|| local_root.clone());
+            m.origin = local.then(|| crate::origins::ModOrigin::Compat { workshop_id: Some("1".into()), source_dir: "x".into(), changes: vec!["versionMax=42.20 -> 42.21 (the game only compares major.minor, so 42.20 blocked build 42.21).".into()] });
+        }
+        // The Workshop original loads on this build as it is: the copy is no longer needed.
+        let after = codes(&cat);
+        assert!(after.contains(&"compatible_copy_unneeded".to_string()), "{:?}", after);
+        // A copy that also rewrote require paths fixes what loading alone does not: still needed.
+        let local = cat.mods.iter_mut().find(|m| m.source == ModSource::Local).unwrap();
+        local.origin = Some(crate::origins::ModOrigin::Compat { workshop_id: Some("1".into()), source_dir: "x".into(), changes: vec!["Rewrote 4 require path(s) Build 42 moved, in 2 file(s): a.lua.".into()] });
+        let after = codes(&cat);
+        assert!(after.contains(&"compatible_copy".to_string()) && !after.contains(&"compatible_copy_unneeded".to_string()), "{:?}", after);
+        // An original the build refuses: the copy is what runs it.
+        let original = cat.mods.iter_mut().find(|m| m.source != ModSource::Local).unwrap();
+        original.loadability = Loadability::OutsideVersionRange { version_min: Some("42.20".into()), version_max: Some("42.20".into()) };
+        let after = codes(&cat);
+        assert!(after.contains(&"compatible_copy".to_string()), "{:?}", after);
+        assert!(!after.contains(&"compatible_copy_unneeded".to_string()), "{:?}", after);
+        // A copy made for an older build that the game update left outside its range is made again
+        // from the Workshop copy.
+        let used = cat.mods.iter_mut().find(|m| m.source == ModSource::Local).unwrap();
+        used.loadability = Loadability::OutsideVersionRange { version_min: Some("42.20".into()), version_max: Some("42.20".into()) };
+        let report = health_report(&cat, &active);
+        let out = report.issues.iter().find(|i| i.code == "outside_version_range").unwrap();
+        assert!(matches!(&out.fixes[0], SuggestedFix::MakeCompatibleCopy { mod_id } if mod_id == "Old"), "{:?}", out.fixes);
     }
 
     #[test]

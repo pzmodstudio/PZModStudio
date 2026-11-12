@@ -152,25 +152,32 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
   }, [paths.user_zomboid_dir, paths.mod_list_ini_path, selectedPackageFolder]);
 
   /**
-   * A package belongs to the profiles that have it among their mods. With a profile active the
-   * list shows that profile's packages (and the bridge, which is everyone's); the others are a
-   * click away, each labelled with the profiles it belongs to.
+   * A package belongs to the profile it was built with (published while that profile was
+   * active): its merges settle that profile's list. One built before profiles were recorded
+   * belongs to the profiles that have it among their mods. Being a member somewhere else (a
+   * package that once was in that list, switched off since) does not make it that profile's.
+   * With a profile active the list shows that profile's packages (and the bridge, everyone's);
+   * the others are a click away, each labelled with its profile.
    */
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const [showOtherProfilesPackages, setShowOtherProfilesPackages] = useState(false);
   const ownersByPackage = useMemo(() => {
     const map = new Map<string, string[]>();
+    for (const pkg of packages) {
+      if (pkg.built_for_profile && profiles.some((p) => p.name === pkg.built_for_profile)) map.set(pkg.folder_name, [pkg.built_for_profile]);
+    }
     for (const p of profiles) {
       for (const id of profileMembers(p)) {
-        if (id.startsWith('Z_PZModStudio_')) map.set(id, [...(map.get(id) ?? []), p.name]);
+        if (id.startsWith('Z_PZModStudio_') && !packages.some((pkg) => pkg.folder_name === id && pkg.built_for_profile && profiles.some((q) => q.name === pkg.built_for_profile))) {
+          map.set(id, [...(map.get(id) ?? []), p.name]);
+        }
       }
     }
     return map;
-  }, [profiles]);
+  }, [profiles, packages]);
   const inActiveProfile = useCallback(
-    (pkg: MergedPackageInfoUI) =>
-      !activeProfile || pkg.is_companion_bridge || profileMembers(activeProfile).includes(pkg.folder_name),
-    [activeProfile]
+    (pkg: MergedPackageInfoUI) => !activeProfile || pkg.is_companion_bridge || (ownersByPackage.get(pkg.folder_name) ?? []).includes(activeProfile.name),
+    [activeProfile, ownersByPackage]
   );
   const shownPackages = useMemo(
     () => (showOtherProfilesPackages ? packages : packages.filter(inActiveProfile)),

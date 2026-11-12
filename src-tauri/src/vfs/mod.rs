@@ -357,6 +357,36 @@ pub fn trusted_install_dir() -> String {
     studio_paths().pz_install_dir
 }
 
+/// Where the links in Zomboid/mods lead (canonical): mod folders the player linked there (a
+/// junction to a mod in development), which the game loads like any other.
+pub fn linked_mod_roots(user_zomboid_dir: &str) -> Vec<PathBuf> {
+    let Some(zomboid) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next() else {
+        return Vec::new();
+    };
+    std::fs::read_dir(zomboid.join("mods"))
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|e| e.path().symlink_metadata().map(|m| m.file_type().is_symlink() || is_reparse_point(&m)).unwrap_or(false))
+                .filter_map(|e| std::fs::canonicalize(e.path()).ok())
+                .filter(|p| p.join("mod.info").is_file() || p.join("42").join("mod.info").is_file() || p.join("common").is_dir())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(windows)]
+fn is_reparse_point(meta: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn is_reparse_point(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
 /// The Zomboid folder the player chose, or "" for the usual places (cheap: no Steam scan).
 pub fn saved_user_zomboid_dir() -> String {
     saved_paths().map(|p| p.user_zomboid_dir).unwrap_or_default()

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { PageGuide } from '../common/PageGuide';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { Code2, ExternalLink, FolderOpen, FolderPlus, Languages, Loader2, LucideIcon, Map as MapIcon, Package, Play, RefreshCw, RotateCcw, SearchCheck, Trash2, UploadCloud, Users, Wrench } from 'lucide-react';
@@ -501,6 +502,7 @@ export const DeveloperModule: React.FC<DeveloperModuleProps> = ({ paths, mods, c
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">{t('developer.header.subtitle')}</p>
           </div>
         </div>
+        <PageGuide page="developer" />
         <div className="rounded-xl border border-slate-700/70 bg-slate-950/60 p-3 flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-900/40 border border-emerald-800 flex items-center justify-center text-emerald-300 max-lg:hidden">
             <Package className="w-5 h-5" aria-hidden="true" />

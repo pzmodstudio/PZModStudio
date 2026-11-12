@@ -54,11 +54,13 @@ const MOD_INFO_42: &str = include_str!("../../../mods/Z_StudioLink/42/mod.info")
 const CLIENT_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Link.lua");
 const SCREEN_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_ModsScreen.lua");
 const ERRORS_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Errors.lua");
+const MPLOGIN_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_MpLogin.lua");
+const MPAUTO_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_MpAuto.lua");
 
 const UI_EN: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/EN/UI.json");
 const UI_ES: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/ES/UI.json");
 
-fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 7] {
+fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 9] {
     let target = user_zomboid_dir.join("mods").join(LINK_MOD_ID);
     let lua = target.join("42").join("media").join("lua");
     let translate = lua.join("shared").join("Translate");
@@ -68,6 +70,8 @@ fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 7] {
         (lua.join("client").join("PZModStudio_Link.lua"), CLIENT_LUA),
         (lua.join("client").join("PZModStudio_ModsScreen.lua"), SCREEN_LUA),
         (lua.join("client").join("PZModStudio_Errors.lua"), ERRORS_LUA),
+        (lua.join("client").join("PZModStudio_MpLogin.lua"), MPLOGIN_LUA),
+        (lua.join("client").join("PZModStudio_MpAuto.lua"), MPAUTO_LUA),
         (translate.join("EN").join("UI.json"), UI_EN),
         (translate.join("ES").join("UI.json"), UI_ES),
     ]
@@ -133,6 +137,21 @@ pub fn install_link_mod(user_zomboid_dir: &Path) -> Result<(), String> {
     }
     let _ = std::fs::create_dir_all(local.join("common"));
     for (path, content) in link_files(user_zomboid_dir) {
+        if std::fs::read_to_string(&path).is_ok_and(|now| now == content) {
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("Cannot create {}: {}", parent.display(), e))?;
+        }
+        std::fs::write(&path, content).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
+    }
+    Ok(())
+}
+
+/// Writes this Studio's Link into another Zomboid folder's mods (a multiplayer test's second
+/// player, a NoSteam game: it reads only its own folder's mods, never the Workshop's copy).
+pub fn install_link_files_at(zomboid: &Path) -> Result<(), String> {
+    for (path, content) in link_files(zomboid) {
         if std::fs::read_to_string(&path).is_ok_and(|now| now == content) {
             continue;
         }
@@ -860,6 +879,12 @@ pub fn watch_mod_list<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
             if now.saturating_sub(app_written) >= 4 && lua_dir.is_dir() {
                 if crate::load_order::ini_parser::atomic_write(lua_dir.join(APP_FILE), app_file_text(now)).is_ok() {
                     app_written = now;
+                }
+                // The multiplayer test's second game has its own Zomboid folder: its Link knows the
+                // app is here too (else it shows the invitation to download it).
+                let second_lua = crate::server_manager::mp_test::second_dir(&z_dir).join("Lua");
+                if second_lua.is_dir() {
+                    let _ = crate::load_order::ini_parser::atomic_write(second_lua.join(APP_FILE), app_file_text(now));
                 }
             }
 

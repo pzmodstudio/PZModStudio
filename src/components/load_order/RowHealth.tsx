@@ -1,7 +1,8 @@
 import { openRequiredItem } from '../../utils/workshopRequirement';
 import React from 'react';
-import { AlertTriangle, Info, Wrench, XCircle } from 'lucide-react';
-import { HealthFix, HealthIssue, HealthSeverity, ModInfo } from '../../types';
+import { Wrench } from 'lucide-react';
+import { HealthFix, HealthIssue, IssueState, ModInfo } from '../../types';
+import { STATE_ORDER, STATE_STYLE, issueStateOf } from '../../utils/issueState';
 import { TauriService } from '../../services/tauri';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { applyFix } from '../../utils/healthFix';
@@ -11,10 +12,10 @@ import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
 
 /** What a row says for each code the health check can raise. Short: the row is narrow. */
-/** Settled things are Mod Health's record, not a row's problem. */
-const SETTLED_CODES = new Set(['script_definition_settled', 'translation_settled', 'compatible_copy']);
+/** What the Studio already fixed is Mod Health's record, not a row's problem: no chip. */
+const onRow = (i: HealthIssue) => issueStateOf(i) !== 'handled';
 /** Codes the row shows as its own tags; exported for the Mod List's tag filter. */
-export const rowIssueCodes = (issues: HealthIssue[]) => issues.filter((i) => !SETTLED_CODES.has(i.code)).map((i) => i.code);
+export const rowIssueCodes = (issues: HealthIssue[]) => issues.filter(onRow).map((i) => i.code);
 /** A row has room for this many chips; the rest fold into one that opens Mod Health. */
 const MAX_CHIPS = 2;
 /** Issues about a group of files and mods, which only Mod Health shows whole. */
@@ -22,13 +23,13 @@ const HEALTH_ONLY_CODES = new Set(['script_definition_conflict', 'script_definit
 
 export const labelFor = (issue: Pick<HealthIssue, 'code'>) => i18next.t(`modList.health.labels.${issue.code}`, { defaultValue: issue.code.replace(/_/g, ' ') });
 
-const STYLE: Record<HealthSeverity, { chip: string; icon: React.ElementType; iconColor: string; tone: 'red' | 'amber' | 'slate' }> = {
-  error: { chip: 'bg-red-500/20 hover:bg-red-500/35 text-red-200 border-red-500/60', icon: XCircle, iconColor: 'text-red-400', tone: 'red' },
-  warning: { chip: 'bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border-amber-500/60', icon: AlertTriangle, iconColor: 'text-amber-400', tone: 'amber' },
-  info: { chip: 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-600', icon: Info, iconColor: 'text-slate-400', tone: 'slate' },
+/** The same four states and colours as Mod Health (handled ones never reach a row). */
+const STYLE: Record<IssueState, { chip: string; tone: 'red' | 'amber' | 'slate' }> = {
+  act: { chip: 'bg-red-500/20 hover:bg-red-500/35 text-red-200 border-red-500/60', tone: 'red' },
+  recommended: { chip: 'bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border-amber-500/60', tone: 'amber' },
+  info: { chip: 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-600', tone: 'slate' },
+  handled: { chip: 'bg-emerald-900/40 hover:bg-emerald-800/50 text-emerald-200 border-emerald-700/60', tone: 'slate' },
 };
-
-const ORDER: Record<HealthSeverity, number> = { error: 0, warning: 1, info: 2 };
 
 /** Fixes the row can apply by rewriting the list, the way Mod Health does. */
 const LIST_FIX_ACTIONS = new Set<HealthFix['action']>(['enable_mod', 'disable_mod', 'move_before', 'remove_from_list', 'replace_in_list']);
@@ -64,6 +65,8 @@ const fixLabel = (fix: HealthFix, nameOf: (id: string) => string, rowModId?: str
     case 'remove_compatible_copy':
     case 'remove_from_package':
     case 'dismiss_known_issue':
+    case 'adopt_workshop_copy':
+    case 'recopy_workshop':
       return t('modList.health.fix.inHealth');
   }
 };
@@ -101,8 +104,8 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
   // name stays readable.
   const seen = new Set<string>();
   const all = [...issues]
-    .filter((i) => !SETTLED_CODES.has(i.code))
-    .sort((a, b) => ORDER[a.severity] - ORDER[b.severity])
+    .filter(onRow)
+    .sort((a, b) => STATE_ORDER.indexOf(issueStateOf(a)) - STATE_ORDER.indexOf(issueStateOf(b)))
     .filter((i) => (seen.has(i.code) ? false : (seen.add(i.code), true)));
   if (all.length === 0) return null;
   const shown = all.slice(0, MAX_CHIPS);
@@ -153,6 +156,8 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
       case 'remove_compatible_copy':
       case 'remove_from_package':
       case 'dismiss_known_issue':
+      case 'adopt_workshop_copy':
+      case 'recopy_workshop':
         onGoToHealth?.(issue);
         return;
       case 'disable_mod':
@@ -168,19 +173,22 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
   return (
     <>
       {shown.map((issue) => {
-        const style = STYLE[issue.severity];
-        const Icon = style.icon;
+        const state = issueStateOf(issue);
+        const style = STYLE[state];
+        const Icon = STATE_STYLE[state].icon;
         // The chip goes to the other mod only when there is exactly one (a dependency, an order
         // pair); a group of mods and files is Mod Health's to show whole.
         const others = issue.related.filter((id) => mods.some((m) => m.mod_id === id));
         const other = others.length === 1 && !HEALTH_ONLY_CODES.has(issue.code) ? others[0] : undefined;
-        const fix = issue.fixes[0];
+        // Only a row that wants something done offers its fix: on one that is only worth knowing, a
+        // button reads as a thing to do.
+        const fix = state === 'act' || state === 'recommended' ? issue.fixes[0] : undefined;
         return (
           <span key={issue.code} className="flex items-center shrink-0">
             <Tip
               content={
                 <TipBody
-                  title={labelFor(issue)}
+                  title={`${i18next.t(`health.state.${state}.word`)}: ${labelFor(issue)}`}
                   tone={style.tone}
                   action={
                     other
@@ -205,7 +213,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
                   fix ? 'rounded-l' : 'rounded'
                 }`}
               >
-                <Icon className={`w-3 h-3 shrink-0 ${style.iconColor}`} aria-hidden="true" />
+                <Icon className={`w-3 h-3 shrink-0 ${STATE_STYLE[state].iconColor}`} aria-hidden="true" />
                 <span>{labelFor(issue)}</span>
               </button>
             </Tip>
@@ -213,7 +221,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
               <Tip
                 content={
                   <TipBody title={fixLabel(fix, nameOf, issue.mod_id)} tone="cyan">
-                    {fixHint(fix) && <RichText mods={modWords} text={fixHint(fix)} />}
+                    <RichText mods={modWords} text={[i18next.t(`health.effect.${fix.action}`), fixHint(fix)].filter(Boolean).join(' ')} />
                   </TipBody>
                 }
               >
@@ -239,10 +247,10 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
             <TipBody title={i18next.t('modList.health.moreTitle', { count: folded.length })} action={i18next.t('modList.health.moreAction')}>
               <ul className="space-y-0.5">
                 {folded.map((i) => {
-                  const FoldIcon = STYLE[i.severity].icon;
+                  const FoldIcon = STATE_STYLE[issueStateOf(i)].icon;
                   return (
                     <li key={i.code} className="flex items-center gap-1.5">
-                      <FoldIcon className={`w-3 h-3 shrink-0 ${STYLE[i.severity].iconColor}`} aria-hidden="true" />
+                      <FoldIcon className={`w-3 h-3 shrink-0 ${STATE_STYLE[issueStateOf(i)].iconColor}`} aria-hidden="true" />
                       <span>{labelFor(i)}</span>
                     </li>
                   );

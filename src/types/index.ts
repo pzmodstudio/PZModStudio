@@ -1177,7 +1177,9 @@ export type HealthFix =
   | { action: 'open_in_merger'; relative_path: string }
   | { action: 'enable_shim_patch'; name: string }
   | { action: 'remove_from_package'; relative_path: string; package: string }
-  | { action: 'dismiss_known_issue'; mod_id: string; title: string };
+  | { action: 'dismiss_known_issue'; mod_id: string; title: string }
+  | { action: 'adopt_workshop_copy'; folder: string }
+  | { action: 'recopy_workshop'; mod_id: string };
 
 /** Texts in the app's language, in the order they were sent. */
 export interface Translation {
@@ -1262,8 +1264,16 @@ export interface AutoMergeResult {
   skipped: string[];
 }
 
+/**
+ * Whose move it is, in the four words every screen uses: the game breaks until the player acts;
+ * acting makes it better; nothing to do; the Studio already fixed it (leave it, it can be undone).
+ */
+export type IssueState = 'act' | 'recommended' | 'info' | 'handled';
+
 export interface HealthIssue {
   severity: HealthSeverity;
+  /** Older backends leave it out: `issueStateOf` falls back to the severity. */
+  state?: IssueState;
   code: string;
   mod_id: string | null;
   message: string;
@@ -1725,4 +1735,65 @@ export interface BisectSession {
 export interface ModHealth {
   catalog: { game_version: string | null; mods: CatalogModSummary[] };
   report: HealthReport;
+}
+
+/** One process of the multiplayer test on this PC (the server, or a game). */
+export interface MpTestProcess {
+  role: 'server' | 'player';
+  pid: number;
+  /** The server's config name, or "1" / "2" for the games. */
+  name: string;
+  zomboid_dir: string;
+  log_path: string;
+  ram_mb: number;
+  ram_max_mb: number | null;
+  cpu_percent: number;
+  /** server: starting / started; player: menu / connecting / in_game. */
+  state: string;
+  errors: number;
+  connect: string | null;
+  /** What it is doing now: the last line of its log. */
+  step: string | null;
+  /** Seconds since it started. */
+  uptime_s: number;
+  /** A game: the screen its Studio Link last said it is on. */
+  screen: string | null;
+}
+
+/** Whether player 2's folder has what the server needs. */
+export interface MpSecondCheck {
+  ready: boolean;
+  missing: string[];
+  outdated: string[];
+  link_outdated: boolean;
+}
+
+/** What the multiplayer test does by itself. */
+export interface MpAutomation {
+  login: boolean;
+  start_click: boolean;
+  /** random, first or manual. */
+  character: string;
+  /** Take the first spawn place the server offers. */
+  spawn: boolean;
+  /** Player 2 an admin too. */
+  admin_all: boolean;
+}
+
+export interface MpTestStatus {
+  pc_total_mb: number;
+  pc_free_mb: number;
+  processes: MpTestProcess[];
+  second_dir: string;
+  second_dir_ready: boolean;
+  phase: string | null;
+  game_heap_mb: number | null;
+}
+
+export interface MpTestPrepareReport {
+  second_dir: string;
+  copied: string[];
+  linked: string[];
+  kept: string[];
+  missing: string[];
 }

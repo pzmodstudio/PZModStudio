@@ -29,16 +29,28 @@ pub struct ErrorReportRequest {
 /// Biggest file worth pasting whole; beyond that the report says where it is instead.
 const MAX_INLINE_BYTES: u64 = 120 * 1024;
 
+/// version.txt's line ("42.21.0 <rev>") while the installed jar is that build; the jar's build
+/// when Steam updated the game since it last ran (version.txt is written at start-up).
 fn game_build(paths: &StudioPaths) -> Option<String> {
+    use crate::load_order::mod_info::{installed_jar_game_version, version_dir_int};
+    let jar = installed_jar_game_version();
     for dir in crate::load_order::mod_info::get_all_user_zomboid_dirs(&paths.user_zomboid_dir) {
         if let Ok(text) = std::fs::read_to_string(dir.join("version.txt")) {
             let first = text.lines().next().unwrap_or("").trim().to_string();
             if !first.is_empty() {
-                return Some(first);
+                let last_run = first.split_whitespace().next().and_then(version_dir_int);
+                return match jar {
+                    Some(v) if Some(v) != last_run => Some(format!(
+                        "{} (installed; the last session ran {})",
+                        crate::catalog::modinfo::format_game_version(v),
+                        first
+                    )),
+                    _ => Some(first),
+                };
             }
         }
     }
-    None
+    jar.map(crate::catalog::modinfo::format_game_version)
 }
 
 /// The file the error names, somewhere inside the mod's folder.

@@ -45,32 +45,58 @@ struct ClassInfo {
     /// Method names: the Java ones and, where Kahlua's `@LuaMethod(name = "x")` renames one for
     /// Lua, that name too (`openURl` is `openUrl` to Lua).
     methods: Vec<String>,
+    /// The `@LuaMethod(name = "x", global = true)` names: Kahlua makes them global functions.
+    lua_globals: Vec<String>,
     /// Every Utf8 constant: string literals among them.
     strings: Vec<String>,
 }
 
-/// Skips one `element_value` of an annotation, returning the string it names when it is a
-/// plain string constant.
-fn element_value(bytes: &[u8], i: &mut usize, pool: &[Option<String>]) -> Option<Option<String>> {
+/// The constant pool, as far as annotations need it: Utf8 strings and Integer constants (an
+/// annotation's `boolean` element points at an Integer).
+struct Pool {
+    utf8: Vec<Option<String>>,
+    ints: Vec<Option<i32>>,
+}
+
+impl Pool {
+    fn str(&self, idx: usize) -> Option<String> {
+        self.utf8.get(idx).cloned().flatten()
+    }
+}
+
+/// One annotation element's value, as far as the check cares.
+enum Elem {
+    Str(String),
+    Int(i32),
+    Other,
+}
+
+/// Reads one `element_value` of an annotation.
+fn element_value(bytes: &[u8], i: &mut usize, pool: &Pool) -> Option<Elem> {
     let tag = *bytes.get(*i)?;
     *i += 1;
     match tag {
         b's' => {
             let idx = u16_at(bytes, *i)?;
             *i += 2;
-            Some(pool.get(idx).cloned().flatten())
+            Some(pool.str(idx).map(Elem::Str).unwrap_or(Elem::Other))
         }
-        b'B' | b'C' | b'D' | b'F' | b'I' | b'J' | b'S' | b'Z' | b'c' => {
+        b'B' | b'C' | b'I' | b'S' | b'Z' => {
+            let idx = u16_at(bytes, *i)?;
             *i += 2;
-            Some(None)
+            Some(pool.ints.get(idx).cloned().flatten().map(Elem::Int).unwrap_or(Elem::Other))
+        }
+        b'D' | b'F' | b'J' | b'c' => {
+            *i += 2;
+            Some(Elem::Other)
         }
         b'e' => {
             *i += 4;
-            Some(None)
+            Some(Elem::Other)
         }
         b'@' => {
             annotation(bytes, i, pool)?;
-            Some(None)
+            Some(Elem::Other)
         }
         b'[' => {
             let n = u16_at(bytes, *i)?;
@@ -78,38 +104,46 @@ fn element_value(bytes: &[u8], i: &mut usize, pool: &[Option<String>]) -> Option
             for _ in 0..n {
                 element_value(bytes, i, pool)?;
             }
-            Some(None)
+            Some(Elem::Other)
         }
         _ => None,
     }
 }
 
-/// Reads one annotation; returns the `name` element of a `LuaMethod` annotation when it has one.
-fn annotation(bytes: &[u8], i: &mut usize, pool: &[Option<String>]) -> Option<Option<String>> {
+/// Reads one annotation; returns the `name` element of a `LuaMethod` annotation when it has one,
+/// with its `global` element (false when absent, Kahlua's default).
+fn annotation(bytes: &[u8], i: &mut usize, pool: &Pool) -> Option<Option<(String, bool)>> {
     let type_idx = u16_at(bytes, *i)?;
     let pairs = u16_at(bytes, *i + 2)?;
     *i += 4;
-    let is_lua = pool.get(type_idx).cloned().flatten().map(|t| t.ends_with("/LuaMethod;")).unwrap_or(false);
-    let mut found = None;
+    let is_lua = pool.str(type_idx).map(|t| t.ends_with("/LuaMethod;")).unwrap_or(false);
+    let mut name = None;
+    let mut global = false;
     for _ in 0..pairs {
         let name_idx = u16_at(bytes, *i)?;
         *i += 2;
         let value = element_value(bytes, i, pool)?;
-        if is_lua && pool.get(name_idx).cloned().flatten().as_deref() == Some("name") {
-            found = value;
+        if !is_lua {
+            continue;
+        }
+        match (pool.str(name_idx).as_deref(), value) {
+            (Some("name"), Elem::Str(s)) => name = Some(s),
+            (Some("global"), Elem::Int(v)) => global = v != 0,
+            _ => {}
         }
     }
-    Some(found)
+    Some(name.map(|n| (n, global)))
 }
 
-/// The Lua names a method's `RuntimeVisibleAnnotations` attribute gives it.
-fn lua_names(attr: &[u8], pool: &[Option<String>]) -> Vec<String> {
+/// The Lua names (and whether each is global) a method's `RuntimeVisibleAnnotations`
+/// attribute gives it.
+fn lua_names(attr: &[u8], pool: &Pool) -> Vec<(String, bool)> {
     let mut out = Vec::new();
     let Some(n) = u16_at(attr, 0) else { return out };
     let mut i = 2;
     for _ in 0..n {
         match annotation(attr, &mut i, pool) {
-            Some(Some(name)) => out.push(name),
+            Some(Some(found)) => out.push(found),
             Some(None) => {}
             None => break,
         }
@@ -127,7 +161,7 @@ fn parse_class(bytes: &[u8]) -> Option<ClassInfo> {
         return None;
     }
     let count = u16_at(bytes, 8)?;
-    let mut pool: Vec<Option<String>> = vec![None; count];
+    let mut pool = Pool { utf8: vec![None; count], ints: vec![None; count] };
     let mut classes: Vec<(usize, usize)> = Vec::new(); // (slot, name index)
     let mut i = 10;
     let mut slot = 1;
@@ -138,10 +172,14 @@ fn parse_class(bytes: &[u8]) -> Option<ClassInfo> {
             1 => {
                 let len = u16_at(bytes, i)?;
                 let s = bytes.get(i + 2..i + 2 + len)?;
-                pool[slot] = Some(String::from_utf8_lossy(s).to_string());
+                pool.utf8[slot] = Some(String::from_utf8_lossy(s).to_string());
                 2 + len
             }
-            3 | 4 => 4,
+            3 => {
+                pool.ints[slot] = Some(i32::from_be_bytes([*bytes.get(i)?, *bytes.get(i + 1)?, *bytes.get(i + 2)?, *bytes.get(i + 3)?]));
+                4
+            }
+            4 => 4,
             5 | 6 => {
                 slot += 1;
                 8
@@ -160,11 +198,12 @@ fn parse_class(bytes: &[u8]) -> Option<ClassInfo> {
     }
     let _access = u16_at(bytes, i)?;
     let this = u16_at(bytes, i + 2)?;
-    let name = classes.iter().find(|(s, _)| *s == this).and_then(|(_, n)| pool.get(*n).cloned().flatten())?;
+    let name = classes.iter().find(|(s, _)| *s == this).and_then(|(_, n)| pool.str(*n))?;
     let ifaces = u16_at(bytes, i + 6)?;
     i += 8 + 2 * ifaces;
     // fields, then methods: access, name, descriptor, attributes
     let mut methods = Vec::new();
+    let mut lua_globals = Vec::new();
     for pass in 0..2 {
         let n = u16_at(bytes, i)?;
         i += 2;
@@ -175,23 +214,28 @@ fn parse_class(bytes: &[u8]) -> Option<ClassInfo> {
             for _ in 0..attrs {
                 let attr_name = u16_at(bytes, i)?;
                 let len = u32::from_be_bytes([*bytes.get(i + 2)?, *bytes.get(i + 3)?, *bytes.get(i + 4)?, *bytes.get(i + 5)?]) as usize;
-                if pass == 1 && pool.get(attr_name).cloned().flatten().as_deref() == Some("RuntimeVisibleAnnotations") {
+                if pass == 1 && pool.str(attr_name).as_deref() == Some("RuntimeVisibleAnnotations") {
                     if let Some(attr) = bytes.get(i + 6..i + 6 + len) {
-                        methods.extend(lua_names(attr, &pool));
+                        for (lua, global) in lua_names(attr, &pool) {
+                            if global {
+                                lua_globals.push(lua.clone());
+                            }
+                            methods.push(lua);
+                        }
                     }
                 }
                 i += 6 + len;
             }
             if pass == 1 {
-                if let Some(Some(m)) = pool.get(name_idx) {
+                if let Some(m) = pool.str(name_idx) {
                     if !m.starts_with('<') {
-                        methods.push(m.clone());
+                        methods.push(m);
                     }
                 }
             }
         }
     }
-    Some(ClassInfo { name, methods, strings: pool.into_iter().flatten().collect() })
+    Some(ClassInfo { name, methods, lua_globals, strings: pool.utf8.into_iter().flatten().collect() })
 }
 
 /// What Lua itself gives every script (Kahlua's stdlib and the game's `stdlib.lua`).
@@ -657,6 +701,7 @@ pub fn game_api(pz_install_dir: &Path, user_zomboid_dir: &Path) -> Result<GameAp
         if class.name == "zombie/Lua/LuaManager$Exposer" {
             exposed.extend(class.strings.iter().filter(|s| s.starts_with("zombie/") || s.starts_with("se/") || s.starts_with("java/")).cloned());
         }
+        api.globals.extend(class.lua_globals.iter().cloned());
         api.methods.extend(class.methods.into_iter());
         // The event names: the engine triggers them by string, and LuaEventManager holds the
         // list it registers (`OnTick`, `EveryTenMinutes`, `LoadGridsquare`...); elsewhere only
@@ -727,9 +772,80 @@ fn mod_lua_files(root: &Path, game_version: Option<u32>) -> Vec<PathBuf> {
     out
 }
 
+/// What one jar a mod ships gives Lua: Kahlua `@LuaMethod(global = true)` names are global
+/// functions, every other method name (renamed by `@LuaMethod(name = ...)` or not) is a method,
+/// as with the game's jar. Kept per jar (size and date) in `PZModStudio_Cache/api/jars/`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct JarNames {
+    pub jar_key: String,
+    pub globals: BTreeSet<String>,
+    pub methods: BTreeSet<String>,
+    pub class_files: usize,
+}
+
+/// Reads the classes of one jar (a zip) for the names they give Lua.
+pub fn jar_names_uncached(jar: &Path) -> Result<JarNames, String> {
+    let bytes = std::fs::read(jar).map_err(|e| format!("Could not read {}: {}", jar.display(), e))?;
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("{} is not a jar: {}", jar.display(), e))?;
+    let mut out = JarNames { jar_key: jar_key(jar).unwrap_or_default(), ..Default::default() };
+    for idx in 0..zip.len() {
+        let Ok(mut file) = zip.by_index(idx) else { continue };
+        if !file.name().ends_with(".class") {
+            continue;
+        }
+        let mut buf = Vec::with_capacity(file.size() as usize);
+        if file.read_to_end(&mut buf).is_err() {
+            continue;
+        }
+        let Some(class) = parse_class(&buf) else { continue };
+        out.class_files += 1;
+        out.globals.extend(class.lua_globals);
+        out.methods.extend(class.methods);
+    }
+    Ok(out)
+}
+
+/// One jar's names, from the cache when the jar's size and date are the same.
+fn jar_names(user_zomboid_dir: &Path, jar: &Path) -> Option<JarNames> {
+    let key = jar_key(jar)?;
+    let file = jar.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let cache = api_cache_dir(user_zomboid_dir).join("jars").join(format!("{}-{}.json", crate::security::safe_name(&file), key));
+    if let Some(j) = std::fs::read_to_string(&cache).ok().and_then(|t| serde_json::from_str::<JarNames>(&t).ok()) {
+        if j.jar_key == key {
+            return Some(j);
+        }
+    }
+    let j = jar_names_uncached(jar).ok()?;
+    if let Some(parent) = cache.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(text) = serde_json::to_string(&j) {
+        let _ = std::fs::write(&cache, text);
+    }
+    Some(j)
+}
+
+/// Every jar in the mod's folder (any version layer, `media/java` or elsewhere; the one
+/// `javaJarFile=` names among them), hidden folders (`.git`, `.claude`) left out.
+fn mod_jars(root: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| e.depth() == 0 || !e.file_name().to_string_lossy().starts_with('.'))
+        .flatten()
+        .filter(|e| e.file_type().is_file() && e.path().extension().map(|x| x.eq_ignore_ascii_case("jar")).unwrap_or(false))
+        .map(|e| e.path().to_path_buf())
+        .collect();
+    out.sort();
+    out
+}
+
+/// Bumped when what `read_mod` keeps changes, so older caches are read again.
+const MOD_CACHE_VERSION: u32 = 2;
+
 pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version: Option<u32>) -> ModLua {
     let (fp, _) = crate::security::fingerprint(root);
-    let fp = format!("{}-{}", fp, game_version.unwrap_or(0));
+    let fp = format!("{}-{}-v{}", fp, game_version.unwrap_or(0), MOD_CACHE_VERSION);
     let cache = api_cache_dir(user_zomboid_dir).join("mods").join(format!("{}.json", crate::security::safe_name(mod_id)));
     if let Some(m) = std::fs::read_to_string(&cache).ok().and_then(|t| serde_json::from_str::<ModLua>(&t).ok()) {
         if m.fingerprint == fp {
@@ -744,6 +860,13 @@ pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version
         let c = calls(&text);
         if !c.is_empty() {
             m.calls.insert(rel, c);
+        }
+    }
+    // The names the mod's own Java gives Lua (ZombieBuddy jars and the like).
+    for jar in mod_jars(root) {
+        if let Some(j) = jar_names(user_zomboid_dir, &jar) {
+            m.defs.globals.extend(j.globals);
+            m.defs.methods.extend(j.methods);
         }
     }
     if let Some(parent) = cache.parent() {
@@ -772,7 +895,9 @@ pub struct ModApiReport {
     pub files_checked: usize,
     pub calls_checked: usize,
     pub findings: Vec<ApiFinding>,
-    /// The mod ships Java (a jar or class files): names its Java gives Lua are not seen here.
+    /// The mod ships Java (a jar or class files). The `@LuaMethod` names of its jars count as
+    /// defined; what its Java gives Lua another way (loose class files, names set at run time)
+    /// is not seen here.
     #[serde(default)]
     pub has_java: bool,
     /// The jar the names were read from (size and date), for the record.
@@ -993,6 +1118,102 @@ MyGlobal = 1
         let c = parse_class(&b).unwrap();
         assert_eq!(c.name, "A");
         assert_eq!(c.methods, vec!["m".to_string()]);
+    }
+
+    /// `class KL { @LuaMethod(name = "KnoxTestGlobal", global = true) void m() {}
+    /// @LuaMethod(name = "renamedN") void n() {} }`, assembled by hand.
+    fn lua_method_class() -> Vec<u8> {
+        fn utf8(b: &mut Vec<u8>, s: &str) {
+            b.push(1);
+            b.extend((s.len() as u16).to_be_bytes());
+            b.extend(s.as_bytes());
+        }
+        let mut b: Vec<u8> = vec![0xCA, 0xFE, 0xBA, 0xBE, 0, 0, 0, 52];
+        b.extend([0, 13]); // 12 constants
+        b.extend([7, 0, 2]); // #1 Class -> #2
+        utf8(&mut b, "KL"); // #2
+        utf8(&mut b, "m"); // #3
+        utf8(&mut b, "()V"); // #4
+        utf8(&mut b, "RuntimeVisibleAnnotations"); // #5
+        utf8(&mut b, "Lse/krka/kahlua/integration/annotations/LuaMethod;"); // #6
+        utf8(&mut b, "name"); // #7
+        utf8(&mut b, "KnoxTestGlobal"); // #8
+        utf8(&mut b, "global"); // #9
+        b.extend([3, 0, 0, 0, 1]); // #10 Integer 1
+        utf8(&mut b, "n"); // #11
+        utf8(&mut b, "renamedN"); // #12
+        b.extend([0, 1, 0, 1, 0, 0, 0, 0]); // access, this=#1, super=0, interfaces=0
+        b.extend([0, 0]); // fields
+        b.extend([0, 2]); // 2 methods
+        // m: one annotation with name = #8, global = #10
+        b.extend([0, 1, 0, 3, 0, 4, 0, 1, 0, 5, 0, 0, 0, 16]);
+        b.extend([0, 1, 0, 6, 0, 2, 0, 7, b's', 0, 8, 0, 9, b'Z', 0, 10]);
+        // n: one annotation with name = #12 only
+        b.extend([0, 1, 0, 11, 0, 4, 0, 1, 0, 5, 0, 0, 0, 11]);
+        b.extend([0, 1, 0, 6, 0, 1, 0, 7, b's', 0, 12]);
+        b.extend([0, 0]); // attributes
+        b
+    }
+
+    #[test]
+    fn a_lua_method_annotation_gives_its_name_and_whether_it_is_global() {
+        let c = parse_class(&lua_method_class()).unwrap();
+        assert_eq!(c.name, "KL");
+        assert_eq!(c.lua_globals, vec!["KnoxTestGlobal".to_string()]);
+        for n in ["m", "n", "KnoxTestGlobal", "renamedN"] {
+            assert!(c.methods.iter().any(|m| m == n), "{} missing from {:?}", n, c.methods);
+        }
+    }
+
+    #[test]
+    fn a_mods_own_jar_defines_its_lua_method_names() {
+        use std::io::Write;
+        let base = std::env::temp_dir().join(format!("pzms-apilint-jar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let root = base.join("mods").join("JarMod");
+        let java = root.join("42").join("media").join("java");
+        let lua = root.join("42").join("media").join("lua").join("client");
+        std::fs::create_dir_all(&java).unwrap();
+        std::fs::create_dir_all(&lua).unwrap();
+        // A jar in a hidden folder is not the mod's.
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(java.join("JarMod.jar")).unwrap());
+        zip.start_file("kl/KL.class", zip::write::SimpleFileOptions::default()).unwrap();
+        zip.write_all(&lua_method_class()).unwrap();
+        zip.finish().unwrap();
+        std::fs::write(root.join(".git").join("Old.jar"), b"not a zip").unwrap();
+        std::fs::write(lua.join("a.lua"), "KnoxTestGlobal()
+local o = getThing()
+o:renamedN()
+NoSuchThing()
+").unwrap();
+        assert_eq!(mod_jars(&root), vec![java.join("JarMod.jar")]);
+        let user = base.join("Zomboid");
+        let this = read_mod(&user, "JarMod", &root, Some(42_000_000));
+        assert!(this.defs.globals.contains("KnoxTestGlobal"));
+        assert!(this.defs.methods.contains("renamedN"));
+        assert!(!this.defs.globals.contains("renamedN"), "a non-global LuaMethod is not a global");
+        let mut api = GameApi::default();
+        api.globals.insert("getThing".into());
+        let r = check(&api, &this, &Defs::default());
+        let got: Vec<String> = r.findings.iter().map(|f| f.name.clone()).collect();
+        assert_eq!(got, vec!["NoSuchThing".to_string()]);
+        let jar_cache = user.join("PZModStudio_Cache").join("api").join("jars");
+        assert!(std::fs::read_dir(&jar_cache).map(|d| d.count()).unwrap_or(0) == 1, "the jar's names are cached");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Live: `cargo test --lib -- --ignored live_knoxlives_jar --nocapture`. Reads KnoxLives' jar.
+    #[test]
+    #[ignore]
+    fn live_knoxlives_jar() {
+        let jar = Path::new(r"D:\Proyectos\KnoxLives\42\media\java\KnoxLives.jar");
+        let j = jar_names_uncached(jar).unwrap();
+        println!("{} classes, {} globals: {:?}", j.class_files, j.globals.len(), j.globals);
+        for n in ["KnoxLivesCarRestore", "KnoxLivesCarStored", "KnoxLivesDriveControls"] {
+            println!("global {} {}", n, j.globals.contains(n));
+            assert!(j.globals.contains(n));
+        }
     }
 
     /// Live: `cargo test --lib -- --ignored live_api_index --nocapture`. Reads the installed game.

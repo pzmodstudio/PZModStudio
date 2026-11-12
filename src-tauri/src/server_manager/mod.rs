@@ -6,6 +6,7 @@ use crate::load_order::mod_info::get_all_user_zomboid_dirs;
 
 pub mod java_mods;
 pub mod mod_sync;
+pub mod mp_test;
 mod rcon;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,12 +230,12 @@ fn primary_dir(user_zomboid_dir: &str) -> PathBuf {
 }
 
 #[cfg(target_os = "windows")]
-fn server_pid_alive(pid: u32) -> bool {
+pub(crate) fn server_pid_alive(pid: u32) -> bool {
     is_tracked_server_alive(pid)
 }
 
 #[cfg(not(target_os = "windows"))]
-fn server_pid_alive(_pid: u32) -> bool {
+pub(crate) fn server_pid_alive(_pid: u32) -> bool {
     false
 }
 

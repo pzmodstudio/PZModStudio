@@ -1,4 +1,5 @@
 import React from 'react';
+import { PageGuide } from '../common/PageGuide';
 import { MergedPackageInfoUI } from '../../services/tauri';
 import { Box, Download, Edit2, Eye, EyeOff, FolderOpen, Lock, Package, PackageCheck, Plus, Trash2, Upload } from 'lucide-react';
 import i18next from 'i18next';
@@ -53,6 +54,7 @@ export const PackageList: React.FC<PackageListProps> = ({
   isInActiveProfile = () => true,
 }) => (
   <div className="flex-1 flex flex-col overflow-hidden">
+    <PageGuide page="merger" className="m-3 mb-0" />
     {/* Top Bar for Level 1 */}
     <div className="bg-slate-900 border-b border-slate-800 p-3.5 flex items-center justify-between gap-4 shrink-0 shadow-md">
       <div className="flex items-center gap-2.5">

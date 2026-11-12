@@ -60,11 +60,121 @@ pub fn tools() -> Vec<McpTool> {
                 }
             }),
         },
+        McpTool {
+            name: "mp_test_prepare".to_string(),
+            description: "Gets the second player's own Zomboid folder (<home>/Zomboid2, beside Zomboid) ready for a multiplayer test on this PC against the server <name>: the player's options.ini the first time, and in Zomboid2/mods every mod of the server's Mods=, copied with the Studio's marker (copied again when its source got newer) or, for a mod in development that is a link elsewhere, linked to the same place. A folder there the Studio did not put is kept. Returns copied, linked, kept and missing (in Mods= but installed nowhere). Two games of one Steam account cannot both join, so the test runs without Steam, and a NoSteam game reads mods only from its own folder's mods.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "server": { "type": "string", "description": "Server config name (Zomboid/Server/<name>.ini)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["server"]
+            }),
+        },
+        McpTool {
+            name: "mp_test_start".to_string(),
+            description: "Starts a multiplayer test on this PC: the server <name> without Steam (as server_start with nosteam), then, once its log says SERVER STARTED, one or two games joined to it at 127.0.0.1 (-nosteam +connect, windowed): player 1 with the player's Zomboid folder, player 2 with Zomboid2 (run mp_test_prepare first). Each game opens on the server's connect window, where an account name and password are typed (a new name makes an account). In multiplayer each game loads the server's mod list, not the player's profile. Refused while the game or a Studio server already runs. Poll mp_test_status.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "server": { "type": "string", "description": "Server config name (Zomboid/Server/<name>.ini)" },
+                    "players": { "type": "integer", "description": "1 or 2 (default 2)" },
+                    "memory_gb": { "type": "integer", "description": "The server's Java heap in GB, 2-32 (default 4)" },
+                    "admin_password_file": { "type": "string", "description": "A file whose first line is the admin password (default: the Studio's stored value)" },
+                    "auto_login": { "type": "boolean", "description": "Fill in each game's account on the connect window and press Connect (the Studio Link). Default true" },
+                    "all_admin": { "type": "boolean", "description": "Player 2 an admin too (given over RCON once its account exists; player 1 signs in as admin). Default true" },
+                    "auto_spawn": { "type": "boolean", "description": "Take the first spawn place the server offers. Default true" },
+                    "auto_start_click": { "type": "boolean", "description": "Click each game's black 'click to start' screen once its world has loaded. Default true" },
+                    "character": { "type": "string", "enum": ["random", "first", "manual"], "description": "A new character: random (first spawn, random traits and look), first (what each screen shows first) or manual (nothing pressed). Default random. Needs the Studio Link in the server's Mods= (added with a backup)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["server"]
+            }),
+        },
+        McpTool {
+            name: "mp_test_status".to_string(),
+            description: "The multiplayer test as it is now: every server and game process on this PC with role, PID, name (server config, or player 1/2), its Zomboid folder and log, RAM used and its Java heap limit, CPU %, state (server: starting/started; game: menu/connecting/in_game, from its console.txt), ERROR lines in its log, the address it joins; the PC's total and free memory; the second player's folder and whether it is ready; the started test's phase (waiting_for_server, players_launched, server_did_not_start, player_N_failed, stopped).".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "mp_test_restart_player".to_string(),
+            description: "Starts one game of the running multiplayer test again (player 1 or 2), closed first when it is open, with the same account and the same automation (fill in the account, spawn, character, click to start, admin): the server and the other game keep running. Needs a test started from the app or mp_test_start.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "player": { "type": "integer", "description": "1 or 2" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["player"]
+            }),
+        },
+        McpTool {
+            name: "mp_test_stop".to_string(),
+            description: "Ends the multiplayer test: the games on this PC are closed and the Studio's server quits over RCON (it saves; killed after 90 s if it does not go). Returns the PIDs of the games closed.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
     ]
+}
+
+fn mp_prepare(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String> {
+    let server = args.get("server").and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()).ok_or("server is required.")?;
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let r = server_manager::mp_test::prepare_second(&catalog, &zomboid_dir(paths), server)?;
+    serde_json::to_value(r).map_err(|e| e.to_string())
+}
+
+fn mp_start(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String> {
+    let server = args.get("server").and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()).ok_or("server is required.")?.to_string();
+    let zomboid = zomboid_dir(paths);
+    if let Some(pid) = crate::sandbox::find_running_pz_pid() {
+        return Err(format!("The game is already running (PID {}): close it first, the test opens its own.", pid));
+    }
+    if server_manager::get_dedicated_server_status(zomboid.to_string_lossy().to_string()).is_ok_and(|s| s.is_running) {
+        return Err("A Studio server is already running: server_stop first.".to_string());
+    }
+    let (password, _) = admin_password(&server, args.get("admin_password_file").and_then(Value::as_str))?;
+    let players = args.get("players").and_then(Value::as_u64).unwrap_or(2).clamp(1, 2) as u32;
+    let memory = args.get("memory_gb").and_then(Value::as_u64).unwrap_or(4).clamp(2, 32) as u32;
+    crate::claude_agent::keep_std_handles_private();
+    let automation = server_manager::mp_test::MpAutomation {
+        login: args.get("auto_login").and_then(Value::as_bool).unwrap_or(true),
+        start_click: args.get("auto_start_click").and_then(Value::as_bool).unwrap_or(true),
+        character: args.get("character").and_then(Value::as_str).unwrap_or("random").to_string(),
+        spawn: args.get("auto_spawn").and_then(Value::as_bool).unwrap_or(true),
+        admin_all: args.get("all_admin").and_then(Value::as_bool).unwrap_or(true),
+    };
+    let pid = server_manager::mp_test::start(PathBuf::from(&paths.pz_install_dir), zomboid, server.clone(), memory, players, password, automation)?;
+    Ok(json!({ "status": "launched", "server_pid": pid, "server": server, "players": players, "next": "Poll mp_test_status: the games start once the server says SERVER STARTED." }))
+}
+
+fn mp_restart(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String> {
+    let slot = args.get("player").and_then(Value::as_u64).ok_or("player (1 or 2) is required.")? as u32;
+    let zomboid = zomboid_dir(paths);
+    let server = server_manager::get_dedicated_server_status(zomboid.to_string_lossy().to_string()).ok().and_then(|s| s.server_name).unwrap_or_default();
+    let (password, _) = admin_password(&server, None)?;
+    crate::claude_agent::keep_std_handles_private();
+    let pid = server_manager::mp_test::restart_player(PathBuf::from(&paths.pz_install_dir), zomboid, slot, password)?;
+    Ok(json!({ "status": "launched", "player": slot, "pid": pid }))
 }
 
 pub fn execute(name: &str, args: &Value, paths: &crate::vfs::StudioPaths) -> Option<ToolCallResult> {
     Some(match name {
+        "mp_test_prepare" => result(mp_prepare(args, paths)),
+        "mp_test_start" => result(mp_start(args, paths)),
+        "mp_test_status" => result(serde_json::to_value(server_manager::mp_test::status(&zomboid_dir(paths), Path::new(&paths.pz_install_dir))).map_err(|e| e.to_string())),
+        "mp_test_restart_player" => result(mp_restart(args, paths)),
+        "mp_test_stop" => result(server_manager::mp_test::stop(&zomboid_dir(paths)).map(|closed| json!({ "games_closed": closed }))),
         "server_start" => result(start(args, paths)),
         "server_stop" => result(server_manager::stop_dedicated_server(paths.user_zomboid_dir.clone(), None).map(|stopped| json!({ "stopped": stopped }))),
         "server_status" => result(status(args, paths)),
