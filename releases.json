@@ -1,8 +1,42 @@
 {
- "latest": "1.8.4",
- "count": 30,
- "built": "2026-11-12",
+ "latest": "1.8.5",
+ "count": 31,
+ "built": "2026-11-13",
  "releases": [
+  {
+   "version": "1.8.5",
+   "date": "2026-11-13",
+   "notes": [
+    "Link: the multiplayer test's character and spawn presses only in a game joined to a server; the test's choices are taken away on a normal launch and when the test stops",
+    "Monitor and Mod Health: one card for texts that cannot be formatted, an optional link between mods said as such, calls the build does not have shown before playing, and a mod in development shown as the player's own",
+    "Link: the error notice has details (where it failed, the steps), shows over the pause menu, and the session's errors come back from a button there after Close",
+    "Monitor: an error on every frame is one card, with its file and line; shim: PropertyContainer:Is is given back as :has (42.22)",
+    "A replay of a real log through the Monitor's card maker, for checking the cards",
+    "Saves: the backups of saves that are gone are listed, to recover the save or delete them",
+    "Saves for agents: save_remove, save_rename and saves_bin; a removed save's date comes from its folder's name; deleting what is not in the bin is refused",
+    "Saves: the page notices a save made, deleted or renamed outside the Studio",
+    "Saves: a bin for removed saves, to put one back, delete one, or empty it",
+    "Saves: remove a save (moved to the backups folder) and rename it; a server's world is listed under the profile its server was made from",
+    "Comment: no pointer to a private note",
+    "Saves: a server's world, a joined server, a hand-made copy and an empty save are told apart; a multiplayer save no longer reads \"0 mods\" or \"no profile\"",
+    "Wording: texts and comments no longer name other projects; the sync's private list lives outside the mirrored files",
+    "Link: a mouse-up that arrives after a Lua reload no longer throws; no \"Show in Mods\" for an error of the Link itself",
+    "Server jar check finds a jar kept in the version folder; memory cards say what is known; require answers and docs corrected",
+    "ZombieBuddy's list of Java mods over the menu is hidden unless asked for; the way back to the Studio's Mods screen",
+    "Link 1.18.6: a switch and an on/total counter on each group, undo of the last Accept, what an Accept changes said before and after; another mod manager is recognised as such",
+    "Monitor: a tick box hides ZombieBuddy's routine lines",
+    "Java patch radar: which game classes each Java mod changes, and where two mods meet",
+    "Monitor: cards say only what the line shows",
+    "Monitor: a live console tab shows only while its game or server runs; with none, the last session opens on a button",
+    "Mod Health: shorter scope tooltips",
+    "Mod Health: each finding says whose it is (the mod's, your combination's, your install's); the author's suggestion leaves out what depends on other mods",
+    "Compatible copies: a suggestion for the mod's author, file and line, with what works on this build",
+    "Developer: someone else's mod is only looked at (said plainly, editing tabs off)",
+    "Mod List: a hand-put mod can be removed from Zomboid/mods (to the backups folder); the multiplayer test shows with developer features on",
+    "Mod List: the selection menu offers adding to the profile for mods outside it and taking out only for those inside; \"no profile\" tag shown on any row outside the profile",
+    "Mod List: \"Show them\" of the no-profile banner no longer switches the profile / every installed mod button"
+   ]
+  },
   {
    "version": "1.8.4",
    "date": "2026-11-12",
@@ -193,14 +227,6 @@
    "date": "2026-10-28",
    "notes": [
     "Explore Mods: a copy the game ignores still counts as a subscribed item"
-   ]
-  },
-  {
-   "version": "1.7.9",
-   "date": "2026-10-28",
-   "notes": [
-    "Shim: the network shield runs on multiplayer clients only and leaves the action in its callback arguments",
-    "Rest works again: the shim's B42.20 rest block is gone, and packages take this build's shim at launch"
    ]
   }
  ]
