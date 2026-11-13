@@ -108,6 +108,21 @@ export const App: React.FC = () => {
     void TauriService.whatsNew(paths, false, null).then((w) => setWhatsNewCount(w ? w.items.filter((i) => i.active).length : 0));
   }, [paths, mods, whatsNewTick, activeTab]);
 
+  // ZombieBuddy's list of Java mods over the game's menu: hidden unless the player asked to see it
+  // (Settings, with developer features). A value they set in the game themselves is left alone.
+  useEffect(() => {
+    if (!paths.is_valid || !paths.user_zomboid_dir) return;
+    void TauriService.zbWatermark(paths, localStorage.getItem('pz_zb_watermark_show') === 'true', true)
+      .then((state) => {
+        // Said once, the first time the Studio hides it: it is another mod's option.
+        if (state.changed && state.opacity === 0 && !localStorage.getItem('pz_zb_watermark_told')) {
+          localStorage.setItem('pz_zb_watermark_told', '1');
+          reportNotice(i18next.t('notices.zbListHidden'));
+        }
+      })
+      .catch(() => undefined);
+  }, [paths]);
+
   /**
    * Mod Health's warnings go to the game too: the Studio Link mod marks those mods in the game's
    * Mods screen, with the text on hover, in the language the Studio speaks.
@@ -323,6 +338,10 @@ export const App: React.FC = () => {
 
     TauriService.listenSandboxErrorCards((card) => {
       setErrorCards((prev) => {
+        // A card that comes again with the same id says more than it did (a mod's texts the game
+        // could not format, one more of them): it takes the place of the one shown.
+        const shownAt = prev.findIndex((c) => c.id === card.id);
+        if (shownAt >= 0) return prev.map((c, i) => (i === shownAt ? card : c));
         // One card per problem: the same shape of line again is the same problem. The title
         // alone used to decide, which folded three different lines of one mod into one card.
         // Two mods with the same shape of line are two problems (a bare % in each one's texts).
@@ -330,8 +349,6 @@ export const App: React.FC = () => {
         const isDuplicate = prev.some(
           (c) =>
             (c.title === card.title && errorShape(c.raw_error) === shape && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
-            // A mod's bare % signs are one problem, whichever of Java's exceptions each text threw.
-            (c.code === 'translator_text' && card.code === 'translator_text' && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
             (c.polyfill_rule_id_suggestion && c.polyfill_rule_id_suggestion === card.polyfill_rule_id_suggestion)
         );
         if (isDuplicate) return prev;

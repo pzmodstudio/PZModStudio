@@ -459,6 +459,14 @@ export const DeveloperModule: React.FC<DeveloperModuleProps> = ({ paths, mods, c
     setTab(id);
     localStorage.setItem('pz_dev_tab', id);
   };
+  // Someone else's mod (a Workshop subscription): here it is only looked at. The tabs that write
+  // into a mod's folder (hot reload after editing, translation drafts) are for the player's own.
+  const foreign = !!mod && choices.workshop.some((m) => m.mod_id === mod.mod_id);
+  const OWN_ONLY: DevTab[] = ['reload', 'drafts'];
+  useEffect(() => {
+    if (foreign && OWN_ONLY.includes(tab)) setTab('check');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foreign, tab]);
   // What each tab has to say at a glance: problems found, watching, the multiplayer verdict.
   const tabBadge: Partial<Record<DevTab, { text: string; cls: string }>> = {};
   if (validation) tabBadge.check = validation.problems.length > 0 ? { text: String(validation.problems.length), cls: 'bg-amber-500 text-slate-950' } : { text: '✓', cls: 'bg-emerald-900 text-emerald-300' };
@@ -532,6 +540,30 @@ export const DeveloperModule: React.FC<DeveloperModuleProps> = ({ paths, mods, c
                 {root && <span className="break-all">{root}</span>}
               </div>
             )}
+            {mod && choices.compat.some((m) => m.mod_id === mod.mod_id) && (
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-sky-200/90 bg-sky-950/30 border border-sky-800/50 rounded-lg px-2.5 py-1.5 max-w-2xl">
+                <span className="flex-1 min-w-[12rem]">{t('developer.pick.compatNote')}</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(await TauriService.compatAuthorSuggestion(paths, mod.mod_id));
+                      setNote(t('health.authorNote.copied'));
+                    } catch (err) {
+                      setNote(t('health.authorNote.failed', { reason: String(err) }));
+                    }
+                  }}
+                  className="px-2 py-1 rounded font-bold bg-sky-800/70 hover:bg-sky-700 text-sky-50 cursor-pointer"
+                >
+                  {t('health.authorNote.button')}
+                </button>
+              </div>
+            )}
+            {foreign && (
+              <div className="text-[11px] text-amber-200/90 bg-amber-950/30 border border-amber-800/50 rounded-lg px-2.5 py-1.5 max-w-2xl">
+                {t('developer.pick.foreign')}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <button type="button" disabled={!root} onClick={() => root && TauriService.openModFolder(paths, root)}
@@ -558,14 +590,17 @@ export const DeveloperModule: React.FC<DeveloperModuleProps> = ({ paths, mods, c
             const Icon = DEV_TAB_ICON[id];
             const badge = tabBadge[id];
             const active = tab === id;
+            const locked = foreign && OWN_ONLY.includes(id);
             return (
               <button
                 key={id}
                 type="button"
                 role="tab"
                 aria-selected={active}
+                disabled={locked}
+                title={locked ? t('developer.pick.ownOnly') : undefined}
                 onClick={() => openTab(id)}
-                className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                   active ? 'bg-slate-900 border-slate-700 text-slate-100' : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >

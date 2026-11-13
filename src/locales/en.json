@@ -178,7 +178,7 @@
       "clearConfirm": "Delete the {{count}} kept translation(s)? The next Translate sends the text out again."
     },
     "developer": "Developer features",
-    "developerBlurb": "Shows the Developer screen, the MCP agent server, which lets an AI assistant drive the Studio, and the companion mod that runs commands inside the game. Nothing a player needs; leave it off unless you are building with it.",
+    "developerBlurb": "Shows the Developer screen, the multiplayer test in Servers, the MCP agent server, which lets an AI assistant drive the Studio, and the companion mod that runs commands inside the game. Nothing a player needs; leave it off unless you are building with it.",
     "shimTitle": "Build 42 compatibility shim",
     "shimBlurb": "Many Build 41 mods call things Build 42 renamed or removed, and crash. The Studio ships one shim that patches those calls at runtime, and writes it into every merge package you build. Parts 1 to 6 are all or nothing: they guard the game's own code and need nothing from you beyond a merge package being active. Part 7 patches particular mods, and each of those has a switch below.",
     "whatItCovers": "What it covers",
@@ -269,7 +269,10 @@
     "modsScreenBlurb": "Only one mod manager can draw the game's Mods screen. When another one is on, the game asks once which one you want and remembers it. Save backups and the check before a save loads stay with PZ Mod Studio either way.",
     "modsScreenAsk": "Ask me in the game",
     "modsScreenStudio": "PZ Mod Studio's (asks again if the other one is turned on)",
-    "modsScreenOther": "The other manager's"
+    "modsScreenOther": "The other manager's",
+    "zbList": "Show ZombieBuddy's list of Java mods on the game's menu",
+    "zbListBlurb": "ZombieBuddy writes every Java mod it loaded across the top of the game's menu. The Studio hides it; switch this on to see it. Applied while the game is closed.",
+    "zbListOwn": "You chose another value in the game (Options → Mods → ZombieBuddy, watermark opacity): the Studio leaves it as it is."
   },
   "profiles": {
     "title": "Mod Profiles",
@@ -481,6 +484,12 @@
       "openBrowser": "Open in Mod Browser",
       "searchBrowser": "Search for it in Mod Browser",
       "notWorkshop": "This mod did not come from the Workshop",
+      "removeLocal": "Remove from Zomboid/mods",
+      "removeLocalOn": "It is switched on: switch it off first",
+      "removeLocalTitle": "This mod is a folder put by hand in Zomboid/mods, not a Workshop item: there is nothing to unsubscribe from. This moves the folder to Zomboid/PZModStudio_Backups/mods (not deleted, it can be put back).",
+      "removeLocalConfirm": "Remove \"{{mod}}\" from Zomboid/mods?\n\nIt did not come from the Workshop: it is a folder put there by hand. It is moved to Zomboid/PZModStudio_Backups/mods, so it can be recovered.",
+      "removedLocal": "\"{{mod}}\" is no longer in Zomboid/mods. It was kept in {{to}}",
+      "removeLocalFailed": "Could not remove it: {{reason}}",
       "openFolder": "Open its folder",
       "noFolder": "The Studio does not know where this mod lives",
       "rules": "Load-order rules…",
@@ -582,6 +591,7 @@
         "security_executable": "Ships program files",
         "security_script": "Ships scripts",
         "security_java": "Java that reaches out",
+        "java_patch_overlap": "Java on the same class as another mod",
         "security_lua": "Unusual Lua calls",
         "compatible_copy": "Compatible copy",
         "compatible_copy_unneeded": "Compatible copy no longer needed",
@@ -602,7 +612,8 @@
         "floods_console": "Fills the console",
         "workshop_copy_by_hand": "Copy made by hand",
         "workshop_copy_stale": "Copy out of date",
-        "workshop_copy_kept": "Copy for a server"
+        "workshop_copy_kept": "Copy for a server",
+        "api_missing": "Calls things this build lacks"
       },
       "fix": {
         "enable": "Switch on {{name}}",
@@ -723,6 +734,7 @@
       "switchOff": "Switch off {{count}} mods",
       "allOn": "They are all on already",
       "allOff": "They are all off already",
+      "addToProfile": "Add {{count}} mods to \"{{name}}\" (switched off)",
       "removeFromProfile": "Take {{count}} mods out of \"{{name}}\"",
       "removed": "{{count}} mods left \"{{name}}\" (and are off).",
       "unsubscribe": "Unsubscribe from {{count}} Workshop items",
@@ -797,7 +809,8 @@
       "replace": "Use {{id}} instead of {{entry}}",
       "dismissKnown": "No longer happens",
       "adoptCopy": "Let the Studio keep it",
-      "recopy": "Copy it again"
+      "recopy": "Copy it again",
+      "useStudioScreen": "Use PZ Mod Studio's screen"
     },
     "freshCopy": "{{mod}} already has a compatible copy. Make a fresh one? The current copy is moved to Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "Take {{file}} out of {{package}}?\n\nThe package is published again without it, and the game reads the mod's own file on its next launch. If you edited the copy, those edits go.",
@@ -927,6 +940,16 @@
         "title_other": "{{count}} mods run from Studio copies for servers",
         "body": "They are up to date with the Workshop. They win over the Workshop in your games too; when an author updates, it shows under \"Worth doing\" to copy again."
       },
+      "java_patch_overlap": {
+        "methodTitle_one": "{{count}} class of the game has the same method changed by the Java of more than one mod",
+        "methodTitle_other": "{{count}} classes of the game have the same method changed by the Java of more than one mod",
+        "methodBody": "Read from each mod's jar (its ZombieBuddy patches). It means two mods work on the same method, not that they clash: that depends on what each patch does, which the Studio cannot tell. Patches that add code to a method stack, one after the other. Nothing to do unless that part of the game misbehaves; then these are the mods to try without.",
+        "classTitle_one": "{{count}} class of the game is changed by the Java of more than one mod, in different methods",
+        "classTitle_other": "{{count}} classes of the game are changed by the Java of more than one mod, in different methods",
+        "classBody": "Read from each mod's jar (its ZombieBuddy patches). Each mod changes other methods than the rest, so none changes another's method; whether they get along still depends on what each does. Nothing to do.",
+        "show_one": "Show it",
+        "show_other": "Show the {{count}}"
+      },
       "andMore": " and {{count}} more.",
       "usedByServers": "The server {{servers}} uses them: a server without Steam reads only Zomboid/mods, so the copies stay. Letting the Studio keep them changes nothing for the server."
     },
@@ -940,7 +963,31 @@
     "copiesAdoptedDone_other": "Done: the Studio keeps {{count}} copies and says when they get old.",
     "recopiedDone_one": "Done: {{count}} mod copied again from the Workshop.",
     "recopiedDone_other": "Done: {{count}} mods copied again from the Workshop.",
-    "replaceSameModCopy": "{{mod}} already has a copy in Zomboid/mods (made by hand or for a server). Replace it with a compatible copy? It is the same mod adapted to your build: your games and a server without Steam still have it. The current copy is kept in Zomboid/PZModStudio_Backups/mods."
+    "replaceSameModCopy": "{{mod}} already has a copy in Zomboid/mods (made by hand or for a server). Replace it with a compatible copy? It is the same mod adapted to your build: your games and a server without Steam still have it. The current copy is kept in Zomboid/PZModStudio_Backups/mods.",
+    "authorNote": {
+      "button": "Suggestion for the author",
+      "title": "Copies a text in English to paste in the mod's Workshop comments: what kept it from running on your game build and, file and line, what works here. It is a suggestion with the example; the Studio publishes nothing.",
+      "copied": "Suggestion copied. Paste it in the mod's Workshop comments.",
+      "failed": "Could not make the suggestion: {{reason}}"
+    },
+    "scope": {
+      "mod": {
+        "word": "the mod",
+        "title": "The mod against your game build: it happens to anyone who uses it on this build."
+      },
+      "combo": {
+        "word": "your combination",
+        "title": "This mod beside the others you have on: it depends on your list."
+      },
+      "install": {
+        "word": "your install",
+        "title": "Files and copies on this PC."
+      },
+      "own": {
+        "word": "your mod",
+        "title": "A mod you are making (its folder is linked from elsewhere)."
+      }
+    }
   },
   "dialogs": {
     "kept": {
@@ -1857,6 +1904,30 @@
     "apply": "Apply Preset to my Game"
   },
   "inspector": {
+    "java": {
+      "title": "Classes its Java changes ({{count}})",
+      "how": "Declared in its jar ({{jar}}, package {{package}}) as ZombieBuddy patches; read without running it.",
+      "none": "Its jar declares no ZombieBuddy patch in the package ZombieBuddy scans.",
+      "wholeClass": "(no method named)",
+      "more": "and {{count}} more",
+      "notApplied": "{{count}} more in the jar that ZombieBuddy does not apply: {{why}}.",
+      "why": {
+        "outside_package": "outside the package it scans",
+        "experimental": "experimental, off unless switched on",
+        "zombiebuddy_class": "aimed at ZombieBuddy's own classes",
+        "exposer": "a patch ZombieBuddy refuses"
+      },
+      "sharedMethod": "{{methods}}: also changed by {{mods}}",
+      "sharedClass": "other methods of it are changed by {{mods}}",
+      "sharedNote": "Where another mod on your list changes the same class, it says so under it. That is not a clash by itself: it depends on what each patch does.",
+      "byCode": "Some are applied by the mod's own code, which may do so only in some cases.",
+      "inCode": "Its own code also uses {{what}} directly: it can change classes in ways the jar does not declare, which the Studio cannot list.",
+      "sideClient": "Client only: a dedicated server skips this jar.",
+      "sideServer": "Server only: the game itself skips this jar.",
+      "jarMissing": "Its mod.info names {{jar}}, which is not where ZombieBuddy looks for it on this build: there is no jar to read.",
+      "noPackage": "Its mod.info names a jar ({{jar}}) but no javaPkgName=: ZombieBuddy does not load it.",
+      "unreadable": "Its jar ({{jar}}) could not be read, so what it changes is not known."
+    },
     "changelog": "Latest in its changelog",
     "noDescription": "No description provided in mod.info manifest.",
     "selectOne": "Select a mod from the left list to view Workshop metadata details.",
@@ -2303,8 +2374,10 @@
       "next": "Switch it on in the Mod List when it is ready; \"Start the game with only this mod\" here works as soon as the scan lists it."
     },
     "pick": {
-      "title": "The mod you are working on",
-      "aria": "Mod to work on",
+      "title": "The mod to look at (yours or someone else's)",
+      "aria": "Mod to look at",
+      "foreign": "This mod is someone else's. Here it is only checked: the Studio does not write into its folder, and the tabs for editing (reload in game, translations) are off. If something fails, tell the author; to fix it on your PC without touching the mod, use a package from the Merger.",
+      "ownOnly": "Only for your own mods: this one is another author's",
       "placeholder": "Pick a mod…",
       "group": {
         "upload": "Your Workshop uploads (Zomboid/Workshop)",
@@ -2312,13 +2385,14 @@
         "installed": "Installed from Nexus, a file or a link",
         "compat": "Copies the Studio adapted to your game build (mods your build did not load)",
         "studio": "The Studio's own mods",
-        "workshop": "Workshop subscriptions"
+        "workshop": "Other authors' mods (Workshop subscriptions): only to look at"
       },
       "openFolder": "Open its folder",
       "checkTitle": "Every .lua through the parser the Merger uses, every media/scripts/*.txt through a brace check",
       "check": "Check every file",
       "launchTitle": "Debug (Windowed), with only this mod, what it requires and the Studio's bridge on. Your list is set aside and comes back when the game closes; Earlier lists has it too.",
-      "launch": "Start the game with only this mod"
+      "launch": "Start the game with only this mod",
+      "compatNote": "This is the copy the Studio adapted to your game build; the original is someone else's. You can pass on to the author what worked here."
     },
     "reload": {
       "title": "Reload in the game while it runs",
@@ -2521,6 +2595,8 @@
       "spamFilterTitle": "Filter or hide missing translation spam",
       "spamActive": "Spam Filter: ACTIVE",
       "spamShowAll": "Filter: SHOW ALL",
+      "hideZb": "Hide ZombieBuddy",
+      "hideZbTitle": "Hides ZombieBuddy's routine lines ([ZB]: what it patches, transformed, found), thousands of them with many Java mods. Those that report trouble stay. The cards on the right do not change.",
       "closeTab": "Close tab",
       "copyTitle": "Copy visible log to clipboard",
       "clearTitle": "Clear viewer for this tab",
@@ -2537,7 +2613,10 @@
       "player2Tab": "🟣 Game 2 (Zomboid2)",
       "player2Empty": "The multiplayer test's game 2 has not written its console yet (Zomboid2/console.txt).",
       "serverTabNamed": "🖥️ Server {{name}} ({{mode}})",
-      "fromFile": "[PZ Monitor Center] This game was not started by the app: its console.txt is shown (refreshed every 2 seconds)."
+      "fromFile": "[PZ Monitor Center] This game was not started by the app: its console.txt is shown (refreshed every 2 seconds).",
+      "nothingRunning": "No game or server is open. The live consoles show up on their own when one starts. To read the last session, use \"Open the last session\" or the + button to pick another log.",
+      "openLastSession": "Open the last session",
+      "openLastSessionTitle": "Opens console.txt, the log of the last time the game was open, in a tab of its own"
     },
     "launch": {
       "setupTitle": "Setup Required: Game Directory",
@@ -2567,7 +2646,7 @@
       "reportCopied": "Report copied to the clipboard",
       "heading": "DIAGNOSTICS",
       "exceptionsBadge": "{{count}} exception(s)",
-      "exceptionsBadgeTitle": "Something threw: the game wrote these at ERROR level or as a stack trace. Each card says whether there is anything to do",
+      "exceptionsBadgeTitle": "The game reported an exception on these lines. Each card says whether there is anything to do",
       "warningsBadge": "{{count}} warning(s)",
       "newChip": "new",
       "newTitle": "Not seen in any of the {{sessions}} earlier sessions the Studio remembers",
@@ -2579,13 +2658,13 @@
       "onlyNew": "Only the new ones",
       "warningsBadgeTitle": "The game noticed and carried on: WARN lines that name a mod",
       "summaryExceptions": "{{total}} error lines in this log are {{distinct}} different problems: the game writes the same failure again every time it happens.",
-      "summaryNothingThrew": "Nothing threw in this log: the game carried on past every line below.",
+      "summaryNothingThrew": "The game reported no exception in this log.",
       "summaryAlsoErrorLines": " It also wrote {{total}} ERROR lines of {{distinct}} shape(s) that name no mod and match no rule here; the Errors filter on the left shows them.",
       "summaryErrorLinesOnly": "{{total}} ERROR lines of {{distinct}} shape(s), none naming a mod or matching a rule here; the Errors filter on the left shows them.",
       "summaryIdle": "Exceptions the game throws and warnings it names a mod on, as they happen.",
       "discard": "Discard",
       "discardTitle": "Discard all cards",
-      "nothingThrew": "Nothing threw",
+      "nothingThrew": "No exceptions",
       "dismiss": "Dismiss",
       "emptyTitle": "Nothing to report",
       "emptyBody": "A card appears when the game throws, or when it writes a warning and names the mod. Everything else in the console stays on the left.",
@@ -2593,7 +2672,7 @@
       "warningChipTitle": "The game wrote this at WARN level: it noticed and carried on",
       "timesSeenTitle": "This error is in the log {{count}} times{{share}}. The ones that repeat are the ones worth fixing first.",
       "timesSeenShare": " — {{pct}}% of every error line",
-      "modOnLine": "The game named this mod on the log line",
+      "modOnLine": "The game named this mod on the log line or in the stack frame just above it",
       "modInStack": "The game named this mod in the stack trace under the error",
       "calledFrom": "called from {{mods}}",
       "calledFromTitle": "The error was in {{mod}}'s code, and the game's stack shows it was called from {{mods}}. The fault can be in either: the caller may pass something the other does not expect.",
@@ -2606,7 +2685,11 @@
       "inspectTitle": "Jump to this error in the console logs",
       "copyLineTitle": "Copy error snippet to clipboard",
       "copied": "Copied",
-      "copyLine": "Copy the line"
+      "copyLine": "Copy the line",
+      "ownChip": "your mod",
+      "ownChipTitle": "A mod you are making (its folder is linked from elsewhere).",
+      "ownActionAt": "This is your mod. The game's stack puts the error at {{file}}, line {{line}}.",
+      "ownAction": "This is your mod. The lines around this one in the console may name the file and the line."
     },
     "fixes": {
       "noFileAsks": "No file of any active mod asks for {{module}} in a way the Studio can rewrite, so there is nothing to change.",
@@ -2636,7 +2719,10 @@
       "openMergerTitle": "The Build 42 shim ships inside a merge package: build one in the Mod Merger",
       "openMerger": "A merge package may fix this — open the Mod Merger",
       "shimCovers": "The Build 42 shim already covers this",
-      "fixPathQuiet": "Fix the path (only quiets the warning)"
+      "fixPathQuiet": "Fix the path (only quiets the warning)",
+      "closeGameFirst": "Close the game first: it holds the package's folder",
+      "openOwnFile": "Open {{file}} at line {{line}}",
+      "openedOwnFile": "Opened in {{where}}."
     },
     "bisect": {
       "startConfirm": "Start halving your mod list?\n\n{{count}} mods are switched on. The hunt switches half of them off, you play, and it halves again until one mod is left — about 8 launches for a list this size.\n\nYour list is kept and put back when the hunt ends, whichever way it ends.",
@@ -2671,10 +2757,15 @@
     "require": {
       "theGame": "the game",
       "nowhere": "No module called {{wanted}} exists in the game or in any mod you have switched on. The mod is asking for something that is not there: either it needs another mod you do not have, or it is a bug for its author.",
-      "samePath": "{{owner}} does have {{path}}, at exactly that path, under {{phase}}/. The file is there, so the failure is about where or when it was asked for: the game keeps client, server and shared apart, and a file in one cannot require a module in another; and a module is not there yet if the mod that owns it loads later. Changing the path fixes neither.",
-      "gameMovedNoise": "The game has this module at {{path}} (under {{phase}}/), not at {{wanted}}: Build 42 moved it. But the game loads its own Lua before any mod's, so the module has already run when the mod asks for it, and no error from this file follows in the log. The mod works: this line is only noise.",
-      "gameMovedFailed": "The game has this module at {{path}} (under {{phase}}/), not at {{wanted}}: Build 42 moved it. Further down the log {{file}} fails, so here it does count: fixing the path is what mends it.",
-      "moved": "It is {{owner}} that has this module, at {{path}} (under {{phase}}/), not at {{wanted}}. Patching that line of the mod to ask for the path on the right is what fixes it."
+      "samePath": "{{owner}} has {{path}} at exactly that path, in {{phase}}/. The file is there, so what failed is where it was asked from: the game loads shared first, then client, then server. shared cannot see client or server, and client cannot see server (on a dedicated server client/ is not loaded at all). Changing the path does not fix it.",
+      "gameMovedNoise": "The game has this module at {{path}} (in {{phase}}/), not at {{wanted}}. No error from this file follows this line in the log.",
+      "gameMovedFailed": "The game has this module at {{path}} (in {{phase}}/), not at {{wanted}}. Further down the log {{file}} fails, so here it matters: fixing the path is what mends it.",
+      "moved": "A module of that name is in {{owner}}, at {{path}} (in {{phase}}/), not at {{wanted}}. If it is the one this mod wants, changing that line to ask for that path fixes it; if {{owner}} has nothing to do with this mod, it may be a different module with the same name.",
+      "aMod": "A mod",
+      "optional": "{{mod}} asks for a module ({{wanted}}) that is not in the game or in any mod you have installed. The game carried on, and no error from {{file}} follows in the log: it looks like an optional link to another mod. Nothing to do.",
+      "optionalOff": "{{mod}} asks for a module of {{owner}} ({{wanted}}), which you have installed and switched off. The game carried on, and no error from {{file}} follows in the log: it looks like an optional link between the two. Nothing to do.",
+      "nowhereOff": "No module called {{wanted}} is in the game or in the mods you have switched on. {{owner}}, which you have installed and switched off, has it at that path.",
+      "movedUnrelated": "A module of that name is in {{owner}}, at {{path}} (in {{phase}}/), not at {{wanted}}. Neither mod asks for the other, so it may be a different module with the same name: nothing is fixed from here."
     }
   },
   "backendText": {
@@ -2702,6 +2793,9 @@
       "security_executable": "{{mod}} ships {{count}} program file(s): {{files}}{{more}}. A program in a mod runs with your rights, outside the game's Lua; keep the mod only if you trust its author. Nothing here says the file is harmful.",
       "security_script": "{{mod}} ships {{count}} script(s): {{files}}{{more}}. A script in a mod folder runs only if you run it yourself (these are usually the author's build helpers); nothing to do unless you open them.",
       "security_java": "{{mod}} carries Java code that can {{rules}} ({{where}}{{more}}). Build 42 runs a mod's Java with your rights, through ZombieBuddy, which asks before loading a new jar. Many mods do this for good reasons; keep the mod only if you trust its author.",
+      "java_patch_overlap_method": "{{mods}} each carry Java that changes the method {{methods}} of {{class}}. Whether they clash depends on what each patch does, which the Studio cannot tell from the jar: patches that add code to a method stack, one after the other.{{replace}}{{byCode}} Nothing to do unless this part of the game misbehaves; then try without one of them.",
+      "java_patch_overlap_methods": "{{mods}} each carry Java that changes the methods {{methods}} of {{class}}. Whether they clash depends on what each patch does, which the Studio cannot tell from the jar: patches that add code to a method stack, one after the other.{{replace}}{{byCode}} Nothing to do unless this part of the game misbehaves; then try without one of them.",
+      "java_patch_overlap_class": "{{mods}} each carry Java that changes {{class}}, in different methods ({{detail}}). Neither changes the method the other changes; whether they get along still depends on what each does.{{byCode}} Nothing to do.",
       "security_lua": "{{mod}}'s Lua does things the game's own scripts never do: {{rules}} ({{where}}{{more}}). The game's Lua cannot run programs or reach the internet by itself, so this is odd rather than dangerous; the file says what it is for.",
       "updated_since_last_play": "{{n}} active mods were updated since you last played: {{mods}}{{andMore}}. If a save misbehaves, start with these.",
       "user_rule_order": "You asked for {{mod}} to load after {{after}}{{note}}, and it comes before it in the list",
@@ -2747,13 +2841,17 @@
       "workshop_copy_kept": "{{mod}} runs from the Studio's copy in Zomboid/mods (for a server without Steam), up to date with Workshop item {{item}}. It wins over the Workshop in your games too; the Studio says when the item is updated.",
       "workshop_copy_kept_server": "{{mod}} runs from the Studio's copy in Zomboid/mods, up to date with Workshop item {{item}}; the server {{servers}} uses it. It wins over the Workshop in your games too; the Studio says when the item is updated.",
       "compatible_copy_unneeded_server": "{{mod}} runs from a Studio compatible copy in Zomboid/mods, and the Workshop original now loads on {{build}} as it is. But the server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it.",
-      "compatible_copy_server": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods ({{changes}}). The server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it."
+      "compatible_copy_server": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods ({{changes}}). The server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it.",
+      "api_missing": "{{mod}} calls {{count}} things this build of the game does not have, by name: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). If that code runs, it fails there; a mod that fails on every frame fills the log. The check goes by name only: a name made while the game runs is not seen.{{tail}}",
+      "api_missing_one": "{{mod}} calls something this build of the game does not have, by name: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). If that code runs, it fails there; a mod that fails on every frame fills the log. The check goes by name only: a name made while the game runs is not seen.{{tail}}"
     },
     "fragments": {
       "beside_others": ", beside {{others}}",
       "and_more": " and {{more}} more",
       "and_more_classes": " and {{more}} more classes",
       "and_more_places": " and {{more}} more places",
+      "java_patch_replace": " More than one of them replaces the method rather than adding to it, and ZombieBuddy's own source says only one replacement per method can work.",
+      "java_patch_by_code": " Some of these patches are applied by the mod's own code, which may do so only in some cases.",
       "java_exec": "run programs",
       "java_shell": "run shell commands",
       "java_network": "reach the internet",
@@ -2810,115 +2908,130 @@
       "tr_stale": " The words you chose are in your package, but a mod changed since: look again.",
       "fc_auto": "It can be merged automatically.",
       "fc_manual": "They change the same lines differently: choose in the Mod Merger.",
-      "a_file": "a file"
+      "a_file": "a file",
+      "api_more_names": " and {{moreNames}} more",
+      "api_tail_java": " This mod ships Java, which can give Lua names this check cannot read: it may be nothing.",
+      "api_tail_errors": " The last session's log has {{exceptions}} errors from this mod: the Monitor shows them.",
+      "text_whose_mod_one": "It is in {{mod}}'s translation files.",
+      "text_whose_mod_many": "They are in {{mod}}'s translation files.",
+      "text_whose_none_one": "The Studio did not find it in the texts of the mods you have on; it can be the game's own.",
+      "text_whose_none_many": "The Studio did not find them in the texts of the mods you have on; they can be the game's own."
     },
     "monitor": {
       "door_npc": {
         "title": "The game's own door code met a missing player (B42)",
-        "explanation": "A zombie or an NPC opened, thumped or broke a door or window, and the game's Java (IsoDoor.ToggleDoorActual) asked a player that does not exist whether it is the local one. It is the game's code, reached without any Lua: NPC mods (Project A-Life, Bandits) make it happen more often. The game catches it and carries on.",
-        "action": "Nothing to patch: no Lua runs on that path, so no package or shim can reach it. Ignore it unless it floods the log; then the mod that moves the NPC through the door is the one to report it to."
+        "explanation": "The game's Java for doors (IsoDoor.ToggleDoorActual) asked a player that does not exist whether it is the local one. That happens when something that is not a player opens a door. The failing code is the game's own.",
+        "action": "Nothing to patch from here: the code that fails is Java. If it floods the log, the lines under it say what moved through the door."
       },
       "door_npc_zombie": {
-        "title": "A zombie banged a door open: a bug in the game itself (B42)",
-        "explanation": "A zombie thumped a door until it opened, and the game's Java (IsoDoor.ToggleDoorActual) then asked the player who opened it whether they are the local one, to play the tension music. A zombie is no player, so that question fails. The door is already open when it does: only that music cue and the door's animation are skipped. No mod takes part.",
-        "action": "Nothing to do: it is the game's own code and changes nothing in play."
+        "title": "A zombie opened a door: an error in the game's own door code (B42)",
+        "explanation": "A zombie opened a door, and the game's Java (IsoDoor.ToggleDoorActual) then asked the player who opened it whether they are the local one, to play the tension music. A zombie is no player, so that question fails. The door is already open when it does: only that music cue and the door's opening animation are skipped. The failing code is the game's own.",
+        "action": "Nothing to do: the door opens as it should."
       },
       "item_too_big": {
-        "title": "The game ran out of room packing an item",
-        "explanation": "The game packs an item into bytes to save it or to make an item of an object, and this one held more than its buffer has room for. It is nearly always a mod asking a body on the ground for its item (IsoDeadBody:getItem), which packs the whole body with everything it carries: a body with a bag of liquids is enough. Nothing is lost: the body stays as it is.",
-        "action": "Nothing to do to play: the mod catches it and goes on. If it comes back each time you right-click near bodies, that mod checks every object around you that way; its author is the one to tell."
+        "title": "The game ran out of room packing something into bytes",
+        "explanation": "The game packs things into a buffer of bytes (an item to save it, or an object turned into an item) and this one held more than the buffer has room for. One known case is a mod asking a body on the ground for its item (IsoDeadBody:getItem), which packs the whole body with everything it carries. The lines under this one in the log say which code asked.",
+        "action": "If a mod is named next to this line, that mod is where to look. On its own this line does not say whether anything was lost."
       },
       "bandits_room": {
-        "title": "Bandits Week One Dining Room Safety (B42)",
-        "explanation": "Bandits Week One room program attempted to query getName() on an outdoor/unzoned tile where getRoom() is nil, generating error floods on each AI tick.",
-        "action": "Apply Polyfill Rule: B42_BANDITS_ROOM_SAFETY"
-      },
-      "daily_report": {
-        "title": "Daily Report Journal Callback Protection",
-        "explanation": "Daily Report Journal rollover or player death event executed callbacks on an uninitialized UI window.",
-        "action": "Apply Polyfill Rule: B42_DAILY_REPORT_SAFETY"
-      },
-      "translator_format": {
-        "title": "Translator Format Exception (% character)",
-        "explanation": "A mod called Translator.getText() with an unescaped % or . character, causing Java String formatting to collapse.",
-        "action": "Apply Polyfill Rule: SANITIZE_TRANSLATOR_FORMAT"
+        "title": "Bandits Week One: a room program read the room of a tile that has none",
+        "explanation": "Bandits Week One's BWORoomPrograms.lua asks a tile for its room and then for the room's name without checking that the tile has a room; outdoors it has none, and the script stops there.",
+        "action": "Its author is the one to fix it (a missing check for no room). If it repeats and bothers you, switching the mod off is the way to tell whether it matters in your game."
       },
       "save_item_missing": {
-        "title": "An item in the save no longer exists",
-        "explanation": "Loading the save, the game found an item (often a weapon part or something inside a container) that it cannot create any more: the mod that made it is off, or no longer defines it, or the save marked it removed when it was played without that mod. The game skips the item and carries on; that item is gone from the save.",
-        "action": "Nothing to do to keep playing. If the item matters, switch the mod named here on before loading the save. The line just above in the log (\"cannot create item\") names the item."
+        "title": "An item in the save could not be loaded",
+        "explanation": "Loading the save, the game met an item it cannot create any more (the line just above, \"cannot create item\", names it and its mod). When that item is a part attached to a weapon, the game drops the whole weapon that carried it, not only the part.",
+        "action": "If it matters: leave without saving, or restore a backup of the save, and switch the mod named on the line above back on before loading again. Once the game saves, the item is gone."
       },
       "translator_text": {
-        "title": "A mod's text has a bare % sign",
-        "explanation": "A text in a mod's translation file (a sandbox option's name or tooltip, usually) has a % that is not written %%, so Java's text formatting cannot read it. The game shows the text as it is and carries on: nothing else breaks.",
-        "action": "Nothing to do to play. The fix is in the mod's translation file (% written as %%); \"Save report\" names the mod, the file and the line."
+        "title": "A text has a % sign the game cannot format",
+        "explanation": "A translated text has a % that is not written %%, so Java's text formatting cannot read it. The game shows the text as it is and carries on. The text: {{keys}}. {{whose}}",
+        "action": "Nothing to do to play. When a mod ships the text, the fix is in its translation file (% written as %%); Save report names the mod, the file and the line."
       },
       "windows_low_memory": {
-        "title": "Windows closed the game for lack of memory",
-        "explanation": "At {{when}} the whole PC had {{charge}} of {{limit}} GB committed (RAM {{ram}} GB plus the page file); the game alone held {{game}} GB{{others}}. Windows then closed it. This is not the game's Java heap (-Xmx): the game's native side and Java mods grow past it.",
+        "title": "The game closed while Windows was out of memory",
+        "explanation": "At {{when}} Windows reported the whole PC out of memory: {{charge}} of {{limit}} GB committed (RAM {{ram}} GB plus the page file); the game held {{game}} GB{{others}}. The game crashed within moments of that. The limit that ran out is the PC's, not the game's Java heap (-Xmx).",
         "action": "A bigger page file (Windows > System > About > Advanced system settings > Performance > Virtual memory: system managed, or 16 to 32 GB), closing browsers and other big programs before playing, and fewer memory-hungry Java mods. Health > Performance > Memory keeps the last 14 days."
       },
       "ui_draw_reload": {
-        "title": "A window drew while the game was reloading its Lua",
-        "explanation": "A window of this mod ran its {{method}} while the game was loading its Lua again (a save loading, or back to the menu), a couple of frames before the class it is built on existed. Once the reload is done the window is fine.",
-        "action": "Nothing to do: it is timing during the reload, not a fault in play. The mod's author can guard that call; for you nothing changes."
+        "title": "A window ran before the class it is built on existed",
+        "explanation": "A window ran its {{method}} and the class it is built on was not there at that moment. This is usual for a frame or two while the game loads its Lua again (a save loading, back to the menu). If the same line repeats every frame, the class never exists and the window is broken.",
+        "action": "A few of these around a reload: nothing to do. Hundreds of them: the mod named next to this line is where to look."
       },
       "nil_table": {
-        "title": "Uninitialized Global Table Access",
-        "explanation": "Mod code attempted to access properties of a nil/uninitialized table before PZ Build 42 instantiated it.",
-        "action": "Apply Polyfill Rule: SAFE_GLOBAL_TABLE_ACCESS"
+        "title": "A script used something that was not there (nil)",
+        "explanation": "A script read or called \"{{key}}\" on a value that was nil at that moment. The file and the line are in the stack next to this line in the log.",
+        "action": "If a mod is named next to this line, that mod's file is where to look. The line alone does not say what stopped working."
       },
       "java_mod_error": {
-        "title": "{{mod}} (a Java mod) hit an error in its own code",
-        "explanation": "{{mod}} runs Java, not Lua, and wrote this itself: \"{{what}}\". The error is inside its own code (the lines under it in the log name its classes); no Lua mod called it with something wrong.",
-        "action": "The game carries on. What the mod says it turned off stays off until the game starts again. Only its author can mend it: Save report and send it to them. A merge package or a polyfill cannot reach Java."
+        "title": "{{mod}} wrote an error of its own to the log",
+        "explanation": "{{mod}} wrote this line itself: \"{{what}}\". It caught the error and went on.",
+        "action": "The line says what the mod did about it, if anything. A merge package or the shim cannot change Java code; Save report makes a text for its author."
       },
       "java_npe": {
-        "title": "Java Interop Null Pointer Exception",
-        "explanation": "A Java method returned null or received a null parameter from a legacy Lua mod call.",
-        "action": "Apply Universal Master Polyfills to handle null Java interop arguments safely."
+        "title": "Java met a missing value (NullPointerException)",
+        "explanation": "Some Java code used a value that was not there. The class named after \"at\" on the line says where. The line alone does not say whether a mod caused it: the lines under it in the log do.",
+        "action": "Nothing to apply from here. If it repeats and something misbehaves in game, the lines under it name who called that code."
       },
       "kahlua": {
-        "title": "Lua Runtime Execution Crash (Kahlua)",
-        "explanation": "An unhandled Lua runtime exception was thrown inside the PZ Kahlua VM.",
-        "action": "Apply Universal Master Polyfills to protect game loops and callframe stacktraces."
-      },
-      "index_bounds": {
-        "title": "Multiplayer Java ArrayList Out of Bounds (B42)",
-        "explanation": "A mod accessed IsoPlayer.getPlayers() or getOnlinePlayers() index 0 while the Java player collection was empty during a render/tick loop in Multiplayer.",
-        "action": "Apply Universal Master Polyfills (Safe ArrayList Proxy & getOnlinePlayers shield)."
-      },
-      "fancy_handwork": {
-        "title": "Fancy Handwork Multiplayer Hand Sync Safety",
-        "explanation": "Fancy Handwork fancyMP loop threw an uncaught error when evaluating local/remote player hand objects on tick.",
-        "action": "Apply Universal Master Polyfills to guard FancyHandwork callbacks safely."
-      },
-      "sauced_carts": {
-        "title": "SaucedCarts Pushable Carts Multiplayer Sync",
-        "explanation": "Pushable Carts vehicle/entity interaction threw a null pointer exception during multiplayer state updates.",
-        "action": "Apply Universal Master Polyfills to guard SaucedCarts interop."
-      },
-      "duplicate_id": {
-        "title": "Duplicate Item/Recipe ID Collision",
-        "explanation": "Multiple active mods registered the same script ID or recipe name, causing overwrite conflicts.",
-        "action": "Use Merger Module to merge script definitions into Master Patch."
+        "title": "A Lua script raised an error itself",
+        "explanation": "A script called error(\"...\") with the message on this line. When that happens inside pcall the script caught it itself and nothing broke; the lines around it in the log say which.",
+        "action": "Nothing to do unless something misbehaves in game; then the lines next to this one name the file."
       },
       "package_copy": {
         "title": "{{file}}, the patched copy in {{package}}, reported a problem",
         "action": "The game read {{package}}'s copy of this file, not the mod's. If the patch did not touch this line, the mod's own copy says the same thing, and a copy that changes nothing only freezes the file at today's version: unmerge it in the Merger. If it did, this is the line to look at there."
       },
       "mod_named_exception": {
-        "title": "{{mod}} reported a problem",
+        "title": "The game named {{mod}} on this line",
         "action": "The game named {{mod}} on this line. If something is misbehaving in game, switching that mod off is the quickest way to tell whether it is the cause."
       },
       "mod_named_warning": {
-        "title": "{{mod}} reported a problem",
+        "title": "The game named {{mod}} on this line",
         "action": "The game named {{mod}} here and carried on. Nothing to do unless something in that mod misbehaves in game; then this line is where to look."
       },
       "connection_lost": {
-        "title": "The connection to the server was lost while joining",
-        "explanation": "While joining, the connection to the server closed (it often does while the game downloads the server's mods), and the game then failed on it and stayed on a blank screen. It is the game's connection, not a mod.",
-        "action": "Close the game and join again: what it downloaded is kept, so this time it goes straight in. A warning just before (\"required mod ... not found\") is a mod the game only sees after it restarts."
+        "title": "The connection to the server was gone while joining",
+        "explanation": "While joining, the game tried to use its connection to the server (to report a missing mod, in the case seen) and the connection was already closed. It is the game's own code, not a mod's.",
+        "action": "Join again. If a \"required mod ... not found\" line comes back just before this one, that mod is not installed for this game."
+      },
+      "translator_text_missing": {
+        "title": "A text has a placeholder and was given no value",
+        "explanation": "A translated text has a placeholder (%1, %s) and the code that asked for it passed no value. The game shows the text with the placeholder still in it and carries on. The text: {{keys}}. {{whose}}",
+        "action": "Nothing to do to play. Save report names the key and, when a mod ships it, the mod and the file."
+      },
+      "mod_named_exception_above": {
+        "title": "{{mod}} was named just above this line",
+        "action": "This line names no mod: {{mod}} is in the stack frame the game printed just above it, so the error came up while that mod's code was running. Whether the mod is the cause, the lines around it in the log say."
+      },
+      "mod_named_warning_above": {
+        "title": "{{mod}} was named just above this line",
+        "action": "This line names no mod: {{mod}} is in the stack frame the game printed just above it, so the error came up while that mod's code was running. Whether the mod is the cause, the lines around it in the log say."
+      },
+      "windows_low_memory_nogame": {
+        "title": "The game closed while Windows was out of memory",
+        "explanation": "At {{when}} Windows reported the whole PC out of memory: {{charge}} of {{limit}} GB committed (RAM {{ram}} GB plus the page file){{others}}. The game crashed within moments of that. The limit that ran out is the PC's, not the game's Java heap (-Xmx).",
+        "action": "A bigger page file (Windows > System > About > Advanced system settings > Performance > Virtual memory: system managed, or 16 to 32 GB), closing browsers and other big programs before playing, and fewer memory-hungry Java mods. Health > Performance > Memory keeps the last 14 days."
+      },
+      "java_out_of_memory": {
+        "title": "The game's Java could not get more memory",
+        "explanation": "Java asked for memory and got none (OutOfMemoryError). This one is not the Java heap limit: it is memory outside it, which runs out when the PC itself is short. The game usually closes or stops responding after this.",
+        "action": "Close other big programs before playing. Health > Performance > Memory shows what the PC had; raising the Java limit does not help with this one."
+      },
+      "java_out_of_memory_heap": {
+        "title": "The game's Java ran out of the memory it was given",
+        "explanation": "Java reported \"Java heap space\": the game used all the memory its Java is allowed (the -Xmx limit). The game usually closes or stops responding after this.",
+        "action": "Health > Performance > Memory shows the limit, what the PC has, and lets you raise it for the next start."
+      },
+      "translator_text_many": {
+        "title": "{{count}} texts have a % sign the game cannot format",
+        "explanation": "{{count}} translated texts have a % that is not written %%, so Java's text formatting cannot read them. The game shows each text as it is and carries on. The texts: {{keys}}{{more}}. {{whose}}",
+        "action": "Nothing to do to play. When a mod ships the texts, the fix is in its translation files (% written as %%); Save report names the mod, the file and the line of the first one."
+      },
+      "translator_text_missing_many": {
+        "title": "{{count}} texts have a placeholder and were given no value",
+        "explanation": "{{count}} translated texts have a placeholder (%1, %s) and the code that asked for them passed no value. The game shows each text with the placeholder still in it and carries on. The texts: {{keys}}{{more}}. {{whose}}",
+        "action": "Nothing to do to play. Save report names the first key and, when a mod ships it, the mod and the file."
       }
     },
     "validate": {
@@ -2981,7 +3094,7 @@
     "space": "{{free}} free on the disk of the backups (of {{total}}). Backups use {{used}}.",
     "spaceUnknown": "Backups use {{used}}. The free space of the disk could not be read.",
     "lowSpace": "Little room left: your biggest save ({{size}}) may not fit twice more. Remove old backups or free some space.",
-    "empty": "No saves yet. Start a game and it shows here.",
+    "empty": "empty",
     "line": "{{mode}} · {{size}} · {{files}} files · {{mods}} mods · last changed {{when}}",
     "madeOn": "made on {{build}}",
     "madeOnTitle": "World version {{version}}: the game build that wrote this save. A newer build updates it in place when you load it.",
@@ -3075,7 +3188,58 @@
     "onlyProfile": "Only {{name}}'s",
     "noneForProfile": "No save played with the profile {{name}} yet. Saves get their profile when you play them with the Studio open; \"Show all\" has the rest.",
     "noProfile": "No profile",
-    "noProfileTitle": "Not played with the Studio open since profiles are noted, and its mods are not exactly any profile's."
+    "noProfileTitle": "Not played with the Studio open since profiles are noted, and its mods are not exactly any profile's.",
+    "serverWorld": "Server's world",
+    "serverWorldTitle": "The world of a server that runs on this PC (Zomboid/Server has its .ini). Its mods are that server's, not a profile's.",
+    "joinedTitle": "What the game keeps on this PC of a server you joined. That server decides the mods.",
+    "copyOf": "hand-made copy of {{name}}",
+    "copyOfTitle": "Its name continues another save's: a copy someone made by hand in the saves folder, not a game of its own.",
+    "lineServer": "{{mode}} · {{size}} · {{files}} files · {{mods}} mods on its server · last change {{when}}",
+    "lineJoined": "{{mode}} · {{size}} · {{files}} files · the server sets the mods · last change {{when}}",
+    "rename": "Rename",
+    "renameTitle": "Renames the save: its folder, its backups and what the Studio remembers of it. Enter to accept, Esc to cancel. With the game closed.",
+    "renameNotThis": "The game or its server finds this save by its name: renamed, they would start a new one.",
+    "renamed": "\"{{world}}\" is now called \"{{name}}\".",
+    "remove": "Remove the save",
+    "removeTitle": "Takes the save out of the list and of the game's saves folder. It goes to this screen's bin: from there it can be put back or deleted from the disk. With the game closed.",
+    "removeConfirm": "Remove the save \"{{world}}\" ({{size}})?\n\nThe game stops seeing it and it goes to this screen's bin, from where it can be put back. The space is freed when the bin is emptied. Its {{backups}} zip backups stay where they are.",
+    "removed": "\"{{world}}\" went to the bin.",
+    "bin": {
+      "line_one": "Bin: {{count}} removed save, {{size}}.",
+      "line_other": "Bin: {{count}} removed saves, {{size}}.",
+      "show": "Show",
+      "hide": "Hide",
+      "empty": "Empty the bin",
+      "emptyTitle": "Deletes from the disk, for good, the saves you removed. The saves still in the list are not touched.",
+      "emptyConfirm_one": "Delete {{count}} removed save for good ({{size}})?\n\nThis cannot be undone. Its zip backups, if it had any, stay.",
+      "emptyConfirm_other": "Delete the {{count}} removed saves for good ({{size}})?\n\nThis cannot be undone. Their zip backups, if they had any, stay.",
+      "emptied": "The bin is empty: {{size}} freed.",
+      "restore": "Put back",
+      "restored": "\"{{world}}\" is back in the list of saves.",
+      "delete": "Delete",
+      "deleteConfirm": "Delete \"{{world}}\" for good ({{size}})?\n\nThis cannot be undone.",
+      "deleted": "\"{{world}}\" was deleted from the disk ({{size}}).",
+      "removedOn": "removed {{when}}"
+    },
+    "lost": {
+      "line_one": "Backups of {{count}} save that is gone, {{size}}.",
+      "line_other": "Backups of {{count}} saves that are gone, {{size}}.",
+      "row_one": "{{mode}} · {{count}} backup · {{size}} · the last from {{when}}",
+      "row_other": "{{mode}} · {{count}} backups · {{size}} · the last from {{when}}",
+      "recover": "Recover",
+      "recoverTitle": "Makes the save again from its newest backup. With the game closed.",
+      "recoverConfirm": "Recover \"{{world}}\" as it was on {{when}}?\n\nThe save is back in the list. Its backups stay.",
+      "recovered": "\"{{world}}\" is back, as it was on {{when}}.",
+      "delete": "Delete backups",
+      "deleteConfirm_one": "Delete the backup of \"{{world}}\" for good ({{size}})?\n\nThe save no longer exists: without this backup it cannot be recovered. This cannot be undone.",
+      "deleteConfirm_other": "Delete the {{count}} backups of \"{{world}}\" for good ({{size}})?\n\nThe save no longer exists: without these backups it cannot be recovered. This cannot be undone.",
+      "deleted": "The backups of \"{{world}}\" were deleted ({{size}}).",
+      "deleteAll": "Delete all",
+      "deleteAllTitle": "Deletes from the disk, for good, the backups of saves that no longer exist. The backups of the saves still in the list are not touched.",
+      "deleteAllConfirm_one": "Delete for good the backups of {{count}} save that no longer exists ({{size}})?\n\nWithout them it cannot be recovered. This cannot be undone.",
+      "deleteAllConfirm_other": "Delete for good the backups of the {{count}} saves that no longer exist ({{size}})?\n\nWithout them they cannot be recovered. This cannot be undone.",
+      "deletedAll": "The backups of the saves that are gone were deleted: {{size}} freed."
+    }
   },
   "update": {
     "available": "PZ Mod Studio {{latest}} is available",
@@ -3090,7 +3254,8 @@
     "failed": "Not updated: {{error}}"
   },
   "notices": {
-    "javaAgentsLater": "Project Zomboid was open when the profile changed, so its launch file (Java agents such as ZombieBuddy) waited. Now that the game is closed it is done. On: {{on}}. Off: {{off}}."
+    "javaAgentsLater": "Project Zomboid was open when the profile changed, so its launch file (Java agents such as ZombieBuddy) waited. Now that the game is closed it is done. On: {{on}}. Off: {{off}}.",
+    "zbListHidden": "The Studio hid the list of Java mods ZombieBuddy writes over the game's menu. To see it again: Settings, with developer features on."
   },
   "preview": {
     "cancel": "Cancel",

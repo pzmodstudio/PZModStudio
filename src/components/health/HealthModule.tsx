@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PageGuide } from '../common/PageGuide';
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, ListChecks, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, X } from 'lucide-react';
 import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, IssueState, ModInfo } from '../../types';
-import { STATE_ORDER, STATE_STYLE, UNDO_ACTIONS, issueStateOf } from '../../utils/issueState';
+import { STATE_ORDER, STATE_STYLE, UNDO_ACTIONS, issueStateOf, scopeOfIssue, SCOPE_CHIP } from '../../utils/issueState';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { loadCommunityIndex } from '../../services/communityIndex';
@@ -128,8 +128,10 @@ type SectionItem = { kind: 'one'; issue: HealthIssue } | { kind: 'group'; code: 
  * lists one row per broken require, with the same fix).
  */
 const groupKey = (i: HealthIssue): string | null =>
+  // Java patches of several mods on one class: one card for the shared methods, one for the rest.
+  i.code === 'java_patch_overlap' ? `${i.code}|${i.params?.variant === 'class' ? 'class' : 'method'}`
   // A copy a server keeps in use says so on its own row.
-  GROUP_CODES.has(i.code) && !(i.code.startsWith('compatible_copy') && i.params?.variant === 'server') ? i.code : i.code === 'community_known_issue' && i.mod_id ? `${i.code}|${i.mod_id}` : null;
+  : GROUP_CODES.has(i.code) && !(i.code.startsWith('compatible_copy') && i.params?.variant === 'server') ? i.code : i.code === 'community_known_issue' && i.mod_id ? `${i.code}|${i.mod_id}` : null;
 const groupItems = (issues: HealthIssue[]): SectionItem[] => {
   const groups = new Map<string, HealthIssue[]>();
   issues.forEach((i) => {
@@ -323,6 +325,27 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
    */
   const [done, setDone] = useState<string | null>(null);
   const say = (what: string) => setDone(what);
+  /**
+   * Whose problem it is, as a small chip: the mod's (same for everyone), this list's, this PC's,
+   * or the player's own mod (one they are making).
+   */
+  const scopeChip = (code: string, ownMod = false) => {
+    const scope = scopeOfIssue({ code, own_mod: ownMod });
+    return scope ? (
+      <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded border ${SCOPE_CHIP[scope]}`} title={t(`health.scope.${scope}.title`)}>
+        {t(`health.scope.${scope}.word`)}
+      </span>
+    ) : null;
+  };
+  /** Copies the note for a mod's author: what works on this build, as a suggestion with the example. */
+  const copyAuthorSuggestion = async (modId: string) => {
+    try {
+      await navigator.clipboard.writeText(await TauriService.compatAuthorSuggestion(paths, modId));
+      setDone(t('health.authorNote.copied'));
+    } catch (err) {
+      setDone(t('health.authorNote.failed', { reason: String(err) }));
+    }
+  };
 
   const handleFix = (fix: HealthFix, issue?: HealthIssue) => {
     if (fix.action === 'merge_files') {
@@ -602,7 +625,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     return { applicable, enableThenMove, fixes: enableThenMove ? [applicable[0]] : applicable };
   };
   const labelOf = (issue: HealthIssue, fix: HealthFix) =>
-    YOUR_CALL_CODES.has(issue.code) && fix.action === 'move_before' ? t('health.useVersionInstead', { name: nameOf(fix.before) }) : fixLabel(fix);
+    YOUR_CALL_CODES.has(issue.code) && fix.action === 'move_before' ? t('health.useVersionInstead', { name: nameOf(fix.before) })
+      : issue.code === 'two_mod_managers' && fix.action === 'disable_mod' ? t('health.fix.useStudioScreen')
+      : fixLabel(fix);
 
   /**
    * One row: the state in words, the mod, what is going on, what the first button changes (said
@@ -614,7 +639,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     const Icon = style.icon;
     const { applicable, enableThenMove, fixes } = fixesOf(issue);
     const undoOnly = state === 'handled' || state === 'info';
-    const primary = fixes.find((f) => !(undoOnly && UNDO_ACTIONS.has(f.action)));
+    // On a mod the player is making, "switch it off" is never the thing to do first: it stays, quiet.
+    const primary = fixes.find((f) => !(undoOnly && UNDO_ACTIONS.has(f.action)) && !(issue.own_mod && f.action === 'disable_mod'));
     return (
       <div
         key={key}
@@ -626,6 +652,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
+            {scopeChip(issue.code, issue.own_mod)}
             {issue.mod_id && (
               <span className="text-[12.5px] font-bold text-slate-100 truncate">
                 {nameOf(issue.mod_id)}
@@ -741,6 +768,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
+              {scopeChip(code, issues.every((i) => i.own_mod))}
               <span className="text-[12.5px] font-bold text-slate-100 truncate">{nameOf(modId)}</span>
             </div>
             <div className="text-xs text-slate-300">{t('health.group.community_known_issue.title', { count: issues.length })}</div>
@@ -793,6 +821,39 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         </div>
       );
     }
+    if (code === 'java_patch_overlap') {
+      // Where the Java of several mods changes the same class of the game: what each row says,
+      // folded, under one sentence that says what an overlap is and is not.
+      const kind = issues[0].params?.variant === 'class' ? 'class' : 'method';
+      return (
+        <div key={key} className={`flex items-start gap-3 p-3 rounded-lg border ${style.card} ${issues.some((i) => litKey === issueKey(i)) ? 'ring-2 ring-cyan-400' : ''}`}>
+          <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span> {scopeChip(code)}
+            <div className="text-[12.5px] font-bold text-slate-100">{t(`health.group.java_patch_overlap.${kind}Title`, { count: issues.length })}</div>
+            <div className="text-xs text-slate-300 leading-relaxed">{t(`health.group.java_patch_overlap.${kind}Body`)}</div>
+            <details className="mt-1.5">
+              <summary className="text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer select-none">{t('health.group.java_patch_overlap.show', { count: issues.length })}</summary>
+              <ul className="mt-1.5 flex flex-col gap-1">
+                {issues.map((i, n) => (
+                  <li key={n} data-issue-key={issueKey(i)} data-issue-code={`${i.code}|${i.mod_id ?? ''}`} className="rounded border border-slate-800/80 bg-slate-950/40 px-2 py-1">
+                    <div className="text-[11px] font-mono text-slate-200 break-all">
+                      {i.params?.class}
+                      {i.params?.methods ? <span className="text-slate-400"> · {i.params.methods}</span> : null}
+                    </div>
+                    <div className="text-[11px] text-slate-400 leading-relaxed">
+                      {kind === 'class' ? i.params?.detail : i.params?.mods}
+                      {i.params?.replaceKey ? t('backendText.fragments.java_patch_replace') : ''}
+                      {i.params?.byCodeKey ? t('backendText.fragments.java_patch_by_code') : ''}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        </div>
+      );
+    }
     // The one action the whole card takes, on every mod in it: the copies the originals no longer
     // need go, the copies made by hand are kept by the Studio, the outgrown ones copied again.
     const bulkAction: HealthFix['action'] | null =
@@ -814,7 +875,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       >
         <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <span className={`text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span> {scopeChip(code)}
           <div className="text-[12.5px] font-bold text-slate-100">{t(`health.group.${code}.title`, { count: issues.length })}</div>
           <div className="text-xs text-slate-300 leading-relaxed">{t(`health.group.${code}.body`)}</div>
           {bulk ? (
@@ -840,6 +901,16 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                     className={`flex items-center justify-between gap-2 text-xs text-slate-200 rounded px-1 ${litKey === issueKey(i) ? 'ring-2 ring-cyan-400' : ''}`}
                   >
                     <span className="truncate">{nameOf(i.mod_id ?? '')}</span>
+                    {i.code === 'compatible_copy' && i.mod_id && !i.own_mod && (
+                      <button
+                        type="button"
+                        onClick={() => void copyAuthorSuggestion(i.mod_id!)}
+                        title={t('health.authorNote.title')}
+                        className="ml-auto px-2 py-0.5 rounded text-[10px] text-sky-300 hover:text-sky-100 border border-sky-800/70 hover:bg-sky-900/40 cursor-pointer shrink-0"
+                      >
+                        {t('health.authorNote.button')}
+                      </button>
+                    )}
                     {fix && (
                       <button
                         type="button"

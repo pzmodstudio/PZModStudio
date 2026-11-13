@@ -116,6 +116,13 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
   }, []);
 
   const [filterSpam, setFilterSpam] = useState<boolean>(true);
+  // ZombieBuddy's own lines ([ZB] patching..., Transformed..., Found patch...): a third of a
+  // session's log with many Java mods. Hidden unless asked for; the choice is remembered.
+  const [hideZb, setHideZb] = useState<boolean>(() => localStorage.getItem('pz_monitor_hide_zb') !== 'false');
+  const toggleHideZb = () => setHideZb((v) => {
+    localStorage.setItem('pz_monitor_hide_zb', String(!v));
+    return !v;
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [severityFilter, setSeverityFilter] = useState<LogSeverityFilter>('ALL');
   const [copied, setCopied] = useState<boolean>(false);
@@ -158,6 +165,10 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     }
   }, []);
   const [activeTabId, setActiveTabId] = useState<string>('live_console');
+  // Which of the three live consoles has something running behind it: a live tab shows only
+  // then. With nothing running the bar holds just the logs opened by hand.
+  const [running, setRunning] = useState<Record<string, boolean>>({ live_console: false, live_server: false, live_player2: false });
+  const pollCount = useRef(0);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [clearedAnchors, setClearedAnchors] = useState<Record<string, string>>({});
 
@@ -187,8 +198,20 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
           ? t('monitor.console.serverTabNamed', { name: srvStatus.server_name, mode: srvStatus.nosteam ? 'NoSteam' : 'Steam' })
           : t('monitor.console.serverTab');
         setTabs((prev) => prev.map((tab) => (tab.id === 'live_server' && tab.title !== serverTitle ? { ...tab, title: serverTitle } : tab)));
+        // The games on this PC, asked every third round (it lists the processes).
+        let gameOne: boolean | null = null;
+        if (pollCount.current++ % 3 === 0) {
+          const mp = await TauriService.mpTestStatus(paths).catch(() => null);
+          if (!isMounted) return;
+          if (mp) {
+            const players = mp.processes.filter((p) => p.role === 'player');
+            gameOne = players.some((p) => p.name !== '2');
+            const next = { live_console: gameOne, live_server: srvStatus.is_running || mp.processes.some((p) => p.role === 'server'), live_player2: players.some((p) => p.name === '2') };
+            setRunning((prev) => (prev.live_console === next.live_console && prev.live_server === next.live_server && prev.live_player2 === next.live_player2 ? prev : next));
+          }
+        }
         // Game 1's console.txt while the live stream has nothing (the app did not start that game).
-        const headerOnly = liveConsoleLines().length === 0;
+        const headerOnly = liveConsoleLines().length === 0 && gameOne !== false;
         if (headerOnly) {
           const p1 = await TauriService.mpTestPlayer2Log(paths, 1500, 1).catch(() => [] as string[]);
           if (p1.length > 0 && isMounted) {
@@ -351,7 +374,17 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     }
   };
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const shownTabs = useMemo(() => tabs.filter((tab) => !isPermanentTab(tab.id) || running[tab.id]), [tabs, running]);
+  /** Nothing running and no log opened: one line saying so, in place of a console. */
+  const idleTab = useMemo<LogTab>(() => ({ id: 'idle', title: '', isLive: false, lines: [t('monitor.console.nothingRunning')] }), [t]);
+  const activeTab = shownTabs.find((tab) => tab.id === activeTabId) || shownTabs[0] || idleTab;
+  /** Opens console.txt, the log of the last game session, as a tab of its own. */
+  const openLastSession = async () => {
+    if (!paths.user_zomboid_dir) return;
+    const files = await TauriService.listAvailableLogFiles(paths.user_zomboid_dir);
+    const last = files.find((l) => l.is_active_console) ?? files[0];
+    if (last) await handleOpenLogFile(last);
+  };
 
   // Filter lines dynamically
   const filteredLines = useMemo(() => {
@@ -368,6 +401,11 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     // 1. Spam filter
     if (filterSpam) {
       list = list.filter((line) => !isTranslationSpamLine(line));
+    }
+
+    // ZombieBuddy's routine lines; one that reports trouble stays.
+    if (hideZb) {
+      list = list.filter((line) => !line.includes('[ZB]') || /^(ERROR|WARN)|Exception|Error:/.test(line));
     }
 
     // 2. Severity filter
@@ -390,7 +428,7 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     }
 
     return list;
-  }, [activeTab, filterSpam, severityFilter, searchQuery, clearedAnchors]);
+  }, [activeTab, filterSpam, hideZb, severityFilter, searchQuery, clearedAnchors]);
 
   const handleClearActiveTab = () => {
     if (!activeTab) return;
@@ -479,6 +517,13 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
             <Filter className={`w-3.5 h-3.5 ${filterSpam ? 'text-emerald-400' : 'text-slate-500'}`} />
             <span>{filterSpam ? t('monitor.console.spamActive') : t('monitor.console.spamShowAll')}</span>
           </button>
+          <label
+            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-300 flex items-center gap-1.5 cursor-pointer select-none"
+            title={t('monitor.console.hideZbTitle')}
+          >
+            <input type="checkbox" checked={hideZb} onChange={toggleHideZb} className="accent-emerald-500" />
+            <span>{t('monitor.console.hideZb')}</span>
+          </label>
         </div>
       </div>
 
@@ -490,8 +535,18 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
           <div className="bg-slate-950 border-b border-slate-800 flex items-center justify-between px-2 pt-1.5 shrink-0 gap-2 relative z-30">
             {/* Tabs List (Only the tabs scroll horizontally if there are many) */}
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0">
-              {tabs.map((tab) => {
-                const isActive = tab.id === activeTabId;
+              {!shownTabs.some((tab) => tab.isLive) && (
+                <button
+                  type="button"
+                  onClick={() => void openLastSession()}
+                  title={t('monitor.console.openLastSessionTitle')}
+                  className="px-3 py-1.5 mb-1 rounded-lg text-xs font-bold text-sky-200 border border-sky-800/70 hover:bg-sky-900/40 cursor-pointer shrink-0"
+                >
+                  {t('monitor.console.openLastSession')}
+                </button>
+              )}
+              {shownTabs.map((tab) => {
+                const isActive = tab.id === activeTab.id;
                 return (
                   <button
                     key={tab.id}
@@ -758,7 +813,7 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
           mods={mods}
           errorCards={errorCards}
           logLines={activeTab?.lines ?? []}
-          reportLines={(tabs.find((t) => t.isLive) ?? tabs[0])?.lines ?? []}
+          reportLines={(shownTabs.find((tab) => tab.isLive) ?? activeTab).lines}
           onRefreshMods={onRefreshMods}
           onOpenMerger={onOpenMerger}
           onSwitchOffMod={onSwitchOffMod}

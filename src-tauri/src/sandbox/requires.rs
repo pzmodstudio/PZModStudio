@@ -26,6 +26,10 @@ pub struct ModuleCandidate {
     pub phase: String,
     /// "the game" or the mod's name.
     pub owner: String,
+    /// The mod's id; empty for the game. Whether the mod that asked has anything to do with this
+    /// one (it requires it, or is required by it) is looked up by it.
+    #[serde(default)]
+    pub owner_id: String,
     /// True when it sits at exactly the path that failed, which means the file is there and
     /// something else went wrong — usually the mod that owns it loading later.
     pub same_path: bool,
@@ -40,6 +44,10 @@ pub struct RequireAnswer {
     pub candidates: Vec<ModuleCandidate>,
     /// Said plainly, for the card.
     pub summary: String,
+    /// When it is nowhere among the game and the mods switched on: the installed mods that are
+    /// off and have a module at exactly the path asked for.
+    #[serde(default)]
+    pub installed_off: Vec<ModuleCandidate>,
 }
 
 /// `.../media/lua/<client|server|shared>/Some/Path.lua` -> `Some/Path`, which is how `require`
@@ -75,7 +83,7 @@ pub(crate) fn index_lua(root: &Path, owner: &str, into: &mut Vec<(String, Module
             .to_lowercase();
         into.push((
             key,
-            ModuleCandidate { module_path, phase, owner: owner.to_string(), same_path: false },
+            ModuleCandidate { module_path, phase, owner: owner.to_string(), owner_id: String::new(), same_path: false },
         ));
     }
 }
@@ -96,11 +104,38 @@ pub fn index_modules(
         if !seen.insert(m.id.clone()) {
             continue;
         }
+        let from = index.len();
         for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
             index_lua(&layer.join("media").join("lua"), &m.name, &mut index);
         }
+        for (_, candidate) in &mut index[from..] {
+            candidate.owner_id = m.id.clone();
+        }
     }
     index
+}
+
+/// The installed mods that are switched off and have `wanted` at exactly that path. Only the
+/// exact path: a file that merely has the same name in a mod that is off says nothing.
+pub fn installed_off_with(wanted: &str, catalog: &crate::catalog::ModCatalog, active: &[String]) -> Vec<ModuleCandidate> {
+    let wanted = wanted.trim().trim_matches('"').replace('\\', "/");
+    if wanted.is_empty() || wanted.contains("..") {
+        return Vec::new();
+    }
+    let on: std::collections::HashSet<&str> = active.iter().filter_map(|e| catalog.resolve(e.trim())).map(|m| m.id.as_str()).collect();
+    let game = catalog.game_version_int();
+    let mut out = Vec::new();
+    for m in catalog.mods.iter().filter(|m| m.shadowed_by.is_none() && !on.contains(m.id.as_str())) {
+        'phases: for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
+            for phase in ["shared", "client", "server"] {
+                if layer.join("media").join("lua").join(phase).join(format!("{}.lua", wanted)).is_file() {
+                    out.push(ModuleCandidate { module_path: wanted.clone(), phase: phase.to_string(), owner: m.name.clone(), owner_id: m.id.clone(), same_path: true });
+                    break 'phases;
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Where the module behind one failed `require` really is.
@@ -155,7 +190,7 @@ pub fn answer_for(wanted: &str, index: &[(String, ModuleCandidate)]) -> RequireA
         ),
     };
 
-    RequireAnswer { wanted: wanted_clean, candidates, summary }
+    RequireAnswer { wanted: wanted_clean, candidates, summary, installed_off: Vec::new() }
 }
 
 /// The module a `require("...") failed` line is about.
@@ -177,6 +212,7 @@ mod tests {
                 module_path: path.to_string(),
                 phase: "client".to_string(),
                 owner: owner.to_string(),
+                owner_id: String::new(),
                 same_path: false,
             },
         )
@@ -218,6 +254,33 @@ mod tests {
         let answer = answer_for("LSMoodleManager", &[]);
         assert!(answer.candidates.is_empty());
         assert!(answer.summary.contains("not there"), "{}", answer.summary);
+    }
+}
+
+#[cfg(test)]
+mod off_tests {
+    #[test]
+    fn a_module_of_a_mod_that_is_off_is_found_only_at_the_exact_path() {
+        let base = std::env::temp_dir().join(format!("pzms-requires-off-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let workshop = base.join("workshop");
+        let zomboid = base.join("Zomboid");
+        std::fs::create_dir_all(zomboid.join("mods")).unwrap();
+        for (item, id, name) in [("1", "Life", "Life Sim"), ("2", "OnMod", "On Mod")] {
+            let root = workshop.join(item).join("mods").join(id).join("42");
+            let lua = root.join("media").join("lua").join("client");
+            std::fs::create_dir_all(&lua).unwrap();
+            std::fs::write(root.join("mod.info"), format!("id={}\nname={}\n", id, name)).unwrap();
+            std::fs::write(lua.join("LSMoodleManager.lua"), "return {}").unwrap();
+        }
+        let catalog = crate::catalog::build_catalog(&workshop.to_string_lossy(), &zomboid.to_string_lossy(), Some(42_021));
+        let active = vec!["OnMod".to_string()];
+        let found = super::installed_off_with("LSMoodleManager", &catalog, &active);
+        assert_eq!(found.len(), 1, "only the mod that is off: {:?}", found);
+        assert_eq!((found[0].owner.as_str(), found[0].owner_id.as_str(), found[0].phase.as_str()), ("Life Sim", "Life", "client"));
+        // The same file name under another path is not that module.
+        assert!(super::installed_off_with("Other/LSMoodleManager", &catalog, &active).is_empty());
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
 
@@ -268,7 +331,15 @@ mod live_tests {
         println!("{} distinct failed requires:\n", asked.len());
         for w in &asked {
             let answer = super::answer_for(w, &index);
-            println!("  {}\n    {}\n", w, answer.summary);
+            println!("  {}\n    {}", w, answer.summary);
+            for c in &answer.candidates {
+                println!("    in {} ({}): {} [{}]{}", c.owner, c.owner_id, c.module_path, c.phase, if c.same_path { " same path" } else { "" });
+            }
+            if answer.candidates.is_empty() {
+                let off: Vec<String> = super::installed_off_with(w, &catalog, &active).into_iter().map(|c| format!("{} ({})", c.owner, c.owner_id)).collect();
+                println!("    installed and off, at that path: {:?}", off);
+            }
+            println!();
         }
     }
 }

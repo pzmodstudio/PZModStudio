@@ -50,6 +50,17 @@ pub struct TranslatedErrorPayload {
     /// error was in `mod_name`, called from these ("error in A, called from B").
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub called_from: Vec<String>,
+    /// The mod is the player's own, in development (its folder is a link from elsewhere): theirs
+    /// to mend, not something to switch off or report to an author.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub own_mod: bool,
+    /// For such a mod: the file on disk that `source_file` is, when the mod's own Lua frame gave
+    /// it and exactly one file of that name is among those the game loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub own_file: Option<String>,
+    /// The mod of the Lua frame `source_file` and `line_number` came from.
+    #[serde(skip)]
+    pub frame_mod: Option<String>,
 }
 
 /// What the game itself said about the line a card came from.
@@ -146,6 +157,14 @@ pub fn configure_options_ini(user_zomboid_dir: &str, is_windowed: bool) {
     }
 }
 
+/// A launch that is not the multiplayer test: the test's choices for the Studio Link
+/// (`Lua/PZModStudio_MpAuto.txt`, character and spawn pressed by themselves) are taken away, or the
+/// Link would build the character on its own in a normal game too. Player 1 of the test plays in
+/// the player's own Zomboid folder, so the file was left there.
+pub(crate) fn forget_mp_test_automation(user_zomboid_dir: &str) {
+    let _ = std::fs::remove_file(Path::new(user_zomboid_dir).join("Lua").join("PZModStudio_MpAuto.txt"));
+}
+
 /// Java agents of mods (Zombie Buddy) in the game's launch file only when the mod list has the mod
 /// on: they load outside the mod list, so otherwise they run with any profile.
 fn sync_java_agents_for_launch(install_dir: &Path, user_zomboid_dir: &str) {
@@ -204,6 +223,7 @@ pub fn launch_sandbox_and_watch<R: tauri::Runtime>(
         configure_options_ini(&config.user_zomboid_dir, is_windowed);
     }
     sync_java_agents_for_launch(install_dir, &config.user_zomboid_dir);
+    forget_mp_test_automation(&config.user_zomboid_dir);
 
     // Launch Project Zomboid directly with independent null stdio to ensure clean GUI instantiation
     let is_already_running = find_running_pz_pid().is_some();
@@ -362,14 +382,16 @@ pub fn watch_console_log<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
                         if let Some(h) = history.as_mut() {
                             h.see(&trimmed);
                         }
-                        for card in cards.line(&trimmed) {
+                        for mut card in cards.line(&trimmed) {
+                            mark_own_mod_installed(&mut card);
                             let _ = app.emit("sandbox-error-card", card);
                         }
                         line_buf.clear();
                     }
                     // Nothing more came: an error's card waiting for its exception line goes out.
                     if !read_any {
-                        if let Some(card) = cards.flush() {
+                        if let Some(mut card) = cards.flush() {
+                            mark_own_mod_installed(&mut card);
                             let _ = app.emit("sandbox-error-card", card);
                         }
                     }
@@ -418,11 +440,90 @@ pub struct CardMaker {
     in_error: bool,
     /// The mods of the Lua levels on the held card's stack, in order.
     block_mods: Vec<String>,
+    /// The texts the game could not format, one group per mod (or none) and kind.
+    texts: Vec<TextGroup>,
+}
+
+/// How many keys a card of texts spells out; the rest are counted.
+const TEXT_KEYS_SHOWN: usize = 8;
+
+/// The texts of one mod (or of none the Studio found) that the game could not format, one kind:
+/// a bare `%`, or a placeholder given no value. One card for all of them, sent again with the same
+/// id each time a new key joins, so whoever shows the cards replaces it instead of adding one.
+struct TextGroup {
+    owner: Option<String>,
+    missing: bool,
+    keys: Vec<String>,
+    card: TranslatedErrorPayload,
+}
+
+impl TextGroup {
+    /// The card's words for the keys it holds now. Every sentence is what the lines say: which
+    /// texts, that the game showed them as they are and went on, and whose files hold them when
+    /// the Studio found them there.
+    fn rewrite(&mut self) {
+        let n = self.keys.len();
+        let many = n > 1;
+        let shown = self.keys.iter().take(TEXT_KEYS_SHOWN).cloned().collect::<Vec<_>>().join(", ");
+        let more = n.saturating_sub(TEXT_KEYS_SHOWN);
+        let more_text = if more > 0 { format!(" and {} more", more) } else { String::new() };
+        let whose = match (&self.owner, many) {
+            (Some(m), false) => format!("It is in {}'s translation files.", m),
+            (Some(m), true) => format!("They are in {}'s translation files.", m),
+            (None, false) => "The Studio did not find it in the texts of the mods you have on; it can be the game's own.".to_string(),
+            (None, true) => "The Studio did not find them in the texts of the mods you have on; they can be the game's own.".to_string(),
+        };
+        let card = &mut self.card;
+        match (self.missing, many) {
+            (false, false) => {
+                card.title = "A text has a % sign the game cannot format".to_string();
+                card.explanation = format!("A translated text has a % that is not written %%, so Java's text formatting cannot read it. The game shows the text as it is and carries on. The text: {}. {}", shown, whose);
+                card.recommended_action = "Nothing to do to play. When a mod ships the text, the fix is in its translation file (% written as %%); Save report names the mod, the file and the line.".to_string();
+            }
+            (false, true) => {
+                card.title = format!("{} texts have a % sign the game cannot format", n);
+                card.explanation = format!("{} translated texts have a % that is not written %%, so Java's text formatting cannot read them. The game shows each text as it is and carries on. The texts: {}{}. {}", n, shown, more_text, whose);
+                card.recommended_action = "Nothing to do to play. When a mod ships the texts, the fix is in its translation files (% written as %%); Save report names the mod, the file and the line of the first one.".to_string();
+            }
+            (true, false) => {
+                card.title = "A text has a placeholder and was given no value".to_string();
+                card.explanation = format!("A translated text has a placeholder (%1, %s) and the code that asked for it passed no value. The game shows the text with the placeholder still in it and carries on. The text: {}. {}", shown, whose);
+                card.recommended_action = "Nothing to do to play. Save report names the key and, when a mod ships it, the mod and the file.".to_string();
+            }
+            (true, true) => {
+                card.title = format!("{} texts have a placeholder and were given no value", n);
+                card.explanation = format!("{} translated texts have a placeholder (%1, %s) and the code that asked for them passed no value. The game shows each text with the placeholder still in it and carries on. The texts: {}{}. {}", n, shown, more_text, whose);
+                card.recommended_action = "Nothing to do to play. Save report names the first key and, when a mod ships it, the mod and the file.".to_string();
+            }
+        }
+        let variant = match (self.missing, many) {
+            (false, false) => "",
+            (false, true) => "many",
+            (true, false) => "missing",
+            (true, true) => "missing_many",
+        };
+        let whose_key = match (self.owner.is_some(), many) {
+            (true, false) => "text_whose_mod_one",
+            (true, true) => "text_whose_mod_many",
+            (false, false) => "text_whose_none_one",
+            (false, true) => "text_whose_none_many",
+        };
+        card.params = crate::catalog::issue_params(&[
+            ("variant", variant),
+            ("count", &n.to_string()),
+            ("keys", &shown),
+            // Empty, not "0", when all are shown: the app shows the value as it is when no phrase stands in for it.
+            ("more", &if more > 0 { more.to_string() } else { String::new() }),
+            ("moreKey", if more > 0 { "and_more" } else { "" }),
+            ("mod", self.owner.as_deref().unwrap_or("")),
+            ("whoseKey", whose_key),
+        ]);
+    }
 }
 
 impl CardMaker {
     pub fn new() -> Self {
-        CardMaker { blame: ModBlame::default(), already_reported: Default::default(), counter: 1, pending: None, pending_has_detail: false, in_error: false, block_mods: Vec::new() }
+        CardMaker { blame: ModBlame::default(), already_reported: Default::default(), counter: 1, pending: None, pending_has_detail: false, in_error: false, block_mods: Vec::new(), texts: Vec::new() }
     }
 
     /// A new game session (console.txt started over): what it blamed and reported is forgotten.
@@ -431,6 +532,30 @@ impl CardMaker {
         self.already_reported.clear();
         self.pending = None;
         self.in_error = false;
+        self.texts.clear();
+    }
+
+    /// A text the game could not format joins the card of its mod and kind; the card comes back
+    /// (the same id as before) when the key is new to it.
+    fn text_card(&mut self, mut card: TranslatedErrorPayload, line: &str) -> Option<TranslatedErrorPayload> {
+        let key = crate::error_report::formatting_key(line).unwrap_or_else(|| "(a text the line does not name)".to_string());
+        let missing = card.params.get("variant").is_some_and(|v| v == "missing");
+        let at = match self.texts.iter().position(|g| g.owner == card.mod_name && g.missing == missing) {
+            Some(at) => at,
+            None => {
+                card.id = format!("err_{}", self.counter);
+                self.counter += 1;
+                self.texts.push(TextGroup { owner: card.mod_name.clone(), missing, keys: Vec::new(), card });
+                self.texts.len() - 1
+            }
+        };
+        let group = &mut self.texts[at];
+        if group.keys.contains(&key) {
+            return None;
+        }
+        group.keys.push(key);
+        group.rewrite();
+        Some(group.card.clone())
     }
 
     /// The card that was waiting for the rest of its block.
@@ -469,18 +594,44 @@ impl CardMaker {
             if let Some(name) = ModBlame::named_in(trimmed) {
                 self.block_mods.push(name);
             }
+            // The first Lua frame under the ERROR is where it failed: its file and line go on the card.
+            if let (Some(held), Some((file, number))) = (self.pending.as_mut(), lua_frame_place(trimmed)) {
+                if held.line_number.is_none() {
+                    held.source_file = Some(file);
+                    held.line_number = Some(number);
+                    held.frame_mod = ModBlame::named_in(trimmed);
+                }
+            }
         }
         let is_error_level = level && trimmed.starts_with("ERROR");
         let culprit = self.blame.of(line);
         if self.blame.java_echo() {
             return out;
         }
-        if let Some(mut card) = translate_log_error(line, self.counter) {
+        if let Some(mut card) = translate_log_error(line, self.counter).filter(|c| level && c.code == "translator_text") {
+            // One card for a mod's texts of one kind, whichever of them the line is about.
+            card.mod_name = culprit;
+            out.extend(self.text_card(card, line));
+        } else if let Some(mut card) = translate_log_error(line, self.counter) {
             self.counter += 1;
             if card.code != "java_mod_error" {
                 card.mod_name = culprit.clone();
             }
-            if !level && self.pending.is_some() {
+            let generic = matches!(card.code.as_str(), "nil_table" | "java_npe" | "kahlua");
+            let held_names_mod = self.pending.as_ref().is_some_and(|h| h.code.starts_with("mod_named") || h.code == "package_copy");
+            if !level && generic && self.in_error && self.pending.is_none() {
+                // Under an ERROR whose card was already shown (the same failure again, every tick):
+                // its exception is that same error, not a new one.
+            } else if !level && generic && held_names_mod {
+                // The exception under an ERROR that already named its mod: the card keeps the mod
+                // and takes the game's own words, which say more than a general card would.
+                if let Some(held) = self.pending.as_mut() {
+                    if !self.pending_has_detail {
+                        held.explanation = trimmed.to_string();
+                        self.pending_has_detail = true;
+                    }
+                }
+            } else if !level && self.pending.is_some() {
                 // A pattern the Studio knows, in the exception under an ERROR: that card for it.
                 let held = self.pending.take().unwrap();
                 card.mod_name = held.mod_name.or(card.mod_name);
@@ -507,7 +658,10 @@ impl CardMaker {
                 // `ERROR ... at KahluaThread.flushErrorMessage > ----` introduces the game's dump
                 // of the stack of an error already reported: not an error of its own.
                 let complaining = (line.contains("ERROR") || line.contains("Exception") || line.contains("KahluaThreadException") || trimmed.starts_with("WARN")) && !trimmed.contains("flushErrorMessage");
-                let key = format!("{}|{}", name, trimmed.chars().take(80).collect::<String>());
+                // The same complaint whatever frame it came on: in play the game stamps every line
+                // with its frame ("f:156", "st:910,647,017"), and a mod failing on every frame
+                // made a card per frame.
+                let key = format!("{}|{}", name, without_frame_stamp(trimmed).chars().take(80).collect::<String>());
                 if complaining && self.already_reported.insert(key) {
                     let card = blame_card(trimmed, &name, self.counter);
                     self.counter += 1;
@@ -560,6 +714,8 @@ pub struct ModBlame {
     java_last: Option<String>,
     /// This line is that repeat: the same error, already carded under the mod's name.
     java_echo: bool,
+    /// `recent` came from a "cannot create item ... modID" line, not from a stack frame.
+    recent_is_item: bool,
 }
 
 /// How many lines a mod's name carries forward. The frame and its error are next to each other;
@@ -592,11 +748,13 @@ impl ModBlame {
             let keep = is_studio_mod_name(&name) && self.recent.as_ref().is_some_and(|(n, _)| !is_studio_mod_name(n));
             if !keep {
                 self.recent = Some((name, 0));
+                self.recent_is_item = false;
             }
         } else if let Some(id) = Self::item_mod(line) {
             // `CreateItem() cannot create item: ... modID = "X"` comes right before the exception
             // the game throws loading that item from a save.
             self.recent = Some((id, 0));
+            self.recent_is_item = true;
         } else if Self::is_vanilla_frame(line) {
             // The game's own file is the nearer frame: what follows is not the mod's.
             self.recent = None;
@@ -666,9 +824,38 @@ impl ModBlame {
                 return Some(owner.clone());
             }
         }
-        // Failing both: the mod named a line or two above, which for a Java exception is the
-        // Lua frame that threw it.
+        // Failing both: the mod named a line or two above, but only where the line belongs to
+        // that mod's block. A line of its own (an ERROR or WARN naming a Java class after "at",
+        // which is how the game's own messages look) says nothing of the mod that happened to be
+        // named before it: "Recipe Piano missing UiConfigScript" was blamed on whichever mod
+        // loaded two lines earlier.
+        if !Self::continues_block(line, self.recent_is_item) {
+            return None;
+        }
         self.recent.as_ref().map(|(name, _)| name.clone())
+    }
+
+    /// Whether a line that names nobody belongs to the block of the mod named just above it:
+    /// the truncated frame the game prints under a Lua frame (`> 20)).FHhandleKeybinds> Exception
+    /// thrown`), an indented line of a stack, the bare exception line under it, or, after a
+    /// "cannot create item" line, the item load that fails next.
+    fn continues_block(line: &str, after_item: bool) -> bool {
+        if after_item {
+            return line.contains("InventoryItem.loadItem") || line.contains("InventoryItem.load(");
+        }
+        let indented = line.starts_with(' ') || line.starts_with('\t');
+        let text = line.trim_start();
+        let level = ["ERROR", "WARN", "LOG", "DEBUG"].iter().any(|l| text.starts_with(l));
+        if !level {
+            return indented || text.starts_with("java.") || text.starts_with("se.krka.") || text.starts_with("Caused by") || text.starts_with("at ");
+        }
+        // A level line: only the Lua frame's own echo, never a line with its own source.
+        line.contains(")).") && line.contains("Exception thrown")
+    }
+
+    /// Whether the line itself names a mod (`(MOD:X)`), as opposed to one named above it.
+    pub fn names_on_line(line: &str) -> bool {
+        line.contains("(MOD:")
     }
 }
 
@@ -829,9 +1016,90 @@ pub fn error_stats_from_console(user_zomboid_dir: &str) -> Vec<ModErrorStat> {
     stats
 }
 
+/// A mod the player is making: its folder in Zomboid/mods is a link to a folder elsewhere.
+#[derive(Debug, Clone)]
+pub struct OwnMod {
+    /// The name the game writes in the log (the mod's display name).
+    pub name: String,
+    pub id: String,
+    /// The folder the link leads to.
+    pub root: std::path::PathBuf,
+}
+
+/// The mods in development among the installed ones (`CatalogMod::in_development`).
+pub fn own_mods_of(catalog: &crate::catalog::ModCatalog) -> Vec<OwnMod> {
+    catalog
+        .mods
+        .iter()
+        .filter(|m| m.in_development && m.shadowed_by.is_none())
+        .map(|m| OwnMod { name: m.name.clone(), id: m.id.clone(), root: std::fs::canonicalize(&m.root_dir).unwrap_or_else(|_| std::path::PathBuf::from(&m.root_dir)) })
+        .collect()
+}
+
+/// The file called `file_name` among the Lua the game loads from this mod, when there is exactly
+/// one: the same relative path in `common/` and in the version folder is one file (the version
+/// folder's wins, as in the game); two different paths with that name are two, and then none is
+/// given rather than the wrong one.
+pub fn own_file_of(root: &Path, game_version: Option<u32>, file_name: &str) -> Option<std::path::PathBuf> {
+    let wanted = file_name.replace('\\', "/").rsplit('/').next()?.to_lowercase();
+    if wanted.is_empty() {
+        return None;
+    }
+    // Relative path (lowercased) -> the file, a later layer replacing an earlier one.
+    let mut found: BTreeMap<String, std::path::PathBuf> = BTreeMap::new();
+    for layer in crate::load_order::mod_info::media_layers_for_build(root, game_version) {
+        let lua = layer.join("media").join("lua");
+        for entry in walkdir::WalkDir::new(&lua).into_iter().filter_map(|e| e.ok()) {
+            if entry.file_type().is_file() && entry.file_name().to_string_lossy().to_lowercase() == wanted {
+                let rel = entry.path().strip_prefix(&lua).unwrap_or(entry.path()).to_string_lossy().replace('\\', "/").to_lowercase();
+                found.insert(rel, entry.path().to_path_buf());
+            }
+        }
+    }
+    (found.len() == 1).then(|| found.into_values().next()).flatten()
+}
+
+/// Says a card is about the player's own mod, and where its file is when the card has the place
+/// from that mod's own Lua frame.
+pub fn mark_own_mod(card: &mut TranslatedErrorPayload, own: &[OwnMod], game_version: Option<u32>) {
+    let Some(name) = card.mod_name.as_deref() else { return };
+    let Some(m) = own.iter().find(|m| m.name == name || m.id == name) else { return };
+    card.own_mod = true;
+    let from_its_frame = card.frame_mod.as_deref().is_some_and(|f| f == m.name || f == m.id);
+    if let (true, Some(file), Some(_)) = (from_its_frame, card.source_file.as_deref(), card.line_number) {
+        card.own_file = own_file_of(&m.root, game_version, file).map(|p| p.to_string_lossy().trim_start_matches(r"\\?\").to_string());
+    }
+}
+
+/// The player's own mods as the watcher knows them, looked at again after a minute: a card is
+/// rare, and a link made while the Studio is open should show without a restart.
+static OWN_MODS: std::sync::Mutex<Option<(std::time::Instant, Vec<OwnMod>, Option<u32>)>> = std::sync::Mutex::new(None);
+
+/// `mark_own_mod` with the installed mods of the Studio's saved folders.
+pub fn mark_own_mod_installed(card: &mut TranslatedErrorPayload) {
+    if card.mod_name.is_none() {
+        return;
+    }
+    // Tests see no installed mods, except the ones run against this PC (PZMS_ZOMBOID_DIR).
+    if cfg!(test) && std::env::var("PZMS_ZOMBOID_DIR").is_err() {
+        return;
+    }
+    let Ok(mut cache) = OWN_MODS.lock() else { return };
+    if cache.as_ref().map(|(at, _, _)| at.elapsed() > Duration::from_secs(60)).unwrap_or(true) {
+        let paths = crate::vfs::studio_paths();
+        let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+        *cache = Some((std::time::Instant::now(), own_mods_of(&catalog), catalog.game_version_int()));
+    }
+    if let Some((_, own, game)) = cache.as_ref() {
+        mark_own_mod(card, own, *game);
+    }
+}
+
 /// A line worth showing even though it matches no known pattern, because the game named a mod.
 fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayload {
     let severity = Severity::of_line(line);
+    // Named on this very line, or only on a line just above it (the frame the game printed first).
+    let on_line = ModBlame::names_on_line(line);
     // "WARN : Lua f:0 at Lua((MOD:X)).File.lua> require("Y") failed" -> the part after ">"
     let detail = line.split_once('>').map(|(_, rest)| rest.trim()).unwrap_or(line).to_string();
     let source_file = line
@@ -874,6 +1142,9 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
             polyfill_rule_id_suggestion: None,
             mod_name: Some(mod_name.to_string()),
             severity,
+            own_mod: false,
+            own_file: None,
+            frame_mod: None,
         };
     }
     TranslatedErrorPayload {
@@ -884,25 +1155,32 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
             Severity::Warning => "mod_named_warning",
         }
         .to_string(),
-        params: crate::catalog::issue_params(&[("mod", mod_name)]),
+        params: crate::catalog::issue_params(&[("mod", mod_name), ("variant", if on_line { "" } else { "above" })]),
         raw_error: line.to_string(),
         source_file,
         line_number: None,
-        title: format!("{} reported a problem", mod_name),
+        title: if on_line { format!("The game named {} on this line", mod_name) } else { format!("{} was named just above this line", mod_name) },
         explanation: if detail.is_empty() { line.to_string() } else { detail },
-        recommended_action: match severity {
-            Severity::Exception => format!(
+        recommended_action: match (severity, on_line) {
+            (Severity::Exception, true) => format!(
                 "The game named {} on this line. If something is misbehaving in game, switching that mod off is the quickest way to tell whether it is the cause.",
                 mod_name
             ),
-            Severity::Warning => format!(
+            (Severity::Warning, true) => format!(
                 "The game named {} here and carried on. Nothing to do unless something in that mod misbehaves in game; then this line is where to look.",
+                mod_name
+            ),
+            (_, false) => format!(
+                "This line names no mod: {} is in the stack frame the game printed just above it, so the error came up while that mod's code was running. Whether the mod is the cause, the lines around it in the log say.",
                 mod_name
             ),
         },
         polyfill_rule_id_suggestion: None,
         mod_name: Some(mod_name.to_string()),
         severity,
+        own_mod: false,
+        own_file: None,
+        frame_mod: None,
     }
 }
 
@@ -921,7 +1199,9 @@ fn ui_method_of_nil(line: &str) -> Option<&'static str> {
 /// Translates raw Java stacktraces & Lua errors into actionable cards.
 pub fn translate_log_error(line: &str, counter: usize) -> Option<TranslatedErrorPayload> {
     let mut card = translate_log_error_rule(line, counter)?;
-    if card.code != "ui_draw_reload" {
+    // A rule that knows the game carried on says so; a rule that reports an exception is still only
+    // a warning when the game itself wrote the line at WARN/LOG level.
+    if card.severity == Severity::Exception {
         card.severity = Severity::of_line(line);
     }
     Some(card)
@@ -939,338 +1219,291 @@ fn java_mod_own_error(line: &str) -> Option<(String, String)> {
     (ok_tag && (class.ends_with("Exception") || class.ends_with("Error"))).then(|| (tag.trim().to_string(), what.trim().to_string()))
 }
 
+/// A log line without the frame stamps the game puts on it in play: `f:156` and `st:910,647,017`.
+fn without_frame_stamp(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut words = line.split(' ').peekable();
+    while let Some(word) = words.next() {
+        let stamp = |prefix: &str| word.strip_prefix(prefix).is_some_and(|rest| {
+            let rest = rest.trim_end_matches('>');
+            !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == ',')
+        });
+        if stamp("f:") || stamp("st:") {
+            if word.ends_with('>') {
+                out.push('>');
+                out.push(' ');
+            }
+            continue;
+        }
+        out.push_str(word);
+        if words.peek().is_some() {
+            out.push(' ');
+        }
+    }
+    out
+}
+
+/// `Lua((MOD:X)).SpawnsValues(RemoteSpawn.lua:353)` -> the file and the line.
+fn lua_frame_place(line: &str) -> Option<(String, usize)> {
+    if !line.starts_with("Lua(") {
+        return None;
+    }
+    let inner = line.rsplit_once('(')?.1.strip_suffix(')')?;
+    let (file, number) = inner.rsplit_once(':')?;
+    file.ends_with(".lua").then(|| number.parse().ok().map(|n| (file.to_string(), n))).flatten()
+}
+
+/// One card. Every sentence on it has to follow from the line it was made of: what the line
+/// cannot show (who caused it, what else broke, what will happen next time) is not said.
+fn rule_card(counter: usize, line: &str, code: &str, params: BTreeMap<String, String>, title: &str, explanation: &str, action: &str, severity: Severity) -> TranslatedErrorPayload {
+    TranslatedErrorPayload {
+        called_from: Vec::new(),
+        id: format!("err_{}", counter),
+        code: code.to_string(),
+        params,
+        raw_error: line.to_string(),
+        source_file: None,
+        line_number: None,
+        title: title.to_string(),
+        explanation: explanation.to_string(),
+        recommended_action: action.to_string(),
+        mod_name: None,
+        severity,
+        polyfill_rule_id_suggestion: None,
+        own_mod: false,
+        own_file: None,
+        frame_mod: None,
+    }
+}
+
+/// The game's own noise: lines it writes with no mod at fault and nothing to do about.
+/// - `AdvancedAnimator$1.visitFileFailed` + `NoSuchFileException ...\AnimSets|actiongroups`: the
+///   game lists those two folders in every active mod and logs each mod that has none (42.22
+///   `AdvancedAnimator.searchFolders`); a mod's name in that path is not a fault of the mod.
+/// - `BufferOverflowException at PathfindNative.findPath`: the native pathfinder's own buffer.
+fn is_game_noise(line: &str) -> bool {
+    line.contains("AdvancedAnimator$1.visitFileFailed")
+        || (line.contains("NoSuchFileException") && (line.contains("AnimSets") || line.contains("actiongroups")))
+        || (line.contains("BufferOverflowException") && line.contains("PathfindNative"))
+}
+
+/// `attempted index: getName of non-table: null` -> `getName`.
+fn nil_index_key(line: &str) -> Option<String> {
+    let rest = line.split("attempted index: ").nth(1)?;
+    let (key, tail) = rest.split_once(' ')?;
+    (tail.starts_with("of non-table") && !key.is_empty()).then(|| key.to_string())
+}
+
 fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErrorPayload> {
-    // A card says something went wrong. The rules below match on names a mod puts in the log --
-    // "FancyHandwork", "SaucedCarts", "dSAG" -- and the game writes those names when the mod
-    // merely loads, so without this the Monitor reported `LOG : Mod f:0> loading FancyHandwork`
-    // as an uncaught error on tick. Nothing but a line the game itself marked as trouble.
+    // A card says something went wrong. Nothing but a line the game itself marked as trouble.
     let is_trouble = line.starts_with("ERROR")
         || line.starts_with("WARN")
         || line.contains("Exception")
         || line.contains("stack trace")
-        || line.contains("Error:");
-    if !is_trouble {
+        || line.contains("Error:")
+        || line.contains("OutOfMemoryError");
+    if !is_trouble || is_game_noise(line) {
         return None;
     }
-    if (line.contains("ToggleDoorActual") || line.contains("isLocalPlayer()")) && line.contains("ThumpState") {
-        // `... at IsoDoor.ToggleDoorActual(IsoDoor.java:1620). Message: State execute error:
-        // ThumpState`: a zombie's thumping opened the door, the door asks the player who opened it
-        // whether it is the local one for the music cue, and a zombie is no player. The door is
-        // already open by then; only the cue and the door's animation are skipped. No mod involved.
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "door_npc".to_string(),
-            params: crate::catalog::issue_params(&[("variant", "zombie")]),
-            raw_error: line.to_string(),
-            source_file: Some("zombie/iso/objects/IsoDoor.java".to_string()),
-            line_number: None,
-            title: "A zombie banged a door open: a bug in the game itself (B42)".to_string(),
-            explanation: "A zombie thumped a door until it opened, and the game's Java (IsoDoor.ToggleDoorActual) then asked the player who opened it whether they are the local one, to play the tension music. A zombie is no player, so that question fails. The door is already open when it does: only that music cue and the door's animation are skipped. No mod takes part.".to_string(),
-            recommended_action: "Nothing to do: it is the game's own code and changes nothing in play.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: None,
-        })
+    let none = BTreeMap::new;
+    if line.contains("OutOfMemoryError") {
+        // "Java heap space" is the limit given to the game's Java (-Xmx); any other OutOfMemoryError
+        // (direct buffers, native allocation) is memory outside that limit.
+        let heap = line.contains("Java heap space");
+        Some(rule_card(
+            counter,
+            line,
+            "java_out_of_memory",
+            crate::catalog::issue_params(&[("variant", if heap { "heap" } else { "" })]),
+            if heap { "The game's Java ran out of the memory it was given" } else { "The game's Java could not get more memory" },
+            if heap {
+                "Java reported \"Java heap space\": the game used all the memory its Java is allowed (the -Xmx limit). The game usually closes or stops responding after this."
+            } else {
+                "Java asked for memory and got none (OutOfMemoryError). This one is not the Java heap limit: it is memory outside it, which runs out when the PC itself is short. The game usually closes or stops responding after this."
+            },
+            if heap {
+                "Health > Performance > Memory shows the limit, what the PC has, and lets you raise it for the next start."
+            } else {
+                "Close other big programs before playing. Health > Performance > Memory shows what the PC had; raising the Java limit does not help with this one."
+            },
+            Severity::Exception,
+        ))
+    } else if line.contains("ToggleDoorActual") && line.contains("ThumpState") {
+        // 42.22 IsoDoor.Thump: a zombie that can open doors calls ToggleDoor; ToggleDoorActual then
+        // asks `player.isLocalPlayer()` with no player, after the door is open and synced; the
+        // state machine catches it ("State execute error: ThumpState").
+        let mut card = rule_card(
+            counter,
+            line,
+            "door_npc",
+            crate::catalog::issue_params(&[("variant", "zombie")]),
+            "A zombie opened a door: an error in the game's own door code (B42)",
+            "A zombie opened a door, and the game's Java (IsoDoor.ToggleDoorActual) then asked the player who opened it whether they are the local one, to play the tension music. A zombie is no player, so that question fails. The door is already open when it does: only that music cue and the door's opening animation are skipped. The failing code is the game's own.",
+            "Nothing to do: the door opens as it should.",
+            Severity::Exception,
+        );
+        card.source_file = Some("zombie/iso/objects/IsoDoor.java".to_string());
+        Some(card)
     } else if line.contains("BufferOverflowException") {
-        // Under an ERROR naming a mod: the mod asked for an object as an item and the game packs it
-        // into bytes to make one; IsoDeadBody.getItem packs the whole body with all it carries, and
-        // a body with a bag of fluid containers outgrows the buffer (Computer Mod checks every
-        // object near a right-click this way).
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "item_too_big".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "The game ran out of room packing an item".to_string(),
-            explanation: "The game packs an item into bytes to save it or to make an item of an object, and this one held more than its buffer has room for. It is nearly always a mod asking a body on the ground for its item (IsoDeadBody:getItem), which packs the whole body with everything it carries: a body with a bag of liquids is enough. Nothing is lost: the body stays as it is.".to_string(),
-            recommended_action: "Nothing to do to play: the mod catches it and goes on. If it comes back each time you right-click near bodies, that mod checks every object around you that way; its author is the one to tell.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: None,
-        })
-    } else if line.contains("isLocalPlayer()") || line.contains("ToggleDoorActual") || line.contains("ToggleWindow") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "door_npc".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("zombie/iso/objects/IsoDoor.java".to_string()),
-            line_number: None,
-            title: "The game's own door code met a missing player (B42)".to_string(),
-            explanation: "A zombie or an NPC opened, thumped or broke a door or window, and the game's Java (IsoDoor.ToggleDoorActual) asked a player that does not exist whether it is the local one. It is the game's code, reached without any Lua: NPC mods (Project A-Life, Bandits) make it happen more often. The game catches it and carries on.".to_string(),
-            recommended_action: "Nothing to patch: no Lua runs on that path, so no package or shim can reach it. Ignore it unless it floods the log; then the mod that moves the NPC through the door is the one to report it to.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: None,
-        })
-    } else if line.contains("BWORoomPrograms") || (line.contains("restaurant") && line.contains("getName")) {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "bandits_room".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("media/lua/shared/BWORoomPrograms.lua".to_string()),
-            line_number: None,
-            title: "Bandits Week One Dining Room Safety (B42)".to_string(),
-            explanation: "Bandits Week One room program attempted to query getName() on an outdoor/unzoned tile where getRoom() is nil, generating error floods on each AI tick.".to_string(),
-            recommended_action: "Apply Polyfill Rule: B42_BANDITS_ROOM_SAFETY".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("B42_BANDITS_ROOM_SAFETY".to_string()),
-        })
-    } else if line.contains("dSAG") || line.contains("onNewDay") || line.contains("ReportWindow") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "daily_report".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("media/lua/client/dSAG/dSAG_Window.lua".to_string()),
-            line_number: None,
-            title: "Daily Report Journal Callback Protection".to_string(),
-            explanation: "Daily Report Journal rollover or player death event executed callbacks on an uninitialized UI window.".to_string(),
-            recommended_action: "Apply Polyfill Rule: B42_DAILY_REPORT_SAFETY".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("B42_DAILY_REPORT_SAFETY".to_string()),
-        })
-    } else if line.contains("UnknownFormatConversionException") || line.contains("Translator.reportMissingArgumentsFromPastAbuse") {
-        // Every way Java refuses a bare % in a text: a sign it cannot read ("Conversion = ')'"),
-        // one that reads as a placeholder with nothing to fill it ("Format specifier '% A'"), or
-        // one with flags that do not fit ("FormatFlagsConversionMismatchException").
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "translator_format".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("zombie/core/Translator.java".to_string()),
-            line_number: None,
-            title: "Translator Format Exception (% character)".to_string(),
-            explanation: "A mod called Translator.getText() with an unescaped % or . character, causing Java String formatting to collapse.".to_string(),
-            recommended_action: "Apply Polyfill Rule: SANITIZE_TRANSLATOR_FORMAT".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("SANITIZE_TRANSLATOR_FORMAT".to_string()),
-        })
-        .map(|card| {
-            // A text in a mod's translation file with a bare % that Java formats (a sandbox
-            // option's name, `Formatting "Sandbox_X_Y"`, or a mod's options panel, from
-            // MainOptions.addModOptionsPanel). The game shows it unformatted and goes on; the
-            // shim, being Lua, never sees it, so the card says where the fix is instead of
-            // pointing at the Merger.
-            TranslatedErrorPayload {
-                called_from: Vec::new(),
-                code: "translator_text".to_string(),
-                source_file: None,
-                title: "A mod's text has a bare % sign".to_string(),
-                explanation: "A text in a mod's translation file (a sandbox option's name or tooltip, usually) has a % that is not written %%, so Java's text formatting cannot read it. The game shows the text as it is and carries on: nothing else breaks.".to_string(),
-                recommended_action: "Nothing to do to play. The fix is in the mod's translation file (% written as %%); Save report names the mod, the file and the line.".to_string(),
-                severity: Severity::Warning,
-                polyfill_rule_id_suggestion: None,
-                ..card
-            }
-        })
+        // One known case: IsoDeadBody.getItem packs the whole body with all it carries
+        // (`storeInByteData`), and a body with a bag of fluid containers outgrows the buffer.
+        Some(rule_card(
+            counter,
+            line,
+            "item_too_big",
+            none(),
+            "The game ran out of room packing something into bytes",
+            "The game packs things into a buffer of bytes (an item to save it, or an object turned into an item) and this one held more than the buffer has room for. One known case is a mod asking a body on the ground for its item (IsoDeadBody:getItem), which packs the whole body with everything it carries. The lines under this one in the log say which code asked.",
+            "If a mod is named next to this line, that mod is where to look. On its own this line does not say whether anything was lost.",
+            Severity::Exception,
+        ))
+    } else if line.contains("ToggleDoorActual") {
+        let mut card = rule_card(
+            counter,
+            line,
+            "door_npc",
+            none(),
+            "The game's own door code met a missing player (B42)",
+            "The game's Java for doors (IsoDoor.ToggleDoorActual) asked a player that does not exist whether it is the local one. That happens when something that is not a player opens a door. The failing code is the game's own.",
+            "Nothing to patch from here: the code that fails is Java. If it floods the log, the lines under it say what moved through the door.",
+            Severity::Exception,
+        );
+        card.source_file = Some("zombie/iso/objects/IsoDoor.java".to_string());
+        Some(card)
+    } else if line.contains("BWORoomPrograms") && line.contains("attempted index") {
+        let mut card = rule_card(
+            counter,
+            line,
+            "bandits_room",
+            none(),
+            "Bandits Week One: a room program read the room of a tile that has none",
+            "Bandits Week One's BWORoomPrograms.lua asks a tile for its room and then for the room's name without checking that the tile has a room; outdoors it has none, and the script stops there.",
+            "Its author is the one to fix it (a missing check for no room). If it repeats and bothers you, switching the mod off is the way to tell whether it matters in your game.",
+            Severity::Exception,
+        );
+        card.source_file = Some("media/lua/shared/BWORoomPrograms.lua".to_string());
+        Some(card)
+    } else if line.contains("Translator.reportMissingArgumentsFromPastAbuse") {
+        // 42.22 Translator.reportMissingArgumentsFromPastAbuse catches the format exception, logs
+        // it as a warning and returns the text unformatted.
+        let missing = line.contains("Missing arguments");
+        let mut card = if missing {
+            rule_card(
+                counter,
+                line,
+                "translator_text",
+                crate::catalog::issue_params(&[("variant", "missing")]),
+                "A text has a placeholder and was given no value",
+                "A translated text has a placeholder (%1, %s) and the code that asked for it passed no value. The game shows the text with the placeholder still in it and carries on. The line names the text's key; the key can be the game's own.",
+                "Nothing to do to play. Save report names the key and, when a mod ships it, the mod and the file.",
+                Severity::Warning,
+            )
+        } else {
+            rule_card(
+                counter,
+                line,
+                "translator_text",
+                none(),
+                "A text has a % sign the game cannot format",
+                "A translated text has a % that is not written %%, so Java's text formatting cannot read it. The game shows the text as it is and carries on. The line names the text's key; the key can be the game's own.",
+                "Nothing to do to play. When a mod ships the text, the fix is in its translation file (% written as %%); Save report names the mod, the file and the line.",
+                Severity::Warning,
+            )
+        };
+        card.source_file = None;
+        Some(card)
     } else if let Some(method) = ui_method_of_nil(line) {
-        // `attempted index: prerender of non-table: null` under a window's render/prerender:
-        // `ISPanelJoypad.prerender(self)` with ISPanelJoypad nil, which only happens while the
-        // game loads its Lua again (a save loading, back to the menu) and a window that
-        // survived the reload draws a couple of frames before its base class is back.
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "ui_draw_reload".to_string(),
-            params: crate::catalog::issue_params(&[("method", method)]),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "A window drew while the game was reloading its Lua".to_string(),
-            explanation: format!("A window of this mod ran its {} while the game was loading its Lua again (a save loading, or back to the menu), a couple of frames before the class it is built on existed. Once the reload is done the window is fine.", method),
-            recommended_action: "Nothing to do: it is timing during the reload, not a fault in play. The mod's author can guard that call; for you nothing changes.".to_string(),
-            mod_name: None,
-            severity: Severity::Warning,
-            polyfill_rule_id_suggestion: None,
-        })
-    } else if line.contains("attempted index of non-table") || line.contains("attempted index: getName of non-table") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "nil_table".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "Uninitialized Global Table Access".to_string(),
-            explanation: "Mod code attempted to access properties of a nil/uninitialized table before PZ Build 42 instantiated it.".to_string(),
-            recommended_action: "Apply Polyfill Rule: SAFE_GLOBAL_TABLE_ACCESS".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("SAFE_GLOBAL_TABLE_ACCESS".to_string()),
-        })
+        // `attempted index: prerender of non-table: null`: `ISPanelJoypad.prerender(self)` with
+        // the base class nil. Seen for a few frames while the game loads its Lua again; the same
+        // line every frame means the class never exists.
+        Some(rule_card(
+            counter,
+            line,
+            "ui_draw_reload",
+            crate::catalog::issue_params(&[("method", method)]),
+            "A window ran before the class it is built on existed",
+            &format!("A window ran its {} and the class it is built on was not there at that moment. This is usual for a frame or two while the game loads its Lua again (a save loading, back to the menu). If the same line repeats every frame, the class never exists and the window is broken.", method),
+            "A few of these around a reload: nothing to do. Hundreds of them: the mod named next to this line is where to look.",
+            Severity::Warning,
+        ))
+    } else if let Some(key) = nil_index_key(line) {
+        Some(rule_card(
+            counter,
+            line,
+            "nil_table",
+            crate::catalog::issue_params(&[("key", &key)]),
+            "A script used something that was not there (nil)",
+            &format!("A script read or called \"{}\" on a value that was nil at that moment. The file and the line are in the stack next to this line in the log.", key),
+            "If a mod is named next to this line, that mod's file is where to look. The line alone does not say what stopped working.",
+            Severity::Exception,
+        ))
     } else if line.contains("NullPointerException") && line.contains("InventoryItem.load(") && line.contains("is null") {
-        // Loading a save: an item in it (often a weapon part) could not be created, the line
-        // before says which and from which mod (`cannot create item ... removed = true`). The
-        // game skips it and goes on. Java, while reading the save: the shim never sees it.
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "save_item_missing".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "An item in the save no longer exists".to_string(),
-            explanation: "Loading the save, the game found an item (often a weapon part or something inside a container) that it cannot create any more: the mod that made it is off, or no longer defines it, or the save marked it removed when it was played without that mod. The game skips the item and carries on; that item is gone from the save.".to_string(),
-            recommended_action: "Nothing to do to keep playing. If the item matters, switch the mod named here on before loading the save. The line just above in the log (\"cannot create item\") names the item.".to_string(),
-            mod_name: None,
-            severity: Severity::Warning,
-            polyfill_rule_id_suggestion: None,
-        })
-    } else if line.contains("NullPointerException")
-        && (line.contains("ConnectToServerState") || line.contains("GameClient.connection") || line.contains("UdpConnection"))
-    {
-        // Joining a server: the connection was gone when the game wanted to use it (it drops
-        // while a long Workshop download runs). The game's, not a mod's: no polyfill or merge
-        // reaches it; joining again does, with the mods already downloaded.
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "connection_lost".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "The connection to the server was lost while joining".to_string(),
-            explanation: "While joining, the connection to the server closed (it often does while the game downloads the server's mods), and the game then failed on it and stayed on a blank screen. It is the game's connection, not a mod.".to_string(),
-            recommended_action: "Close the game and join again: what it downloaded is kept, so this time it goes straight in. A warning just before (\"required mod ... not found\") is a mod the game only sees after it restarts.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: None,
-        })
+        // 42.22 HandWeapon.load calls item.load on a part with no null check; InventoryItem.loadItem
+        // catches the NPE and drops the item being loaded: the weapon that carried the part.
+        Some(rule_card(
+            counter,
+            line,
+            "save_item_missing",
+            none(),
+            "An item in the save could not be loaded",
+            "Loading the save, the game met an item it cannot create any more (the line just above, \"cannot create item\", names it and its mod). When that item is a part attached to a weapon, the game drops the whole weapon that carried it, not only the part.",
+            "If it matters: leave without saving, or restore a backup of the save, and switch the mod named on the line above back on before loading again. Once the game saves, the item is gone.",
+            Severity::Exception,
+        ))
+    } else if line.contains("NullPointerException") && line.contains("ConnectToServerState") {
+        // 42.22 ConnectToServerState.CheckMods calls GameClient.connection.forceDisconnect on a
+        // connection that is already gone.
+        Some(rule_card(
+            counter,
+            line,
+            "connection_lost",
+            none(),
+            "The connection to the server was gone while joining",
+            "While joining, the game tried to use its connection to the server (to report a missing mod, in the case seen) and the connection was already closed. It is the game's own code, not a mod's.",
+            "Join again. If a \"required mod ... not found\" line comes back just before this one, that mod is not installed for this game.",
+            Severity::Exception,
+        ))
     } else if let Some((tag, what)) = java_mod_own_error(line) {
-        // A Java mod's own log line about an exception in its own code ("[BloodFX] drawing
-        // disabled: java.lang.NullPointerException ..."): no Lua is involved, so neither a merge
-        // package nor a polyfill reaches it.
+        // A line a Java mod wrote itself about an exception it caught ("[BloodFX] drawing
+        // disabled: java.lang.NullPointerException ...").
         let mut params = BTreeMap::new();
         params.insert("mod".to_string(), tag.clone());
         params.insert("what".to_string(), what.clone());
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "java_mod_error".to_string(),
+        let mut card = rule_card(
+            counter,
+            line,
+            "java_mod_error",
             params,
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: format!("{} (a Java mod) hit an error in its own code", tag),
-            explanation: format!("{} runs Java, not Lua, and wrote this itself: \"{}\". The error is inside its own code (the lines under it in the log name its classes); no Lua mod called it with something wrong.", tag, what),
-            recommended_action: "The game carries on. What the mod says it turned off stays off until the game starts again. Only its author can mend it: Save report and send it to them. A merge package or a polyfill cannot reach Java.".to_string(),
-            mod_name: Some(tag),
-            severity: Severity::Warning,
-            polyfill_rule_id_suggestion: None,
-        })
+            &format!("{} wrote an error of its own to the log", tag),
+            &format!("{} wrote this line itself: \"{}\". It caught the error and went on.", tag, what),
+            "The line says what the mod did about it, if anything. A merge package or the shim cannot change Java code; Save report makes a text for its author.",
+            Severity::Warning,
+        );
+        card.mod_name = Some(tag);
+        Some(card)
     } else if line.contains("NullPointerException") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "java_npe".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "Java Interop Null Pointer Exception".to_string(),
-            explanation: "A Java method returned null or received a null parameter from a legacy Lua mod call.".to_string(),
-            recommended_action: "Apply Universal Master Polyfills to handle null Java interop arguments safely.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("B42_OBJECT_INTERACT_SAFETY".to_string()),
-        })
-    } else if line.contains("KahluaThreadException") || line.contains("se.krka.kahlua.vm.KahluaException") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "kahlua".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "Lua Runtime Execution Crash (Kahlua)".to_string(),
-            explanation: "An unhandled Lua runtime exception was thrown inside the PZ Kahlua VM.".to_string(),
-            recommended_action: "Apply Universal Master Polyfills to protect game loops and callframe stacktraces.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("SAFE_GLOBAL_TABLE_ACCESS".to_string()),
-        })
-    } else if line.contains("IndexOutOfBoundsException") || line.contains("Index 0 out of bounds") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "index_bounds".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("java/util/ArrayList.java".to_string()),
-            line_number: None,
-            title: "Multiplayer Java ArrayList Out of Bounds (B42)".to_string(),
-            explanation: "A mod accessed IsoPlayer.getPlayers() or getOnlinePlayers() index 0 while the Java player collection was empty during a render/tick loop in Multiplayer.".to_string(),
-            recommended_action: "Apply Universal Master Polyfills (Safe ArrayList Proxy & getOnlinePlayers shield).".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("B42_DAILY_REPORT_SAFETY".to_string()),
-        })
-    } else if line.contains("FancyHandwork") || line.contains("fancyMP") || line.contains("aFancyHandwork") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "fancy_handwork".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("media/lua/client/aFancyHandwork.lua".to_string()),
-            line_number: None,
-            title: "Fancy Handwork Multiplayer Hand Sync Safety".to_string(),
-            explanation: "Fancy Handwork fancyMP loop threw an uncaught error when evaluating local/remote player hand objects on tick.".to_string(),
-            recommended_action: "Apply Universal Master Polyfills to guard FancyHandwork callbacks safely.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("SAFE_GLOBAL_TABLE_ACCESS".to_string()),
-        })
-    } else if line.contains("SaucedCarts") || line.contains("Pushable Carts") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "sauced_carts".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: Some("media/lua/client/SaucedCarts.lua".to_string()),
-            line_number: None,
-            title: "SaucedCarts Pushable Carts Multiplayer Sync".to_string(),
-            explanation: "Pushable Carts vehicle/entity interaction threw a null pointer exception during multiplayer state updates.".to_string(),
-            recommended_action: "Apply Universal Master Polyfills to guard SaucedCarts interop.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: Some("SAFE_GLOBAL_TABLE_ACCESS".to_string()),
-        })
-    } else if line.contains("duplicate recipe") || line.contains("duplicate item") {
-        Some(TranslatedErrorPayload {
-            called_from: Vec::new(),
-            id: format!("err_{}", counter),
-            code: "duplicate_id".to_string(),
-            params: BTreeMap::new(),
-            raw_error: line.to_string(),
-            source_file: None,
-            line_number: None,
-            title: "Duplicate Item/Recipe ID Collision".to_string(),
-            explanation: "Multiple active mods registered the same script ID or recipe name, causing overwrite conflicts.".to_string(),
-            recommended_action: "Use Merger Module to merge script definitions into Master Patch.".to_string(),
-            mod_name: None,
-            severity: Severity::Exception,
-            polyfill_rule_id_suggestion: None,
-        })
+        Some(rule_card(
+            counter,
+            line,
+            "java_npe",
+            none(),
+            "Java met a missing value (NullPointerException)",
+            "Some Java code used a value that was not there. The class named after \"at\" on the line says where. The line alone does not say whether a mod caused it: the lines under it in the log do.",
+            "Nothing to apply from here. If it repeats and something misbehaves in game, the lines under it name who called that code.",
+            Severity::Exception,
+        ))
+    } else if line.contains("se.krka.kahlua.vm.KahluaException") {
+        // `KahluaException: <msg> at BaseLib.error`: a script calling error("msg").
+        Some(rule_card(
+            counter,
+            line,
+            "kahlua",
+            none(),
+            "A Lua script raised an error itself",
+            "A script called error(\"...\") with the message on this line. When that happens inside pcall the script caught it itself and nothing broke; the lines around it in the log say which.",
+            "Nothing to do unless something misbehaves in game; then the lines next to this one name the file.",
+            Severity::Exception,
+        ))
     } else {
         None
     }
@@ -1333,6 +1566,7 @@ pub fn launch_pz_direct(
         configure_options_ini(user_zomboid_dir, true);
     }
     sync_java_agents_for_launch(install_path, user_zomboid_dir);
+    forget_mp_test_automation(user_zomboid_dir);
 
     let mut cmd = Command::new(&exe_path);
     cmd.current_dir(install_path);
@@ -1715,13 +1949,29 @@ mod card_gate_tests {
     }
 
     #[test]
-    fn a_real_error_line_still_makes_its_card() {
-        let card = translate_log_error(
-            "ERROR: General      f:304> 20)).FHhandleKeybinds> Exception thrown aFancyHandwork.lua:126",
-            1,
-        );
-        assert!(card.is_some());
-        assert!(card.unwrap().title.contains("Fancy Handwork"));
+    fn a_mods_name_in_a_line_is_not_a_card_of_its_own() {
+        // No rule knows a mod by its name: the line gets the card of what it says, if any, and the
+        // mod comes from the stack frame the game printed (CardMaker), never from a word in a path.
+        assert!(translate_log_error("ERROR: General      f:304> 20)).FHhandleKeybinds> Exception thrown aFancyHandwork.lua:126", 1).is_none());
+        // The game listing a folder a mod does not have: its own noise, for every mod.
+        for line in [
+            "ERROR: General      f:0 st:0> AdvancedAnimator$1.visitFileFailed> Exception thrown",
+            "java.nio.file.NoSuchFileException: C:\\Users\\x\\Zomboid\\mods\\FancyHandwork\\common\\media\\AnimSets",
+            "java.nio.file.NoSuchFileException: C:\\Users\\x\\Zomboid\\mods\\SaucedCarts\\42\\media\\actiongroups",
+            "java.nio.BufferOverflowException at PathfindNative.findPath (Native Method)",
+        ] {
+            assert!(translate_log_error(line, 1).is_none(), "{}", line);
+        }
+        let heap = translate_log_error("ERROR: General f:0> GameWindow.uncaughtException> java.lang.OutOfMemoryError: Java heap space", 1).expect("a card");
+        assert_eq!((heap.code.as_str(), heap.params.get("variant").map(String::as_str)), ("java_out_of_memory", Some("heap")));
+        let native = translate_log_error("java.lang.OutOfMemoryError at MemoryUtil.nmemAllocChecked(MemoryUtil.java:170)", 1).expect("a card");
+        assert!(native.explanation.contains("not the Java heap limit"));
+        // What a line does say still makes its card, in words that follow from the line.
+        let nil = translate_log_error("java.lang.RuntimeException: attempted index: getName of non-table: null at KahluaThread.tableget", 1).expect("a card");
+        assert_eq!((nil.code.as_str(), nil.params.get("key").map(String::as_str), nil.polyfill_rule_id_suggestion.as_deref()), ("nil_table", Some("getName"), None));
+        let npe = translate_log_error("ERROR: General      f:1> java.lang.NullPointerException: Cannot invoke x at CarController.update", 1).expect("a card");
+        assert_eq!((npe.code.as_str(), npe.polyfill_rule_id_suggestion.as_deref()), ("java_npe", None));
+        assert!(!npe.explanation.contains("legacy"));
     }
 
     /// The level the game wrote decides: a WARN is a warning even when it says "Exception".
@@ -1761,11 +2011,7 @@ mod card_gate_tests {
         let bare = translate_log_error("LOG  : General      f:3201> java.lang.NullPointerException: Cannot read field", 5).expect("a card");
         assert_eq!(bare.code, "java_npe");
 
-        let threw = translate_log_error(
-            "ERROR: General      f:304> 20)).FHhandleKeybinds> Exception thrown aFancyHandwork.lua:126",
-            2,
-        )
-        .expect("a card");
+        let threw = translate_log_error("ERROR: General      f:304> java.lang.NullPointerException: Cannot invoke x at CarController.update", 2).expect("a card");
         assert_eq!(threw.severity, Severity::Exception);
 
         // A stack-trace line has no level prefix: it only exists because something threw.
@@ -1782,6 +2028,50 @@ mod card_gate_tests {
 
 #[cfg(test)]
 mod live_card_tests {
+    /// The cards the Monitor would show for a real log, made the way the Monitor makes them
+    /// (`CardMaker`: one card per mod and complaint, the mod from the stack frame).
+    /// PZMS_CONSOLE=... cargo test --release the_cards_as_the_monitor_shows_them -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn the_cards_as_the_monitor_shows_them() {
+        let Ok(path) = std::env::var("PZMS_CONSOLE") else { return };
+        let bytes = std::fs::read(&path).expect("console.txt");
+        let text = String::from_utf8_lossy(&bytes);
+        let mut maker = super::CardMaker::new();
+        let mut cards: Vec<super::TranslatedErrorPayload> = Vec::new();
+        // A card that comes again with the same id replaces the one shown, as in the app.
+        let show = |cards: &mut Vec<super::TranslatedErrorPayload>, mut card: super::TranslatedErrorPayload| {
+            super::mark_own_mod_installed(&mut card);
+            match cards.iter().position(|c| c.id == card.id) {
+                Some(at) => cards[at] = card,
+                None => cards.push(card),
+            }
+        };
+        for line in text.lines() {
+            for card in maker.line(line) {
+                show(&mut cards, card);
+            }
+        }
+        if let Some(card) = maker.flush() {
+            show(&mut cards, card);
+        }
+        let errors = text.lines().filter(|l| l.starts_with("ERROR")).count();
+        let warns = text.lines().filter(|l| l.starts_with("WARN")).count();
+        println!("{} lines, {} ERROR, {} WARN -> {} cards", text.lines().count(), errors, warns, cards.len());
+        for c in &cards {
+            println!(
+                "[{:?}] {} | mod: {}{} | {}\n        says: {}\n        line: {}",
+                c.severity,
+                c.code,
+                c.mod_name.as_deref().unwrap_or("-"),
+                if c.own_mod { format!(" (your mod{})", c.own_file.as_ref().map(|f| format!(", {}:{}", f, c.line_number.unwrap_or(0))).unwrap_or_default()) } else { String::new() },
+                c.title,
+                c.explanation.chars().take(600).collect::<String>(),
+                c.raw_error.trim().chars().take(150).collect::<String>()
+            );
+        }
+    }
+
     /// How many cards the real log makes, and which lines they come from.
     /// PZMS_CONSOLE=... cargo test --release the_real_cards -- --ignored --nocapture
     #[test]
@@ -2005,6 +2295,30 @@ mod one_card_tests {
     }
 
     #[test]
+    fn an_error_on_every_frame_is_one_card_with_its_file_and_line() {
+        let mut maker = CardMaker::new();
+        let mut cards = Vec::new();
+        for frame in 156..176 {
+            for line in [
+                format!("ERROR: General      f:{}> Lua((MOD:Abundant and visible TV remote)).SpawnsValues> Exception thrown", frame),
+                "\tjava.lang.RuntimeException: Object tried to call nil in SpawnsValues at KahluaUtil.fail(KahluaUtil.java:100).".to_string(),
+                "\tStack trace:".to_string(),
+                "\t\tse.krka.kahlua.vm.KahluaUtil.fail(KahluaUtil.java:100)".to_string(),
+                "\t\tLua((MOD:Abundant and visible TV remote)).SpawnsValues(RemoteSpawn.lua:353)".to_string(),
+                "\t\tLua((MOD:Abundant and visible TV remote)).CleanList(RemoteSpawn.lua:334)".to_string(),
+                format!("LOG  : Lua          f:{} st:910,647,{:03}> supr White Tiles .", frame, frame),
+            ] {
+                cards.extend(maker.line(&line));
+            }
+        }
+        cards.extend(maker.flush());
+        assert_eq!(cards.len(), 1, "{:#?}", cards.iter().map(|c| &c.raw_error).collect::<Vec<_>>());
+        assert_eq!((cards[0].source_file.as_deref(), cards[0].line_number), (Some("RemoteSpawn.lua"), Some(353)), "the innermost frame, not the caller's");
+        assert_eq!(super::without_frame_stamp("ERROR: General      f:156 st:1,234> Lua((MOD:X)).fn> Exception thrown"), "ERROR: General      > Lua((MOD:X)).fn> Exception thrown");
+        assert_eq!(super::without_frame_stamp("WARN : Lua f:0 at Lua((MOD:X)).F.lua> require(\"f:9\") failed"), "WARN : Lua at Lua((MOD:X)).F.lua> require(\"f:9\") failed");
+    }
+
+    #[test]
     fn a_stack_dump_of_one_error_is_not_the_next_ones() {
         let mut maker = CardMaker::new();
         // An error of the Studio Link with only the game's own code under it, then the dump of
@@ -2184,5 +2498,143 @@ mod blame_window_tests {
         assert_eq!(blame.of(lines[2]), None);
         // Nor does the name come back for an anonymous line after them.
         assert_eq!(blame.of("ERROR: General      f:9> Exception thrown"), None);
+    }
+}
+
+#[cfg(test)]
+mod grouped_and_own_tests {
+    use super::*;
+
+    fn bare(key: &str) -> String {
+        format!("WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = ')' at Formatter.parse(null:-1). Message: ERROR: Formatting \"{}\"", key)
+    }
+
+    fn missing(key: &str) -> String {
+        format!("WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% A' at Formatter.format(null:-1). Message: ERROR: Missing arguments for \"{}\"", key)
+    }
+
+    /// Shows a card the way the app does: one that comes again with the same id replaces it.
+    fn show(shown: &mut Vec<TranslatedErrorPayload>, cards: Vec<TranslatedErrorPayload>) {
+        for card in cards {
+            match shown.iter().position(|c| c.id == card.id) {
+                Some(at) => shown[at] = card,
+                None => shown.push(card),
+            }
+        }
+    }
+
+    #[test]
+    fn the_texts_the_game_cannot_format_are_one_card_that_lists_them() {
+        let mut maker = CardMaker::new();
+        let mut shown = Vec::new();
+        for i in 0..13 {
+            show(&mut shown, maker.line(&bare(&format!("Sandbox_Key{}", i))));
+        }
+        assert_eq!(shown.len(), 1, "thirteen texts, one card");
+        // The same text again says nothing new: no card is sent.
+        assert!(maker.line(&bare("Sandbox_Key0")).is_empty());
+        // A placeholder given no value is another kind: its own card.
+        show(&mut shown, maker.line(&missing("UI_trait_X")));
+        assert_eq!(shown.len(), 2);
+
+        let card = &shown[0];
+        assert_eq!((card.code.as_str(), card.severity), ("translator_text", Severity::Warning));
+        assert_eq!(card.title, "13 texts have a % sign the game cannot format");
+        assert_eq!(card.params["variant"], "many");
+        assert_eq!(card.params["count"], "13");
+        assert_eq!(card.params["keys"], (0..8).map(|i| format!("Sandbox_Key{}", i)).collect::<Vec<_>>().join(", "));
+        assert_eq!((card.params["more"].as_str(), card.params["moreKey"].as_str()), ("5", "and_more"));
+        assert!(card.explanation.contains("Sandbox_Key7 and 5 more."), "{}", card.explanation);
+        assert!(!card.explanation.contains("Sandbox_Key8"), "{}", card.explanation);
+        // No mod is known to ship them (a test sees no installed mods): the card does not name one.
+        assert_eq!(card.mod_name, None);
+        assert_eq!(card.params["whoseKey"], "text_whose_none_many");
+        assert!(card.raw_error.contains("Sandbox_Key0"), "the first line stays the card's line");
+
+        let other = &shown[1];
+        assert_eq!(other.title, "A text has a placeholder and was given no value");
+        assert_eq!((other.params["variant"].as_str(), other.params["count"].as_str(), other.params["keys"].as_str()), ("missing", "1", "UI_trait_X"));
+
+        // A new session starts the cards over.
+        maker.new_session();
+        let again = maker.line(&bare("Sandbox_Key0"));
+        assert_eq!(again.len(), 1);
+        assert_eq!((again[0].params["variant"].as_str(), again[0].params["count"].as_str()), ("", "1"));
+    }
+
+    fn error_block(mod_name: &str, file: &str) -> Vec<String> {
+        vec![
+            format!("ERROR: General      f:156> Lua((MOD:{})).SpawnsValues> Exception thrown", mod_name),
+            "\tjava.lang.RuntimeException: Object tried to call nil in SpawnsValues at KahluaUtil.fail(KahluaUtil.java:100).".to_string(),
+            "\tStack trace:".to_string(),
+            "\t\tse.krka.kahlua.vm.KahluaUtil.fail(KahluaUtil.java:100)".to_string(),
+            format!("\t\tLua((MOD:{})).SpawnsValues({}:353)", mod_name, file),
+            "LOG  : Lua          f:157> done".to_string(),
+        ]
+    }
+
+    fn card_of(lines: &[String]) -> TranslatedErrorPayload {
+        let mut maker = CardMaker::new();
+        let mut cards = Vec::new();
+        for l in lines {
+            cards.extend(maker.line(l));
+        }
+        cards.extend(maker.flush());
+        assert_eq!(cards.len(), 1, "{:#?}", cards.iter().map(|c| &c.raw_error).collect::<Vec<_>>());
+        cards.remove(0)
+    }
+
+    #[test]
+    fn a_card_about_the_players_own_mod_says_so_and_finds_its_file() {
+        let root = std::env::temp_dir().join(format!("pzms-own-card-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for rel in [
+            "common/media/lua/server/RemoteSpawn.lua",
+            "42/media/lua/server/RemoteSpawn.lua",
+            "42/media/lua/client/Twice.lua",
+            "42/media/lua/shared/Twice.lua",
+            "41/media/lua/server/Old.lua",
+        ] {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, "-- x").unwrap();
+        }
+        let own = vec![OwnMod { name: "My Mod".to_string(), id: "Mine".to_string(), root: root.clone() }];
+
+        // The same path in common/ and in the version folder is one file: the version folder's.
+        let mut card = card_of(&error_block("My Mod", "RemoteSpawn.lua"));
+        assert_eq!((card.source_file.as_deref(), card.line_number, card.frame_mod.as_deref()), (Some("RemoteSpawn.lua"), Some(353), Some("My Mod")));
+        mark_own_mod(&mut card, &own, Some(42_021));
+        assert!(card.own_mod);
+        assert_eq!(card.own_file.as_deref().map(std::path::Path::new), Some(root.join("42/media/lua/server/RemoteSpawn.lua").as_path()));
+
+        // Two different files of that name: none is given rather than the wrong one.
+        let mut card = card_of(&error_block("My Mod", "Twice.lua"));
+        mark_own_mod(&mut card, &own, Some(42_021));
+        assert!(card.own_mod && card.own_file.is_none());
+
+        // A file only a folder the game does not load has: not given.
+        let mut card = card_of(&error_block("My Mod", "Old.lua"));
+        mark_own_mod(&mut card, &own, Some(42_021));
+        assert!(card.own_mod && card.own_file.is_none());
+
+        // The place came from another mod's frame: the file is not this mod's to open.
+        let mut card = card_of(&error_block("My Mod", "RemoteSpawn.lua"));
+        card.frame_mod = Some("Somebody Else".to_string());
+        mark_own_mod(&mut card, &own, Some(42_021));
+        assert!(card.own_mod && card.own_file.is_none());
+
+        // Another mod's card is left as it was.
+        let mut card = card_of(&error_block("Somebody Else", "RemoteSpawn.lua"));
+        mark_own_mod(&mut card, &own, Some(42_021));
+        assert!(!card.own_mod && card.own_file.is_none());
+
+        // The app gets both.
+        let mut card = card_of(&error_block("My Mod", "RemoteSpawn.lua"));
+        mark_own_mod(&mut card, &own, Some(42_021));
+        let json = serde_json::to_value(&card).unwrap();
+        assert_eq!(json["own_mod"], true);
+        assert!(json["own_file"].as_str().is_some_and(|f| f.ends_with("RemoteSpawn.lua")));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

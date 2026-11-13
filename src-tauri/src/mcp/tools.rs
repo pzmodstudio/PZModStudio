@@ -498,6 +498,82 @@ fn available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "compat_author_suggestion".to_string(),
+            description: "For a mod the Studio keeps a compatible copy of: a note in English for the mod's author, ready to paste in the mod's Workshop comments. It says what kept the mod from running on the installed build and lists, file and line, each line as published beside the line that works here, as a suggestion with the working example. Made by comparing the Workshop original with the copy. Read-only; nothing is sent.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_id": { "type": "string", "description": "The mod id as in mod.info" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
+                },
+                "required": ["mod_id"]
+            }),
+        },
+        McpTool {
+            name: "save_remove".to_string(),
+            description: "Takes a save out of the game's saves folder. Nothing is deleted: its folder goes to the Studio's bin (Zomboid/PZModStudio_Backups/saves), from where saves_bin puts it back or deletes it; its zip backups stay. Refused while the game runs, and for the world of the Studio server that is running. Returns where it went.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "save_id": { "type": "string", "description": "<mode>/<world>, as save_inside takes it" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["save_id"]
+            }),
+        },
+        McpTool {
+            name: "save_rename".to_string(),
+            description: "Gives a save another name: its folder, its zip backups and what the Studio remembers of it. Refused while the game runs, for a name that is taken or is not a plain folder name, and for a multiplayer save the game or a server finds by that name (a server's world, a server joined); a hand-made copy beside one of those can be renamed. Returns the new <mode>/<world>.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "save_id": { "type": "string", "description": "<mode>/<world>" },
+                    "new_name": { "type": "string", "description": "The new world name" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["save_id", "new_name"]
+            }),
+        },
+        McpTool {
+            name: "saves_bin".to_string(),
+            description: "The bin of removed saves. action 'list' (default): each with mode, folder, the name it had, bytes, when removed. 'restore' (mode, folder): back among the saves under its name; refused while the game runs or when that name is taken. 'delete' (mode, folder): that one deleted from the disk for good. 'empty': every one deleted for good. Deleting cannot be undone; zip backups are not touched. Returns the list after the action, and bytes freed.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["list", "restore", "delete", "empty"] },
+                    "mode": { "type": "string", "description": "For restore/delete: the save's mode (Apocalypse, Sandbox, Multiplayer...)" },
+                    "folder": { "type": "string", "description": "For restore/delete: its folder in the bin, as 'list' gives it" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "saves_lost".to_string(),
+            description: "Saves that are no longer on disk (deleted in the game, for one) and still have backups. action 'list' (default): each with its id, its backups (file, when, size, reason) and what the zips take. 'recover' (save_id, file optional: default the newest): the save is made again from that backup; refused while the game runs. 'delete' (save_id): every backup of that lost save deleted for good; refused while the save exists. Returns the list after the action.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["list", "recover", "delete"] },
+                    "save_id": { "type": "string", "description": "<mode>/<world> of the lost save" },
+                    "file": { "type": "string", "description": "For recover: the backup's file name (default: the newest)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "remove_local_mod".to_string(),
+            description: "Takes a mod that is only a folder in Zomboid/mods (put there by hand; nothing to unsubscribe from) out of it: the folder is moved to Zomboid/PZModStudio_Backups/mods, nothing is deleted. Refused while the game runs, for a mod that is switched on, that a server's Mods= lists, that is a link to a mod in development, or that is the Studio's own. Returns where the folder went.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_id": { "type": "string", "description": "The mod id as in mod.info" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["mod_id"]
+            }),
+        },
+        McpTool {
             name: "mp_check_mods".to_string(),
             description: "The multiplayer check: the calls a mod's client or shared Lua makes directly that the game, in multiplayer, only does on the server (the handlers of media/lua/server/ClientCommands.lua and Vehicles/VehicleCommands.lua, 42.21), one row per call with file, line, the game's handler as evidence, whether it sits in an isClient() branch (guarded) and whether the file mentions isClient() at all (aware). Checks only those calls. Default: every active mod.".to_string(),
             input_schema: json!({
@@ -516,6 +592,19 @@ fn available_tools() -> Vec<McpTool> {
                 "type": "object",
                 "properties": {
                     "mod_ids": { "type": "array", "items": { "type": "string" }, "description": "Mod ids to scan (default: the active list)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "java_patches".to_string(),
+            description: "Java patch radar: which classes each Java mod changes and where two mods change the same one. Read from each mod's jar (the one its mod.info names with javaJarFile=, found the way ZombieBuddy finds it) without running anything: the class-level @Patch(className, methodName) annotations of the package ZombieBuddy scans (javaPkgName=), which is how ZombieBuddy mods declare their patches. Per mod: jar, package, side (client/server-only jar), classes (target class -> method names; '<init>' is the constructors, '*' a wildcard), patch_count, not_applied (patches the jar has that ZombieBuddy does not apply, by reason: outside_package, zombiebuddy_class, exposer, experimental), patches_in_code (the jar's own code uses Instrumentation/ByteBuddy/ASM/Javassist directly: it can change classes in ways no annotation declares, unknown here), unknown (jar_missing, no_package, unreadable: nothing is guessed). With detail=true also every patch: target_class, target_method, patch_class, kind (advice: adds code before/after, several stack; delegation: replaces the method), effects declared on its methods (enter, exit, skip = can skip the original method, return = can change the return value, args = can change the arguments), by_code (not in the scanned package; the mod's own code hands its package to ZombieBuddy, possibly only in some cases). overlaps: one per class two or more of the mods patch, with kind same_method (the methods they share) or same_class (different methods), owner_mod when the class belongs to another mod's jar rather than the game (add-ons patching their framework), delegations_meet (more than one replaces the same method), and per mod its methods, effects and whether it replaces. An overlap is not a conflict: whether two patches clash depends on what each does, which is not read. Mod Health shows the overlaps on the game's classes as java_patch_overlap (in_mod_health). Cached per mod until its jar or mod.info changes. Default: the active list.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_ids": { "type": "array", "items": { "type": "string" }, "description": "Mod ids to read (default: the active list)" },
+                    "detail": { "type": "boolean", "description": "Also list every patch of every mod (default false: classes and methods only)" },
                     "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
                     "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
                 }
@@ -795,6 +884,17 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "keep_mod_version" => handle_keep_mod_version(args),
         "make_compatible_copy" => handle_make_compatible_copy(args),
         "remove_compatible_copy" => handle_remove_compatible_copy(args),
+        "remove_local_mod" => handle_remove_local_mod(args),
+        "save_remove" | "save_rename" | "saves_bin" | "saves_lost" => handle_saves_tool(name, args),
+        "compat_author_suggestion" => {
+            let paths = resolve_paths(&args);
+            let game = crate::load_order::mod_info::read_installed_game_version(&paths.user_zomboid_dir);
+            let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, game);
+            match crate::compat::author_suggestion(&catalog, &paths.user_zomboid_dir, &paths.pz_install_dir, arg_str(&args, "mod_id"), game) {
+                Ok(text) => ToolCallResult { content: vec![ToolContent { content_type: "text".to_string(), text }], is_error: false },
+                Err(e) => error_result(e),
+            }
+        }
         "community_index_lookup" => handle_community_index_lookup(args),
         "workshop_item" => handle_workshop_item(args),
         "workshop_search" => handle_workshop_search(args),
@@ -803,6 +903,7 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "save_mod_maps" => handle_save_mod_maps(args),
         "save_inside" => handle_save_inside(args),
         "scan_mod_security" => handle_scan_mod_security(args),
+        "java_patches" => handle_java_patches(args),
         "check_mod_api" => handle_check_mod_api(args),
         "dismiss_index_issue" => handle_dismiss_index_issue(args),
         "list_load_rules" => handle_list_load_rules(args),
@@ -2021,6 +2122,80 @@ fn handle_make_compatible_copy(args: Value) -> ToolCallResult {
     json_result(result)
 }
 
+/// The Saves screen's remove, rename and bin, for agents.
+fn handle_saves_tool(name: &str, args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
+        return error_result("Zomboid folder not found.".to_string());
+    };
+    let game = find_running_pz_pid().is_some();
+    let save_id = arg_str(&args, "save_id");
+    let result: Result<Value, String> = match name {
+        "save_remove" => {
+            let server = crate::server_manager::get_dedicated_server_status(paths.user_zomboid_dir.clone()).ok();
+            if server.as_ref().is_some_and(|s| s.is_running && s.server_name.as_deref().is_some_and(|n| save_id == format!("Multiplayer/{}", n))) {
+                Err("This is the world of the server that is running: stop the server first.".to_string())
+            } else {
+                crate::save_backup::remove_save(&z, save_id, game).map(|to| json!({ "removed": save_id, "moved_to": to }))
+            }
+        }
+        "save_rename" => crate::save_backup::rename_save(&z, save_id, arg_str(&args, "new_name"), game).map(|id| json!({ "was": save_id, "now": id })),
+        "saves_lost" => {
+            let lost = crate::save_backup::lost_saves(&z);
+            let done: Result<Value, String> = match arg_str(&args, "action") {
+                "" | "list" => Ok(json!(null)),
+                "recover" => match lost.iter().find(|l| l.id == save_id) {
+                    None => Err(format!("{} is not a lost save with backups.", save_id)),
+                    Some(l) => {
+                        let file = match arg_str(&args, "file") {
+                            "" => l.backups[0].file.clone(),
+                            f => f.to_string(),
+                        };
+                        crate::save_backup::restore_backup(&z, save_id, &file, game).map(|_| json!({ "recovered": save_id, "from": file }))
+                    }
+                },
+                "delete" => crate::save_backup::delete_lost_backups(&z, save_id).map(|freed| json!({ "freed_bytes": freed })),
+                other => Err(format!("Unknown action '{}': list, recover or delete.", other)),
+            };
+            done.map(|did| {
+                let brief: Vec<Value> = crate::save_backup::lost_saves(&z).iter().map(|l| json!({ "id": l.id, "backups": l.backups.len(), "zip_bytes": l.zip_bytes, "newest": l.backups[0].at, "newest_file": l.backups[0].file })).collect();
+                json!({ "did": did, "lost": brief })
+            })
+        }
+        _ => {
+            let (mode, folder) = (arg_str(&args, "mode"), arg_str(&args, "folder"));
+            let done: Result<Value, String> = match arg_str(&args, "action") {
+                "" | "list" => Ok(json!(null)),
+                "restore" if game => Err("The game is running: close it first.".to_string()),
+                "restore" => crate::save_backup::restore_removed_save(&z, mode, folder).map(|id| json!({ "restored": id })),
+                "delete" if mode.is_empty() || folder.is_empty() => Err("'delete' needs mode and folder; 'empty' deletes them all.".to_string()),
+                "delete" => crate::save_backup::delete_removed_saves(&z, Some((mode, folder))).map(|freed| json!({ "freed_bytes": freed })),
+                "empty" => crate::save_backup::delete_removed_saves(&z, None).map(|freed| json!({ "freed_bytes": freed })),
+                other => Err(format!("Unknown action '{}': list, restore, delete or empty.", other)),
+            };
+            done.map(|did| json!({ "did": did, "bin": crate::save_backup::removed_saves(&z) }))
+        }
+    };
+    if result.is_ok() {
+        crate::studio_link::write_saves_file(&z);
+    }
+    json_result(result)
+}
+
+fn handle_remove_local_mod(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let mod_id = arg_str(&args, "mod_id");
+    if mod_id.is_empty() {
+        return json_result::<()>(Err("'mod_id' is required.".to_string()));
+    }
+    if let Some(pid) = find_running_pz_pid() {
+        return json_result::<()>(Err(format!("The game is running (PID {}): close it first.", pid)));
+    }
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let active = crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+    json_result(crate::compat::remove_local_mod(&catalog, &paths.user_zomboid_dir, mod_id, &active).map(|to| json!({ "removed": mod_id, "moved_to": to })))
+}
+
 fn handle_remove_compatible_copy(args: Value) -> ToolCallResult {
     let paths = resolve_paths(&args);
     let folder = arg_str(&args, "folder");
@@ -2082,6 +2257,71 @@ fn handle_scan_mod_security(args: Value) -> ToolCallResult {
         _ => crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default(),
     };
     json_result::<Vec<crate::security::ModScan>>(Ok(crate::security::scan_mods(z, &catalog, &ids)))
+}
+
+fn handle_java_patches(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let z = std::path::Path::new(&paths.user_zomboid_dir);
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let ids: Vec<String> = match args.get("mod_ids").and_then(|v| v.as_array()) {
+        Some(a) if !a.is_empty() => a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
+        _ => crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default(),
+    };
+    let detail = args.get("detail").and_then(|v| v.as_bool()).unwrap_or(false);
+    let radar = crate::java_patches::radar(z, &catalog, &ids);
+    let in_mod_health = crate::java_patches::overlap_issues(&radar).len();
+    let mods: Vec<Value> = radar
+        .mods
+        .iter()
+        .map(|m| {
+            let mut not_applied: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+            for p in &m.patches {
+                if let Some(why) = p.not_applied.as_deref() {
+                    *not_applied.entry(why).or_default() += 1;
+                }
+            }
+            let mut v = json!({
+                "mod_id": m.mod_id, "name": m.name, "jar": m.jar, "package": m.package, "side": m.side,
+                "classes_read": m.classes_read,
+                "patch_count": m.applied().count(),
+                "classes": crate::java_patches::by_class(m),
+                "not_applied": not_applied,
+                "patches_in_code": m.patches_in_code,
+                "unknown": m.unknown,
+            });
+            if detail {
+                v["patches"] = json!(m.patches);
+            }
+            v
+        })
+        .collect();
+    let overlaps: Vec<Value> = radar
+        .overlaps
+        .iter()
+        .map(|o| {
+            json!({
+                "target_class": o.target_class, "owner_mod": o.owner_mod, "kind": o.kind, "methods": o.methods,
+                "delegations_meet": o.delegations_meet,
+                "mods": o.mods.iter().map(|s| {
+                    let methods: std::collections::BTreeSet<&str> = s.patches.iter().filter_map(|p| p.target_method.as_deref()).collect();
+                    let effects: std::collections::BTreeSet<&str> = s.patches.iter().flat_map(|p| p.effects.iter().map(String::as_str)).collect();
+                    json!({
+                        "mod_id": s.mod_id, "name": s.name, "methods": methods, "effects": effects,
+                        "replaces": s.patches.iter().any(|p| p.kind == crate::java_patches::PatchKind::Delegation),
+                        "by_code": s.patches.iter().any(|p| p.by_code),
+                    })
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    json_result::<Value>(Ok(json!({
+        "scope": "What the jars declare with ZombieBuddy's @Patch annotation, read without running them. An overlap means two mods change the same class or method, not that they conflict: that depends on what each patch does. A jar's own code can patch more than it declares (patches_in_code).",
+        "zombiebuddy_in_list": radar.zombiebuddy_in_list,
+        "java_mods": mods.len(),
+        "mods": mods,
+        "overlaps": overlaps,
+        "in_mod_health": in_mod_health,
+    })))
 }
 
 fn handle_check_mod_api(args: Value) -> ToolCallResult {

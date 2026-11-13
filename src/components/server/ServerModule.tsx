@@ -57,6 +57,17 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
   const [selectedServer, setSelectedServer] = useState<PZServerConfig | null>(null);
   const [newServerName, setNewServerName] = useState('');
   const [activeSubTab, setActiveSubTab] = useState<ServerSubTab>('HOST');
+  // The multiplayer test is a tool for people making or testing mods: it shows with
+  // "Developer features" in Settings, as the Developer screen does.
+  const [developer, setDeveloper] = useState(() => localStorage.getItem('pz_show_advanced') === 'true');
+  useEffect(() => {
+    const onChange = (e: Event) => setDeveloper(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener('pzms-advanced-changed', onChange);
+    return () => window.removeEventListener('pzms-advanced-changed', onChange);
+  }, []);
+  useEffect(() => {
+    if (!developer && activeSubTab === 'MPTEST') setActiveSubTab('HOST');
+  }, [developer, activeSubTab]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -623,7 +634,7 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
                     <span>{t('servers.tabs.discord')}</span>
                   </button>
 
-                  <button
+                  {developer && <button
                     onClick={() => setActiveSubTab('MPTEST')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                       activeSubTab === 'MPTEST'
@@ -633,7 +644,7 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
                   >
                     <Users className="w-3.5 h-3.5" />
                     <span>{t('servers.tabs.mpTest')}</span>
-                  </button>
+                  </button>}
                 </div>
 
                 <div className="text-[11px] font-mono text-purple-300 font-bold bg-purple-950/60 px-2.5 py-1 rounded-lg border border-purple-800/40">
@@ -1023,7 +1034,7 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
               {/* Sub-Tab 5: Quick Settings Editor */}
               {activeSubTab === 'DISCORD' && <DiscordPanel paths={paths} server={selectedServer.name} filePath={selectedServer.file_path} />}
 
-              {activeSubTab === 'MPTEST' && <MpTestPanel paths={paths} server={selectedServer.name} />}
+              {developer && activeSubTab === 'MPTEST' && <MpTestPanel paths={paths} server={selectedServer.name} />}
 
               {activeSubTab === 'SETTINGS' && quickSettings && (
                 <div className="space-y-4 flex-1 flex flex-col justify-between">

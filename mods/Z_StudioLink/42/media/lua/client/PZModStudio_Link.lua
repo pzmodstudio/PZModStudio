@@ -17,6 +17,11 @@
 --   PZModStudio_LinkActive.txt    app:  a copy of mods/default.txt, made whenever it changes; a
 --                                       new copy while the game runs (the app changed the mods)
 --                                       becomes the game's active list
+--   PZModStudio_LinkApplies.txt   this: list=<unix seconds>, then a tab and a mod id per mod, per Accept on
+--                                       the Mods screen (the last 10): the active list as it was
+--                                       before it, for "Undo last Accept"
+--   PZModStudio_LinkApplied.txt   this: what the last Accept (or its undo) turned on and off,
+--                                       shown once on the main menu after the game reloads
 --
 -- What it does with them:
 -- - Mods screen: only the profile's mods ("Show all subscribed mods" brings the rest back); a
@@ -78,8 +83,8 @@ local APP_ALIVE_SECONDS = 15
 -- A request the app has not answered in this long is shown as not done.
 local REQUEST_TIMEOUT_SECONDS = 30
 -- Mod managers that own the Mods screen themselves. With one of them on, this mod leaves that
--- screen alone (two mods reshaping one list fight) and keeps only the save checks.
-local OTHER_MANAGERS = { "DefinitiveModManager", "PZMMClient", "ModManager", "ModLoadOrderSorter_b42" }
+-- screen alone (two mods reshaping one list fight) and keeps only the save checks. By mod.info id.
+local OTHER_MANAGERS = { "DefinitiveModManager", "PZMMClient", "ModManager", "ModLoadOrderSorter_b42", "KJModManager" }
 local SCREEN_FILE = "PZModStudio_LinkScreen.txt"
 
 -- The texts, in English. The game's translations (media/lua/shared/Translate/<LANG>/UI.json,
@@ -138,6 +143,8 @@ local TEXT = {
     screenBody = "PZ Mod Studio and {1} both draw the game's Mods screen, and only one can. Which one do you want? <LINE> <LINE> PZ Mod Studio's: {1} is turned off in this profile and the game reloads its mods (a few seconds). <LINE> The other one: PZ Mod Studio leaves the Mods screen to {1}; save backups and the check before a save loads stay with PZ Mod Studio. <LINE> <LINE> You can change it later in PZ Mod Studio, Settings.",
     screenStudio = "PZ Mod Studio's",
     screenOther = "The other one",
+    screenChange = "Mods screen: {1} - change",
+    screenChangeTip = "The game's Mods screen is drawn by {1}. Click to choose again: PZ Mod Studio's screen, or keep this one.",
     cardProfileClosed = "Profile: {1} ({2} mods), as PZ Mod Studio left it",
     inviteLine1 = "Mod profiles, a backup of each save before it loads,",
     inviteLine2 = "Mod Health, maps and servers. Free, for Windows.",
@@ -258,6 +265,14 @@ local TEXT = {
     errShowMods = "Show in Mods",
     errSeeStudio = "See in the Studio",
     errClose = "Close",
+    errMenuButton = "Lua errors ({1})",
+    errMenuButtonTip = "This session's Lua errors again: which mod, where it failed and how it got there.",
+    errDetails = "Details",
+    errDetailsHide = "Less",
+    errFailedAt = "Failed at {1}",
+    errSteps = "How it got there (the failing step first):",
+    errStepGame = "the game",
+    errMoreSteps = "... and {1} more step(s): Copy report has them all.",
     errHideTip = "Hide it as a small badge: a click on the badge shows it again, a drag moves it.",
     errBadge = "{1} Lua error(s)",
     errReportTitle = "Lua error in Project Zomboid {1}",
@@ -301,6 +316,26 @@ local TEXT = {
     modsAppNoOpen = "PZ Mod Studio is closed: open it from Windows. With its Settings, \"The close button (X)\", set to keep it in the tray, it stays running, and this button brings it up.",
     modsAppShown = "PZ Mod Studio is in front of the game.",
     modsFromApp = "PZ Mod Studio changed the mods: this is its list now.",
+    modsAcceptSum = "Accept: {1}",
+    modsChangeOn = "+{1} on",
+    modsChangeOff = "-{1} off",
+    modsChangeOrder = "order",
+    modsWillTurnOn = "Turns on ({1}):",
+    modsWillTurnOff = "Turns off ({1}):",
+    modsWillOrder = "The load order changes.",
+    modsUndoApply = "Undo last Accept",
+    modsUndoApplyTip = "Puts the mods back as they were before your last Accept on this screen ({1} ago). Accepts kept: {2}.",
+    modsUndoApplyBody = "The mods go back to how they were before your last Accept ({1} ago), and the game reloads them.",
+    modsUndoApplyDropped = "The {1} change(s) not accepted yet are dropped.",
+    modsUndoApplySame = "The mods are already as they were before your last Accept.",
+    modsUndoApplyDo = "Undo it",
+    appliedTitle = "Mods changed",
+    appliedUndoneTitle = "Last Accept undone",
+    appliedOn = "Turned on ({1}):",
+    appliedOff = "Turned off ({1}):",
+    appliedOrder = "The load order changed.",
+    appliedUndo = "Undo",
+    appliedOk = "OK",
     savesShowAll = "Show all ({1} more)",
     savesOnlyProfile = "Only {1}'s",
 }
@@ -632,11 +667,22 @@ function Link.askScreen()
     local choice = Link.readScreenChoice()
     if choice.screen == "other" and choice.other == other then return end
     Link.screenAsked = true
-    local name = other
+    Link.showScreenChoice(other)
+end
+
+--- The name a mod gives itself, or its id.
+function Link.modName(id)
+    local name = id
     pcall(function()
-        local info = getModInfoByID(other)
+        local info = getModInfoByID(id)
         if info and info:getName() then name = info:getName() end
     end)
+    return name
+end
+
+--- The choice between the two Mods screens, asked the first time and again from the menu button.
+function Link.showScreenChoice(other)
+    local name = Link.modName(other)
     local lines = 9
     local height = 110 + lines * (getTextManager():getFontHeight(UIFont.Small) + 2)
     -- Link.WaitPanel: the panel is defined further down this file.
@@ -644,6 +690,49 @@ function Link.askScreen()
         { label = text("screenOther"), onClick = function() Link.writeScreenChoice("other", other) end },
         { label = text("screenStudio"), accept = true, onClick = Link.useStudioScreen },
     })
+end
+
+--- While another manager draws the Mods screen because the player chose it: a button under the
+--- card that opens the choice again. Without it the first answer could never be taken back from
+--- the game. Made once, shown and placed on every frame of the main menu.
+function Link.screenButton(screen)
+    local other = Link.otherManager()
+    local t = now()
+    if not Link.screenState or t - Link.screenState.at > 3 then
+        local chosen = false
+        if other then
+            local choice = Link.readScreenChoice()
+            chosen = choice.screen == "other" and choice.other == other and Link.read() ~= nil
+        end
+        Link.screenState = { at = t, show = chosen }
+    end
+    local button = Link.screenChangeButton
+    if not Link.screenState.show then
+        if button then button:setVisible(false) end
+        return
+    end
+    if not button then
+        button = ISButton:new(0, 0, 100, 22, "", screen, function()
+            local id = Link.otherManager()
+            if id then Link.showScreenChoice(id) end
+        end)
+        button:initialise()
+        button:instantiate()
+        button.borderColor = { r = 0.35, g = 0.75, b = 1.0, a = 0.8 }
+        screen:addChild(button)
+        Link.screenChangeButton = button
+    end
+    local name = Link.modName(other)
+    local label = text("screenChange", name)
+    local w = getTextManager():MeasureStringX(UIFont.Small, label) + 20
+    local rect = Link.cardRect
+    local y = rect and (rect.y + rect.h + 6) or 20
+    button:setTitle(label)
+    button.tooltip = text("screenChangeTip", name)
+    button:setWidth(w)
+    button:setX(screen.width - w - 20)
+    button:setY(y)
+    button:setVisible(true)
 end
 
 --- What the main menu card shows, read again every few seconds (the files are small).
@@ -732,6 +821,7 @@ function Link.drawCard(screen)
     w = math.min(w + 24, screen.width - 40)
     local h = 30 + #lines * lineH + 8
     local x, y = screen.width - w - 20, 20
+    Link.cardRect = { x = x, y = y, w = w, h = h }
     screen:drawRect(x, y, w, h, 0.82, 0.05, 0.06, 0.08)
     screen:drawRectBorder(x, y, w, h, 0.8, 0.35, 0.75, 1.0)
     screen:drawText("PZ Mod Studio", x + 12, y + 7, 0.6, 0.85, 1, 1, UIFont.Medium)
@@ -888,6 +978,7 @@ function MainScreen:prerender(...)
         -- With the app on this PC: what it knows. Without it: only the invitation to get it.
         local ok, err = pcall(function()
             if Link.appInstalled() then Link.drawCard(self) else Link.showInvite(self) end
+            Link.screenButton(self)
         end)
         if not ok and not Link.cardFailed then
             Link.cardFailed = true
@@ -2025,6 +2116,7 @@ Link.text = text
 Link.plainId = plainId
 Link.isMapMod = isMapMod
 Link.now = now
+Link.ago = ago
 Link.SELF_ID = SELF_ID
 Link.DOWNLOAD_URL = DOWNLOAD_URL
 Link.STUDIO_PACKAGE = STUDIO_PACKAGE

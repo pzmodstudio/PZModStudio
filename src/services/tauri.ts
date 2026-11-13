@@ -6,7 +6,7 @@ import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
 import { MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport } from '../types';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
 
 export interface LuaSyntaxResult {
   is_valid: boolean;
@@ -475,6 +475,13 @@ export const TauriService = {
   removeCompatibleCopy: async (paths: StudioPathsUI, folder: string): Promise<void> => {
     await invoke('remove_compatible_copy_cmd', { paths, folder });
   },
+  /** ZombieBuddy's list of Java mods over the game's menu: hidden unless `show`; `apply` false only reads. */
+  zbWatermark: async (paths: StudioPathsUI, show: boolean, apply: boolean): Promise<{ known: boolean; opacity: number | null; changed: boolean; players_own: boolean }> =>
+    invoke('zb_watermark_cmd', { paths, show, apply }),
+  /** A note for the author of a mod the Studio keeps a compatible copy of (English, to paste in the Workshop comments). */
+  compatAuthorSuggestion: async (paths: StudioPathsUI, modId: string): Promise<string> => invoke<string>('compat_author_suggestion_cmd', { paths, modId }),
+  /** Takes a mod that is only a folder in Zomboid/mods out of it (moved to the backups folder); returns where it went. */
+  removeLocalMod: async (paths: StudioPathsUI, modId: string): Promise<string> => invoke<string>('remove_local_mod_cmd', { paths, modId }),
   /** The multiplayer test on this PC: server and games, memory, CPU, folders, logs, states. */
   mpTestStatus: async (paths: StudioPathsUI): Promise<MpTestStatus> => invoke<MpTestStatus>('mp_test_status_cmd', { paths }),
   /** Gets the second player's Zomboid folder ready for this server (its mods copied or linked). */
@@ -2099,6 +2106,15 @@ export const TauriService = {
    * Workshop mods updated since the last session (or `since`), or waiting in Steam. With
    * `withNotes` their change notes are read too (cached); without, nothing leaves the PC.
    */
+  /** What a mod's Java declares it changes (its ZombieBuddy patches); null when it has no Java. */
+  javaPatchesOfMod: async (paths: StudioPathsUI, modId: string): Promise<ModJavaPatches | null> => {
+    try {
+      return await invoke<ModJavaPatches | null>('java_patches_mod_cmd', { paths, modId });
+    } catch {
+      return null;
+    }
+  },
+
   /** A mod's own changelog and its author's support links, if it ships one. */
   modChangelog: async (paths: StudioPathsUI, modId: string): Promise<ModChangelog | null> => {
     try {
@@ -2169,6 +2185,19 @@ export const TauriService = {
   },
 
   /** A backup the player asked for (kept until removed). Throws with the reason when it fails. */
+  /** Takes a save out of the saves folder (moved to the backups folder); returns where it went. */
+  removeSave: async (paths: StudioPathsUI, saveId: string): Promise<string> => invoke<string>('remove_save_cmd', { paths, saveId }),
+  /** The saves on disk by name (and the bin's count): cheap, to notice a change made outside the Studio. */
+  saveNames: async (paths: StudioPathsUI): Promise<string[]> => invoke<string[]>('save_names_cmd', { paths }),
+  /** Deletes for good the backups of a save that is no longer on disk; returns the bytes freed. */
+  deleteLostBackups: async (paths: StudioPathsUI, saveId: string): Promise<number> => invoke<number>('delete_lost_backups_cmd', { paths, saveId }),
+  /** Puts a removed save back among the saves; returns its id. */
+  restoreRemovedSave: async (paths: StudioPathsUI, mode: string, folder: string): Promise<string> => invoke<string>('restore_removed_save_cmd', { paths, mode, folder }),
+  /** Deletes one removed save for good, or, with no folder, every one in the bin; returns the bytes freed. */
+  deleteRemovedSaves: async (paths: StudioPathsUI, mode?: string, folder?: string): Promise<number> =>
+    invoke<number>('delete_removed_saves_cmd', { paths, mode: mode ?? null, folder: folder ?? null }),
+  /** Gives a save another name; returns its new id. */
+  renameSave: async (paths: StudioPathsUI, saveId: string, newName: string): Promise<string> => invoke<string>('rename_save_cmd', { paths, saveId, newName }),
   backupSave: async (paths: StudioPathsUI, saveId: string): Promise<SaveBackupOutcome> => {
     return await invoke<SaveBackupOutcome>('backup_save_cmd', { paths, saveId });
   },
@@ -2240,7 +2269,7 @@ export const TauriService = {
  */
 const WRITES: Record<string, ChangeScope> = {
   // The installed mods, the packages, the game's active list.
-  installMods: 'mods', installFromUrl: 'mods', makeCompatibleCopy: 'mods', removeCompatibleCopy: 'mods', autoMergeConflicts: 'mods',
+  installMods: 'mods', installFromUrl: 'mods', makeCompatibleCopy: 'mods', removeCompatibleCopy: 'mods', removeLocalMod: 'mods', autoMergeConflicts: 'mods',
   workshopSubscribe: 'mods', diskRecycle: 'mods', restoreKeptVersion: 'mods', createMod: 'mods',
   createMergedPackage: 'mods', renameMergedPackage: 'mods', deleteMergedPackage: 'mods', togglePackageInModlist: 'mods',
   importMergedPackage: 'mods', publishFileIntoPackage: 'mods', removeFileFromPackage: 'mods', generateMasterPatch: 'mods', cleanMasterPatch: 'mods',
@@ -2259,7 +2288,7 @@ const WRITES: Record<string, ChangeScope> = {
   saveDraftResolution: 'other', clearDraftResolutions: 'other', writeSandboxPreset: 'other', importPresetFile: 'other',
   syncClientToServer: 'other', createNewServerConfig: 'other', deleteServerConfig: 'other', launchDedicatedServer: 'other', stopDedicatedServer: 'other',
   discordSave: 'other', saveGameBot: 'other', saveServerQuickSettings: 'other', changelogMarkRead: 'other',
-  backupSave: 'other', restoreSaveBackup: 'other', deleteSaveBackup: 'other', setSaveBackupKept: 'other', saveAddMaps: 'other',
+  backupSave: 'other', removeSave: 'other', renameSave: 'other', restoreRemovedSave: 'other', deleteRemovedSaves: 'other', deleteLostBackups: 'other', restoreSaveBackup: 'other', deleteSaveBackup: 'other', setSaveBackupKept: 'other', saveAddMaps: 'other',
 };
 for (const [name, scope] of Object.entries(WRITES)) {
   const service = TauriService as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;

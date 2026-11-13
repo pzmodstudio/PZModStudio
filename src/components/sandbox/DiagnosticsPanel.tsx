@@ -6,7 +6,8 @@ import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, explainError, reportBackendError } from '../../services/tauri';
 import { applyRequireFix, packageForPatch } from '../../utils/requireFix';
 import { errorShape } from '../../utils/errorShape';
-import { AlertCircle, AlertTriangle, Check, CheckCircle, Copy, Download, MessageSquare, Search, Trash2, Wrench, X } from 'lucide-react';
+import { knownRequireFix, pickCandidate, requireVerdict, type RequireVerdict } from '../../utils/requireVerdict';
+import { AlertCircle, AlertTriangle, Check, CheckCircle, Code2, Copy, Download, MessageSquare, Search, Trash2, Wrench, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cardText } from '../../i18n/backendText';
 
@@ -245,7 +246,31 @@ ${report}`);
   };
   const [fixing, setFixing] = useState<string | null>(null);
   const [fixedBanner, setFixedBanner] = useState<string | null>(null);
+  /**
+   * Whether the game is running, asked while a card offers a path fix: the fix publishes into the
+   * package, and the game holds the package's folder while it runs. The button says so before it
+   * is pressed instead of failing after.
+   */
+  const [gameRunning, setGameRunning] = useState(false);
+  const anyRequireCard = errorCards.some((c) => /require\(/.test(c.raw_error));
+  useEffect(() => {
+    if (!anyRequireCard) return;
+    let live = true;
+    const ask = () => void TauriService.gameStatus().then((pid) => live && setGameRunning(pid !== null));
+    ask();
+    const timer = window.setInterval(ask, 5000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [anyRequireCard]);
   const handleFixPath = async (card: TranslatedErrorCard, fix: { from: string; to: string }) => {
+    // Asked again at the press: the game may have started since the last look.
+    if ((await TauriService.gameStatus()) !== null) {
+      setGameRunning(true);
+      setFixNotes((prev) => ({ ...prev, [card.id]: t('monitor.fixes.closeGameFirst') }));
+      return;
+    }
     setFixing(card.id);
     try {
       // The files that ask for the module, in every active mod. The log names the file on some
@@ -355,35 +380,71 @@ ${report}`);
     return logLines.slice(at + 1).some((l) => l.includes(file) && !l.includes('require(') && /ERROR|Exception|attempted|non-table|nil value/.test(l));
   };
 
+  /** The mod a card is about, as the Mod List has it. */
+  const modOf = (card: TranslatedErrorCard): ModInfo | undefined => {
+    const name = card.mod_name ?? modFromStack(card);
+    return name ? mods.find((m) => m.name === name || m.mod_id === name) : undefined;
+  };
+  /**
+   * The module found for a card's failed require: the game's, or one in a mod that has to do with
+   * the one that asked. The lookup goes by file name, so a module in a mod with no tie to it may
+   * be another one called the same, and then nothing is fixed from it.
+   */
+  const pickedFor = (card: TranslatedErrorCard) => {
+    const wanted = moduleWanted(card);
+    return pickCandidate(wanted ? requireAnswers[wanted] : undefined, modOf(card), mods);
+  };
+  /** What the failed require came to, from what the log and the installed mods show. */
+  const verdictOf = (card: TranslatedErrorCard): RequireVerdict | null => {
+    const wanted = moduleWanted(card);
+    const answer = wanted ? requireAnswers[wanted] : undefined;
+    if (!answer) return null;
+    return requireVerdict({
+      answer,
+      picked: pickedFor(card),
+      carriedOn: isWarning(card),
+      // "No error from that file follows" is only said of a file the line names, in the log in front.
+      fileInLog: !!fileNamed(card) && logLines.some((l) => l.includes(card.raw_error.trim())),
+      fileFailedLater: fileFailedLater(card),
+    });
+  };
   /**
    * A module the game itself has under its Build 42 path: the game runs its own Lua before any
    * mod's, so the module is there anyway, and unless the file failed afterwards the line is noise.
    */
-  const requireOnlyNoise = (card: TranslatedErrorCard): boolean => {
-    const wanted = moduleWanted(card);
-    const best = wanted ? requireAnswers[wanted]?.candidates[0] : undefined;
-    return !!best && !best.same_path && best.owner === 'the game' && !fileFailedLater(card);
-  };
+  const requireOnlyNoise = (card: TranslatedErrorCard): boolean => verdictOf(card) === 'gameMovedNoise';
+  /** The module is in no mod that is on, the game carried on and the file did not fail: nothing to do. */
+  const requireOptional = (card: TranslatedErrorCard): boolean => ['optional', 'optionalOff'].includes(verdictOf(card) ?? '');
 
   /** What became of the require, in the app's language. */
   const requireText = (card: TranslatedErrorCard, answer: RequireAnswer): string => {
-    const best = answer.candidates[0];
-    if (!best) return t('monitor.require.nowhere', { wanted: answer.wanted });
+    const verdict = verdictOf(card);
+    const picked = pickedFor(card);
+    const mod = card.mod_name ?? modFromStack(card) ?? t('monitor.require.aMod');
+    const off = answer.installed_off?.[0];
+    if (verdict === 'optional') return t('monitor.require.optional', { mod, wanted: answer.wanted, file: fileNamed(card) ?? '' });
+    if (verdict === 'optionalOff' && off) return t('monitor.require.optionalOff', { mod, wanted: answer.wanted, owner: off.owner, file: fileNamed(card) ?? '' });
+    if (!picked) return off ? t('monitor.require.nowhereOff', { wanted: answer.wanted, owner: off.owner }) : t('monitor.require.nowhere', { wanted: answer.wanted });
+    const best = picked.best;
     const owner = best.owner === 'the game' ? t('monitor.require.theGame') : best.owner;
-    if (best.same_path) return t('monitor.require.samePath', { owner, path: best.module_path, phase: best.phase });
-    if (best.owner === 'the game') {
-      return requireOnlyNoise(card)
-        ? t('monitor.require.gameMovedNoise', { path: best.module_path, phase: best.phase, wanted: answer.wanted })
-        : t('monitor.require.gameMovedFailed', { path: best.module_path, phase: best.phase, wanted: answer.wanted, file: fileNamed(card) ?? '' });
-    }
-    return t('monitor.require.moved', { owner, path: best.module_path, phase: best.phase, wanted: answer.wanted });
+    if (verdict === 'samePath') return t('monitor.require.samePath', { owner, path: best.module_path, phase: best.phase });
+    if (verdict === 'gameMovedNoise') return t('monitor.require.gameMovedNoise', { path: best.module_path, phase: best.phase, wanted: answer.wanted });
+    if (verdict === 'gameMovedFailed') return t('monitor.require.gameMovedFailed', { path: best.module_path, phase: best.phase, wanted: answer.wanted, file: fileNamed(card) ?? '' });
+    return t(verdict === 'movedUnrelated' ? 'monitor.require.movedUnrelated' : 'monitor.require.moved', { owner, path: best.module_path, phase: best.phase, wanted: answer.wanted });
   };
 
   /** A `require` the Studio found at another path: the fix is known before the file is opened. */
-  const knownFix = (card: TranslatedErrorCard): { from: string; to: string } | null => {
-    const wanted = moduleWanted(card);
-    const best = wanted ? requireAnswers[wanted]?.candidates[0] : undefined;
-    return wanted && best && !best.same_path ? { from: wanted, to: best.module_path } : null;
+  const knownFix = (card: TranslatedErrorCard): { from: string; to: string } | null => knownRequireFix(moduleWanted(card), pickedFor(card));
+
+  /** Opens the player's own file at the line the game's stack gave, in their editor. */
+  const handleOpenOwnFile = async (card: TranslatedErrorCard) => {
+    if (!card.own_file) return;
+    try {
+      const where = await TauriService.openInEditor(paths, card.own_file, card.line_number ?? null, null);
+      onStatus(t('monitor.fixes.openedOwnFile', { where }));
+    } catch {
+      // Already shown by TauriService.
+    }
   };
 
   useEffect(() => {
@@ -605,6 +666,22 @@ ${report}`);
                       >
                         {card.mod_name ?? modFromStack(card)}
                       </span>
+                      {card.own_mod && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-700/70 text-emerald-300" title={t('monitor.cards.ownChipTitle')}>
+                          {t('monitor.cards.ownChip')}
+                        </span>
+                      )}
+                      {card.own_mod && card.own_file && card.line_number != null && (
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenOwnFile(card)}
+                          className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-700/60 text-emerald-200 hover:bg-emerald-950/40 cursor-pointer flex items-center gap-1"
+                          title={card.own_file}
+                        >
+                          <Code2 className="w-3 h-3" aria-hidden="true" />
+                          {t('monitor.fixes.openOwnFile', { file: fileNamed(card), line: card.line_number })}
+                        </button>
+                      )}
                       {(card.called_from?.length ?? 0) > 0 && (
                         /* The stack the game printed before the error: who called into it. */
                         <span
@@ -635,6 +712,8 @@ ${report}`);
                           </button>
                         )
                       ) : onPatchMod &&
+                        /* A mod of the player's own is mended in its own file, not through a package. */
+                        !card.own_mod &&
                         modIdNamed(card.mod_name ?? modFromStack(card)) &&
                         /* A warning the Studio has no fix for gets no button: pressing one
                            led to saving an unchanged copy, which fixes nothing. */
@@ -649,10 +728,12 @@ ${report}`);
                             if (fix) void handleFixPath(card, fix);
                             else onPatchMod(modId, fileNamed(card), null);
                           }}
-                          disabled={fixing === card.id}
-                          className="text-[10px] px-1.5 py-0.5 rounded border border-amber-700/60 text-amber-200 hover:bg-amber-950/40 cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                          disabled={fixing === card.id || (!!knownFix(card) && gameRunning)}
+                          className="text-[10px] px-1.5 py-0.5 rounded border border-amber-700/60 text-amber-200 hover:bg-amber-950/40 cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                           title={
-                            knownFix(card)
+                            knownFix(card) && gameRunning
+                              ? t('monitor.fixes.closeGameFirst')
+                              : knownFix(card)
                               ? t('monitor.fixes.rewriteTitle', { module: knownFix(card)!.from })
                               : fileNamed(card)
                               ? t('monitor.fixes.patchFileTitle', { file: fileNamed(card) })
@@ -688,11 +769,12 @@ ${report}`);
                         ) : null;
                       })()}
                       {fixNotes[card.id] && (
-                        <div className="basis-full text-[10px] text-emerald-300 bg-emerald-950/40 border border-emerald-800/50 rounded px-2 py-1 leading-relaxed">
+                        <div className="basis-full text-[10px] text-amber-200 bg-amber-950/40 border border-amber-800/50 rounded px-2 py-1 leading-relaxed">
                           {fixNotes[card.id]}
                         </div>
                       )}
-                      {onSwitchOffMod && !(card.mod_name ?? '').startsWith(STUDIO_PACKAGE_PREFIX) && card.code !== 'ui_draw_reload' && (
+                      {/* Not for the player's own mod, nor for a require that came to nothing: there is nothing to switch off for. */}
+                      {onSwitchOffMod && !card.own_mod && !requireOptional(card) && !(card.mod_name ?? '').startsWith(STUDIO_PACKAGE_PREFIX) && card.code !== 'ui_draw_reload' && (
                         <button
                           type="button"
                           onClick={() => onSwitchOffMod((card.mod_name ?? modFromStack(card))!)}
@@ -720,13 +802,13 @@ ${report}`);
                 const wanted = moduleWanted(card);
                 const answer = wanted ? requireAnswers[wanted] : undefined;
                 if (!answer) return null;
-                const best = answer.candidates[0];
+                const picked = pickedFor(card);
                 return (
                   <div className="px-2.5 py-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 leading-relaxed space-y-1">
                     <div>{requireText(card, answer)}</div>
-                    {best && !best.same_path && (
+                    {picked && picked.tied && !picked.best.same_path && (
                       <div className="font-mono text-[10px] text-emerald-300">
-                        {answer.wanted} &rarr; {best.module_path}
+                        {answer.wanted} &rarr; {picked.best.module_path}
                       </div>
                     )}
                   </div>
@@ -753,7 +835,12 @@ ${report}`);
                 /* What the card itself says to do. "The shim covers this" only when it says nothing:
                    it used to be the default, and the game's own door code (no Lua on its path) got it. */
                 <div className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-400">
-                  {cardText(card, 'action')}
+                  {/* "Switch it off to see" and "its author" are not said of a mod the player is making. */}
+                  {card.own_mod && (card.code ?? '').startsWith('mod_named')
+                    ? card.source_file && card.line_number != null
+                      ? t('monitor.cards.ownActionAt', { file: fileNamed(card), line: card.line_number })
+                      : t('monitor.cards.ownAction')
+                    : cardText(card, 'action')}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-[11px] text-emerald-300">
@@ -763,14 +850,17 @@ ${report}`);
               )}
 
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                <button
-                  onClick={() => handleSaveReport(card)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition cursor-pointer"
-                  title={t('monitor.cards.saveReportTitle')}
-                >
-                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>{t('monitor.cards.saveReport')}</span>
-                </button>
+                {/* A report is for handing to someone else; a mod of one's own has nobody to hand it to. Copy stays. */}
+                {!card.own_mod && (
+                  <button
+                    onClick={() => handleSaveReport(card)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition cursor-pointer"
+                    title={t('monitor.cards.saveReportTitle')}
+                  >
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>{t('monitor.cards.saveReport')}</span>
+                  </button>
+                )}
                 <button
                   onClick={() => handleCopyReport(card)}
                   className="flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition cursor-pointer"

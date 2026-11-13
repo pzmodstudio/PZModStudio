@@ -12,7 +12,10 @@
 --   - Show in Mods (menu): the Mods screen with that mod picked, to turn it off with what
 --     depends on it;
 --   - See in the Studio (only while PZ Mod Studio runs): its Monitor, with the error's card;
---   - Close: gone until the next error;
+--   - Details: where it failed (file and line) and the steps that led there, in the notice
+--     itself, without leaving the game;
+--   - Close: gone until the next error. The session's errors are kept: "Lua errors (N)" on the
+--     game's pause menu brings them back;
 --   - "-" (top right): hidden as a small badge with the count, which takes no clicks around it;
 --     a click on the badge shows the notice again, a drag moves it. New errors keep it a badge.
 -- In game it starts left of the clock and the speed controls, not over their buttons; it and
@@ -36,7 +39,7 @@ local SEEN_WRITE_SECONDS = 15
 local CHECK_SECONDS = 1
 local MAX_KEPT = 200
 
-local Errors = { batch = {}, total = 0 }
+local Errors = { batch = {}, total = 0, history = {} }
 Link.Errors = Errors
 
 -- ------------------------------------------------------------------ reading the list
@@ -111,6 +114,9 @@ local function add(err)
     Errors.total = Errors.total + 1
     table.insert(Errors.batch, err)
     if #Errors.batch > MAX_KEPT then table.remove(Errors.batch, 1) end
+    -- Every error of the session, for the pause menu's button to show again after a Close.
+    table.insert(Errors.history, err)
+    if #Errors.history > MAX_KEPT then table.remove(Errors.history, 1) end
 end
 
 --- Reads what the game added to its list since the last look. True when there is something new.
@@ -241,6 +247,24 @@ function Notice:new(x, y, w, h)
     return o
 end
 
+-- How many steps of the stack the notice lists when its details are open.
+local DETAIL_STEPS = 8
+
+--- `Lua((MOD:Name)).fn(File.lua:353)` -> "fn (File.lua:353)" and whose it is; the game's own
+--- steps are said as such.
+local function stepOf(frame)
+    local rest = string.match(frame.line, "^Lua%(%(MOD:.-%)%)%.(.*)$") or string.match(frame.line, "^Lua%(Vanilla%)%.(.*)$") or frame.line
+    local fn, place = string.match(rest, "^(.-)%((.-)%)$")
+    if fn and place then rest = fn .. "  (" .. place .. ")" end
+    return rest, frame.mod or text("errStepGame")
+end
+
+--- The file and line of the step that failed: "RemoteSpawn.lua:353", or nil.
+local function failedAt(err)
+    local first = err and err.frames and err.frames[1]
+    return first and string.match(first.line, "%(([^()]-%.lua:%d+)%)$") or nil
+end
+
 local function fit(s, font, width)
     local tm = getTextManager()
     if tm:MeasureStringX(font, s) <= width then return s end
@@ -271,7 +295,11 @@ function Notice:createChildren()
             panel.saidAt = Link.now()
         end
     end)
-    if not Link.inGame and Link.ModsScreen then
+    -- Not for an error of the Link itself: the Mods screen leaves the Link out of its list, so
+    -- there would be nothing to show there and the button would seem to do nothing.
+    local first = byMod()[1]
+    local firstId = first and Errors.idOf(first.mod)
+    if not Link.inGame and Link.ModsScreen and firstId and firstId ~= "Z_StudioLink" then
         self:addButton(text("errShowMods"), function(panel)
             local groups = byMod()
             local id = groups[1] and Errors.idOf(groups[1].mod)
@@ -286,6 +314,10 @@ function Notice:createChildren()
             panel.saidAt = Link.now()
         end)
     end
+    self:addButton(Errors.detailsOpen and text("errDetailsHide") or text("errDetails"), function()
+        Errors.detailsOpen = not Errors.detailsOpen
+        Errors.reopen()
+    end)
     self:addButton(text("errClose"), function() Errors.close() end)
     -- Hide, top right: the notice becomes a small badge there, which brings it back.
     local size = 18
@@ -322,6 +354,33 @@ function Notice:prerender()
         self:drawText(fit(said, small, w), 10, y, 0.45, 0.9, 0.65, 1, small)
     else
         self:drawText(fit(top.last.message or "", small, w), 10, y, 0.7, 0.7, 0.75, 1, small)
+    end
+    if not Errors.detailsOpen then return end
+    -- The details: where it failed, then the steps, the failing one first.
+    local lineH = getTextManager():getFontHeight(small) + 2
+    y = y + lineH + 4
+    local at = failedAt(top.last)
+    if at then
+        self:drawText(fit(text("errFailedAt", at), small, w), 10, y, 1, 0.8, 0.45, 1, small)
+    end
+    y = y + lineH
+    local frames = top.last.frames or {}
+    if #frames > 0 then
+        self:drawText(fit(text("errSteps"), small, w), 10, y, 0.7, 0.7, 0.75, 1, small)
+        y = y + lineH
+        for i = 1, math.min(#frames, DETAIL_STEPS) do
+            local step, whose = stepOf(frames[i])
+            local line = tostring(i) .. ". " .. step .. "   [" .. whose .. "]"
+            if frames[i].mod then
+                self:drawText(fit(line, small, w), 14, y, 0.92, 0.92, 0.95, 1, small)
+            else
+                self:drawText(fit(line, small, w), 14, y, 0.55, 0.55, 0.6, 1, small)
+            end
+            y = y + lineH
+        end
+        if #frames > DETAIL_STEPS then
+            self:drawText(fit(text("errMoreSteps", #frames - DETAIL_STEPS), small, w), 14, y, 0.55, 0.55, 0.6, 1, small)
+        end
     end
 end
 
@@ -394,7 +453,15 @@ local NOTICE_W = 420
 local function remove(panel)
     if not panel then return end
     panel:setVisible(false)
+    -- On the pause menu the notice is the menu's child (the game hides every other window there).
+    if panel.onMenu and MainScreen.instance then pcall(function() MainScreen.instance:removeChild(panel) end) end
     panel:removeFromUIManager()
+end
+
+--- The game's pause menu is up: it hides every window that is not its own.
+local function pauseMenuUp()
+    local ok, up = pcall(function() return Link.inGame and MainScreen.instance ~= nil and MainScreen.instance:getIsVisible() end)
+    return ok and up == true
 end
 
 local function onScreen(x, y, w, h)
@@ -475,15 +542,85 @@ function Errors.show()
     if Errors.panel then return end
     local w = NOTICE_W
     local h = 8 + getTextManager():getFontHeight(UIFont.Medium) + 4 + (getTextManager():getFontHeight(UIFont.Small) + 2) * 3 + 38
+    -- With the details open: where it failed, the heading, the steps and the "more" line.
+    if Errors.detailsOpen then
+        local top = byMod()[1]
+        local steps = top and top.last and top.last.frames and #top.last.frames or 0
+        local lines = 1 + (steps > 0 and 1 or 0) + math.min(steps, DETAIL_STEPS) + (steps > DETAIL_STEPS and 1 or 0)
+        h = h + 8 + (getTextManager():getFontHeight(UIFont.Small) + 2) * lines
+    end
     local x, y
     if Errors.at then x, y = Errors.at.x, Errors.at.y else x, y = firstSpot(w) end
     x, y = onScreen(x, y, w, h)
     local panel = Notice:new(x, y, w, h)
     panel:initialise()
     panel:instantiate()
-    panel:addToUIManager()
-    panel:setAlwaysOnTop(true)
+    if pauseMenuUp() then
+        panel.onMenu = true
+        MainScreen.instance:addChild(panel)
+        panel:bringToTop()
+    else
+        panel:addToUIManager()
+        panel:setAlwaysOnTop(true)
+    end
     Errors.panel = panel
+end
+
+--- The session's errors again, after a Close: from the pause menu's button.
+function Errors.showAll()
+    if #Errors.history == 0 then return end
+    Errors.batch = {}
+    for _, err in ipairs(Errors.history) do table.insert(Errors.batch, err) end
+    Errors.hidden = false
+    if Errors.badge then
+        remove(Errors.badge)
+        Errors.badge = nil
+    end
+    Errors.reopen()
+end
+
+--- "Lua errors (N)" on the game's pause menu, beside Report Bug, while the session has any.
+function Errors.menuButton(screen)
+    local button = Errors.menuBtn
+    local n = #Errors.history
+    if not Link.inGame or n == 0 or Errors.otherShows() then
+        if button then button:setVisible(false) end
+        return
+    end
+    if not button or button.screen ~= screen then
+        button = ISButton:new(0, 0, 100, 22, "", screen, function() Errors.showAll() end)
+        button:initialise()
+        button:instantiate()
+        button:setFont(UIFont.Small)
+        button.borderColor = { r = 0.97, g = 0.44, b = 0.44, a = 0.9 }
+        button.screen = screen
+        screen:addChild(button)
+        Errors.menuBtn = button
+    end
+    local label = text("errMenuButton", n)
+    local w = getTextManager():MeasureStringX(UIFont.Small, label) + 18
+    local beside = screen.reportBug
+    local x = beside and (beside:getX() - w - 8) or (screen.width - w - 20)
+    local y = beside and beside:getY() or (screen.height - 60)
+    local h = beside and beside:getHeight() or 22
+    button:setTitle(label)
+    button.tooltip = text("errMenuButtonTip")
+    button:setWidth(w)
+    button:setHeight(h)
+    button:setX(x)
+    button:setY(y)
+    button:setVisible(true)
+end
+
+--- The notice made again where it is (its size and its buttons follow what it shows).
+function Errors.reopen()
+    local panel = Errors.panel
+    if panel then
+        Errors.at = { x = panel:getX(), y = panel:getY() }
+        remove(panel)
+        Errors.panel = nil
+    end
+    Errors.show()
 end
 
 -- ------------------------------------------------------------------ watching
@@ -494,6 +631,8 @@ local function check()
     Errors.checkedAt = t
     -- Said every few seconds, so a reload knows the file is this game's.
     if Errors.seen and (not Errors.wroteAt or t - Errors.wroteAt >= SEEN_WRITE_SECONDS) then pcall(writeSeen) end
+    -- The pause menu came up or went away: the notice moves to where it can be seen.
+    if Errors.panel and (Errors.panel.onMenu == true) ~= pauseMenuUp() then Errors.reopen() end
     if not Errors.collect() then return end
     if #Errors.batch > 0 and not Errors.otherShows() then Errors.show() end
 end
@@ -503,6 +642,17 @@ local function safeCheck()
     if not ok and not Errors.failed then
         Errors.failed = true
         print("[StudioLink] the error notice failed: " .. tostring(err))
+    end
+end
+
+-- The pause menu's own drawing: its button for the session's errors.
+local menuPrerender = MainScreen.prerender
+function MainScreen:prerender(...)
+    menuPrerender(self, ...)
+    local ok, err = pcall(Errors.menuButton, self)
+    if not ok and not Errors.menuFailed then
+        Errors.menuFailed = true
+        print("[StudioLink] the pause menu's error button failed: " .. tostring(err))
     end
 end
 

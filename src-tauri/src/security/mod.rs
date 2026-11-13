@@ -372,7 +372,7 @@ fn is_reparse_point(_meta: &std::fs::Metadata) -> bool {
 
 /// A mod in development: its folder is a link (junction or symlink) to a folder outside the
 /// Workshop, usually the author's repository.
-fn is_dev_link(root: &Path) -> bool {
+pub(crate) fn is_dev_link(root: &Path) -> bool {
     is_link(root)
         && std::fs::canonicalize(root)
             .map(|t| !t.to_string_lossy().replace('\\', "/").to_ascii_lowercase().contains("/steamapps/workshop/"))

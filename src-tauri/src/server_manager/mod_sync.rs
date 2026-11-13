@@ -202,6 +202,7 @@ pub fn check(catalog: &ModCatalog, content: &str, pz_install_dir: &str) -> Serve
             message,
             fixes: Vec::new(),
             related: Vec::new(),
+            own_mod: false,
         });
     };
 

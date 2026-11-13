@@ -89,7 +89,9 @@ fn sha256_file(path: &Path) -> Option<String> {
 }
 
 /// The jars a mod's `mod.info` names (`javaJarFile=`), resolved the way ZombieBuddy does:
-/// relative to the folder of that `mod.info`.
+/// relative to the folder of that `mod.info`, and, when the mod.info is in `common/`, in the
+/// version folder (ZombieBuddy's Loader tries both: Viewpoint and others keep `common/mod.info`
+/// with the jar under `42/`, and went unchecked for a server).
 pub fn java_jars(m: &CatalogMod) -> Vec<PathBuf> {
     let Some(info_path) = m.mod_info_path.as_ref().map(PathBuf::from) else { return Vec::new() };
     let Ok(text) = std::fs::read_to_string(&info_path) else { return Vec::new() };
@@ -102,7 +104,22 @@ pub fn java_jars(m: &CatalogMod) -> Vec<PathBuf> {
         })
         .flat_map(|v| v.split([',', ';']).map(|s| s.trim().to_string()).collect::<Vec<_>>())
         .filter(|v| !v.is_empty())
-        .map(|v| base.join(v.replace('\\', "/")))
+        .map(|v| {
+            let rel = v.replace('\\', "/");
+            let beside = base.join(&rel);
+            if beside.is_file() {
+                return beside;
+            }
+            let root = Path::new(&m.root_dir);
+            let mut folders: Vec<&String> = m.version_folders.iter().collect();
+            folders.sort_by(|a, b| b.cmp(a));
+            folders
+                .into_iter()
+                .map(|f| root.join(f).join(&rel))
+                .chain([root.join("common").join(&rel), root.join(&rel)])
+                .find(|p| p.is_file())
+                .unwrap_or(beside)
+        })
         .collect()
 }
 
@@ -667,6 +684,7 @@ fn issue(severity: Severity, code: &str, message: String, params: &[(&str, &str)
         message,
         fixes: Vec::new(),
         related: Vec::new(),
+        own_mod: false,
     }
 }
 
@@ -749,6 +767,16 @@ mod tests {
         assert_eq!(codes(&[other_mod]), vec!["server_java_not_approved"], "approvals are per mod id");
         let denied = Approval { id: "KnoxLives".into(), jar_hash: hash, decision: false };
         assert_eq!(codes(&[denied]), vec!["server_java_denied"]);
+
+        // A mod.info in common/ with its jar in the version folder is found too.
+        let vp = zomboid.join("mods").join("Viewpointish");
+        fs::create_dir_all(vp.join("common")).unwrap();
+        fs::create_dir_all(vp.join("42").join("media").join("java")).unwrap();
+        fs::write(vp.join("common").join("mod.info"), "id=Viewpointish\nname=Viewpointish\njavaJarFile=media/java/V.jar\n").unwrap();
+        fs::write(vp.join("42").join("media").join("java").join("V.jar"), b"v").unwrap();
+        let catalog2 = crate::catalog::build_catalog(&workshop.to_string_lossy(), &zomboid.to_string_lossy(), None);
+        let v = catalog2.resolve("Viewpointish").expect("the mod with common/mod.info is listed");
+        assert_eq!(java_jars(v).iter().filter(|j| j.is_file()).count(), 1, "{:?} from {:?}", java_jars(v), v.mod_info_path);
 
         // A rebuilt jar is a new jar.
         fs::write(&jar, b"version 2").unwrap();

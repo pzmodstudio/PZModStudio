@@ -74,6 +74,17 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
    */
   const [showAdvanced, setShowAdvanced] = useState<boolean>(() => localStorage.getItem('pz_show_advanced') === 'true');
 
+  // ZombieBuddy's list of Java mods over the game's menu: what its option says now, and the choice.
+  const [zbShow, setZbShow] = useState<boolean>(() => localStorage.getItem('pz_zb_watermark_show') === 'true');
+  const [zbState, setZbState] = useState<{ known: boolean; players_own: boolean; changed: boolean } | null>(null);
+  useEffect(() => {
+    void TauriService.zbWatermark(paths, zbShow, false).then(setZbState).catch(() => setZbState(null));
+  }, [paths, zbShow]);
+  const toggleZbShow = async (on: boolean) => {
+    setZbShow(on);
+    localStorage.setItem('pz_zb_watermark_show', String(on));
+    setZbState(await TauriService.zbWatermark(paths, on, true).catch(() => null));
+  };
   const toggleAdvanced = (on: boolean) => {
     setShowAdvanced(on);
     localStorage.setItem('pz_show_advanced', String(on));
@@ -941,6 +952,30 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
               onClick={() => toggleAdvanced(!showAdvanced)}
               className={`w-10 h-5 shrink-0 rounded-full p-0.5 flex items-center transition cursor-pointer ${
                 showAdvanced ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white shadow-md" />
+            </button>
+          </div>
+        )}
+
+        {activeSubTab === 'PATHS' && showAdvanced && zbState?.known && (
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-xs font-bold text-slate-200">{t('settings.zbList')}</div>
+              <p className="text-[11px] text-slate-400 max-w-2xl">
+                {t(zbState.players_own ? 'settings.zbListOwn' : 'settings.zbListBlurb')}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={zbShow}
+              aria-label={t('settings.zbList')}
+              disabled={zbState.players_own}
+              onClick={() => void toggleZbShow(!zbShow)}
+              className={`w-10 h-5 shrink-0 rounded-full p-0.5 flex items-center transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                zbShow ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-white shadow-md" />

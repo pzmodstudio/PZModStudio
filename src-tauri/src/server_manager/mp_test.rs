@@ -805,6 +805,9 @@ pub fn stop(primary: &Path) -> Result<Vec<u32>, String> {
         closed.push(p.pid);
     }
     let _ = super::stop_dedicated_server(primary.to_string_lossy().to_string(), None);
+    // The Link's choices go with the test: player 1 plays in the player's own folder.
+    crate::sandbox::forget_mp_test_automation(&primary.to_string_lossy());
+    crate::sandbox::forget_mp_test_automation(&second_dir(primary).to_string_lossy());
     set_phase(primary, "stopped");
     Ok(closed)
 }

@@ -787,6 +787,178 @@ fn adapt(dest: &Path, game_version: u32, index: &[(String, crate::sandbox::requi
 }
 
 /// Removes a compatible copy (moved to Zomboid/PZModStudio_Backups/mods, not deleted).
+/// One line of a mod's file as the author has it, and as it works on the installed build.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LineChange {
+    file: String,
+    line: usize,
+    original: Vec<String>,
+    working: Vec<String>,
+}
+
+/// The lines that differ between the Workshop original and the compatible copy, text files only.
+/// Files the copy added (generated JSON translations) are named, not listed line by line.
+fn copy_differences(original: &Path, copy: &Path) -> (Vec<LineChange>, Vec<String>) {
+    const TEXT: [&str; 5] = ["lua", "txt", "info", "json", "xml"];
+    let (mut changes, mut added) = (Vec::new(), Vec::new());
+    let mut files: Vec<PathBuf> = walkdir::WalkDir::new(copy).into_iter().flatten().filter(|e| e.file_type().is_file()).map(|e| e.into_path()).collect();
+    files.sort();
+    for path in files {
+        let Ok(rel) = path.strip_prefix(copy) else { continue };
+        let name = rel.to_string_lossy().replace('\\', "/");
+        if name.starts_with('.') || !path.extension().is_some_and(|x| TEXT.contains(&x.to_string_lossy().to_ascii_lowercase().as_str())) {
+            continue;
+        }
+        let Ok(new) = fs::read(&path) else { continue };
+        let Ok(old) = fs::read(original.join(rel)) else {
+            added.push(name);
+            continue;
+        };
+        if old == new {
+            continue;
+        }
+        let (old, new) = (String::from_utf8_lossy(&old).replace("\r\n", "\n"), String::from_utf8_lossy(&new).replace("\r\n", "\n"));
+        let diff = similar::TextDiff::from_lines(&old, &new);
+        for op in diff.ops() {
+            if matches!(op.tag(), similar::DiffTag::Equal) {
+                continue;
+            }
+            let lines = |text: &str, range: std::ops::Range<usize>| -> Vec<String> {
+                text.lines().skip(range.start).take(range.len()).map(|l| l.trim().chars().take(200).collect()).collect()
+            };
+            changes.push(LineChange {
+                file: name.clone(),
+                line: op.old_range().start + 1,
+                original: lines(&old, op.old_range()),
+                working: lines(&new, op.new_range()),
+            });
+        }
+    }
+    (changes, added)
+}
+
+/// The module a line requires: `require "Vehicles/Vehicles"` -> `Vehicles/Vehicles`.
+fn required_module(line: &str) -> Option<String> {
+    let rest = line.trim().strip_prefix("require")?.trim_start().trim_start_matches('(').trim_start();
+    let quote = rest.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+    let inner = &rest[1..];
+    inner.find(quote).map(|end| inner[..end].trim_end_matches(".lua").to_string())
+}
+
+/// Whether the installed game itself ships that module (in client, server or shared). With no
+/// game folder known nothing can be told apart, and the line is kept.
+fn game_has_module(pz_install_dir: &str, module: &str) -> bool {
+    let lua = Path::new(pz_install_dir).join("media").join("lua");
+    !lua.is_dir() || ["client", "server", "shared"].iter().any(|phase| lua.join(phase).join(format!("{}.lua", module)).is_file())
+}
+
+/// A note for a mod's author, in English, ready to paste in the mod's Workshop comments: what kept
+/// the mod from running on this player's build, and the lines that work here, as a suggestion with
+/// the example. Made from the compatible copy the Studio keeps of that mod; nothing is sent.
+pub fn author_suggestion(catalog: &crate::catalog::ModCatalog, user_zomboid_dir: &str, pz_install_dir: &str, mod_id: &str, game_version: Option<u32>) -> Result<String, String> {
+    let zomboid = get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let local = catalog
+        .mods
+        .iter()
+        .find(|m| m.id == mod_id && m.source == crate::catalog::ModSource::Local)
+        .ok_or_else(|| format!("{} has no compatible copy in Zomboid/mods.", mod_id))?;
+    let copy = PathBuf::from(&local.root_dir);
+    let folder = copy.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let all = origins::load(&zomboid);
+    let Some(ModOrigin::Compat { workshop_id, source_dir, changes: why }) = all.get(&folder).map(|r| &r.origin) else {
+        return Err(format!("{} is not a compatible copy made by the Studio: there is nothing to compare.", folder));
+    };
+    let original = Path::new(source_dir);
+    if !original.is_dir() {
+        return Err(format!("The original of {} is no longer at {}: subscribe to it again to compare.", mod_id, source_dir));
+    }
+    let (changes, added) = copy_differences(original, &copy);
+    // Only what is true for everyone on this build: a `require` that was pointed at a file of
+    // another mod of this player's list depends on that list, and is left out.
+    let changes: Vec<LineChange> = changes.into_iter().filter(|c| c.working.iter().all(|l| required_module(l).is_none_or(|m| game_has_module(pz_install_dir, &m)))).collect();
+    if changes.is_empty() && added.is_empty() {
+        return Err(format!("The copy of {} is the same as the original: nothing to suggest.", mod_id));
+    }
+    let version = local.info.mod_version.clone().filter(|v| !v.is_empty()).map(|v| format!(", v{}", v)).unwrap_or_default();
+    let item = workshop_id.as_ref().filter(|w| !w.is_empty()).map(|w| format!(", Workshop item {}", w)).unwrap_or_default();
+    let build = game_version.map(format_game_version).unwrap_or_else(|| "my build".to_string());
+    let files: std::collections::BTreeSet<&str> = changes.iter().map(|c| c.file.as_str()).collect();
+    let mut out = String::new();
+    out.push_str(&format!("Suggestion for {} ({}{}{}) on Project Zomboid {}\n\n", local.name, mod_id, version, item, build));
+    out.push_str(&format!(
+        "Hi! On Project Zomboid {} this mod gave me trouble as published. I tried the changes below on a local copy and with them it runs here, so I am passing them on as a suggestion with the working example, in case they are useful. Your published files were not touched.\n\n",
+        build
+    ));
+    if !why.is_empty() {
+        out.push_str("What I tried on my copy:\n");
+        for w in why {
+            out.push_str(&format!("- {}\n", w));
+        }
+        out.push('\n');
+    }
+    if !changes.is_empty() {
+        out.push_str(&format!("What works here ({} place(s) in {} file(s)):\n\n", changes.len(), files.len()));
+        const SHOWN: usize = 40;
+        for c in changes.iter().take(SHOWN) {
+            out.push_str(&format!("{}, line {}\n", c.file, c.line));
+            for l in &c.original {
+                out.push_str(&format!("  as published: {}\n", l));
+            }
+            for l in &c.working {
+                out.push_str(&format!("  works here:   {}\n", l));
+            }
+            if c.working.is_empty() {
+                out.push_str("  works here:   (line left out)\n");
+            }
+            out.push('\n');
+        }
+        if changes.len() > SHOWN {
+            out.push_str(&format!("... and {} more place(s) of the same kind.\n\n", changes.len() - SHOWN));
+        }
+    }
+    if !added.is_empty() {
+        out.push_str(&format!("Files added beside yours ({}): {}{}\n\n", added.len(), added.iter().take(8).cloned().collect::<Vec<_>>().join(", "), if added.len() > 8 { ", ..." } else { "" }));
+    }
+    out.push_str("Only what kept the mod from loading was looked at; I have not tested everything the mod does. Made with PZ Mod Studio by comparing the mod with the installed game.\n");
+    Ok(out)
+}
+
+/// Takes a mod that lives only as a folder in `Zomboid/mods` (put there by hand, or a copy) out of
+/// it: the folder goes to `Zomboid/PZModStudio_Backups/mods`, nothing is deleted. Refused for a mod
+/// that is on in `active`, that a server's `Mods=` lists, that is a link to a mod in development,
+/// or that is the Studio's own. Returns where the folder went.
+pub fn remove_local_mod(catalog: &crate::catalog::ModCatalog, user_zomboid_dir: &str, mod_id: &str, active: &[String]) -> Result<String, String> {
+    let zomboid = get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let m = catalog
+        .mods
+        .iter()
+        .find(|m| m.id == mod_id && m.source == crate::catalog::ModSource::Local)
+        .ok_or_else(|| format!("{} is not a folder in Zomboid/mods (a Workshop mod is unsubscribed instead).", mod_id))?;
+    let dir = PathBuf::from(&m.root_dir);
+    let folder = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let mods_dir = zomboid.join("mods");
+    if folder.is_empty() || dir.parent().and_then(|p| fs::canonicalize(p).ok()) != fs::canonicalize(&mods_dir).ok() {
+        return Err(format!("{} is not directly in Zomboid/mods.", m.root_dir));
+    }
+    if mod_id.starts_with("Z_PZModStudio_") || mod_id == crate::studio_link::LINK_MOD_ID || mod_id == "Z_ClaudeAgent" || mod_id == "PZModStudio_Profiler" {
+        return Err(format!("{} is the Studio's own: it is not removed from here.", mod_id));
+    }
+    if is_link_dir(&dir) {
+        return Err(format!("{} is a link to a folder elsewhere (a mod in development): remove the link by hand if you mean to.", folder));
+    }
+    if active.iter().any(|a| a.trim().trim_start_matches('\\') == mod_id) {
+        return Err(format!("{} is switched on: switch it off first.", mod_id));
+    }
+    if let Some(servers) = crate::catalog::listed_by_a_server(user_zomboid_dir, mod_id) {
+        return Err(format!("The server {} lists {}: take it out of that server's mods first.", servers, mod_id));
+    }
+    let backup = free_backup(zomboid.join("PZModStudio_Backups").join("mods").join(format!("{}-removed-{}", folder, chrono::Local::now().format("%Y%m%d-%H%M%S"))));
+    fs::create_dir_all(backup.parent().unwrap()).map_err(|e| e.to_string())?;
+    fs::rename(&dir, &backup).map_err(|e| format!("Cannot move {} away (is the game or a server using it?): {}", folder, e))?;
+    let _ = origins::forget(&zomboid, &folder);
+    Ok(backup.to_string_lossy().to_string())
+}
+
 pub fn remove_compatible_copy(user_zomboid_dir: &str, folder: &str) -> Result<(), String> {
     let zomboid = get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
     if !matches!(origins::load(&zomboid).get(folder).map(|r| &r.origin), Some(ModOrigin::Compat { .. })) {
@@ -804,6 +976,44 @@ pub fn remove_compatible_copy(user_zomboid_dir: &str, folder: &str) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_differences_of_a_copy_are_its_changed_lines_and_added_files() {
+        let base = std::env::temp_dir().join(format!("pzms-compat-diff-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let (orig, copy) = (base.join("orig"), base.join("copy"));
+        for root in [&orig, &copy] {
+            fs::create_dir_all(root.join("42").join("media").join("lua")).unwrap();
+            fs::write(root.join("42").join("media").join("lua").join("same.lua"), "return 1\n").unwrap();
+        }
+        fs::write(orig.join("42").join("media").join("lua").join("a.lua"), "-- top\r\nrequire \"ISUI/ISVehicleMechanics\"\r\nlocal x = 1\r\n").unwrap();
+        fs::write(copy.join("42").join("media").join("lua").join("a.lua"), "-- top\nrequire \"Vehicles/ISUI/ISVehicleMechanics\"\nlocal x = 1\n").unwrap();
+        fs::write(copy.join("42").join("media").join("lua").join("new.json"), "{}").unwrap();
+        fs::write(copy.join(".pzms_workshop_copy.json"), "{}").unwrap();
+        let (changes, added) = copy_differences(&orig, &copy);
+        assert_eq!(changes, vec![LineChange {
+            file: "42/media/lua/a.lua".into(),
+            line: 2,
+            original: vec!["require \"ISUI/ISVehicleMechanics\"".into()],
+            working: vec!["require \"Vehicles/ISUI/ISVehicleMechanics\"".into()],
+        }]);
+        assert_eq!(added, vec!["42/media/lua/new.json".to_string()]);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_require_line_names_its_module_and_only_the_games_count() {
+        assert_eq!(required_module("require \"Vehicles/ISUI/ISVehicleMechanics\""), Some("Vehicles/ISUI/ISVehicleMechanics".to_string()));
+        assert_eq!(required_module("  require('Foo/Bar.lua')"), Some("Foo/Bar".to_string()));
+        assert_eq!(required_module("local x = 1"), None);
+        let base = std::env::temp_dir().join(format!("pzms-compat-game-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("media").join("lua").join("client").join("Vehicles")).unwrap();
+        fs::write(base.join("media").join("lua").join("client").join("Vehicles").join("Vehicles.lua"), "").unwrap();
+        assert!(game_has_module(&base.to_string_lossy(), "Vehicles/Vehicles"));
+        assert!(!game_has_module(&base.to_string_lossy(), "OtherMod/Thing"));
+        let _ = fs::remove_dir_all(&base);
+    }
 
     struct Tmp(PathBuf);
     impl Drop for Tmp {
@@ -835,7 +1045,7 @@ mod tests {
         .unwrap();
         fs::write(src.join("media/lua/client/AskerHelper.lua"), "return {}").unwrap();
         let cand = |path: &str| crate::sandbox::requires::ModuleCandidate {
-            module_path: path.to_string(), phase: "client".to_string(), owner: "the game".to_string(), same_path: false,
+            module_path: path.to_string(), phase: "client".to_string(), owner: "the game".to_string(), owner_id: String::new(), same_path: false,
         };
         // Build 42 keeps ISPanel where it was and moved ISVehiclePartMenu; VehicleUtils is gone.
         let index = vec![

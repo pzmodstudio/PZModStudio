@@ -398,6 +398,10 @@ export interface TranslatedErrorCard {
   params?: Record<string, string>;
   /** The other mods on the stack the game printed before the error, nearest caller first. */
   called_from?: string[];
+  /** The mod is the player's own, in development (its folder is a link from elsewhere). */
+  own_mod?: boolean;
+  /** For such a mod: the file on disk that `source_file` is, when exactly one file of that name is loaded. */
+  own_file?: string;
 }
 
 export interface SandboxSession {
@@ -730,6 +734,40 @@ export interface AuthorLink {
   url: string;
 }
 
+/** One ZombieBuddy `@Patch` class of a mod's jar. */
+export interface JavaPatch {
+  /** The class it names; null when the annotation carries none that can be read. */
+  target_class: string | null;
+  /** The method name it names (`<init>`: the constructors; `*`: a wildcard). */
+  target_method: string | null;
+  patch_class: string;
+  kind: 'advice' | 'delegation';
+  /** Of: enter, exit, skip, return, args. */
+  effects: string[];
+  /** Applied by the mod's own code rather than by ZombieBuddy's scan. */
+  by_code?: boolean;
+  /** Why ZombieBuddy does not apply it: outside_package, zombiebuddy_class, exposer, experimental. */
+  not_applied?: string;
+}
+
+/** What a mod's Java declares it changes, read from its jar. */
+export interface ModJavaPatches {
+  mod_id: string;
+  name: string;
+  jar: string | null;
+  package: string | null;
+  side?: 'client' | 'server';
+  patches: JavaPatch[];
+  target_classes: string[];
+  classes_read: number;
+  /** The jar's own code uses these directly: bytebuddy, instrumentation, asm, javassist. */
+  patches_in_code: string[];
+  /** jar_missing, no_package or `unreadable: ...`: nothing could be read. */
+  unknown?: string;
+  /** The classes it shares with other mods of the active list (empty when it is not on it). */
+  shared: { target_class: string; methods: string[]; owner_mod?: string; mods: string[] }[];
+}
+
 /** The changelog a mod ships in its own folder. */
 export interface ModChangelog {
   file: string;
@@ -888,6 +926,14 @@ export interface SaveSummary {
   /** The save format's version (map_ver.bin) and the build that wrote it, when known. */
   world_version: number | null;
   made_on: string | null;
+  /** single | server_world (a dedicated server's world kept on this PC) | joined (a server the player joined). */
+  kind: 'single' | 'server_world' | 'joined';
+  /** For a server's world: how many mods its Mods= lists. */
+  server_mods: number | null;
+  /** For a server's world: the mods its server lists. */
+  server_mod_ids: string[];
+  /** The save this one is a hand-made copy of (its name continues the other's). */
+  copy_of: string | null;
 }
 
 /** What changed for a save since its last session (studio_link::SessionDiff). */
@@ -909,6 +955,30 @@ export interface SavesOverview {
   free_bytes: number | null;
   total_bytes: number | null;
   keep_automatic: number;
+  /** Saves taken out of the saves folder, not yet deleted for good. */
+  removed: RemovedSave[];
+  /** Saves gone from disk that still have backups. */
+  lost: LostSave[];
+}
+
+/** A save that is gone from disk and still has backups. */
+export interface LostSave {
+  id: string;
+  mode: string;
+  world: string;
+  /** Newest first. */
+  backups: SaveBackupEntry[];
+  zip_bytes: number;
+}
+
+export interface RemovedSave {
+  mode: string;
+  /** Its folder in the bin. */
+  folder: string;
+  /** The name it had as a save. */
+  world: string;
+  bytes: number;
+  removed_at: number;
 }
 
 /** One thing wrong in one file of a mod, as the Developer screen lists it. */
@@ -1284,6 +1354,8 @@ export interface HealthIssue {
   details?: IssueDetail[];
   /** The values `message` is made of, for saying it in the chosen language (`backendText`). */
   params?: Record<string, string>;
+  /** The issue is about a mod the player is making (its folder is a link from elsewhere). */
+  own_mod?: boolean;
 }
 
 /** One file of one mod, and the things in it another mod also declares. */
@@ -1416,6 +1488,8 @@ export interface CatalogModSummary {
   workshop_state: WorkshopInstallState | null;
   root_dir: string;
   shadowed_by: string | null;
+  /** The player's own mod in development: its folder in Zomboid/mods is a link to a folder elsewhere. */
+  in_development?: boolean;
   loadability: { status: 'loadable' | 'no_folder_for_build' | 'outside_version_range' | 'invalid_mod_info' };
 }
 
@@ -1650,6 +1724,8 @@ export interface ModuleCandidate {
   module_path: string;
   phase: string;
   owner: string;
+  /** The mod's id; empty for the game. */
+  owner_id?: string;
   same_path: boolean;
 }
 
@@ -1658,6 +1734,8 @@ export interface RequireAnswer {
   wanted: string;
   candidates: ModuleCandidate[];
   summary: string;
+  /** When it is nowhere among the game and the mods on: installed mods that are off and have it at that exact path. */
+  installed_off?: ModuleCandidate[];
 }
 
 /** One text file of an installed mod, as the game reads it. */

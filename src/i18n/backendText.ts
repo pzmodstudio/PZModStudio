@@ -9,7 +9,8 @@ import i18next from 'i18next';
  *   or `params.template` itself (several codes sharing one text).
  * - A param `fooKey` names a phrase under `backendText.fragments` that becomes `{{foo}}`; empty
  *   means `{{foo}}` is empty (or keeps its own value when Rust sent one). Phrases may use other
- *   phrases, one level deep.
+ *   phrases, one level deep. A phrase may use the value it replaces (`moreKey` naming a phrase
+ *   that says "and {{more}} more"): it is always given the number Rust sent, not its own words.
  * - A param `fooVs` is a list (joined by U+001F) that becomes `{{foo}}`, joined by "against".
  * - A param `fooList` is a list of codes (comma-separated); each code's fragment, joined by commas, becomes `{{foo}}`.
  */
@@ -33,7 +34,7 @@ export function backendText(area: string, code: string | undefined, params: Reco
     for (const [k, v] of Object.entries(p)) {
       if (!k.endsWith('Key') || k.length <= 3) continue;
       const name = k.slice(0, -3);
-      if (v) out[name] = i18next.t(`backendText.fragments.${v}`, from);
+      if (v) out[name] = i18next.t(`backendText.fragments.${v}`, { ...from, [name]: p[name] ?? '' });
       else if (from[name] === undefined) out[name] = '';
     }
     return out;

@@ -1030,9 +1030,154 @@ pub fn check_mods(paths: &crate::vfs::StudioPaths, catalog: &crate::catalog::Mod
     Ok(out)
 }
 
+/// How long Mod Health waits for the active list's reading on one refresh. With every mod's
+/// reading kept from before, eighty mods take about half a second (the files are only counted, to
+/// see that none changed) and about a second and a half with none kept; a list that takes longer
+/// than this, or a build whose jar was never read, is read behind and shown on the next refresh.
+pub const HEALTH_BUDGET: std::time::Duration = std::time::Duration::from_millis(2500);
+
+/// One reading behind at a time.
+static WARMING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The build's names when they were read before; reading the jar for the first time takes
+/// seconds and is not done on a refresh.
+fn game_api_if_cached(pz_install_dir: &Path, cache_root: &Path) -> Option<GameApi> {
+    let key = jar_key(&pz_install_dir.join("projectzomboid.jar"))?;
+    let cache = api_cache_dir(cache_root).join(format!("{}.json", key));
+    std::fs::read_to_string(&cache).ok().and_then(|t| serde_json::from_str::<GameApi>(&t).ok()).filter(|api| api.jar_key == key)
+}
+
+/// Reads the build and every active mod behind, so the next refresh finds all of it kept.
+fn warm_behind(pz_install_dir: PathBuf, cache_root: PathBuf, mods: Vec<(String, PathBuf)>, game: Option<u32>) {
+    use std::sync::atomic::Ordering;
+    if WARMING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        if game_api(&pz_install_dir, &cache_root).is_ok() {
+            for (id, root) in &mods {
+                read_mod(&cache_root, id, root, game);
+            }
+        }
+        WARMING.store(false, Ordering::SeqCst);
+    });
+}
+
+/// The active mods against the installed build, for Mod Health: every mod with the others'
+/// definitions known, as `check_mods`. A finding in one mod is only true when every other mod on
+/// was read too (one of them may define the name), so it is all of the list or nothing: `None`
+/// when there is no game to read, or when the reading did not fit in `budget`. Then what is left
+/// is read behind, and the next refresh has it. `cache_root` is the Zomboid folder the readings
+/// are kept in.
+pub fn reports_within(pz_install_dir: &Path, cache_root: &Path, catalog: &crate::catalog::ModCatalog, active: &[String], budget: std::time::Duration) -> Option<Vec<ModApiReport>> {
+    let started = std::time::Instant::now();
+    jar_key(&pz_install_dir.join("projectzomboid.jar"))?;
+    let game = catalog.game_version_int();
+    let mut mods: Vec<(String, PathBuf)> = Vec::new();
+    for entry in active {
+        let Some(m) = catalog.resolve(entry.trim()) else { continue };
+        if !mods.iter().any(|(id, _)| *id == m.id) {
+            mods.push((m.id.clone(), PathBuf::from(&m.root_dir)));
+        }
+    }
+    let Some(api) = game_api_if_cached(pz_install_dir, cache_root) else {
+        warm_behind(pz_install_dir.to_path_buf(), cache_root.to_path_buf(), mods, game);
+        return None;
+    };
+    let mut pool: Vec<(&String, &PathBuf, ModLua)> = Vec::new();
+    for (id, root) in &mods {
+        if started.elapsed() > budget {
+            warm_behind(pz_install_dir.to_path_buf(), cache_root.to_path_buf(), mods.clone(), game);
+            return None;
+        }
+        pool.push((id, root, read_mod(cache_root, id, root, game)));
+    }
+    // Every mod's definitions, once. `check` already counts a mod's own definitions as known,
+    // kind by kind, so the whole list's stand in for "the others'" with the same answer and
+    // without building eighty near-copies of the same sets.
+    let mut all = Defs::default();
+    for (_, _, o) in &pool {
+        all.absorb(&o.defs);
+    }
+    let mut out = Vec::new();
+    for (id, root, this) in &pool {
+        let mut report = check(&api, this, &all);
+        report.mod_id = (*id).clone();
+        // Only where it changes what is said: the walk is not free.
+        report.has_java = !report.findings.is_empty() && ships_java(root);
+        out.push(report);
+    }
+    Some(out)
+}
+
+/// `reports_within` for the Studio's saved folders.
+pub fn reports_for_health(paths: &crate::vfs::StudioPaths, catalog: &crate::catalog::ModCatalog, active: &[String], budget: std::time::Duration) -> Option<Vec<ModApiReport>> {
+    let z = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next()?;
+    reports_within(Path::new(&paths.pz_install_dir), &z, catalog, active, budget)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Studio's shim gives back names a build renamed (`PropertyContainer:Is`, `:Val`). A mod
+    /// that calls them is reported on its own and not beside a mod that carries the shim.
+    #[test]
+    fn a_name_the_shim_gives_back_is_not_reported_beside_the_shim() {
+        let api = GameApi::default();
+        let text = "local props = sq:getProperties()\nif props:Is(\"Facing\") then local f = props:Val(\"Facing\") end";
+        let mut defs = definitions(text);
+        defs.locals.insert("sq".into());
+        let this = ModLua { fingerprint: String::new(), defs, calls: [("media/lua/server/Spawn.lua".to_string(), calls(text))].into_iter().collect() };
+        let names = |r: &ModApiReport| r.findings.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
+        let alone = check(&api, &this, &Defs::default());
+        assert!(names(&alone).contains(&"Is".to_string()) && names(&alone).contains(&"Val".to_string()), "{:?}", names(&alone));
+        // The shim's own text, as the bridge mod and every package carry it.
+        let shim = definitions(crate::patch_generator::MASTER_POLYFILL_LUA);
+        assert!(shim.methods.contains("Is") && shim.methods.contains("Val"), "the shim defines both");
+        let beside = check(&api, &this, &shim);
+        assert!(!names(&beside).contains(&"Is".to_string()) && !names(&beside).contains(&"Val".to_string()), "{:?}", names(&beside));
+    }
+
+    /// Cost of the Mod Health pass on this PC's active list, with nothing kept and with all of it
+    /// kept; the readings go to a folder of the test's own.
+    /// `cargo test --release --lib -- --ignored live_health_pass_cost --nocapture`
+    #[test]
+    #[ignore]
+    fn live_health_pass_cost() {
+        let paths = crate::vfs::studio_paths();
+        let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+        let active = crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+        let cache = std::env::temp_dir().join(format!("pzms-apilint-cost-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&cache);
+        let pz = Path::new(&paths.pz_install_dir);
+        let long = std::time::Duration::from_secs(600);
+        let t = std::time::Instant::now();
+        game_api(pz, &cache).unwrap();
+        println!("the build's names, first reading: {:?}", t.elapsed());
+        let t = std::time::Instant::now();
+        let cold = reports_within(pz, &cache, &catalog, &active, long).unwrap();
+        println!("{} active mods, nothing kept: {:?}", cold.len(), t.elapsed());
+        for round in 0..3 {
+            let t = std::time::Instant::now();
+            let warm = reports_within(pz, &cache, &catalog, &active, long).unwrap();
+            println!("all kept, round {}: {:?} ({} mods)", round, t.elapsed(), warm.len());
+        }
+        let stats = crate::sandbox::error_stats_from_console(&paths.user_zomboid_dir);
+        let mut report = crate::catalog::health_report(&catalog, &active);
+        crate::catalog::add_api_issues(&mut report, &catalog, &cold, &stats);
+        crate::catalog::mark_own_mods(&mut report, &catalog);
+        for i in report.issues.iter().filter(|i| i.code == "api_missing") {
+            println!("[{:?}/{:?}{}] {}", i.severity, i.state, if i.own_mod { " own" } else { "" }, i.message);
+        }
+        for r in cold.iter().filter(|r| !r.findings.is_empty()) {
+            println!("{} (java: {}):", r.mod_id, r.has_java);
+            for f in &r.findings {
+                println!("    {} {} {}:{}", f.kind, f.name, f.file, f.line);
+            }
+        }
+        let _ = std::fs::remove_dir_all(&cache);
+    }
 
     #[test]
     fn comments_and_strings_are_blanked_with_lines_kept() {

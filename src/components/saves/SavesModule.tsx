@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
-import { Archive, Car, CheckCircle2, ChevronDown, ChevronRight, FolderOpen, Globe, HardDrive, Loader2, Pin, PinOff, RefreshCw, RotateCcw, ShieldAlert, Trash2, User } from 'lucide-react';
+import { Archive, Car, CheckCircle2, ChevronDown, ChevronRight, FolderOpen, Globe, HardDrive, Loader2, Pencil, Pin, PinOff, RefreshCw, RotateCcw, ShieldAlert, Trash2, User } from 'lucide-react';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { AppInstance, SaveBackupEntry, SaveMaps, SaveMissingMod, SaveSummary, SavesOverview, SessionDiff, SaveInside } from '../../types';
@@ -104,6 +104,30 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
     return () => unlisten.forEach((u) => u());
   }, [refresh, changeRev]);
 
+  // A save made, deleted or renamed outside the Studio (the game's own Load screen deletes for
+  // good and tells nobody): the names on disk are looked at every few seconds, and when the app
+  // comes back to the front, and the page reads the saves again only when they differ.
+  useEffect(() => {
+    let last: string | null = null;
+    let alive = true;
+    const look = async () => {
+      const names = await TauriService.saveNames(paths).catch(() => null);
+      if (!alive || !names) return;
+      const now = names.join('|');
+      if (last !== null && now !== last) void refresh();
+      last = now;
+    };
+    void look();
+    const id = window.setInterval(() => void look(), 4000);
+    const onFocus = () => void look();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [paths, refresh]);
+
   /**
    * The profile a save was played with. The Studio notes the active profile each time a save is
    * played while it runs; a save played without it is matched only to a profile whose mods are
@@ -114,6 +138,20 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
     if (noted?.profile) {
       const name = profiles.find((p) => p.id === noted.profile)?.name ?? noted.profile_name ?? noted.profile;
       return { id: noted.profile, name };
+    }
+    // A server's world: the profile whose mods are, nearly all, the server's (a server made from a
+    // profile differs from it by a mod or two at most). Less than four in five in common names none.
+    if (save.kind === 'server_world' && save.server_mod_ids.length > 0) {
+      const server = new Set(save.server_mod_ids.map((id) => plainId(id.replace(/^\\/, ''))));
+      let best: { id: string; name: string; score: number } | null = null;
+      for (const p of profiles) {
+        const own = new Set(p.active_mod_ids.map(plainId));
+        let both = 0;
+        for (const id of own) if (server.has(id)) both++;
+        const score = both / (own.size + server.size - both || 1);
+        if (score >= 0.8 && (!best || score > best.score)) best = { id: p.id, name: p.name, score };
+      }
+      return best ? { id: best.id, name: best.name } : null;
     }
     const mods = new Set(save.mods.map(plainId));
     if (mods.size === 0) return null;
@@ -144,6 +182,66 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
     }
     setWorking(null);
     void refresh();
+  };
+
+  /** The bin: saves taken out of the saves folder, until they are deleted for good. */
+  const removed = overview?.removed ?? [];
+  const removedBytes = removed.reduce((n, r) => n + r.bytes, 0);
+  const [binOpen, setBinOpen] = useState(false);
+  const emptyBin = () => {
+    if (!window.confirm(t('saves.bin.emptyConfirm', { count: removed.length, size: formatBytes(removedBytes) || '0 B' }))) return;
+    void run('bin:empty', async () => t('saves.bin.emptied', { size: formatBytes(await TauriService.deleteRemovedSaves(paths)) || '0 B' }));
+  };
+  const deleteRemoved = (r: { mode: string; folder: string; world: string; bytes: number }) => {
+    if (!window.confirm(t('saves.bin.deleteConfirm', { world: r.world, size: formatBytes(r.bytes) || '0 B' }))) return;
+    void run(`bin:delete:${r.folder}`, async () => t('saves.bin.deleted', { world: r.world, size: formatBytes(await TauriService.deleteRemovedSaves(paths, r.mode, r.folder)) || '0 B' }));
+  };
+  const restoreRemoved = (r: { mode: string; folder: string; world: string }) =>
+    void run(`bin:restore:${r.folder}`, async () => {
+      await TauriService.restoreRemovedSave(paths, r.mode, r.folder);
+      return t('saves.bin.restored', { world: r.world });
+    });
+
+  /** Saves that are gone from disk and still have backups: the case a backup is for. */
+  const lost = overview?.lost ?? [];
+  const lostBytes = lost.reduce((n, l) => n + l.zip_bytes, 0);
+  const [lostOpen, setLostOpen] = useState(false);
+  const recoverLost = (l: { id: string; world: string; backups: SaveBackupEntry[] }) => {
+    const newest = l.backups[0];
+    if (!newest || !window.confirm(t('saves.lost.recoverConfirm', { world: l.world, when: when(newest.at) }))) return;
+    void run(`lost:recover:${l.id}`, async () => {
+      await TauriService.restoreSaveBackup(paths, l.id, newest.file);
+      return t('saves.lost.recovered', { world: l.world, when: when(newest.at) });
+    });
+  };
+  const deleteLost = (l: { id: string; world: string; backups: SaveBackupEntry[]; zip_bytes: number }) => {
+    if (!window.confirm(t('saves.lost.deleteConfirm', { world: l.world, count: l.backups.length, size: formatBytes(l.zip_bytes) || '0 B' }))) return;
+    void run(`lost:delete:${l.id}`, async () => t('saves.lost.deleted', { world: l.world, size: formatBytes(await TauriService.deleteLostBackups(paths, l.id)) || '0 B' }));
+  };
+  const deleteAllLost = () => {
+    if (!window.confirm(t('saves.lost.deleteAllConfirm', { count: lost.length, size: formatBytes(lostBytes) || '0 B' }))) return;
+    void run('lost:delete-all', async () => {
+      let freed = 0;
+      for (const l of lost) freed += await TauriService.deleteLostBackups(paths, l.id);
+      return t('saves.lost.deletedAll', { size: formatBytes(freed) || '0 B' });
+    });
+  };
+
+  /** The save whose name is being typed over, and what is typed. */
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  /** A multiplayer save the game or its server finds by name keeps its name; a copy by hand does not. */
+  const canRename = (save: SaveSummary) => save.mode !== 'Multiplayer' || !!save.copy_of;
+  const rename = (save: SaveSummary, name: string) => {
+    setRenaming(null);
+    if (!name.trim() || name.trim() === save.world) return;
+    void run(`rename:${save.id}`, async () => {
+      await TauriService.renameSave(paths, save.id, name);
+      return t('saves.renamed', { world: save.world, name: name.trim() });
+    });
+  };
+  const removeSave = (save: SaveSummary) => {
+    if (!window.confirm(t('saves.removeConfirm', { world: save.world, size: formatBytes(save.bytes) || '0 B', backups: save.backups.length }))) return;
+    void run(`remove:${save.id}`, async () => t('saves.removed', { world: save.world, to: await TauriService.removeSave(paths, save.id) }));
   };
 
   const backUp = (save: SaveSummary) =>
@@ -222,6 +320,86 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
         </div>
       </div>
 
+      {/* The bin: removed saves wait here; emptying it is the only thing that deletes a save. */}
+      {removed.length > 0 && (
+        <div className="rounded-lg border border-slate-800 bg-slate-900/60 text-xs text-slate-300">
+          <div className="px-4 py-2.5 flex items-center gap-3">
+            <Trash2 className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
+            <button onClick={() => setBinOpen((v) => !v)} className="flex-1 min-w-0 text-left cursor-pointer hover:text-slate-100" aria-expanded={binOpen}>
+              {t('saves.bin.line', { count: removed.length, size: formatBytes(removedBytes) || '0 B' })}
+              <span className="ml-2 text-slate-500">{binOpen ? t('saves.bin.hide') : t('saves.bin.show')}</span>
+            </button>
+            <button
+              onClick={emptyBin}
+              disabled={working !== null}
+              title={t('saves.bin.emptyTitle')}
+              className="shrink-0 px-2.5 py-1.5 rounded-md border border-red-800/70 text-red-200 hover:bg-red-950/50 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {t('saves.bin.empty')}
+            </button>
+          </div>
+          {binOpen && (
+            <ul className="border-t border-slate-800 px-4 py-2 space-y-1">
+              {removed.map((r) => (
+                <li key={`${r.mode}/${r.folder}`} className="flex items-center gap-3">
+                  <span className="flex-1 min-w-0 truncate">
+                    <span className="text-slate-100">{r.mode === 'Multiplayer' ? serverOf(r.world) : r.world}</span>
+                    <span className="ml-2 text-slate-500">{r.mode} · {formatBytes(r.bytes) || '0 B'} · {t('saves.bin.removedOn', { when: when(r.removed_at) })}</span>
+                  </span>
+                  <button onClick={() => restoreRemoved(r)} disabled={working !== null} className="shrink-0 px-2 py-1 rounded text-slate-300 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 cursor-pointer">
+                    {t('saves.bin.restore')}
+                  </button>
+                  <button onClick={() => deleteRemoved(r)} disabled={working !== null} className="shrink-0 px-2 py-1 rounded text-red-300 hover:bg-red-950/50 disabled:opacity-40 cursor-pointer">
+                    {t('saves.bin.delete')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Backups of saves that are gone: where a save deleted by mistake comes back from. */}
+      {lost.length > 0 && (
+        <div className="rounded-lg border border-slate-800 bg-slate-900/60 text-xs text-slate-300">
+          <div className="px-4 py-2.5 flex items-center gap-3">
+            <Archive className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
+            <button onClick={() => setLostOpen((v) => !v)} className="flex-1 min-w-0 text-left cursor-pointer hover:text-slate-100" aria-expanded={lostOpen}>
+              {t('saves.lost.line', { count: lost.length, size: formatBytes(lostBytes) || '0 B' })}
+              <span className="ml-2 text-slate-500">{lostOpen ? t('saves.bin.hide') : t('saves.bin.show')}</span>
+            </button>
+            <button
+              onClick={deleteAllLost}
+              disabled={working !== null}
+              title={t('saves.lost.deleteAllTitle')}
+              className="shrink-0 px-2.5 py-1.5 rounded-md border border-red-800/70 text-red-200 hover:bg-red-950/50 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {t('saves.lost.deleteAll')}
+            </button>
+          </div>
+          {lostOpen && (
+            <ul className="border-t border-slate-800 px-4 py-2 space-y-1">
+              {lost.map((l) => (
+                <li key={l.id} className="flex items-center gap-3">
+                  <span className="flex-1 min-w-0 truncate">
+                    <span className="text-slate-100">{l.mode === 'Multiplayer' ? serverOf(l.world) : l.world}</span>
+                    <span className="ml-2 text-slate-500">
+                      {t('saves.lost.row', { mode: l.mode, count: l.backups.length, size: formatBytes(l.zip_bytes) || '0 B', when: when(l.backups[0].at) })}
+                    </span>
+                  </span>
+                  <button onClick={() => recoverLost(l)} disabled={working !== null} title={t('saves.lost.recoverTitle')} className="shrink-0 px-2 py-1 rounded text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-40 cursor-pointer">
+                    {t('saves.lost.recover')}
+                  </button>
+                  <button onClick={() => deleteLost(l)} disabled={working !== null} className="shrink-0 px-2 py-1 rounded text-red-300 hover:bg-red-950/50 disabled:opacity-40 cursor-pointer">
+                    {t('saves.lost.delete')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {notice && (
         <div className={`rounded-md border px-3 py-2 text-xs ${notice.tone === 'ok' ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-200' : 'border-red-700/60 bg-red-950/40 text-red-200'}`}>{notice.text}</div>
       )}
@@ -258,9 +436,37 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
                 </button>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-semibold text-slate-100 truncate">{save.mode === 'Multiplayer' ? serverOf(save.world) : save.world}</span>
+                    {renaming?.id === save.id ? (
+                      <input
+                        autoFocus
+                        value={renaming.name}
+                        onChange={(e) => setRenaming({ id: save.id, name: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') rename(save, renaming.name);
+                          if (e.key === 'Escape') setRenaming(null);
+                        }}
+                        onBlur={() => setRenaming(null)}
+                        aria-label={t('saves.rename')}
+                        className="min-w-0 flex-1 max-w-sm px-2 py-0.5 rounded bg-slate-950 border border-sky-700 text-sm text-slate-100"
+                      />
+                    ) : (
+                      <span className="text-sm font-semibold text-slate-100 truncate">{save.mode === 'Multiplayer' ? serverOf(save.world) : save.world}</span>
+                    )}
                     {save.mode === 'Multiplayer' && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-violet-700/60 text-violet-300">{t('saves.online')}</span>
+                      <span
+                        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-violet-700/60 text-violet-300"
+                        title={t(save.kind === 'server_world' ? 'saves.serverWorldTitle' : 'saves.joinedTitle')}
+                      >
+                        {t(save.kind === 'server_world' ? 'saves.serverWorld' : 'saves.online')}
+                      </span>
+                    )}
+                    {save.copy_of && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-amber-700/60 text-amber-300" title={t('saves.copyOfTitle')}>
+                        {t('saves.copyOf', { name: save.mode === 'Multiplayer' ? serverOf(save.copy_of) : save.copy_of })}
+                      </span>
+                    )}
+                    {save.files === 0 && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-400">{t('saves.empty')}</span>
                     )}
                     {save.made_on && (
                       <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-400 font-mono" title={t('saves.madeOnTitle', { version: save.world_version })}>
@@ -276,7 +482,8 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
                           </span>
                         );
                       }
-                      return showAll ? (
+                      // A multiplayer save follows its server's mods, not a profile: nothing to say.
+                      return showAll && save.mode !== 'Multiplayer' ? (
                         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-400" title={t('saves.noProfileTitle')}>
                           {t('saves.noProfile')}
                         </span>
@@ -284,7 +491,9 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
                     })()}
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    {t('saves.line', { mode: save.mode, size: formatBytes(save.bytes), files: save.files.toLocaleString(), mods: save.mods.length, when: when(save.modified) })}
+                    {t(save.kind === 'server_world' ? 'saves.lineServer' : save.kind === 'joined' ? 'saves.lineJoined' : 'saves.line', {
+                      mode: save.mode, size: formatBytes(save.bytes) || '0 B', files: save.files.toLocaleString(), mods: save.kind === 'server_world' ? save.server_mods ?? 0 : save.mods.length, when: when(save.modified),
+                    })}
                   </div>
                   {(() => {
                     const d = diffs[save.id];
@@ -413,6 +622,24 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
                   className="shrink-0 px-2.5 py-1.5 rounded-md bg-emerald-700/70 hover:bg-emerald-600/80 text-emerald-50 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {t('saves.backUpNow')}
+                </button>
+                <button
+                  onClick={() => setRenaming({ id: save.id, name: save.world })}
+                  disabled={working !== null || save.busy || !canRename(save)}
+                  title={canRename(save) ? t('saves.renameTitle') : t('saves.renameNotThis')}
+                  aria-label={t('saves.rename')}
+                  className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  onClick={() => removeSave(save)}
+                  disabled={working !== null || save.busy}
+                  title={t('saves.removeTitle')}
+                  aria-label={t('saves.remove')}
+                  className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-red-300 hover:bg-red-950/40 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               </div>
               {expanded && (

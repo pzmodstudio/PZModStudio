@@ -193,6 +193,7 @@ mod tests {
             has_root_mod_info: true,
             loadability: Loadability::Loadable,
             shadowed_by: None,
+            in_development: false,
             origin: None,
             workshop_state: published.map(|t| crate::workshop::InstalledItemState {
                 installed_time: Some(t),

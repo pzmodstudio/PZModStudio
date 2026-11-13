@@ -621,6 +621,17 @@ pub struct SaveSummary {
     /// The save format's version (`map_ver.bin`), and the build that wrote it when known.
     pub world_version: Option<i32>,
     pub made_on: Option<String>,
+    /// `single` (a game of the player's own), `server_world` (the world of a dedicated server
+    /// kept on this PC: `Zomboid/Server/<world>.ini` exists) or `joined` (what the game keeps of
+    /// a server the player joined). A multiplayer save has no mods.txt: the server decides.
+    pub kind: String,
+    /// For a server's world: how many mods that server's `Mods=` lists.
+    pub server_mods: Option<usize>,
+    /// For a server's world: those mods, to tell which profile the server was made with.
+    pub server_mod_ids: Vec<String>,
+    /// Another save of the same mode whose name this one starts with (`knoxtest_week25` beside
+    /// `knoxtest`): a copy someone made by hand in the saves folder.
+    pub copy_of: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -634,6 +645,10 @@ pub struct SavesOverview {
     pub free_bytes: Option<u64>,
     pub total_bytes: Option<u64>,
     pub keep_automatic: usize,
+    /// Saves taken out of the saves folder and not yet deleted for good.
+    pub removed: Vec<RemovedSave>,
+    /// Saves that are gone from disk and still have backups.
+    pub lost: Vec<LostSave>,
 }
 
 pub fn summary(user_zomboid_dir: &Path, save_id: &str) -> Option<SaveSummary> {
@@ -655,7 +670,295 @@ pub fn summary(user_zomboid_dir: &Path, save_id: &str) -> Option<SaveSummary> {
         busy: is_busy(&dir.to_string_lossy()),
         world_version: maps::read_map_ver(&dir).map(|(v, _)| v),
         made_on: maps::read_map_ver(&dir).and_then(|(v, _)| build_of_world_version(v)).map(str::to_string),
+        kind: "single".to_string(),
+        server_mods: None,
+        server_mod_ids: Vec::new(),
+        copy_of: None,
     })
+}
+
+/// What the Studio remembers of each save (`PZModStudio_SaveRefs.json`): the entry of a save that
+/// was renamed follows it, the entry of one that was removed goes.
+fn move_save_ref(user_zomboid_dir: &Path, from: &str, to: Option<&str>) {
+    let path = user_zomboid_dir.join("PZModStudio_SaveRefs.json");
+    let Ok(text) = fs::read_to_string(&path) else { return };
+    let Ok(mut refs) = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&text) else { return };
+    let Some(entry) = refs.remove(from) else { return };
+    if let Some(to) = to {
+        refs.insert(to.to_string(), entry);
+    }
+    if let Ok(out) = serde_json::to_string_pretty(&refs) {
+        let _ = fs::write(&path, out);
+    }
+}
+
+/// A multiplayer save the game or a server finds by its folder's name: a server's world, or what
+/// the game keeps of a server joined. A copy made by hand beside one of them is not.
+fn found_by_name(user_zomboid_dir: &Path, mode: &str, world: &str) -> bool {
+    if mode != "Multiplayer" {
+        return false;
+    }
+    let others = list_saves(user_zomboid_dir);
+    !others.iter().any(|id| id.strip_prefix("Multiplayer/").is_some_and(|w| w != world && world.starts_with(&format!("{}_", w))))
+}
+
+/// Takes a save out of the game's saves folder. Nothing is deleted: the folder is moved to
+/// `Zomboid/PZModStudio_Backups/saves/<mode>/<world>-removed-<when>`, and its zip backups stay.
+/// Refused while the game runs or the save is being copied. Returns where it went.
+pub fn remove_save(user_zomboid_dir: &Path, save_id: &str, game_running: bool) -> Result<String, String> {
+    let (mode, world) = split_id(save_id)?;
+    let dir = save_dir(user_zomboid_dir, save_id)?;
+    if !dir.is_dir() {
+        return Err(format!("There is no save {}.", save_id));
+    }
+    if game_running {
+        return Err("The game is running: close it first.".to_string());
+    }
+    if is_busy(&dir.to_string_lossy()) {
+        return Err("A backup of this save is being made: wait for it to end.".to_string());
+    }
+    let when = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let parent = user_zomboid_dir.join("PZModStudio_Backups").join("saves").join(&mode);
+    fs::create_dir_all(&parent).map_err(|e| format!("Cannot make {}: {}", parent.display(), e))?;
+    let mut to = parent.join(format!("{}-removed-{}", world, when));
+    let mut n = 1;
+    while to.exists() {
+        n += 1;
+        to = parent.join(format!("{}-removed-{}-{}", world, when, n));
+    }
+    fs::rename(&dir, &to).map_err(|e| format!("Cannot move the save away (is the game or a server using it?): {}", e))?;
+    move_save_ref(user_zomboid_dir, save_id, None);
+    Ok(to.to_string_lossy().to_string())
+}
+
+/// The backups of a save that is no longer on disk (deleted in the game, for one): the one case
+/// a backup is for, and the list of saves no longer has a row to reach them from.
+#[derive(Debug, Clone, Serialize)]
+pub struct LostSave {
+    /// `<mode>/<world>`, as the save was called.
+    pub id: String,
+    pub mode: String,
+    pub world: String,
+    /// Its backups, newest first.
+    pub backups: Vec<BackupEntry>,
+    /// What the zips take on disk.
+    pub zip_bytes: u64,
+}
+
+/// Every save that has backups and no folder among the saves, newest backup first.
+pub fn lost_saves(user_zomboid_dir: &Path) -> Vec<LostSave> {
+    let mut out = Vec::new();
+    let Ok(modes) = fs::read_dir(backups_root(user_zomboid_dir)) else { return out };
+    for mode in modes.flatten().filter(|e| e.path().is_dir()) {
+        let Ok(worlds) = fs::read_dir(mode.path()) else { continue };
+        for world in worlds.flatten().filter(|e| e.path().is_dir()) {
+            let id = format!("{}/{}", mode.file_name().to_string_lossy(), world.file_name().to_string_lossy());
+            let Ok((m, w)) = split_id(&id) else { continue };
+            if save_dir(user_zomboid_dir, &id).is_ok_and(|d| d.exists()) {
+                continue;
+            }
+            let backups = backups_of(user_zomboid_dir, &id);
+            if backups.is_empty() {
+                continue;
+            }
+            out.push(LostSave { zip_bytes: backups.iter().map(|b| b.zip_bytes).sum(), id, mode: m, world: w, backups });
+        }
+    }
+    out.sort_by(|a, b| b.backups[0].at.cmp(&a.backups[0].at));
+    out
+}
+
+/// Deletes for good every backup of a save that is no longer on disk. Refused while the save
+/// exists: its backups are then pruned and removed one by one from its own row. Returns the bytes freed.
+pub fn delete_lost_backups(user_zomboid_dir: &Path, save_id: &str) -> Result<u64, String> {
+    if save_dir(user_zomboid_dir, save_id)?.exists() {
+        return Err(format!("{} is among the saves: its backups are removed from its own row.", save_id));
+    }
+    let dir = backup_dir_of(user_zomboid_dir, save_id)?;
+    if !dir.is_dir() || fs::symlink_metadata(&dir).map(|m| m.file_type().is_symlink()).unwrap_or(true) {
+        return Err(format!("There are no backups of {}.", save_id));
+    }
+    let freed = walkdir::WalkDir::new(&dir).into_iter().flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum();
+    fs::remove_dir_all(&dir).map_err(|e| format!("Cannot delete the backups of {}: {}", save_id, e))?;
+    Ok(freed)
+}
+
+/// A save taken out of the saves folder, waiting in `Zomboid/PZModStudio_Backups/saves`.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct RemovedSave {
+    pub mode: String,
+    /// The folder there: `<world>-removed-<when>`.
+    pub folder: String,
+    /// The name it had as a save.
+    pub world: String,
+    pub bytes: u64,
+    /// When it was taken out (unix seconds), read from the folder's name.
+    pub removed_at: u64,
+}
+
+const REMOVED_MARK: &str = "-removed-";
+
+fn removed_root(user_zomboid_dir: &Path) -> PathBuf {
+    user_zomboid_dir.join("PZModStudio_Backups").join("saves")
+}
+
+/// One removed save's folder, refusing anything that is not `<mode>/<world>-removed-<when>` right
+/// under the bin: what is deleted for good is only ever what `remove_save` put there.
+fn removed_dir(user_zomboid_dir: &Path, mode: &str, folder: &str) -> Result<PathBuf, String> {
+    split_id(&format!("{}/{}", mode, folder))?;
+    if !folder.contains(REMOVED_MARK) {
+        return Err(format!("{} is not a removed save.", folder));
+    }
+    let dir = removed_root(user_zomboid_dir).join(mode).join(folder);
+    if !dir.is_dir() || fs::symlink_metadata(&dir).map(|m| m.file_type().is_symlink()).unwrap_or(true) {
+        return Err(format!("There is no removed save {}/{}.", mode, folder));
+    }
+    Ok(dir)
+}
+
+/// How many saves wait in the bin, without measuring them.
+pub fn removed_saves_count(user_zomboid_dir: &Path) -> usize {
+    let Ok(modes) = fs::read_dir(removed_root(user_zomboid_dir)) else { return 0 };
+    modes
+        .flatten()
+        .filter_map(|mode| fs::read_dir(mode.path()).ok())
+        .flat_map(|folders| folders.flatten())
+        .filter(|e| e.path().is_dir() && e.file_name().to_string_lossy().contains(REMOVED_MARK))
+        .count()
+}
+
+/// `20261112-224551` (and `-2` after it), as `remove_save` writes it, in local time.
+fn removed_time(stamp: &str) -> Option<u64> {
+    let stamp = stamp.get(..15)?;
+    let naive = chrono::NaiveDateTime::parse_from_str(stamp, "%Y%m%d-%H%M%S").ok()?;
+    use chrono::TimeZone;
+    chrono::Local.from_local_datetime(&naive).single().map(|t| t.timestamp().max(0) as u64)
+}
+
+/// The saves waiting in the bin, newest first.
+pub fn removed_saves(user_zomboid_dir: &Path) -> Vec<RemovedSave> {
+    let mut out = Vec::new();
+    let Ok(modes) = fs::read_dir(removed_root(user_zomboid_dir)) else { return out };
+    for mode in modes.flatten().filter(|e| e.path().is_dir()) {
+        let Ok(folders) = fs::read_dir(mode.path()) else { continue };
+        for entry in folders.flatten().filter(|e| e.path().is_dir()) {
+            let folder = entry.file_name().to_string_lossy().to_string();
+            let Some(at) = folder.rfind(REMOVED_MARK) else { continue };
+            let removed_at = removed_time(&folder[at + REMOVED_MARK.len()..]).or_else(|| entry.metadata().ok().map(|m| mtime_secs(&m))).unwrap_or(0);
+            let bytes = walkdir::WalkDir::new(entry.path()).into_iter().flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum();
+            out.push(RemovedSave {
+                mode: mode.file_name().to_string_lossy().to_string(),
+                world: folder[..at].to_string(),
+                folder,
+                bytes,
+                removed_at,
+            });
+        }
+    }
+    out.sort_by(|a, b| b.removed_at.cmp(&a.removed_at).then(a.folder.cmp(&b.folder)));
+    out
+}
+
+/// Puts a removed save back among the saves, under the name it had. Refused when a save of that
+/// name exists again. Returns its `<mode>/<world>`.
+pub fn restore_removed_save(user_zomboid_dir: &Path, mode: &str, folder: &str) -> Result<String, String> {
+    let dir = removed_dir(user_zomboid_dir, mode, folder)?;
+    let world = &folder[..folder.rfind(REMOVED_MARK).unwrap_or(folder.len())];
+    let id = format!("{}/{}", mode, world);
+    let to = save_dir(user_zomboid_dir, &id)?;
+    if to.exists() {
+        return Err(format!("There is a save called {} again: rename that one first.", world));
+    }
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::rename(&dir, &to).map_err(|e| format!("Cannot put the save back: {}", e))?;
+    Ok(id)
+}
+
+/// Deletes removed saves for good: one (`only`), or every one in the bin. Returns the bytes freed.
+/// This is the one place a save is really deleted, and only from the bin.
+pub fn delete_removed_saves(user_zomboid_dir: &Path, only: Option<(&str, &str)>) -> Result<u64, String> {
+    let mut freed = 0;
+    if let Some((mode, folder)) = only {
+        removed_dir(user_zomboid_dir, mode, folder)?;
+    }
+    for r in removed_saves(user_zomboid_dir) {
+        if only.is_some_and(|(mode, folder)| mode != r.mode || folder != r.folder) {
+            continue;
+        }
+        let dir = removed_dir(user_zomboid_dir, &r.mode, &r.folder)?;
+        fs::remove_dir_all(&dir).map_err(|e| format!("Cannot delete {}: {}", r.folder, e))?;
+        freed += r.bytes;
+    }
+    Ok(freed)
+}
+
+/// Gives a save another name: its folder, its zip backups and what the Studio remembers of it.
+/// Refused while the game runs, for a name that is taken or is not a plain folder name, and for a
+/// multiplayer save the game or a server finds by that name. Returns the new `<mode>/<world>`.
+pub fn rename_save(user_zomboid_dir: &Path, save_id: &str, new_name: &str, game_running: bool) -> Result<String, String> {
+    let (mode, world) = split_id(save_id)?;
+    let new_name = new_name.trim();
+    let new_id = format!("{}/{}", mode, new_name);
+    if split_id(&new_id).is_err() || new_name.len() > 80 || new_name.chars().any(|c| "<>:\"|?*".contains(c) || c.is_control()) || new_name.ends_with('.') {
+        return Err(format!("\"{}\" cannot be a save's name: use letters, numbers, spaces, - and _.", new_name));
+    }
+    if new_name == world {
+        return Ok(save_id.to_string());
+    }
+    let dir = save_dir(user_zomboid_dir, save_id)?;
+    if !dir.is_dir() {
+        return Err(format!("There is no save {}.", save_id));
+    }
+    if game_running {
+        return Err("The game is running: close it first.".to_string());
+    }
+    if is_busy(&dir.to_string_lossy()) {
+        return Err("A backup of this save is being made: wait for it to end.".to_string());
+    }
+    if found_by_name(user_zomboid_dir, &mode, &world) {
+        return Err("A server's world or a server you joined is found by this name: renamed, the server or the game would start a new one.".to_string());
+    }
+    let to = save_dir(user_zomboid_dir, &new_id)?;
+    if to.exists() {
+        return Err(format!("There already is a save called {}.", new_name));
+    }
+    fs::rename(&dir, &to).map_err(|e| format!("Cannot rename the save (is the game using it?): {}", e))?;
+    // Its backups follow it; when that folder cannot move, the save is still renamed and the
+    // backups stay under the old name, where "Open the backups folder" shows them.
+    if let (Ok(old_b), Ok(new_b)) = (backup_dir_of(user_zomboid_dir, save_id), backup_dir_of(user_zomboid_dir, &new_id)) {
+        if old_b.is_dir() && !new_b.exists() {
+            let _ = fs::rename(&old_b, &new_b);
+        }
+    }
+    move_save_ref(user_zomboid_dir, save_id, Some(&new_id));
+    Ok(new_id)
+}
+
+/// What each save is beside the others: a server's world, a server joined, a copy made by hand.
+fn classify(user_zomboid_dir: &Path, saves: &mut [SaveSummary]) {
+    let names: Vec<(String, String)> = saves.iter().map(|s| (s.mode.clone(), s.world.clone())).collect();
+    for save in saves.iter_mut() {
+        // The longest other name this one continues with "_": `knoxtest_week25` is a copy of `knoxtest`.
+        save.copy_of = names
+            .iter()
+            .filter(|(mode, world)| *mode == save.mode && *world != save.world && save.world.starts_with(&format!("{}_", world)))
+            .map(|(_, world)| world.clone())
+            .max_by_key(|w| w.len());
+        if save.mode != "Multiplayer" {
+            continue;
+        }
+        let server = save.copy_of.clone().unwrap_or_else(|| save.world.clone());
+        match fs::read_to_string(user_zomboid_dir.join("Server").join(format!("{}.ini", server))) {
+            Ok(ini) => {
+                save.kind = "server_world".to_string();
+                save.server_mod_ids = crate::server_manager::mod_sync::ini_list(&ini, "Mods");
+                save.server_mods = Some(save.server_mod_ids.len());
+            }
+            Err(_) => save.kind = "joined".to_string(),
+        }
+    }
 }
 
 /// A mod a save's list names that is not installed: the save will not load with it.
@@ -693,6 +996,7 @@ pub fn missing_mods(user_zomboid_dir: &Path, catalog: &crate::catalog::ModCatalo
 pub fn overview(user_zomboid_dir: &Path) -> SavesOverview {
     let mut saves: Vec<SaveSummary> = list_saves(user_zomboid_dir).iter().filter_map(|id| summary(user_zomboid_dir, id)).collect();
     saves.sort_by(|a, b| b.modified.cmp(&a.modified));
+    classify(user_zomboid_dir, &mut saves);
     let root = backups_root(user_zomboid_dir);
     let backups_bytes = walkdir::WalkDir::new(&root).into_iter().flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum();
     let space = disk_space(&root);
@@ -703,12 +1007,85 @@ pub fn overview(user_zomboid_dir: &Path) -> SavesOverview {
         free_bytes: space.map(|s| s.0),
         total_bytes: space.map(|s| s.1),
         keep_automatic: KEEP_AUTOMATIC,
+        removed: removed_saves(user_zomboid_dir),
+        lost: lost_saves(user_zomboid_dir),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saves_are_told_apart_a_servers_world_a_joined_server_and_a_copy_by_hand() {
+        let base = std::env::temp_dir().join(format!("pzms-saves-kind-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        for world in ["knoxtest", "knoxtest_week25", "127.0.0.1_16261_abc"] {
+            let dir = base.join("Saves").join("Multiplayer").join(world);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("map_t.bin"), b"x").unwrap();
+        }
+        fs::create_dir_all(base.join("Saves").join("Apocalypse").join("mine")).unwrap();
+        fs::write(base.join("Saves").join("Apocalypse").join("mine").join("map_t.bin"), b"x").unwrap();
+        fs::create_dir_all(base.join("Server")).unwrap();
+        fs::write(base.join("Server").join("knoxtest.ini"), "Mods=A;B;C
+").unwrap();
+        let saves = overview(&base).saves;
+        let of = |world: &str| saves.iter().find(|s| s.world == world).unwrap();
+        assert_eq!((of("knoxtest").kind.as_str(), of("knoxtest").server_mods, of("knoxtest").copy_of.clone()), ("server_world", Some(3), None));
+        assert_eq!((of("knoxtest_week25").kind.as_str(), of("knoxtest_week25").copy_of.as_deref()), ("server_world", Some("knoxtest")));
+        assert_eq!((of("127.0.0.1_16261_abc").kind.as_str(), of("127.0.0.1_16261_abc").server_mods), ("joined", None));
+        assert_eq!((of("mine").kind.as_str(), of("mine").copy_of.clone()), ("single", None));
+        // A save of the player's own is renamed with what the Studio remembers of it; a server's
+        // world is not; a removed save is moved, not deleted.
+        fs::write(base.join("PZModStudio_SaveRefs.json"), r#"{"Apocalypse/mine":{"at":1,"mods":[]}}"#).unwrap();
+        assert_eq!(rename_save(&base, "Apocalypse/mine", "my town", false).unwrap(), "Apocalypse/my town");
+        assert!(base.join("Saves").join("Apocalypse").join("my town").join("map_t.bin").is_file());
+        assert!(fs::read_to_string(base.join("PZModStudio_SaveRefs.json")).unwrap().contains("Apocalypse/my town"));
+        assert!(rename_save(&base, "Multiplayer/knoxtest", "other", false).is_err(), "a server finds its world by name");
+        assert!(rename_save(&base, "Multiplayer/knoxtest_week25", "week 25", false).is_ok(), "a copy by hand is free to rename");
+        assert!(rename_save(&base, "Apocalypse/my town", "a/b", false).is_err());
+        assert!(rename_save(&base, "Apocalypse/my town", "x", true).is_err(), "not while the game runs");
+        let went = remove_save(&base, "Apocalypse/my town", false).unwrap();
+        assert!(Path::new(&went).join("map_t.bin").is_file() && went.contains("PZModStudio_Backups"));
+        assert!(!base.join("Saves").join("Apocalypse").join("my town").exists());
+        assert!(!fs::read_to_string(base.join("PZModStudio_SaveRefs.json")).unwrap().contains("my town"));
+        // The bin: what was removed is listed, comes back under its name, and is deleted for good
+        // only from there.
+        let bin = removed_saves(&base);
+        assert_eq!((bin.len(), bin[0].world.as_str(), bin[0].bytes), (1, "my town", 1));
+        let folder = bin[0].folder.clone();
+        assert!(delete_removed_saves(&base, Some(("Apocalypse", "my town"))).is_err(), "not a removed save's folder: refused");
+        assert!(bin[0].removed_at > 1_700_000_000, "the time comes from the folder's name: {}", bin[0].removed_at);
+        assert_eq!(removed_time("20261112-224551-2").map(|t| t > 0), Some(true));
+        assert!(removed_dir(&base, "Apocalypse", "..").is_err());
+        assert_eq!(restore_removed_save(&base, "Apocalypse", &folder).unwrap(), "Apocalypse/my town");
+        assert!(base.join("Saves").join("Apocalypse").join("my town").join("map_t.bin").is_file() && removed_saves(&base).is_empty());
+        remove_save(&base, "Apocalypse/my town", false).unwrap();
+        remove_save(&base, "Multiplayer/week 25", false).unwrap();
+        assert_eq!(removed_saves(&base).len(), 2);
+        assert_eq!(delete_removed_saves(&base, None).unwrap(), 2);
+        assert!(removed_saves(&base).is_empty());
+        assert!(base.join("Saves").join("Multiplayer").join("knoxtest").join("map_t.bin").is_file(), "the saves themselves are untouched");
+        // A save deleted outside the Studio keeps its backups: they are listed as a lost save,
+        // which comes back from the newest one, or whose backups are deleted for good.
+        let gone = base.join("Saves").join("Apocalypse").join("gone");
+        fs::create_dir_all(&gone).unwrap();
+        fs::write(gone.join("map_t.bin"), b"world").unwrap();
+        let made = backup_save(&base, "Apocalypse/gone", REASON_MANUAL, true).unwrap();
+        assert!(lost_saves(&base).is_empty(), "the save is there: not lost");
+        assert!(delete_lost_backups(&base, "Apocalypse/gone").is_err(), "not while the save exists");
+        fs::remove_dir_all(&gone).unwrap();
+        let lost = lost_saves(&base);
+        assert_eq!((lost.len(), lost[0].id.as_str(), lost[0].backups.len()), (1, "Apocalypse/gone", 1));
+        restore_backup(&base, "Apocalypse/gone", &made.entry.file, false).unwrap();
+        assert_eq!(fs::read(gone.join("map_t.bin")).unwrap(), b"world");
+        assert!(lost_saves(&base).is_empty());
+        fs::remove_dir_all(&gone).unwrap();
+        assert!(delete_lost_backups(&base, "Apocalypse/gone").unwrap() > 0);
+        assert!(lost_saves(&base).is_empty() && !backups_root(&base).join("Apocalypse").join("gone").exists());
+        let _ = fs::remove_dir_all(&base);
+    }
 
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("pzms-saves-{}-{}", name, std::process::id()));

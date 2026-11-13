@@ -15,6 +15,8 @@ pub mod error_report;
 pub mod game_memory;
 pub mod images;
 pub mod instance_manager;
+pub mod java_patches;
+pub mod zb_watermark;
 pub mod lists;
 pub mod load_order;
 pub mod map_cells;
@@ -517,6 +519,37 @@ fn make_compatible_copy_cmd(paths: StudioPaths, mod_id: String, replace_existing
     compat::make_compatible_copy_with_index(std::path::Path::new(&original.root_dir), &paths.user_zomboid_dir, game, workshop_id, replace_existing, &index)
 }
 
+/// ZombieBuddy's list of Java mods over the main menu: hidden unless `show`, in the player's
+/// Zomboid folder and in player 2's. Nothing is written while the game runs (it saves its
+/// options over the file) or when `apply` is false.
+#[tauri::command(async)]
+fn zb_watermark_cmd(paths: StudioPaths, show: bool, apply: bool) -> Result<zb_watermark::WatermarkState, String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let apply = apply && sandbox::find_running_pz_pid().is_none();
+    let state = zb_watermark::set(&primary, show, apply)?;
+    let _ = zb_watermark::set(&server_manager::mp_test::second_dir(&primary), show, apply);
+    Ok(state)
+}
+
+/// A note for the author of a mod the Studio keeps a compatible copy of: what works on this build.
+#[tauri::command(async)]
+fn compat_author_suggestion_cmd(paths: StudioPaths, mod_id: String) -> Result<String, String> {
+    let game = load_order::mod_info::read_installed_game_version(&paths.user_zomboid_dir);
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, game);
+    compat::author_suggestion(&catalog, &paths.user_zomboid_dir, &vfs::trusted_install_dir(), &mod_id, game)
+}
+
+/// Takes a mod that is only a folder in Zomboid/mods out of it (moved to the backups folder).
+#[tauri::command(async)]
+fn remove_local_mod_cmd(paths: StudioPaths, mod_id: String) -> Result<String, String> {
+    if sandbox::find_running_pz_pid().is_some() {
+        return Err("The game is running: close it first.".to_string());
+    }
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let active = load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+    compat::remove_local_mod(&catalog, &paths.user_zomboid_dir, &mod_id, &active)
+}
+
 #[tauri::command(async)]
 fn remove_compatible_copy_cmd(paths: StudioPaths, folder: String) -> Result<(), String> {
     // A server's list keeps the copy in use (a server without Steam reads only Zomboid/mods).
@@ -871,6 +904,21 @@ fn error_history_cmd(paths: StudioPaths, lines: Vec<String>) -> Result<sandbox::
     Ok(sandbox::history::lookup(&z, &lines))
 }
 
+/// What one mod's Java declares it changes (ZombieBuddy `@Patch` classes read from its jar), for
+/// the Mod List's inspector. None: the mod has no Java.
+#[tauri::command(async)]
+fn java_patches_mod_cmd(paths: StudioPaths, mod_id: String) -> Result<Option<java_patches::ModJavaView>, String> {
+    let z = zomboid_dir_of(&paths)?;
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let Some(m) = catalog.resolve(mod_id.trim()) else { return Ok(None) };
+    let Some(patches) = java_patches::read_mod(&z, m, catalog.game_version_int()) else { return Ok(None) };
+    // Beside the other active mods, when it is one of them.
+    let active = load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+    let is_active = active.iter().filter_map(|e| catalog.resolve(e.trim())).any(|a| a.id == m.id);
+    let shared = if is_active { java_patches::shared_with(&java_patches::radar(&z, &catalog, &active), &m.id) } else { Vec::new() };
+    Ok(Some(java_patches::ModJavaView { patches, shared }))
+}
+
 /// What the active mods (or `mod_ids`) could do beyond modding: programs shipped, Java that runs
 /// programs or reaches the net, Lua that does what the game's never does. Heuristics, cached per mod.
 #[tauri::command(async)]
@@ -905,6 +953,69 @@ fn save_add_maps_cmd(paths: StudioPaths, save_id: String) -> Result<save_backup:
 #[tauri::command(async)]
 fn save_session_diffs_cmd(paths: StudioPaths) -> Result<std::collections::BTreeMap<String, studio_link::SessionDiff>, String> {
     Ok(studio_link::session_diffs(&zomboid_dir_of(&paths)?))
+}
+
+/// The saves on disk by name, and how many wait in the bin: cheap, for the Saves screen to notice
+/// a save made, deleted or renamed outside the Studio (in the game, for one) without reading them all.
+#[tauri::command(async)]
+fn save_names_cmd(paths: StudioPaths) -> Result<Vec<String>, String> {
+    let z = zomboid_dir_of(&paths)?;
+    let mut names = save_backup::list_saves(&z);
+    names.push(format!("bin:{}", save_backup::removed_saves_count(&z)));
+    Ok(names)
+}
+
+/// Takes a save out of the saves folder (moved to the backups folder, not deleted).
+#[tauri::command(async)]
+fn remove_save_cmd(paths: StudioPaths, save_id: String) -> Result<String, String> {
+    let z = zomboid_dir_of(&paths)?;
+    // A server's world while that server runs is in use.
+    let server = server_manager::get_dedicated_server_status(paths.user_zomboid_dir.clone()).ok();
+    if server.as_ref().is_some_and(|s| s.is_running && s.server_name.as_deref().is_some_and(|n| save_id == format!("Multiplayer/{}", n))) {
+        return Err("This is the world of the server that is running: stop the server first.".to_string());
+    }
+    let result = save_backup::remove_save(&z, &save_id, sandbox::find_running_pz_pid().is_some());
+    studio_link::write_saves_file(&z);
+    result
+}
+
+/// Deletes for good the backups of a save that is no longer on disk.
+#[tauri::command(async)]
+fn delete_lost_backups_cmd(paths: StudioPaths, save_id: String) -> Result<u64, String> {
+    let z = zomboid_dir_of(&paths)?;
+    save_backup::delete_lost_backups(&z, &save_id)
+}
+
+/// Puts a removed save back among the saves.
+#[tauri::command(async)]
+fn restore_removed_save_cmd(paths: StudioPaths, mode: String, folder: String) -> Result<String, String> {
+    let z = zomboid_dir_of(&paths)?;
+    if sandbox::find_running_pz_pid().is_some() {
+        return Err("The game is running: close it first.".to_string());
+    }
+    let result = save_backup::restore_removed_save(&z, &mode, &folder);
+    studio_link::write_saves_file(&z);
+    result
+}
+
+/// Deletes removed saves for good: one, or (with no folder) every one in the bin.
+#[tauri::command(async)]
+fn delete_removed_saves_cmd(paths: StudioPaths, mode: Option<String>, folder: Option<String>) -> Result<u64, String> {
+    let z = zomboid_dir_of(&paths)?;
+    match (mode.as_deref(), folder.as_deref()) {
+        (Some(m), Some(f)) => save_backup::delete_removed_saves(&z, Some((m, f))),
+        (None, None) => save_backup::delete_removed_saves(&z, None),
+        _ => Err("Both the mode and the folder, or neither.".to_string()),
+    }
+}
+
+/// Gives a save another name (its backups and what the Studio remembers follow it).
+#[tauri::command(async)]
+fn rename_save_cmd(paths: StudioPaths, save_id: String, new_name: String) -> Result<String, String> {
+    let z = zomboid_dir_of(&paths)?;
+    let result = save_backup::rename_save(&z, &save_id, &new_name, sandbox::find_running_pz_pid().is_some());
+    studio_link::write_saves_file(&z);
+    result
 }
 
 /// A backup the player asked for: kept until they remove it.
@@ -1461,7 +1572,17 @@ fn resolve_failed_requires_cmd(
         .unwrap_or_default();
     let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
     let index = sandbox::requires::index_modules(&paths, &catalog, &active);
-    wanted.iter().map(|w| sandbox::requires::answer_for(w, &index)).collect()
+    wanted
+        .iter()
+        .map(|w| {
+            let mut answer = sandbox::requires::answer_for(w, &index);
+            // Nowhere among the game and the mods on: a mod that is installed and off may have it.
+            if answer.candidates.is_empty() {
+                answer.installed_off = sandbox::requires::installed_off_with(w, &catalog, &active);
+            }
+            answer
+        })
+        .collect()
 }
 
 #[tauri::command(async)]
@@ -1948,6 +2069,9 @@ pub fn run() {
             remove_load_rule_cmd,
             make_compatible_copy_cmd,
             remove_compatible_copy_cmd,
+            remove_local_mod_cmd,
+            compat_author_suggestion_cmd,
+            zb_watermark_cmd,
             adopt_workshop_copy_cmd,
             mp_test_status_cmd,
             mp_test_prepare_cmd,
@@ -1997,6 +2121,7 @@ pub fn run() {
             save_add_maps_cmd,
             save_inside_cmd,
             scan_mod_security_cmd,
+            java_patches_mod_cmd,
             error_history_cmd,
             package_file_states_cmd,
             set_launch_save_cmd,
@@ -2004,6 +2129,12 @@ pub fn run() {
             disk_recycle_cmd,
             java_agents_plan_cmd,
             backup_save_cmd,
+            save_names_cmd,
+            remove_save_cmd,
+            rename_save_cmd,
+            delete_lost_backups_cmd,
+            restore_removed_save_cmd,
+            delete_removed_saves_cmd,
             restore_save_backup_cmd,
             delete_save_backup_cmd,
             set_save_backup_kept_cmd,

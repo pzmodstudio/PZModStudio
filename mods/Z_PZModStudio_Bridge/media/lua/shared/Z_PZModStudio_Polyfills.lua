@@ -1558,6 +1558,11 @@ local function initVanillaGuards()
     if type(propsIndex) == "table" and propsIndex.get and not propsIndex.Val then
         propsIndex.Val = propsIndex.get
     end
+    -- The same build renamed PropertyContainer:Is(name) to :has(name): the line before the :Val
+    -- one in most of those mods ("if props:Is("Facing") then local f = props:Val("Facing")").
+    if type(propsIndex) == "table" and propsIndex.has and not propsIndex.Is then
+        propsIndex.Is = propsIndex.has
+    end
 
 end
 

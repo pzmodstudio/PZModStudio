@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AuthorLink, ModChangelog, ModInfo } from '../../types';
+import { AuthorLink, ModChangelog, ModInfo, ModJavaPatches } from '../../types';
 import { SupportLinks } from '../common/SupportLinks';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
@@ -151,6 +151,31 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mod?.mod_id]);
+  /** What the mod's Java declares it changes (ZombieBuddy patches in its jar); null: no Java. */
+  const [javaPatches, setJavaPatches] = useState<ModJavaPatches | null>(null);
+  useEffect(() => {
+    setJavaPatches(null);
+    if (!mod || mod.not_installed) return;
+    let cancelled = false;
+    void TauriService.javaPatchesOfMod(paths, mod.mod_id).then((found) => {
+      if (!cancelled) setJavaPatches(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mod?.mod_id]);
+  /** Target class -> the method names patched there, for the patches ZombieBuddy applies. */
+  const javaClasses = useMemo(() => {
+    const byClass = new Map<string, Set<string>>();
+    (javaPatches?.patches ?? []).forEach((p) => {
+      if (p.not_applied || !p.target_class) return;
+      const methods = byClass.get(p.target_class) ?? new Set<string>();
+      if (p.target_method) methods.add(p.target_method);
+      byClass.set(p.target_class, methods);
+    });
+    return [...byClass.entries()].map(([name, methods]) => ({ name, methods: [...methods].sort() })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [javaPatches]);
   /** The selected mod's poster, read from disk as a data URL (the webview cannot open files). */
   const [posterSrc, setPosterSrc] = useState<string | null>(null);
   /** Workshop id -> the picture on its Workshop page, for the mods that ship none. */
@@ -226,6 +251,18 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   }
 
   const { orderViolation, disabledDependency, incompatibility } = problems;
+  /** Under a class of the Java list: the other active mods whose Java changes it too. */
+  const javaSharedLine = (className: string) => {
+    const shared = javaPatches?.shared?.find((s) => s.target_class === className);
+    if (!shared || shared.mods.length === 0) return null;
+    return (
+      <div className="font-sans text-[10.5px] text-amber-200/80 pl-2">
+        {shared.methods.length > 0
+          ? t('inspector.java.sharedMethod', { methods: shared.methods.join(', '), mods: shared.mods.join(', ') })
+          : t('inspector.java.sharedClass', { mods: shared.mods.join(', ') })}
+      </div>
+    );
+  };
 
   return (
     <div className="col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow p-4">
@@ -488,6 +525,62 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
             </div>
           </div>
         </div>
+
+        {/* What the mod's Java changes: the classes its jar declares patches for */}
+        {javaPatches && (
+          <div className="space-y-1 border-t border-slate-800 pt-3">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-sky-300">{t('inspector.java.title', { count: javaClasses.length })}</span>
+            </label>
+            {javaPatches.unknown ? (
+              <p className="text-[11px] text-amber-300 leading-relaxed">
+                {t(javaPatches.unknown === 'jar_missing' ? 'inspector.java.jarMissing' : javaPatches.unknown === 'no_package' ? 'inspector.java.noPackage' : 'inspector.java.unreadable', { jar: javaPatches.jar ?? '' })}
+              </p>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-500 leading-relaxed">{t('inspector.java.how', { jar: javaPatches.jar ?? '', package: javaPatches.package ?? '' })}</p>
+                {(javaPatches.shared?.length ?? 0) > 0 && <p className="text-[11px] text-slate-400 leading-relaxed">{t('inspector.java.sharedNote')}</p>}
+                {javaClasses.length === 0 && <p className="text-[11px] text-slate-400">{t('inspector.java.none')}</p>}
+                {javaClasses.length > 0 && (
+                  <ul className="text-[11px] font-mono leading-relaxed">
+                    {javaClasses.slice(0, 8).map((c) => (
+                      <li key={c.name} className="break-all">
+                        <span className="text-slate-200">{c.name}</span>
+                        <span className="text-slate-500"> · {c.methods.length > 0 ? c.methods.join(', ') : t('inspector.java.wholeClass')}</span>
+                        {javaSharedLine(c.name)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {javaClasses.length > 8 && (
+                  <details>
+                    <summary className="text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer select-none">{t('inspector.java.more', { count: javaClasses.length - 8 })}</summary>
+                    <ul className="text-[11px] font-mono leading-relaxed">
+                      {javaClasses.slice(8).map((c) => (
+                        <li key={c.name} className="break-all">
+                          <span className="text-slate-200">{c.name}</span>
+                          <span className="text-slate-500"> · {c.methods.length > 0 ? c.methods.join(', ') : t('inspector.java.wholeClass')}</span>
+                          {javaSharedLine(c.name)}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {[...new Set(javaPatches.patches.map((p) => p.not_applied).filter((w): w is string => !!w))].map((why) => (
+                  <p key={why} className="text-[11px] text-slate-500 leading-relaxed">
+                    {t('inspector.java.notApplied', { count: javaPatches.patches.filter((p) => p.not_applied === why).length, why: t(`inspector.java.why.${why}`, { defaultValue: why }) })}
+                  </p>
+                ))}
+                {javaPatches.patches.some((p) => p.by_code && !p.not_applied) && <p className="text-[11px] text-slate-500 leading-relaxed">{t('inspector.java.byCode')}</p>}
+                {javaPatches.patches_in_code.length > 0 && (
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">{t('inspector.java.inCode', { what: javaPatches.patches_in_code.join(', ') })}</p>
+                )}
+                {javaPatches.side && <p className="text-[11px] text-slate-500 leading-relaxed">{t(javaPatches.side === 'client' ? 'inspector.java.sideClient' : 'inspector.java.sideServer')}</p>}
+              </>
+            )}
+          </div>
+        )}
 
         {/* SECTION 1: Base Libraries (Library Required by this Mod) */}
         <div className="space-y-1 border-t border-slate-800 pt-3">

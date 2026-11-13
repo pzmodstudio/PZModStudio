@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import i18next from './index';
-import { backendText, issueText } from './backendText';
+import { backendText, cardText, issueText } from './backendText';
 
 describe('backendText', () => {
   beforeAll(async () => {
@@ -24,6 +24,32 @@ describe('backendText', () => {
     };
     const text = issueText({ code: 'package_built_for_other_list', params, message: 'english' });
     expect(text).toContain('P se armó con otra lista: 6 mods están activados en este perfil y el paquete nunca los vio (A, B, C, D, y 2 más). Un paquete');
+  });
+
+  it('says the texts the game could not format as one card, with the keys, how many more and whose they are', () => {
+    const card = {
+      code: 'translator_text',
+      params: { variant: 'many', count: '13', keys: 'Sandbox_A, Sandbox_B', more: '11', moreKey: 'and_more', mod: 'Neat Lockpicking', whoseKey: 'text_whose_mod_many' },
+      title: 'english', explanation: 'english', recommended_action: 'english',
+    };
+    expect(cardText(card, 'title')).toBe('13 textos tienen un % que el juego no puede formatear');
+    expect(cardText(card, 'explanation')).toContain('Los textos: Sandbox_A, Sandbox_B y 11 más. Están en los archivos de traducción de Neat Lockpicking.');
+    const one = { ...card, params: { variant: '', count: '1', keys: 'Sandbox_A', more: '', moreKey: '', mod: '', whoseKey: 'text_whose_none_one' } };
+    expect(cardText(one, 'explanation')).toContain('El texto: Sandbox_A. El Studio no lo encontró en los textos de los mods que tenés activados; puede ser del propio juego.');
+  });
+
+  it('says a call the build does not have by name, with where, how many more and what the log adds', () => {
+    const params = {
+      mod: 'TV Remote', count: '2', names: ':Is(, getFoo(', moreNames: '', moreNamesKey: '', file: '42/media/lua/server/RemoteSpawn.lua', line: '353',
+      more: '2', moreKey: 'and_more_places', variant: '', exceptions: '20', tailKey: 'api_tail_errors',
+    };
+    expect(issueText({ code: 'api_missing', params, message: 'english' })).toBe(
+      'TV Remote llama a 2 cosas que esta versión del juego no tiene, por nombre: :Is(, getFoo( (42/media/lua/server/RemoteSpawn.lua:353 y 2 lugares más). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve. El log de la última sesión tiene 20 errores de este mod: el Monitor los muestra.',
+    );
+    const one = { ...params, count: '7', names: ':a(, :b(, :c(, :d(, :e(', moreNames: '2', moreNamesKey: 'api_more_names', more: '', moreKey: '', variant: 'one', tailKey: 'api_tail_java' };
+    expect(issueText({ code: 'api_missing', params: one, message: 'english' })).toBe(
+      'TV Remote llama a algo que esta versión del juego no tiene, por nombre: :a(, :b(, :c(, :d(, :e( y 2 más (42/media/lua/server/RemoteSpawn.lua:353). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve. Este mod trae Java, que puede darle a Lua nombres que esta revisión no ve: puede que no sea nada.',
+    );
   });
 
   it('joins a list with the locale word and keeps a raw value when its phrase is empty', () => {

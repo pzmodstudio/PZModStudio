@@ -20,7 +20,7 @@ use tauri::Emitter;
 pub const LINK_MOD_ID: &str = "Z_StudioLink";
 
 /// Other mod managers that draw the game's Mods screen (the Link's OTHER_MANAGERS).
-pub const OTHER_MANAGERS: [&str; 4] = ["DefinitiveModManager", "PZMMClient", "ModManager", "ModLoadOrderSorter_b42"];
+pub const OTHER_MANAGERS: [&str; 5] = ["DefinitiveModManager", "PZMMClient", "ModManager", "ModLoadOrderSorter_b42", "KJModManager"];
 
 /// Where the Link keeps which Mods screen the player chose when another manager is on:
 /// `screen=studio|other|ask` and `other=<mod id>`, in Zomboid/Lua.

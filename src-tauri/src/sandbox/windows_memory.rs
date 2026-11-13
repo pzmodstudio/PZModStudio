@@ -119,21 +119,26 @@ pub fn low_memory_card(e: &LowMemoryEvent) -> super::TranslatedErrorPayload {
     let limit = format!("{:.0}", e.commit_limit_gb);
     let ram = format!("{:.0}", e.physical_gb);
     super::TranslatedErrorPayload {
+        own_mod: false,
+        own_file: None,
+        frame_mod: None,
         id: format!("lowmem_{}", e.at),
         raw_error: format!("Windows Resource-Exhaustion-Detector 2004 at {}: {} of {} GB committed, {} {} GB", when, charge, limit, GAME_EXE, game),
         source_file: None,
         line_number: None,
-        title: "Windows closed the game for lack of memory".to_string(),
+        title: "The game closed while Windows was out of memory".to_string(),
         explanation: format!(
-            "At {} the whole PC had {} of {} GB committed (RAM {} GB plus the page file); the game alone held {} GB{}. Windows then closed it. This is not the game's Java heap (-Xmx): the game's native side and Java mods grow past it.",
-            when, charge, limit, ram, game, if others.is_empty() { String::new() } else { format!(", beside {}", others) }
+            "At {} Windows reported the whole PC out of memory: {} of {} GB committed (RAM {} GB plus the page file){}{}. The game crashed within moments of that. The limit that ran out is the PC's, not the game's Java heap (-Xmx).",
+            when, charge, limit, ram,
+            e.game_gb.map(|g| format!("; the game held {:.1} GB", g)).unwrap_or_default(),
+            if others.is_empty() { String::new() } else { format!(", beside {}", others) }
         ),
         recommended_action: "A bigger page file (Windows > System > About > Advanced system settings > Performance > Virtual memory: system managed, or 16 to 32 GB), closing browsers and other big programs before playing, and fewer memory-hungry Java mods. Health > Performance > Memory keeps the last 14 days.".to_string(),
         polyfill_rule_id_suggestion: None,
         mod_name: None,
         severity: super::Severity::Exception,
         code: "windows_low_memory".to_string(),
-        params: crate::catalog::issue_params(&[("when", &when), ("charge", &charge), ("limit", &limit), ("ram", &ram), ("game", &game), ("others", &others), ("othersKey", if others.is_empty() { "" } else { "beside_others" })]),
+        params: crate::catalog::issue_params(&[("when", &when), ("charge", &charge), ("limit", &limit), ("ram", &ram), ("game", &game), ("others", &others), ("othersKey", if others.is_empty() { "" } else { "beside_others" }), ("variant", if e.game_gb.is_none() { "nogame" } else { "" })]),
         called_from: Vec::new(),
     }
 }
@@ -141,7 +146,8 @@ pub fn low_memory_card(e: &LowMemoryEvent) -> super::TranslatedErrorPayload {
 /// The event behind a game that just closed, when Windows logged one in the last ten minutes.
 pub fn event_behind_exit() -> Option<LowMemoryEvent> {
     let now = chrono::Utc::now().timestamp();
-    recent(1).into_iter().find(|e| now - e.at <= 10 * 60)
+    // Only when the game crashed beside it: a normal quit after a low-memory warning is no crash.
+    recent(1).into_iter().find(|e| now - e.at <= 10 * 60 && e.game_crashed)
 }
 
 #[cfg(windows)]

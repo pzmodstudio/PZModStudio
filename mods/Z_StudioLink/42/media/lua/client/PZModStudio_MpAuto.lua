@@ -51,8 +51,15 @@ local function due(key)
     return n == 30 or (n > 30 and (n - 30) % 300 == 0)
 end
 
+-- Only in a game joined to a server: the test's file can be left in the player's own folder
+-- (player 1 plays there), and a single-player game must never build its character by itself.
+local function joined()
+    return isClient ~= nil and isClient() == true
+end
+
 local function auto()
     if cfg == nil then cfg = readKeys(CFG) or {} end
+    if not joined() then return false end
     return cfg.character == "random" or cfg.character == "first"
 end
 
@@ -62,7 +69,7 @@ local function tick()
     if spawn and spawn:isVisible() then
         say("spawn_select")
         auto()
-        if cfg.spawn == "1" and due("spawn") then spawn:clickNext() end
+        if joined() and cfg.spawn == "1" and due("spawn") then spawn:clickNext() end
         return
     end
     shown.spawn = nil

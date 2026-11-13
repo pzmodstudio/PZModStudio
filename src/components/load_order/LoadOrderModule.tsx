@@ -516,7 +516,6 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   const [dismissedOrphans, setDismissedOrphans] = useState<string>('');
   /** "Show them" of the banner: only the mods no profile lists, until cleared. */
   const [onlyOrphans, setOnlyOrphans] = useState(false);
-  const orphanIds = useMemo(() => new Set(orphanMods.map((m) => m.mod_id)), [orphanMods]);
   // Once every such mod joined a profile there is nothing left to show: the filter ends with the
   // banner instead of leaving an empty list.
   useEffect(() => {
@@ -684,8 +683,9 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   };
   const filteredMods = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    const shown = scopeMods.filter((m) => {
-      if (onlyOrphans && !orphanIds.has(m.mod_id)) return false;
+    // "Show them" lists the mods no profile has straight from the installed ones: it does not
+    // switch the "profile's mods / every installed mod" button, which stays as the player left it.
+    const shown = (onlyOrphans ? orphanMods : scopeMods).filter((m) => {
       if (sourceFilter !== 'all' && (m.not_installed || sourceOf(m.mod_id, catalogById?.get(m.mod_id)).kind !== sourceFilter)) return false;
       if (!matchesFilter(m, stateFilter)) return false;
       if (tagFilter !== 'all' && !(modTags.get(m.mod_id) ?? []).includes(tagFilter)) return false;
@@ -717,7 +717,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     groupsByMod,
     meta,
     onlyOrphans,
-    orphanIds,
+    orphanMods,
     scopeMods,
     searchQuery,
     sourceFilter,
@@ -911,6 +911,22 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     if (mod.mod_id.startsWith('Z_PZModStudio_')) return [];
     const item = mod.workshop_id && mod.workshop_id !== '9999999999' && mod.workshop_id !== '0' ? mod.workshop_id : null;
     const siblings = item ? mods.filter((m) => m.workshop_id === item && m.mod_id !== mod.mod_id) : [];
+    // A folder in Zomboid/mods with no Workshop item behind it: nothing to unsubscribe from, so
+    // the way out is taking the folder away (to the backups folder).
+    if (!item && !mod.not_installed) {
+      return [
+        {
+          label: t('modList.menu.removeLocal'),
+          icon: Trash2,
+          danger: true,
+          separatorBefore: true,
+          disabled: mod.enabled,
+          disabledReason: t('modList.menu.removeLocalOn'),
+          title: t('modList.menu.removeLocalTitle'),
+          onSelect: () => void removeLocal(mod),
+        },
+      ];
+    }
     return [
       {
         label: t('modList.menu.unsubscribe'),
@@ -1057,12 +1073,25 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       },
     ];
     if (activeProfile) {
-      out.push({
-        label: t('modList.picked.removeFromProfile', { count: list.length, name: activeProfile.name }),
-        icon: UserMinus,
-        separatorBefore: true,
-        onSelect: () => void takeOutOfProfile(list),
-      });
+      // Only what applies: the picked mods outside the profile can join it, those inside can leave.
+      const outside = list.filter((m) => !inActiveProfile.has(m.mod_id) && m.mod_id !== STUDIO_LINK_MOD_ID);
+      const inside = list.filter((m) => inActiveProfile.has(m.mod_id) && m.mod_id !== STUDIO_LINK_MOD_ID);
+      if (outside.length > 0) {
+        out.push({
+          label: t('modList.picked.addToProfile', { count: outside.length, name: activeProfile.name }),
+          icon: PackagePlus,
+          separatorBefore: true,
+          onSelect: () => void putInProfile(outside),
+        });
+      }
+      if (inside.length > 0) {
+        out.push({
+          label: t('modList.picked.removeFromProfile', { count: inside.length, name: activeProfile.name }),
+          icon: UserMinus,
+          separatorBefore: outside.length === 0,
+          onSelect: () => void takeOutOfProfile(inside),
+        });
+      }
     }
     out.push({
       label: t('modList.picked.unsubscribe', { count: items.length }),
@@ -1076,6 +1105,22 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     out.push({ label: t('modList.picked.clear'), icon: X, separatorBefore: true, onSelect: () => setPicked(new Set()) });
     return out;
   };
+  /** Adds the picked mods to the active profile, switched off, at the end of its order. */
+  const putInProfile = async (list: ModInfo[]) => {
+    if (!activeProfile) return;
+    const current = await freshProfile(paths.user_zomboid_dir || '', activeProfile);
+    const members = profileMembers(current);
+    const added = list.map((m) => m.mod_id).filter((id) => !members.includes(id));
+    try {
+      await TauriService.setProfileMembers(paths.user_zomboid_dir || '', activeProfile.id, [...members, ...added]);
+      showToast(t('modList.orphans.added', { count: added.length, name: activeProfile.name }));
+      setPicked(new Set());
+      onProfilesChanged?.();
+      onRefreshMods();
+    } catch {
+      // Already shown by TauriService.
+    }
+  };
   const takeOutOfProfile = async (list: ModInfo[]) => {
     if (!activeProfile) return;
     const leaving = new Set(list.map((m) => m.mod_id).filter((id) => id !== STUDIO_LINK_MOD_ID));
@@ -1088,6 +1133,21 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       onRefreshMods();
     } catch {
       // Already shown by TauriService.
+    }
+  };
+  /** Takes a hand-put mod out of Zomboid/mods (its folder goes to the backups folder). */
+  const removeLocal = async (mod: ModInfo) => {
+    const needers = dependentsOf(mods, [mod.mod_id]);
+    const needed = needers.length === 0 ? '' : t('modList.picked.unsubscribeNeededBy', {
+      mods: needers.slice(0, 15).map((d) => `- ${d.name}${d.enabled ? t('modList.picked.unsubscribeNeederOn') : ''} (${d.because})`).join('\n'),
+    });
+    if (!confirm(t('modList.menu.removeLocalConfirm', { mod: mod.name }) + needed)) return;
+    try {
+      const to = await TauriService.removeLocalMod(paths, mod.mod_id);
+      showToast(t('modList.menu.removedLocal', { mod: mod.name, to }), 8000);
+      onRefreshMods();
+    } catch (err) {
+      showToast(t('modList.menu.removeLocalFailed', { reason: String(err) }), 8000);
     }
   };
   /** Unsubscribes from the Workshop items of these mods (a Workshop item can hold several). */
@@ -1819,9 +1879,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
               ) : (
                 <button
                   onClick={() => {
-                    // Those mods, and only them: they are outside the profile, so the list has to
-                    // show every installed mod, and the other filters would hide them.
-                    setShowEveryMod(true);
+                    // Those mods, and only them: the other filters would hide them.
                     setStateFilter('all');
                     setSourceFilter('all');
                     setTagFilter('all');

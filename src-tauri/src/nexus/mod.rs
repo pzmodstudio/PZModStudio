@@ -2,7 +2,7 @@
 //!
 //! Only reads public listings the user asks for; downloads stay on the Nexus website (the user
 //! downloads there and installs the file with `mod_install`). A public release that also downloads
-//! through the API must first be registered with Nexus (see docs/ROADMAP.md, Phase 2).
+//! through the API must first be registered with Nexus.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

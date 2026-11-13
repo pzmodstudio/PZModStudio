@@ -19,6 +19,7 @@ const REWRITE = [
   [/^Link 1.18.2: .*/, "Link 1.18.2: the website's address in the mod's description"],
   [/^Site: one card per app screen.*/, 'Help: every page checked against the screens and brought up to date; the Workshop remove button and Mod Health\'s "Take out of the package" no longer show a raw text key'],
   [/^Workshop publish: read the upload.*/i, 'Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished'],
+  [/; [^;]* known as another manager$/, '; another mod manager is recognised as such'],
   [/ from Smooth Frames' console lines/i, " from the game's console lines"],
   [/Smooth Frames/gi, 'the frame report']
 ];

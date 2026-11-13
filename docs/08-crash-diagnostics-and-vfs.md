@@ -8,42 +8,41 @@ Diagnosing silent crashes, load order conflicts, and script collisions is one of
 
 The active log file at `C:/Users/<User>/Zomboid/console.txt` captures all JVM stdout/stderr streams and Kahlua VM tracebacks.
 
+A card says only what its log line shows. What a line cannot show (who caused it, what else broke,
+what happens next time) is not on the card. Checked against Project Zomboid 42.22 and a corpus of 753
+session logs (2026-11-12).
+
+| Line in console.txt | What it is | Card |
+| :--- | :--- | :--- |
+| `se.krka.kahlua.vm.KahluaException: <msg> at BaseLib.error` | A script called `error("msg")`. Under a `pcall` frame the script caught it itself. | "A Lua script raised an error itself" |
+| `attempted index: K of non-table: null` | The script read or called `K` on a value that was nil. The file and line are in the stack beside it. | "A script used something that was not there (nil)", or the card of the mod named in the block |
+| `java.lang.NullPointerException` | Java used a missing value; the class after `at` says where. Most are the game's or a Java mod's own code, not a Lua mod's call. | "Java met a missing value" |
+| `Translator.reportMissingArgumentsFromPastAbuse` | A text with a bare `%` (formatting) or a placeholder given no value (missing arguments). The game shows the text and goes on. The key can be the game's own. | "A text has a % sign..." / "A text has a placeholder..." |
+| `java.lang.OutOfMemoryError` | "Java heap space": the `-Xmx` limit. Anything else: memory outside the heap. | "The game's Java ran out of / could not get memory" |
+| `AdvancedAnimator$1.visitFileFailed` + `NoSuchFileException ...\AnimSets` or `\actiongroups` | The game lists those folders in every active mod and logs each mod that has none. | None: the game's own noise |
+| `BufferOverflowException at PathfindNative.findPath` | The native pathfinder's own buffer. | None |
+| `require("X") failed` at `Lua(Vanilla)` | The game's own file asking for a module of another phase. | None |
+
+How the game prints a Lua error (42.22):
+
+```text
+ERROR: General f:240> Lua((MOD:My Mod)).perform> Exception thrown
+	java.lang.RuntimeException: attempted index: getName of non-table: null at KahluaThread.tableget(...)
+	Stack trace:
+		Lua((MOD:My Mod)).perform(MyCustomAction.lua:42)
+		Lua(Vanilla).update(ISTimedActionQueue.lua:78)
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    COMMON CRASH SIGNATURES                  │
-├──────────────────────────┬──────────────────────────────────┤
-│ Signature in console.txt │ Root Cause & Recommended Action  │
-├──────────────────────────┼──────────────────────────────────┤
-│ KahluaThreadException    │ Lua runtime exception in script  │
-│ NoSuchMethodError        │ B41 vs B42 Java API mismatch     │
-│ ChooseGameInfo$Mod.getId │ Malformed versionMin format      │
-│ attempted index of non-t │ Premature global table access    │
-│ UnknownFormatConversion  │ Unescaped % symbol in locale str │
-└──────────────────────────┴──────────────────────────────────┘
-```
 
-### 1. `KahluaThreadException` / `se.krka.kahlua.vm.KahluaException`
-- **Diagnostic:** An unhandled error occurred in a Lua script.
-- **Callframe Inspection:**
-  ```text
-  STACK TRACE
-  -----------------------------------------
-  function: perform -- file: MyCustomAction.lua line # 42 | MOD: MyMod
-  function: update -- file: ISTimedActionQueue.lua line # 78
-  ```
-- **Resolution:** Inspect the exact line in the failing mod script (`MyCustomAction.lua:42`).
+The frames are innermost first. `Lua((MOD:X))` names the mod; `Lua(Vanilla)` is the game's own file.
 
-### 2. `java.lang.NoSuchMethodError` / `java.lang.ClassCastException`
-- **Diagnostic:** A legacy B41 mod is invoking a Java method whose signature was changed or removed in Build 42 (e.g. `ItemContainer` or `ItemPickerJava` methods).
-- **Resolution:** Refactor Lua code to the modern API or isolate the script inside `/41/media/`.
+Who a card blames:
+- The mod the line names (`(MOD:X)`), or the mod that replaced the `media/` path the line names.
+- A mod named on a line above only for lines of that mod's own block (the frame's echo, the indented stack, the bare exception under it). The card then says "named just above this line".
+- Never a mod whose name merely appears in a path, and never whoever was mentioned before an ERROR that carries its own `at Class.method >` source.
 
-### 3. `NullPointerException` at `ChooseGameInfo$Mod.getId()`
-- **Diagnostic:** The `mod.info` manifest specifies `versionMin=42` as an integer without decimals.
-- **Resolution:** Change to `versionMin=42.00` or remove the directive and use `versionMax=42.14.1`.
+Severity: a card is an exception when the game wrote the line at ERROR level or as part of a stack trace, and a warning when the game wrote it at WARN/LOG level. Many ERROR-level lines of the game throw nothing (a font texture that is not shipped, a bone a model lacks, a recipe falling back to a default): they make no card unless a rule above says what they are.
 
-### 4. `attempt to index a nil value` / `attempted index of non-table`
-- **Diagnostic:** A script attempted to access a global table before it was initialized (load order race condition).
-- **Resolution:** Defer initialization to `Events.OnGameBoot.Add()` or apply the `SAFE_GLOBAL_TABLE_ACCESS` polyfill.
+How `require` resolves (42.22 `LuaManager`): the game loads `shared`, then `client`, then `server`; within a phase its own files first, then the mods'. A `require` runs the file at once when it is on a path already added, and otherwise warns and returns nil (it never throws). So `shared` cannot see `client` or `server`, `client` cannot see `server`, and on a dedicated server `client/` is not loaded at all.
 
 ---
 

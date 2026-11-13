@@ -316,7 +316,7 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
           })()}
 
           {/* Showing everything: say which profiles each mod belongs to. */}
-          {showEveryMod && activeProfile && (() => {
+          {activeProfile && (showEveryMod || !inActiveProfile.has(mod.mod_id)) && (() => {
             const usedBy = profilesByMod.get(mod.mod_id) ?? [];
             const others = usedBy.filter((name) => name !== activeProfile.name);
             if (inActiveProfile.has(mod.mod_id)) {

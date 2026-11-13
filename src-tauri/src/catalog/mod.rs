@@ -67,6 +67,10 @@ pub struct CatalogMod {
     /// For subscribed Workshop items: what Steam has installed vs the latest version.
     #[serde(default)]
     pub workshop_state: Option<crate::workshop::InstalledItemState>,
+    /// The player's own mod in development: its folder in Zomboid/mods is a link (junction or
+    /// symlink) to a folder elsewhere, outside the Workshop.
+    #[serde(default)]
+    pub in_development: bool,
     pub info: GameModInfo,
 }
 
@@ -247,6 +251,7 @@ pub fn build_catalog(workshop_dir: &str, user_zomboid_dir: &str, game_version_ov
                     ModSource::Workshop { workshop_id } => steam_state.items.get(workshop_id).cloned(),
                     _ => None,
                 },
+                in_development: source == ModSource::Local && crate::security::is_dev_link(&root),
                 info,
             });
         }
@@ -323,6 +328,8 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
     add_package_file_issues(&mut report, &catalog, active);
     if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
         add_security_issues(&mut report, &catalog, active, &z);
+        // Where two active mods' Java (ZombieBuddy patches) changes the same class of the game.
+        report.issues.extend(crate::java_patches::overlap_issues(&crate::java_patches::radar(&z, &catalog, active)));
         // Copies of Workshop mods in Zomboid/mods (by hand or by the Studio for a NoSteam server),
         // and the servers whose lists keep a copy in use.
         let servers = crate::server_manager::mod_sync::server_mod_lists(&z);
@@ -335,7 +342,13 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
         report.errors = report.issues.iter().filter(|i| i.severity == Severity::Error).count();
         report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
     }
-    add_console_flood_issues(&mut report, &catalog, active, &crate::sandbox::error_stats_from_console(&paths.user_zomboid_dir));
+    let stats = crate::sandbox::error_stats_from_console(&paths.user_zomboid_dir);
+    add_console_flood_issues(&mut report, &catalog, active, &stats);
+    // What the active mods' Lua calls that this build does not have, when every mod's reading is
+    // at hand within the time a refresh may take (else the rest is read behind, for next time).
+    if let Some(reports) = crate::api_lint::reports_for_health(paths, &catalog, active, crate::api_lint::HEALTH_BUDGET) {
+        add_api_issues(&mut report, &catalog, &reports, &stats);
+    }
     // A package is a mod of its own, in every profile's list: it was built for one list, and this
     // profile's may not be it.
     if let Some((package_id, root)) = crate::vfs::active_package_dir(&catalog, active) {
@@ -349,7 +362,101 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
             }
         }
     }
+    mark_own_mods(&mut report, &catalog);
     ModHealth { catalog, report }
+}
+
+/// Says which issues are about a mod the player is making (its folder is a link from elsewhere).
+pub fn mark_own_mods(report: &mut HealthReport, catalog: &ModCatalog) {
+    for issue in report.issues.iter_mut() {
+        issue.own_mod = issue.mod_id.as_deref().and_then(|id| catalog.get(id)).is_some_and(|m| m.in_development);
+    }
+}
+
+/// How many names an `api_missing` row spells out.
+const API_NAMES_SHOWN: usize = 5;
+
+/// A call as the row writes it: `:Is(`, `getFoo(`, `Events.OnGone`.
+fn api_call_text(f: &crate::api_lint::ApiFinding) -> String {
+    match f.kind.as_str() {
+        "method" => format!(":{}(", f.name),
+        "event" => format!("Events.{}", f.name),
+        _ => format!("{}(", f.name),
+    }
+}
+
+/// One row per active mod whose Lua calls names nothing has: not the installed build, not the
+/// mod, not another mod on (the Studio's shim among them, when its mod or a package is on).
+///
+/// The check goes by name, so the row says what it knows and no more: where the call is, that the
+/// name is nowhere, and what happens if that line runs. It is "worth doing" only when the last
+/// session's log holds errors the game laid at that mod's door; otherwise it is worth knowing.
+/// A mod that ships Java may give Lua names the check cannot read: its row says so and is only
+/// worth knowing. Nothing is offered to press: the mend is in the mod's own file.
+pub fn add_api_issues(report: &mut HealthReport, catalog: &ModCatalog, reports: &[crate::api_lint::ModApiReport], stats: &[crate::sandbox::ModErrorStat]) {
+    let mut list = IssueList(Vec::new());
+    for r in reports.iter().filter(|r| !r.findings.is_empty()) {
+        let Some(m) = catalog.get(&r.mod_id) else { continue };
+        // The Studio's own mods (bridge, packages, profiler) are not the player's to mend.
+        if m.id.starts_with("Z_PZModStudio_") || m.id.starts_with("PZModStudio") {
+            continue;
+        }
+        let mut names: Vec<String> = Vec::new();
+        for f in &r.findings {
+            let text = api_call_text(f);
+            if !names.contains(&text) {
+                names.push(text);
+            }
+        }
+        let first = &r.findings[0];
+        let shown = names.iter().take(API_NAMES_SHOWN).cloned().collect::<Vec<_>>().join(", ");
+        let more_names = names.len().saturating_sub(API_NAMES_SHOWN);
+        let more_places = r.findings.len() - 1;
+        let exceptions = stats.iter().find(|s| s.mod_name == m.name || s.mod_name == m.id).map(|s| s.exceptions).unwrap_or(0);
+        let name = describe(m);
+        let one = names.len() == 1;
+        let mut message = format!(
+            "{} calls {} this build of the game does not have, by name: {}{} ({}:{}{}). If that code runs, it fails there; a mod that fails on every frame fills the log. The check goes by name only: a name made while the game runs is not seen.",
+            name,
+            if one { "something".to_string() } else { format!("{} things", names.len()) },
+            shown,
+            if more_names > 0 { format!(" and {} more", more_names) } else { String::new() },
+            first.file,
+            first.line,
+            if more_places > 0 { format!(" and {} more places", more_places) } else { String::new() },
+        );
+        if r.has_java {
+            message.push_str(" This mod ships Java, which can give Lua names this check cannot read: it may be nothing.");
+        } else if exceptions > 0 {
+            message.push_str(&format!(" The last session's log has {} errors from this mod: the Monitor shows them.", exceptions));
+        }
+        list.push(Severity::Warning, "api_missing", Some(&m.id), message, Vec::new());
+        list.with(&[
+            ("mod", &name),
+            ("count", &names.len().to_string()),
+            ("names", &shown),
+            // Empty, not "0", when there are no more: the app shows the value as it is when no phrase stands in for it.
+            ("moreNames", &if more_names > 0 { more_names.to_string() } else { String::new() }),
+            ("moreNamesKey", if more_names > 0 { "api_more_names" } else { "" }),
+            ("file", &first.file),
+            ("line", &first.line.to_string()),
+            ("more", &if more_places > 0 { more_places.to_string() } else { String::new() }),
+            ("moreKey", if more_places > 0 { "and_more_places" } else { "" }),
+            ("variant", if one { "one" } else { "" }),
+            ("exceptions", &exceptions.to_string()),
+            ("tailKey", if r.has_java { "api_tail_java" } else if exceptions > 0 { "api_tail_errors" } else { "" }),
+        ]);
+        if let Some(last) = list.0.last_mut() {
+            // Worth doing only with the log behind it; a by-name finding alone is worth knowing.
+            last.state = if exceptions > 0 && !r.has_java { IssueState::Recommended } else { IssueState::Info };
+        }
+    }
+    if list.0.is_empty() {
+        return;
+    }
+    report.issues.extend(list.0);
+    report.issues.sort_by(|a, b| a.severity.cmp(&b.severity));
+    report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
 }
 
 /// A compatible copy a server's `Mods=` lists is not offered for removal: a server without Steam
@@ -468,6 +575,7 @@ pub fn package_list_issue(package_id: &str, packaged: &[String], active: &[Strin
                 ("sep", if missing.is_empty() || extra.is_empty() { "" } else { "; " }),
             ])
         },
+        own_mod: false,
     })
 }
 
@@ -1042,6 +1150,8 @@ pub fn issue_state(severity: Severity, code: &str) -> IssueState {
         }
         // Asks for a rebuild or a switch-off though it is told as information.
         "package_built_for_other_list" => IssueState::Recommended,
+        // Two mods' Java on one method: worth knowing, with nothing to do about it.
+        "java_patch_overlap" => IssueState::Info,
         _ => match severity {
             Severity::Error => IssueState::Act,
             Severity::Warning => IssueState::Recommended,
@@ -1075,6 +1185,10 @@ pub struct HealthIssue {
     /// app looks up for `{{foo}}`. The English `message` stays the text for everyone else.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, String>,
+    /// The issue is about a mod the player is making (`CatalogMod::in_development`): theirs to
+    /// mend, not something to report to an author or to switch off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub own_mod: bool,
 }
 
 /// One file of one mod, and the things in it that another mod also declares.
@@ -1130,7 +1244,7 @@ impl IssueList {
                 related.push(other.clone());
             }
         }
-        self.0.push(HealthIssue { severity, state: issue_state(severity, code), code: code.to_string(), mod_id: mod_id.map(str::to_string), message, fixes, related, details: vec![], params: BTreeMap::new() });
+        self.0.push(HealthIssue { severity, state: issue_state(severity, code), code: code.to_string(), mod_id: mod_id.map(str::to_string), message, fixes, related, details: vec![], params: BTreeMap::new(), own_mod: false });
     }
 
     /// The message's values, on the issue just pushed.
@@ -1219,7 +1333,7 @@ mod user_rule_tests {
             catalog.mods.push(CatalogMod {
                 id: id.to_string(), name: id.to_string(), source: ModSource::Local, root_dir: String::new(),
                 mod_info_path: None, version_folders: Vec::new(), has_common: false, has_root_mod_info: true,
-                loadability: Loadability::Loadable, shadowed_by: None, origin: None, workshop_state: None,
+                loadability: Loadability::Loadable, shadowed_by: None, origin: None, workshop_state: None, in_development: false,
                 info: GameModInfo::default(),
             });
         }
@@ -1255,7 +1369,7 @@ mod user_rule_tests {
         let m = CatalogMod {
             id: "RSE".into(), name: "RSE".into(), source: ModSource::Local, root_dir: root.to_string_lossy().into(),
             mod_info_path: None, version_folders: Vec::new(), has_common: false, has_root_mod_info: false,
-            loadability: Loadability::Loadable, shadowed_by: None, origin: None, workshop_state: None,
+            loadability: Loadability::Loadable, shadowed_by: None, origin: None, workshop_state: None, in_development: false,
             info: GameModInfo::default(),
         };
         assert!(require_already_mended(&m, file, "ISUI/ISWorldMap", Some(42_021)), "42.21 reads the mended folder");
@@ -2128,6 +2242,98 @@ name=Off Noisy
     }
 
     #[test]
+    fn calls_the_build_does_not_have_are_one_row_per_mod_saying_what_is_known() {
+        use crate::api_lint::{ApiFinding, ModApiReport};
+        let f = fixture("api");
+        let ws = f.root.join("workshop");
+        write_mod(&ws.join("1/mods/Remote/42"), "id=Remote\nname=TV Remote\n");
+        write_mod(&ws.join("2/mods/Quiet/42"), "id=Quiet\n");
+        write_mod(&ws.join("3/mods/Jar/42"), "id=Jar\nname=With Java\n");
+        write_mod(&f.root.join("Zomboid/mods/Z_PZModStudio_Bridge/42"), "id=Z_PZModStudio_Bridge\nname=PZ Mod Studio Live Bridge\n");
+        let (w, z) = paths(&f);
+        let cat = build_catalog(&w, &z, Some(42_021));
+        let finding = |kind: &str, name: &str, file: &str, line: u32| ApiFinding { kind: kind.into(), name: name.into(), file: file.into(), line, suggestion: None };
+        let report_of = |id: &str, findings: Vec<ApiFinding>, has_java: bool| ModApiReport { mod_id: id.into(), files_checked: 1, calls_checked: 9, findings, has_java, api_key: String::new() };
+        let reports = vec![
+            report_of(
+                "Remote",
+                vec![
+                    finding("method", "Is", "42/media/lua/server/RemoteSpawn.lua", 353),
+                    finding("method", "Is", "42/media/lua/server/Other.lua", 9),
+                    finding("global", "getFoo", "42/media/lua/server/Other.lua", 12),
+                ],
+                false,
+            ),
+            report_of("Quiet", vec![], false),
+            report_of("Jar", vec![finding("event", "OnGone", "42/media/lua/client/J.lua", 3)], true),
+            report_of("Z_PZModStudio_Bridge", vec![finding("method", "setLy", "42/media/lua/client/B.lua", 1)], false),
+        ];
+        let active: Vec<String> = ["Remote", "Quiet", "Jar", "Z_PZModStudio_Bridge"].iter().map(|s| s.to_string()).collect();
+        let rows = |stats: &[crate::sandbox::ModErrorStat]| {
+            let mut report = health_report(&cat, &active);
+            add_api_issues(&mut report, &cat, &reports, stats);
+            report.issues.into_iter().filter(|i| i.code == "api_missing").collect::<Vec<_>>()
+        };
+
+        let quiet = rows(&[]);
+        assert_eq!(quiet.iter().map(|i| i.mod_id.as_deref().unwrap()).collect::<Vec<_>>(), vec!["Remote", "Jar"], "one row per mod with a finding; the Studio's own mod is not the player's to mend");
+        let remote = &quiet[0];
+        assert_eq!(remote.params["names"], ":Is(, getFoo(", "each name once");
+        assert_eq!((remote.params["count"].as_str(), remote.params["variant"].as_str()), ("2", ""));
+        assert_eq!((remote.params["file"].as_str(), remote.params["line"].as_str()), ("42/media/lua/server/RemoteSpawn.lua", "353"));
+        assert_eq!((remote.params["more"].as_str(), remote.params["moreKey"].as_str()), ("2", "and_more_places"));
+        assert!(remote.message.contains("by name") && remote.message.contains("If that code runs"), "{}", remote.message);
+        assert!(!remote.message.contains("broken"));
+        assert!(remote.fixes.is_empty(), "nothing to press: the mend is in the mod's file");
+        // By name alone it is worth knowing, not a thing to do.
+        assert_eq!((remote.severity, remote.state), (Severity::Warning, IssueState::Info));
+        let jar = &quiet[1];
+        assert_eq!((jar.params["names"].as_str(), jar.params["variant"].as_str(), jar.params["tailKey"].as_str()), ("Events.OnGone", "one", "api_tail_java"));
+        assert!(jar.message.contains("ships Java"), "{}", jar.message);
+
+        // With errors from the mod in the last session's log, it is worth doing; a mod whose Java
+        // may define the name stays worth knowing.
+        let stat = |name: &str| crate::sandbox::ModErrorStat { mod_name: name.into(), exceptions: 20, lines: 80, ..Default::default() };
+        let loud = rows(&[stat("TV Remote"), stat("With Java")]);
+        assert_eq!(loud[0].state, IssueState::Recommended);
+        assert_eq!((loud[0].params["exceptions"].as_str(), loud[0].params["tailKey"].as_str()), ("20", "api_tail_errors"));
+        assert_eq!(loud[1].state, IssueState::Info);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_mod_linked_in_from_elsewhere_is_the_players_own() {
+        let f = fixture("own");
+        let repo = f.root.join("repo").join("Mine");
+        write_mod(&repo.join("42"), "id=Mine\nname=My Mod\n");
+        write_mod(&f.root.join("Zomboid/mods/Plain/42"), "id=Plain\nname=Plain Mod\n");
+        let link = f.root.join("Zomboid").join("mods").join("Mine");
+        let ok = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(&link).arg(&repo).output().map(|o| o.status.success()).unwrap_or(false);
+        assert!(ok, "mklink /J failed");
+        let (w, z) = paths(&f);
+        let cat = build_catalog(&w, &z, Some(42_021));
+        assert!(cat.get("Mine").unwrap().in_development);
+        assert!(!cat.get("Plain").unwrap().in_development);
+
+        // Every issue about it says it is theirs; the others do not.
+        let active = vec!["Mine".to_string(), "Plain".to_string()];
+        let stat = |name: &str| crate::sandbox::ModErrorStat { mod_name: name.into(), exceptions: 500, lines: 2000, ..Default::default() };
+        let mut report = health_report(&cat, &active);
+        add_console_flood_issues(&mut report, &cat, &active, &[stat("My Mod"), stat("Plain Mod")]);
+        mark_own_mods(&mut report, &cat);
+        let own_of = |id: &str| report.issues.iter().find(|i| i.code == "floods_console" && i.mod_id.as_deref() == Some(id)).map(|i| i.own_mod);
+        assert_eq!((own_of("Mine"), own_of("Plain")), (Some(true), Some(false)));
+        let json = serde_json::to_value(report.issues.iter().find(|i| i.mod_id.as_deref() == Some("Mine")).unwrap()).unwrap();
+        assert_eq!(json["own_mod"], true);
+
+        // And the Monitor's cards know it by the name the game writes.
+        let own = crate::sandbox::own_mods_of(&cat);
+        assert_eq!(own.iter().map(|m| (m.name.as_str(), m.id.as_str())).collect::<Vec<_>>(), vec![("My Mod", "Mine")]);
+        assert_eq!(own[0].root, std::fs::canonicalize(&repo).unwrap(), "the folder the link leads to");
+        let _ = std::fs::remove_dir(&link);
+    }
+
+    #[test]
     fn every_issue_says_whose_move_it_is() {
         // What breaks the game is to act on whatever its severity.
         assert_eq!(issue_state(Severity::Warning, "dependency_after"), IssueState::Act);
@@ -2152,6 +2358,7 @@ name=Off Noisy
             related: vec![],
             details: vec![],
             params: BTreeMap::new(),
+            own_mod: false,
         })
         .unwrap();
         assert_eq!(json["state"], "handled");

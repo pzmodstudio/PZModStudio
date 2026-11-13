@@ -51,7 +51,7 @@ __pycache__/
 *.pem
 !keys/*.pub.pem
 
-# Reference media from another project, kept locally only
+# Reference media, kept locally only
 /[1-8].jpg
 /9.gif
 /autosort.gif

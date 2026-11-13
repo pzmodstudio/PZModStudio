@@ -9,6 +9,11 @@
 -- changes goes to mods/default.txt exactly as the game's screen writes it.
 -- Also on its own: the map order (the game's own Map Order screen, on the list being edited),
 -- undo / redo (Ctrl+Z, Ctrl+Y), and the list / details split dragged wider or narrower.
+-- A group's heading has a counter (on / total) and a switch for the whole group (with what its
+-- mods require, as for one mod). Accept says what it will do ("+3 on / -2 off", the names on
+-- hover); after it the main menu says once what was turned on and off, and "Undo last Accept"
+-- puts the list back as it was before (the last 10 are kept in Zomboid/Lua, see
+-- PZModStudio_LinkApplies.txt in PZModStudio_Link.lua).
 -- With PZ Mod Studio: the profile's mods first, Mod Health's warnings on each mod, the mods
 -- updated since the last session, the mods installed but in no profile (added in one click),
 -- and the player's own notes and groups (made in the app; here they are shown, and a group's
@@ -53,6 +58,11 @@ local VIEW_FILE = "PZModStudio_LinkView.txt"
 -- reopen=1: the game reloaded its Lua for mods synced from PZ Mod Studio while this screen was
 -- open, and opens it again.
 local REOPEN_FILE = "PZModStudio_LinkReopen.txt"
+-- The active list as it was before each of the last Accepts here (see PZModStudio_Link.lua).
+local APPLIES_FILE = "PZModStudio_LinkApplies.txt"
+local APPLIES_KEPT = 10
+-- What the last Accept (or its undo) turned on and off: said once after the game reloads.
+local APPLIED_FILE = "PZModStudio_LinkApplied.txt"
 
 -- The app's colours (Tailwind slate and emerald), as 0..1.
 local C = {
@@ -273,6 +283,130 @@ local function writeRatio(ratio)
     file:close()
 end
 
+-- ------------------------------------------------------------------ the last Accepts
+
+--- The active list as it was before each of the last Accepts here, oldest first:
+--- { at = <unix seconds>, mods = { ids as written } }.
+local function readApplies()
+    local out = {}
+    local file = getFileReader(APPLIES_FILE, false)
+    if not file then return out end
+    local line = file:readLine()
+    while line ~= nil do
+        local at, rest = string.match(line, "^list=(%d+)\t?(.*)$")
+        if at then
+            local entry = { at = tonumber(at) or 0, mods = {} }
+            for id in string.gmatch(rest, "[^\t\r]+") do table.insert(entry.mods, id) end
+            table.insert(out, entry)
+        end
+        line = file:readLine()
+    end
+    file:close()
+    return out
+end
+
+local function writeApplies(applies)
+    local file = getFileWriter(APPLIES_FILE, true, false)
+    if not file then return end
+    for i = math.max(1, #applies - APPLIES_KEPT + 1), #applies do
+        file:write("list=" .. tostring(applies[i].at) .. "\t" .. table.concat(applies[i].mods, "\t") .. "\n")
+    end
+    file:close()
+end
+
+--- What going from one active list to another does: the names of the mods turned on and off,
+--- and whether the mods on in both changed places.
+local function listDiff(before, after, byId)
+    local function nameOf(id)
+        if byId and byId[id] then return byId[id].name end
+        local ok, info = pcall(getModInfoByID, id)
+        return ok and info and info:getName() or id
+    end
+    local was, is = {}, {}
+    for _, id in ipairs(before) do was[plainId(id)] = true end
+    for _, id in ipairs(after) do is[plainId(id)] = true end
+    local d = { on = {}, off = {}, order = false }
+    local keptThen, keptNow = {}, {}
+    for _, id in ipairs(before) do
+        local plain = plainId(id)
+        if is[plain] then table.insert(keptThen, plain) else table.insert(d.off, nameOf(plain)) end
+    end
+    for _, id in ipairs(after) do
+        local plain = plainId(id)
+        if was[plain] then table.insert(keptNow, plain) else table.insert(d.on, nameOf(plain)) end
+    end
+    for i = 1, #keptThen do
+        if keptThen[i] ~= keptNow[i] then d.order = true end
+    end
+    local function byName(a, b) return string.lower(a) < string.lower(b) end
+    table.sort(d.on, byName)
+    table.sort(d.off, byName)
+    return d
+end
+
+--- A change as lines, and how many: a heading and the names turned on, the same for those
+--- turned off, the load order. `rich` for the game's rich text (colours), plain otherwise.
+local function changeLines(d, onKey, offKey, orderKey, sep, rich)
+    local out = {}
+    local function block(key, list, colour)
+        if #list == 0 then return end
+        table.insert(out, rich and (colour .. text(key, #list) .. " <RGB:1,1,1> ") or text(key, #list))
+        for i, name in ipairs(list) do
+            if i > 12 then
+                table.insert(out, text("andMore", #list - 12))
+                break
+            end
+            table.insert(out, "- " .. name)
+        end
+    end
+    block(onKey, d.on, " <RGB:0.4,0.9,0.6> ")
+    block(offKey, d.off, " <RGB:1,0.6,0.3> ")
+    if d.order then table.insert(out, text(orderKey)) end
+    return table.concat(out, sep), #out
+end
+
+--- What an Accept (kind "apply") or its undo ("undo") did, for the notice after the reload;
+--- nil: it was shown.
+local function writeApplied(kind, d)
+    local file = getFileWriter(APPLIED_FILE, true, false)
+    if not file then return end
+    if not kind then
+        file:write("shown=1\n")
+    else
+        file:write("shown=0\nkind=" .. kind .. "\n")
+        if d.order then file:write("order=1\n") end
+        for _, name in ipairs(d.on) do file:write("on=" .. name .. "\n") end
+        for _, name in ipairs(d.off) do file:write("off=" .. name .. "\n") end
+    end
+    file:close()
+end
+
+--- The notice that waits to be shown: { kind, on = { names }, off = { names }, order }, or nil.
+local function readApplied()
+    local file = getFileReader(APPLIED_FILE, false)
+    if not file then return nil end
+    local a = { kind = "apply", on = {}, off = {}, order = false }
+    local waiting = false
+    local line = file:readLine()
+    while line ~= nil do
+        local key, value = string.match(line, "^(%a+)=(.*)$")
+        if key == "shown" then
+            waiting = value == "0"
+        elseif key == "kind" then
+            a.kind = value
+        elseif key == "order" then
+            a.order = value == "1"
+        elseif key == "on" then
+            table.insert(a.on, value)
+        elseif key == "off" then
+            table.insert(a.off, value)
+        end
+        line = file:readLine()
+    end
+    file:close()
+    return waiting and a or nil
+end
+
 -- ------------------------------------------------------------------ the list
 
 local ModList = ISScrollingListBox:derive("StudioLinkModList")
@@ -294,28 +428,63 @@ end
 
 -- The columns a click lands in: the star, the tick, the rest (shows the mod).
 local STAR_RIGHT, TICK_RIGHT, NAME_X = 26, 52, 60
+-- On a group's heading, from the right: "Select all" (its width and x) and, left of it, the
+-- switch for the whole group (its x).
+local SWITCH_W = 34
+local function headerSpots(list)
+    local sw = measure(UIFont.Small, text("modsSelectAll")) + 16
+    local selX = list.width - sw - 18
+    return sw, selX, selX - 14 - SWITCH_W
+end
 
 function ModList:doDrawItem(y, item, alt)
     local h = self.itemheight
     if y + self:getYScroll() + h < 0 or y + self:getYScroll() >= self.height then return y + h end
     local mod = item.item
     local screen = self.screen
-    -- A group's heading: the fold arrow, its name and count, "Select all" on the right.
+    -- A group's heading: the fold arrow and its name; on the right how many are on of how many,
+    -- the switch for all of them, and "Select all".
     if mod.header then
         local shown = screen.groupView and screen.groupView.name == mod.header
         self:drawRect(0, y, self.width, h, 0.95, shown and C.accentDark[1] or C.bg[1], shown and C.accentDark[2] or C.bg[2], shown and C.accentDark[3] or C.bg[3])
         local ty = y + (h - fontH(UIFont.Small)) / 2
         self:drawText(screen.collapsed[mod.header] and ">" or "v", 10, ty, C.muted[1], C.muted[2], C.muted[3], 1, UIFont.Small)
-        local label = mod.header .. "  (" .. tostring(mod.onCount) .. "/" .. tostring(mod.count) .. ")"
+        local label = mod.header
         self:drawText(label, 28, ty, C.accent[1], C.accent[2], C.accent[3], 1, UIFont.Small)
-        if screen.groupNotes[mod.header] then
+        local sw, selX, switchX = headerSpots(self)
+        -- The counter and the switch: all on, some (mixed: the knob in the middle), none.
+        local state = mod.state
+        local c = state == "on" and C.accent or (state == "mixed" and C.warn or C.muted)
+        local alpha = mod.canSwitch and 1 or 0.35
+        local counter = tostring(mod.onCount) .. "/" .. tostring(mod.count)
+        local counterX = switchX - 10 - measure(UIFont.Small, counter)
+        self:drawText(counter, counterX, ty, c[1], c[2], c[3], 1, UIFont.Small)
+        local sh = math.min(16, h - 8)
+        local sy = y + math.floor((h - sh) / 2)
+        local knob = sh - 4
+        if state == "on" then
+            self:drawRect(switchX, sy, SWITCH_W, sh, 0.9, C.accentDark[1], C.accentDark[2], C.accentDark[3])
+        elseif state == "mixed" then
+            self:drawRect(switchX, sy, SWITCH_W, sh, 0.25, C.warn[1], C.warn[2], C.warn[3])
+        end
+        self:drawRectBorder(switchX, sy, SWITCH_W, sh, alpha, c[1], c[2], c[3])
+        local knobX = switchX + 2
+        if state == "on" then
+            knobX = switchX + SWITCH_W - knob - 2
+        elseif state == "mixed" then
+            knobX = switchX + math.floor((SWITCH_W - knob) / 2)
+        end
+        local kc = state == "on" and C.text or c
+        self:drawRect(knobX, sy + 2, knob, knob, alpha, kc[1], kc[2], kc[3])
+        -- The group's note, when it fits before the counter.
+        local note = screen.groupNotes[mod.header]
+        if note then
             local nx = 28 + measure(UIFont.Small, label) + 12
-            self:drawText(screen.groupNotes[mod.header], nx, ty, 0.55, 0.8, 1, 1, UIFont.Small)
+            if nx + measure(UIFont.Small, note) < counterX - 12 then self:drawText(note, nx, ty, 0.55, 0.8, 1, 1, UIFont.Small) end
         end
         local sel = text("modsSelectAll")
-        local sw = measure(UIFont.Small, sel) + 16
-        self:drawRectBorder(self.width - sw - 18, y + 4, sw, h - 8, 1, C.border[1], C.border[2], C.border[3])
-        self:drawText(sel, self.width - sw - 10, ty, C.text[1], C.text[2], C.text[3], 1, UIFont.Small)
+        self:drawRectBorder(selX, y + 4, sw, h - 8, 1, C.border[1], C.border[2], C.border[3])
+        self:drawText(sel, selX + 8, ty, C.text[1], C.text[2], C.text[3], 1, UIFont.Small)
         self:drawRect(0, y + h - 1, self.width, 1, 0.8, C.border[1], C.border[2], C.border[3])
         return y + h
     end
@@ -381,8 +550,14 @@ function ModList:onMouseDown(x, y)
     local screen = self.screen
     if mod.header then
         getSoundManager():playUISound("UISelectListItem")
+        local sel, _, switchX = headerSpots(self)
+        if x >= switchX - 5 and x <= switchX + SWITCH_W + 5 then
+            -- The switch: the whole group on (when any of it is off) or off, with what its mods
+            -- require or what needs them, said first as for several mods.
+            if mod.canSwitch then screen:toggleMany(mod.mods, mod.header) end
+            return
+        end
         self.selected = row
-        local sel = measure(UIFont.Small, text("modsSelectAll")) + 16
         if x < 26 then
             -- The arrow folds or unfolds the group.
             screen.collapsed[mod.header] = not screen.collapsed[mod.header] or nil
@@ -448,7 +623,7 @@ function ModList:onMouseMove(dx, dy)
 end
 
 function ModList:onMouseUp(x, y)
-    ListBox.onMouseUp(self, x, y)
+    if ListBox.onMouseUp then ListBox.onMouseUp(self, x, y) end
     if self.dragging and self.dropRow and self.items[self.dragFrom] and self.items[self.dropRow] then
         self.screen:dropAt(self.items[self.dragFrom].item, self.items[self.dropRow].item)
     end
@@ -456,7 +631,9 @@ function ModList:onMouseUp(x, y)
 end
 
 function ModList:onMouseUpOutside(x, y)
-    ListBox.onMouseUpOutside(self, x, y)
+    -- Guarded: "Sync" and Accept reload the game's Lua, and the button's own mouse-up reaches
+    -- this list after the reload emptied the class it is built on ("tried to call nil").
+    if ListBox.onMouseUpOutside then ListBox.onMouseUpOutside(self, x, y) end
     self.dragFrom, self.dragging, self.dropRow = nil, false, nil
 end
 
@@ -718,11 +895,14 @@ function Screen:refreshList()
             return string.lower(a) < string.lower(b)
         end)
         for _, g in ipairs(keys) do
-            local onCount = 0
+            -- How many are on, and of those that can be (not for this build: cannot).
+            local onCount, canBeOn = 0, 0
             for _, mod in ipairs(groups[g]) do
                 if self.on[mod.id] then onCount = onCount + 1 end
+                if self.on[mod.id] or mod.available then canBeOn = canBeOn + 1 end
             end
-            table.insert(rows, { header = g, count = #groups[g], onCount = onCount, mods = groups[g], id = "\0" .. g })
+            local state = onCount == 0 and "off" or (onCount >= canBeOn and "on" or "mixed")
+            table.insert(rows, { header = g, count = #groups[g], onCount = onCount, state = state, canSwitch = canBeOn > 0, mods = groups[g], id = "\0" .. g })
             if not self.collapsed[g] then
                 for _, mod in ipairs(groups[g]) do table.insert(rows, mod) end
             end
@@ -922,9 +1102,10 @@ function Screen:multiMods()
     return out
 end
 
---- Turns on (when any of them is off) or off all the mods selected, with what they require or
---- what needs them, said first.
-function Screen:toggleMany(mods)
+--- Turns on (when any of them is off) or off all the mods selected (or a group's, from the switch
+--- on its heading: `title` is its name), with what they require or what needs them, said first.
+function Screen:toggleMany(mods, title)
+    title = title or text("modsSelected", #mods)
     local anyOff = false
     for _, mod in ipairs(mods) do
         if not self.on[mod.id] and mod.available then anyOff = true end
@@ -964,7 +1145,7 @@ function Screen:toggleMany(mods)
         local body = ""
         if #extra > 0 then body = body .. text("modsAlsoOnMany") .. " <LINE> " .. names(extra) .. " <LINE> <LINE> " end
         if #missing > 0 then body = body .. " <RGB:1,0.6,0.3> " .. text("modsMissingReqMany") .. " <RGB:1,1,1> <LINE> " .. names(missing) .. " <LINE> " end
-        Link.WaitPanel.choose(text("modsSelected", #mods), body, 100 + (#extra + #missing + 6) * (fontH(UIFont.Small) + 2), {
+        Link.WaitPanel.choose(title, body, 100 + (#extra + #missing + 6) * (fontH(UIFont.Small) + 2), {
             { label = text("back") },
             { label = text("modsTurnOnAll"), accept = true, onClick = apply },
         })
@@ -988,7 +1169,7 @@ function Screen:toggleMany(mods)
             self:refreshList()
         end
         if #deps == 0 then return apply() end
-        Link.WaitPanel.choose(text("modsSelected", #mods), text("modsAlsoOffMany") .. " <LINE> " .. names(deps), 100 + (#deps + 4) * (fontH(UIFont.Small) + 2), {
+        Link.WaitPanel.choose(title, text("modsAlsoOffMany") .. " <LINE> " .. names(deps), 100 + (#deps + 4) * (fontH(UIFont.Small) + 2), {
             { label = text("back") },
             { label = text("modsTurnOffAll"), accept = true, onClick = apply },
         })
@@ -1588,6 +1769,36 @@ function Screen:layoutSupport(links)
     self.optionsButton:setY(n > 0 and y + self.buttonStep or top)
 end
 
+--- What Accept would do now: the names of the mods it turns on and off, and whether the load
+--- order (or the map order) changes.
+function Screen:pending()
+    local d = { on = {}, off = {}, order = self.orderChanged or self.mapOrderChanged or false }
+    for _, mod in ipairs(self.mods) do
+        if self.changed[mod.id] then table.insert(self.on[mod.id] and d.on or d.off, mod.name) end
+    end
+    return d
+end
+
+--- Accept says what it will do ("Accept: +3 on / -2 off"), with the names on hover; it grows to
+--- the left for it, and Back with it.
+function Screen:updateAccept()
+    local d = self:pending()
+    local parts = {}
+    if #d.on > 0 then table.insert(parts, text("modsChangeOn", #d.on)) end
+    if #d.off > 0 then table.insert(parts, text("modsChangeOff", #d.off)) end
+    if d.order then table.insert(parts, text("modsChangeOrder")) end
+    local b = self.acceptButton
+    local title = #parts > 0 and text("modsAcceptSum", table.concat(parts, " / ")) or text("modsAccept")
+    b:setTitle(title)
+    b.tooltip = #parts > 0 and changeLines(d, "modsWillTurnOn", "modsWillTurnOff", "modsWillOrder", "\n", false) or nil
+    local w = math.max(200, measure(UIFont.Small, title) + 30)
+    if w ~= b.width then
+        b:setWidth(w)
+        b:setX(self.width - 20 - w)
+        self.backButton:setX(b.x - 140)
+    end
+end
+
 function Screen:updateButtons()
     if not self.toggleButton then return end
     local mod = self.selectedMod
@@ -1615,7 +1826,7 @@ function Screen:updateButtons()
         self.optionsButton:setVisible(false)
         for _, b in ipairs(self.supportButtons) do b:setVisible(false) end
         self.supportAt = nil
-        self.acceptButton:setTitle(self.changes > 0 and text("modsAcceptN", self.changes) or text("modsAccept"))
+        self:updateAccept()
         for key, button in pairs(self.filterButtons) do styleButton(button, key == self.filter) end
         self.sortButton:setTitle(self.sort == "order" and text("modsSortOrder") or text("modsSortName"))
         return
@@ -1635,7 +1846,7 @@ function Screen:updateButtons()
         self.workshopButton:setEnable(mod.workshop ~= "" and mod.workshop ~= "0")
         self.favButton:setTitle(self.favs[mod.id] and text("modsUnfavourite") or text("modsFavourite"))
     end
-    self.acceptButton:setTitle(self.changes > 0 and text("modsAcceptN", self.changes) or text("modsAccept"))
+    self:updateAccept()
     for key, button in pairs(self.filterButtons) do
         styleButton(button, key == self.filter)
     end
@@ -1866,6 +2077,17 @@ function Screen:createChildren()
     end
     self.acceptButton = button(self, self.width - pad - 200, fy, 200, bh, text("modsAccept"), function(screen) screen:accept() end, true)
     self.backButton = button(self, self.acceptButton.x - 140, fy, 130, bh, text("back"), function(screen) screen:back() end)
+    -- "Undo last Accept", only with one to undo: after the bar's other buttons, or (a narrow
+    -- screen, no room left of Back and an Accept grown wide) on the title's row.
+    local applies = readApplies()
+    if #applies > 0 then
+        local label = text("modsUndoApply")
+        local w = measure(UIFont.Small, label) + 26
+        local x, y = (self.openAppButton or self.getAppButton or self.mapOrderButton):getRight() + 16, fy
+        if x + w > self.width - pad - 470 then x, y = sx - w - 10, sy end
+        self.undoApplyButton = button(self, x, y, w, bh, label, function(screen) screen:undoApply() end)
+        self.undoApplyButton.tooltip = text("modsUndoApplyTip", Link.ago(math.max(0, Link.now() - applies[#applies].at)), #applies)
+    end
 
     self:refreshList()
 end
@@ -2216,6 +2438,8 @@ end
 function Screen:accept()
     if self.changes == 0 then return self:close() end
     local ok, err = pcall(function()
+        -- The list as it is until now: what "Undo last Accept" puts back.
+        local before = readActive()
         local active = ActiveMods.getById("default")
         local mods = active:getMods()
         mods:clear()
@@ -2242,17 +2466,157 @@ function Screen:accept()
         active:checkMissingMaps()
         saveModsFile()
         ActiveMods.getById("currentGame"):copyFrom(active)
+        -- Kept for the undo, and what it did for the notice on the main menu (after the reload).
+        local kept, keepErr = pcall(function()
+            local applies = readApplies()
+            table.insert(applies, { at = Link.now(), mods = before })
+            writeApplies(applies)
+            writeApplied("apply", listDiff(before, readActive(), self.byId))
+        end)
+        if not kept then print("[StudioLink] the Accept could not be kept for its undo: " .. tostring(keepErr)) end
         local reset = ActiveMods.requiresResetLua(active)
         self:close()
         if reset then
             MainScreen.instance.bottomPanel:setVisible(false)
             getCore():ResetLua("default", "modsChanged")
+        else
+            pcall(Screen.showApplied)
         end
     end)
     if not ok then
         print("[StudioLink] the Mods screen could not save: " .. tostring(err))
         self:close()
     end
+end
+
+-- ------------------------------------------------------------------ undo the last Accept
+
+--- Puts the active list back as it was before the last Accept here, written as Accept writes
+--- it, and reloads the game's Lua when mods came on or went off. Needs no screen open.
+local function undoLastApply()
+    local applies = readApplies()
+    local entry = table.remove(applies)
+    if not entry then return end
+    local ok, err = pcall(function()
+        local before = readActive()
+        local active = ActiveMods.getById("default")
+        local mods = active:getMods()
+        mods:clear()
+        for _, id in ipairs(entry.mods) do mods:add(id) end
+        active:checkMissingMods()
+        active:checkMissingMaps()
+        saveModsFile()
+        ActiveMods.getById("currentGame"):copyFrom(active)
+        writeApplies(applies)
+        writeApplied("undo", listDiff(before, readActive()))
+        local reset = ActiveMods.requiresResetLua(active)
+        if Screen.instance then Screen.instance:close() end
+        if reset then
+            MainScreen.instance.bottomPanel:setVisible(false)
+            getCore():ResetLua("default", "modsChanged")
+        else
+            pcall(Screen.showApplied)
+        end
+    end)
+    if not ok then print("[StudioLink] the last Accept could not be undone: " .. tostring(err)) end
+end
+
+--- "Undo last Accept": says what comes back on and what goes off again, then does it.
+function Screen:undoApply()
+    local applies = readApplies()
+    local entry = applies[#applies]
+    if not entry then return end
+    local d = listDiff(readActive(), entry.mods, self.byId)
+    local lines, count = changeLines(d, "modsWillTurnOn", "modsWillTurnOff", "modsWillOrder", " <LINE> ", true)
+    if count == 0 then
+        -- Already as before that Accept (put back by hand, or by PZ Mod Studio): nothing to undo.
+        table.remove(applies)
+        pcall(writeApplies, applies)
+        self.undoApplyButton:setVisible(#applies > 0)
+        return self:say(text("modsUndoApplySame"))
+    end
+    local body = text("modsUndoApplyBody", Link.ago(math.max(0, Link.now() - entry.at))) .. " <LINE> <LINE> " .. lines
+    if self.changes > 0 then
+        body = body .. " <LINE> <LINE> <RGB:1,0.6,0.3> " .. text("modsUndoApplyDropped", self.changes) .. " <RGB:1,1,1> "
+        count = count + 2
+    end
+    Link.WaitPanel.choose(text("modsUndoApply"), body, 130 + (count + 3) * (fontH(UIFont.Small) + 2), {
+        { label = text("back") },
+        { label = text("modsUndoApplyDo"), accept = true, onClick = undoLastApply },
+    })
+end
+
+-- ------------------------------------------------------------------ what the last Accept did
+
+-- A small panel at the top of the main menu, once: what was turned on and off, OK, and Undo.
+local Notice = ISPanel:derive("StudioLinkAppliedNotice")
+
+function Notice:new(x, y, w, h)
+    local o = Panel.new(self, x, y, w, h)
+    o.backgroundColor = { r = C.panel[1], g = C.panel[2], b = C.panel[3], a = 0.97 }
+    o.borderColor = { r = C.accent[1], g = C.accent[2], b = C.accent[3], a = 0.9 }
+    o.moveWithMouse = true
+    return o
+end
+
+function Notice:createChildren()
+    local rich = ISRichTextPanel:new(12, 10, self.width - 24, self.height - 54)
+    rich:initialise()
+    rich.background = false
+    rich.autosetheight = false
+    rich.clip = true
+    rich:setText(" <H2> " .. self.title .. " <LINE> <TEXT> " .. self.body)
+    rich:paginate()
+    self:addChild(rich)
+    local bw, x = 110, self.width - 12
+    local function add(label, onClick, primary)
+        x = x - bw
+        local b = ISButton:new(x, self.height - 36, bw, 24, label, self, function(panel)
+            panel:close()
+            if onClick then onClick() end
+        end)
+        b:initialise()
+        b:instantiate()
+        styleButton(b, primary)
+        self:addChild(b)
+        x = x - 8
+    end
+    add(text("appliedOk"), nil, true)
+    if self.canUndo then add(text("appliedUndo"), undoLastApply, false) end
+end
+
+-- It is the main menu's: gone when the player goes on to anything else.
+function Notice:prerender()
+    Panel.prerender(self)
+    local ms = MainScreen.instance
+    if not ms or ms.inGame or Link.inGame or not ms.bottomPanel:isVisible() then self:close() end
+end
+
+function Notice:close()
+    self:setVisible(false)
+    self:removeFromUIManager()
+    if Link.appliedNotice == self then Link.appliedNotice = nil end
+end
+
+--- Shows what the last Accept (or its undo) turned on and off, when that was not shown yet.
+function Screen.showApplied()
+    local applied = readApplied()
+    if not applied then return end
+    writeApplied(nil)
+    local body, count = changeLines(applied, "appliedOn", "appliedOff", "appliedOrder", " <LINE> ", true)
+    if count == 0 then return end
+    if Link.appliedNotice then Link.appliedNotice:close() end
+    local w = math.min(460, getCore():getScreenWidth() - 40)
+    local h = math.min(fontH(UIFont.Medium) + count * (fontH(UIFont.Small) + 2) + 74, getCore():getScreenHeight() - 120)
+    local panel = Notice:new(math.floor(getCore():getScreenWidth() / 2 - w / 2), 60, w, h)
+    panel.title = text(applied.kind == "undo" and "appliedUndoneTitle" or "appliedTitle")
+    panel.body = body
+    panel.canUndo = applied.kind ~= "undo" and #readApplies() > 0
+    panel:initialise()
+    panel:instantiate()
+    panel:addToUIManager()
+    panel:setAlwaysOnTop(true)
+    Link.appliedNotice = panel
 end
 
 function Screen:back()
@@ -2398,6 +2762,12 @@ function MainScreen:prerender(...)
             if ok and Screen.instance then Screen.instance:say(text("modsSynced")) end
             if not ok then print("[StudioLink] the Mods screen could not open again: " .. tostring(err)) end
         end
+    end
+    -- Back from the reload of an Accept (or of its undo): what it turned on and off, once.
+    if not Link.appliedChecked and not Link.inGame and self.bottomPanel and self.bottomPanel:isVisible() then
+        Link.appliedChecked = true
+        local shown, why = pcall(Screen.showApplied)
+        if not shown then print("[StudioLink] what the last Accept changed could not be shown: " .. tostring(why)) end
     end
     local ok, err = pcall(watchApp, self)
     if not ok and not Link.watchFailed then
