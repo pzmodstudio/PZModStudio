@@ -1,0 +1,46 @@
+{
+ "1.8.5": [
+  "Monitor: one card per repeated error, with its file and line",
+  "Monitor: cards say only what the log shows",
+  "Monitor: live tabs only while a game or server runs",
+  "Mod Health: each finding says if it is the mod's, your combination's or your install's",
+  "Mod Health: Java mods that change the same game code",
+  "Compatible copies: a ready-made note for the mod's author",
+  "Saves: remove, rename, restore from a bin, recover from backups",
+  "Mod List: remove a mod you put in Zomboid/mods by hand",
+  "Link 1.18.6: group switches, undo the last Accept, error notice with details",
+  "Fix: a normal game no longer skips the character screen by itself"
+ ],
+ "1.8.4": [
+  "Multiplayer test: player 2's mods checked more carefully",
+  "Multiplayer test: a game that closed is no longer counted as joined"
+ ],
+ "1.8.3": [
+  "Multiplayer test on one PC: a server and one or two games joined to it",
+  "Multiplayer test: logs in, makes the character and enters the world by itself",
+  "Multiplayer test: restart one game alone, a console tab per game",
+  "Monitor: console tabs can be reordered",
+  "Merger: a package belongs to the profile it was built with",
+  "Mod List: better filter for mods outside any profile",
+  "Mod Health: hand-made copies of Workshop mods",
+  "Short guides on Mod Health, the Merger and the Developer page"
+ ],
+ "1.8.2": [
+  "Servers: host one with Java mods",
+  "Servers: NoSteam servers get copies of Workshop mods instead of links",
+  "Lua error notice: can be hidden and no longer covers the speed buttons",
+  "Explore: read a mod's Workshop comments before installing it",
+  "Steam downloads bar: no longer stuck at 100%"
+ ],
+ "1.8.1": [
+  "Packages: a file you add stays in every publish",
+  "Monitor: clearer card when a zombie breaks a door"
+ ],
+ "1.8.0": [
+  "Rules and mod index built into the app",
+  "Explore: unsubscribing takes the mods out of the list",
+  "Merger: translation files merged into one JSON",
+  "Monitor: a Java mod's own error gets its own card",
+  "Monitor: harmless require lines marked as noise"
+ ]
+}

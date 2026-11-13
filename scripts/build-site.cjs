@@ -13,30 +13,60 @@ const tags = git('for-each-ref', '--sort=-creatordate', '--format=%(refname:shor
 
 // What the page lists: what a player can notice. Work on the site, the repository, the scripts and the
 // packaging stays out, and a line that names another mod is said without the name.
-const INTERNAL = /^(Workshop: |Site:|Site redesign|New captures|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:|itch.io page)/;
+const INTERNAL = /^(Release \d|Workshop:|Site:|Site redesign|New captures|Repo moved|Ignore |Download from itch|Merge |Version \d|Bump |Docs?:|Tidy|Community index|Releases:|itch.io page)/;
 const REWRITE = [
   [/^Connect with GitHub: the new OAuth app.*/, 'Settings: Connect with GitHub works again, for sharing a rule or what you know about a mod'],
   [/^Link 1.18.2: .*/, "Link 1.18.2: the website's address in the mod's description"],
   [/^Site: one card per app screen.*/, 'Help: every page checked against the screens and brought up to date; the Workshop remove button and Mod Health\'s "Take out of the package" no longer show a raw text key'],
-  [/^Workshop publish: read the upload.*/i, 'Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished'],
+  [/^Workshop publish: read the upload.*/i, 'Developer: Workshop publishing says when Steam has finished'],
   [/; [^;]* known as another manager$/, '; another mod manager is recognised as such'],
   [/ from Smooth Frames' console lines/i, " from the game's console lines"],
   [/Smooth Frames/gi, 'the frame report']
 ];
-const subjects = (range) => git('log', '--format=%s', range).split(/\r?\n/)
-  .filter(Boolean).map((s) => REWRITE.reduce((t, [re, to]) => t.replace(re, to), s))
-  .filter((s) => !INTERNAL.test(s));
+// Lines for agents and the game's inner workings stay out of the player's list.
+const TECHNICAL = /^(MCP|Agent|Agents|Shim|Roadmap|Comment|Wording|A replay|Saves for agents|Build check|Security scan|Java patch radar:)/i;
+// What is new, said short: the first idea of a line, up to its first ';' or '(' or sentence end.
+const MAX_NOTE = 90;
+const MAX_NOTES = 8;
+const shorten = (s) => {
+  let t = s.split(/; | \(|\. /)[0].trim().replace(/[.,:]$/, '');
+  // Too long: up to the last comma that fits, so the line ends on a whole idea.
+  if (t.length > MAX_NOTE) {
+    const comma = t.lastIndexOf(', ', MAX_NOTE);
+    t = comma > 30 ? t.slice(0, comma) : t.slice(0, MAX_NOTE).replace(/\s+\S*$/, '') + '…';
+  }
+  return t;
+};
+// Notes written by hand for a version (site/release-notes.json) take the place of the commit lines.
+const written = (() => { try { return JSON.parse(fs.readFileSync(path.join(site, 'release-notes.json'), 'utf8')); } catch { return {}; } })();
+const subjects = (range, version) => {
+  if (version && written[version]) return written[version];
+  const lines = git('log', '--format=%s', range).split(/\r?\n/)
+    .filter(Boolean).map((s) => REWRITE.reduce((t, [re, to]) => t.replace(re, to), s))
+    .filter((s) => !INTERNAL.test(s) && !TECHNICAL.test(s)).map(shorten);
+  const unique = [...new Set(lines)];
+  if (unique.length <= MAX_NOTES) return unique;
+  const rest = unique.length - MAX_NOTES;
+  return [...unique.slice(0, MAX_NOTES), `And ${rest} smaller fix${rest === 1 ? '' : 'es'}`];
+};
 
 const releases = [];
 const head = subjects(tags[0].tag + '..HEAD');
 if (head.length) releases.push({ version: null, date: git('log', '-1', '--format=%ad', '--date=short'), notes: head });
 tags.slice(0, 12).forEach((t, i) => {
   const prev = tags[i + 1];
-  releases.push({ version: t.tag.replace(/^v/, ''), date: t.date, notes: subjects(prev ? prev.tag + '..' + t.tag : t.tag) });
+  releases.push({ version: t.tag.replace(/^v/, ''), date: t.date, notes: subjects(prev ? prev.tag + '..' + t.tag : t.tag, t.tag.replace(/^v/, '')) });
 });
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-fs.writeFileSync(path.join(site, 'releases.json'), JSON.stringify({ latest: pkg.version, count: tags.length, built: new Date().toISOString().slice(0, 10), releases }, null, 1));
+const out = JSON.stringify({ latest: pkg.version, count: tags.length, built: new Date().toISOString().slice(0, 10), releases }, null, 1);
+// Windows can hold the file for a moment (an indexer or scanner reading it): try again shortly.
+for (let attempt = 1; ; attempt++) {
+  try { fs.writeFileSync(path.join(site, 'releases.json'), out); break; } catch (e) {
+    if (attempt >= 10) throw e;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+  }
+}
 
 
 
