@@ -7,141 +7,68 @@
    "version": "1.8.5",
    "date": "2026-11-13",
    "notes": [
-    "Link: the multiplayer test's character and spawn presses only in a game joined to a server; the test's choices are taken away on a normal launch and when the test stops",
-    "Monitor and Mod Health: one card for texts that cannot be formatted, an optional link between mods said as such, calls the build does not have shown before playing, and a mod in development shown as the player's own",
-    "Link: the error notice has details (where it failed, the steps), shows over the pause menu, and the session's errors come back from a button there after Close",
-    "Monitor: an error on every frame is one card, with its file and line; shim: PropertyContainer:Is is given back as :has (42.22)",
-    "A replay of a real log through the Monitor's card maker, for checking the cards",
-    "Saves: the backups of saves that are gone are listed, to recover the save or delete them",
-    "Saves for agents: save_remove, save_rename and saves_bin; a removed save's date comes from its folder's name; deleting what is not in the bin is refused",
-    "Saves: the page notices a save made, deleted or renamed outside the Studio",
-    "Saves: a bin for removed saves, to put one back, delete one, or empty it",
-    "Saves: remove a save (moved to the backups folder) and rename it; a server's world is listed under the profile its server was made from",
-    "Comment: no pointer to a private note",
-    "Saves: a server's world, a joined server, a hand-made copy and an empty save are told apart; a multiplayer save no longer reads \"0 mods\" or \"no profile\"",
-    "Wording: texts and comments no longer name other projects; the sync's private list lives outside the mirrored files",
-    "Link: a mouse-up that arrives after a Lua reload no longer throws; no \"Show in Mods\" for an error of the Link itself",
-    "Server jar check finds a jar kept in the version folder; memory cards say what is known; require answers and docs corrected",
-    "ZombieBuddy's list of Java mods over the menu is hidden unless asked for; the way back to the Studio's Mods screen",
-    "Link 1.18.6: a switch and an on/total counter on each group, undo of the last Accept, what an Accept changes said before and after; another mod manager is recognised as such",
-    "Monitor: a tick box hides ZombieBuddy's routine lines",
-    "Java patch radar: which game classes each Java mod changes, and where two mods meet",
-    "Monitor: cards say only what the line shows",
-    "Monitor: a live console tab shows only while its game or server runs; with none, the last session opens on a button",
-    "Mod Health: shorter scope tooltips",
-    "Mod Health: each finding says whose it is (the mod's, your combination's, your install's); the author's suggestion leaves out what depends on other mods",
-    "Compatible copies: a suggestion for the mod's author, file and line, with what works on this build",
-    "Developer: someone else's mod is only looked at (said plainly, editing tabs off)",
-    "Mod List: a hand-put mod can be removed from Zomboid/mods (to the backups folder); the multiplayer test shows with developer features on",
-    "Mod List: the selection menu offers adding to the profile for mods outside it and taking out only for those inside; \"no profile\" tag shown on any row outside the profile",
-    "Mod List: \"Show them\" of the no-profile banner no longer switches the profile / every installed mod button"
+    "Monitor: one card per repeated error, with its file and line",
+    "Monitor: cards say only what the log shows",
+    "Monitor: live tabs only while a game or server runs",
+    "Mod Health: each finding says if it is the mod's, your combination's or your install's",
+    "Mod Health: Java mods that change the same game code",
+    "Compatible copies: a ready-made note for the mod's author",
+    "Saves: remove, rename, restore from a bin, recover from backups",
+    "Mod List: remove a mod you put in Zomboid/mods by hand",
+    "Link 1.18.6: group switches, undo the last Accept, error notice with details",
+    "Fix: a normal game no longer skips the character screen by itself"
    ]
   },
   {
    "version": "1.8.4",
    "date": "2026-11-12",
    "notes": [
-    "Multiplayer test: player 2's script-made copies are checked too, a game that closed is not counted as arrived; compatible copies from the MCP"
+    "Multiplayer test: player 2's mods checked more carefully",
+    "Multiplayer test: a game that closed is no longer counted as joined"
    ]
   },
   {
    "version": "1.8.3",
    "date": "2026-11-12",
    "notes": [
-    "Multiplayer test: restart one game on its own, say whether player 2 is up to date, the Link in player 2 knows the app",
-    "Multiplayer test: spawn place and player 2 as admin are tick boxes of their own; Clear on game 1 stays cleared",
-    "Shim: PropertyContainer:Val is given back as :get (42.22 renamed it)",
-    "Multiplayer test: it makes the character, clicks \"click to start\" and watches both games, each step a tick box",
-    "Monitor: console tabs dragged into any order, game 2 kept, game 1 read from its file when nothing streams",
-    "Copies into Zomboid/mods never leave the mod missing",
-    "Multiplayer test: the account filled in and connected by the Studio Link, what each process is doing, a console tab per game",
+    "Multiplayer test on one PC: a server and one or two games joined to it",
+    "Multiplayer test: logs in, makes the character and enters the world by itself",
+    "Multiplayer test: restart one game alone, a console tab per game",
+    "Monitor: console tabs can be reordered",
     "Merger: a package belongs to the profile it was built with",
-    "Mod List: the not-in-any-profile filter can be cleared, and ends when there is nothing left",
-    "Mod List: 'Show them' on the not-in-any-profile banner shows those mods only",
-    "Multiplayer test: each game's account filled in on the connect window",
-    "Multiplayer test: both game windows maximized, as every launch from the app",
-    "Multiplayer test: CPU from two readings, memory said against the Java heap",
-    "A compatible copy that fixed more than loading is not 'no longer needed'",
-    "Compatible copy over a copy of the same mod: asked, then made",
-    "Multiplayer test on one PC: the server and one or two games joined to it, with a card per process",
-    "Mod List: a Studio package that is gone from disk can be taken out, and leaves the profile",
-    "Build check: a mod's own jars define names too",
-    "Security scan: hidden folders and a linked mod's tooling are not the mod",
-    "Mod Health: copies of Workshop mods made by hand in Zomboid/mods, and a server's copies are never offered for removal",
-    "Shim: getOnlinePlayers() on a dedicated server is the game's own list again",
-    "What each screen is for: a short guide on Mod Health, the Merger and the Developer page",
-    "Roadmap: the multiplayer test on one PC, next after the flow redesign",
-    "Mod Health says whose move each finding is: act, worth doing, good to know, already fixed by the Studio",
-    "Roadmap: open defects reported after 1.8.2 (ghost package id, mod Java globals in the build check, security scan of a linked repo, the confusing flow)",
-    "Developer page and pictures: a mod folder linked into Zomboid/mods is inside the player's folders",
-    "Mod List: a mod folder linked into Zomboid/mods (a junction to a mod in development) is listed",
-    "Mod Health after a game update: compatible copies made again or let go, and a locked folder named",
-    "Installed build read from the game's jar, not only Zomboid/version.txt"
+    "Mod List: better filter for mods outside any profile",
+    "Mod Health: hand-made copies of Workshop mods",
+    "Short guides on Mod Health, the Merger and the Developer page"
    ]
   },
   {
    "version": "1.8.2",
    "date": "2026-11-08",
    "notes": [
-    "Release 1.8.2, Link 1.18.4",
-    "NoSteam servers: copy Workshop mods into Zomboid/mods instead of linking them, and end a server that gave up. With some Workshop mods linked into Zomboid/mods as junctions (MoodleFramework, PlayableChildren, NaturesCall, the TABAS pair, ...) a NoSteam server crashes while it creates the world (\"NetChecksum$Checksummer.addFile ... absPath:null\" from ScriptManager.Load, then WorldGenOverride.lua \"biomes of non-table\", \"Server Terminated\"), measured on knoxtest by the KnoxLives session; real copies start. Mods & Sync now copies (button \"Copy N Workshop mod(s) into Zomboid/mods\"), with a marker (.pzms_workshop_copy.json: item, source, newest file time) so a copy the Workshop item has outgrown is flagged (server_mod_copy_stale) and copied again; a junction to the Workshop folder is flagged (server_mod_workshop_linked) and replaced by a copy (the link removed, never its target); a folder of that name the Studio did not put there is never touched. The server status ends a server whose log says \"Server Terminated\" and has been quiet 20 s while its process stays up (it held its ports and showed as running). Seen: on this PC's knoxlab.ini (NoSteam) the hand-made copies are left alone, the ZombieBuddy junction is flagged, the KnoxLives junction (not a Workshop folder) is not",
-    "Host a server with ZombieBuddy Java mods, and host/join from the MCP. A server whose Mods= has ZombieBuddy (also \\ZombieBuddy) starts with -agentlib:zbNative=policy=deny-new: only jars this PC approved in ~/.zombie_buddy/mod_approvals.json load, and ZombieBuddy's approval window, which would hang a server, never shows (left out, with a diagnostic, when the game folder has no zbNative.dll: the JVM would not start). Mods & Sync flags a Java mod whose jar (SHA-256, per mod id) is not approved yet or was refused, Java mods without ZombieBuddy, and, with NoSteam chosen, mods only in the Workshop folder (a NoSteam server reads only Zomboid/mods and drops what requires them too), with a button that links them there as junctions. A Workshop mod linked or copied into Zomboid/mods keeps its item in WorkshopItems= (the sync dropped it). The admin password typed when starting is kept in Windows Credential Manager. MCP: server_start (password from a file or the stored value, never echoed), server_status, server_stop, server_join (+connect ip:port, -nosteam, -debug; a Steam client is refused 127.0.0.1). Seen: knoxlab started by server_start loaded KnoxLives.jar (\"[ZB] added to classpath\", \"loading KnoxLives\", SERVER STARTED in 30 s); server_join opened the game's connect window for 192.168.0.192:16261; server_stop quit over RCON and saved; the check flagged 9 Workshop-only mods of knoxlab in NoSteam and an unapproved jar",
-    "Lua error notice: hideable and off the speed controls. A \"-\" at its top right hides it as a small badge with the count (\"9 Lua error(s)\"), which takes clicks only where it is drawn; a click on the badge shows the notice again, a drag moves it, and new errors keep it a badge (pulsing). In game it starts left of the clock and the speed controls (it sat over their buttons and took their clicks); the notice and the badge come back where they were left",
-    "Steam downloads bar: a Workshop job Steam cancels ('Update canceled: Disabled (Suspended)', when the game is started: Steam does not update its mods while it runs) is over; the bar stayed at 100 % for good because no 'Finished' line follows. What the job carried waits as queued for Steam's next job",
-    "Workshop comments: read what people say about a mod before installing it",
-    "MCP workshop_search: the Explore page's Workshop search (text, order, build, category, page) for agents; read-only",
-    "MCP workshop_item: what the Steam Workshop says about one item (id or page link) - title, author, builds, dates, subscribers, favourites, size, tags, description, screenshots, videos, required items - and Steam's record of it on this PC; the Explore page's own reading, read-only",
-    "MCP launch_game: the game window is maximized while it boots, every time, and never kept from the player. The window guard is a detached helper (pz-mcp-server.exe --window-guard) that outlives a one-shot server (the guard thread died with it before the window appeared) and maximizes the window whenever it is not for two minutes (the game puts its saved size back while it boots); park no longer shrinks it to a corner or sends it behind, and focus is never taken back. The game no longer inherits the server's stdio, so the call returns at once instead of waiting for the game to close",
-    "MCP launch_game: a windowed game that is not parked is maximized when it does not fit the screen, as a launch from the app is",
-    "Agent: game_window show maximizes a window that does not fit the screen",
-    "Explore: the Steam downloads bar no longer covers the page buttons; translations try Google's second service and MyMemory for any language; Mod List says a late requirement once"
+    "Servers: host one with Java mods",
+    "Servers: NoSteam servers get copies of Workshop mods instead of links",
+    "Lua error notice: can be hidden and no longer covers the speed buttons",
+    "Explore: read a mod's Workshop comments before installing it",
+    "Steam downloads bar: no longer stuck at 100%"
    ]
   },
   {
    "version": "1.8.1",
    "date": "2026-11-03",
    "notes": [
-    "Release 1.8.1",
-    "Monitor: a zombie banging a door open (ThumpState) gets its own card, a bug in the game itself with nothing to do, instead of blaming NPC mods; a mod's caught BufferOverflowException gets a card under that mod's name saying the game ran out of room packing a body it asked for as an item",
-    "Packages: a file put in with a mod's own layout path (42/media/..., common/media/...) lands at media/... once, instead of a second copy under 42/42/ that the game never reads",
-    "Packages: a file put in on its own stays in every publish"
+    "Packages: a file you add stays in every publish",
+    "Monitor: clearer card when a zombie breaks a door"
    ]
   },
   {
    "version": "1.8.0",
    "date": "2026-10-31",
    "notes": [
-    "Release 1.8.0",
-    "Browse: unsubscribing from a Workshop item in the app takes its mods out of the list and the profile, instead of leaving them on as \"not installed\" once Steam deletes them. Unsubscribing in Steam itself still keeps the row, so a mod gone for a while gets its place back",
-    "Publish: a translation draft the old Merger saved as glued objects is mended on the way (its objects joined into one, later keys winning), so a package that has one can still be published; only a .json that cannot be read at all is refused",
-    "Merger: adding a mod's block to a translation file joins its keys into the one JSON object (and taking it out removes them); a script file gets /* */ markers, only Lua gets --. Before, every file got Lua comments around a second copy, and a package's Translate/EN/UI.json held two JSON objects glued together. A publish now refuses a .json that is not one object, instead of shipping a file the game cannot read",
-    "Monitor: a require the game itself has under its Build 42 path is said to be only noise when nothing from that file fails afterwards (the game runs its own Lua before any mod's, so the module is there anyway); the card's text is in the app's language (it was the backend's English), and its button reads \"Fix the path (only quiets the warning)\". When the same file errors later in the log, the card says the path is what mends it",
-    "The Studio's rules and mod index live inside the app; nothing is downloaded and nothing is shared through GitHub any more",
-    "Monitor: a Java mod's own error (\"[BloodFX] drawing disabled: java.lang.NullPointerException ...\") gets its own card under the mod's name, without the Merger or a polyfill (neither reaches Java); the exception its stack trace repeats on the next line is not a second, anonymous card. Mod Health: a community-index require issue is left out once the mod as installed no longer has that require (ReactiveSE 1.3.0 moved ISUI/ISWorldMap itself, and the warning offered a compatible copy that would have brought the old file back)",
-    "Translate: the language of a text is the script with most letters (a description in Russian, Chinese and English said 'from Chinese' because any Han letter won). A 429 from Google stops at once instead of retrying every piece, MyMemory sends pieces joined up to its 500 bytes and refuses a too-long text before any call (it made 40 calls, then gave up), and the limit is explained in words with the DeepL way out",
-    "Mod Health: a mod id changed back by its author is caught too (RadioVoices -> RadioVoicesLocal -> RadioVoices today). The Studio now remembers which Workshop item each mod id was seen in (PZModStudio_Cache/mod_workshop_ids.json), so a missing id points to what its item holds now; for an id gone before it was noted, the one Workshop mod whose id starts it or is started by it. A new id already in the list is not offered (the old entry is just a leftover)",
-    "Novedades: 'Since you last played' shows the session's time, not only the date, and an empty list says when that session was and offers Last 7 days. A session at 18:54 read as 'since today' while today's earlier updates were left out",
-    "Novedades: the sidebar count is read again when the game enters or leaves a save, when the window comes back and on every tab change. Counted once at start, it kept showing 1 for an update the player had since played with, while the page (since the 18:54 session) rightly showed nothing",
-    "Monitor: Clear on the game console empties it for real; after a Clear on a full console (1500 lines) the tab stayed at 0 / 1502 forever, because it hid by line count and the rolling window never grew past it. Other tabs now hide up to the last line seen at Clear time",
-    "Launch: a windowed game that opens bigger than the screen is maximized (the game reopens at the size it saved maximized, title bar on top, so it ran under the taskbar); a window the player made smaller is left alone. Checked by the player on a real launch",
-    "Mod List: a not-installed mod taken out of the list (removed, or replaced by its new id) leaves the profile too, instead of coming back at the end; jumping to a mod outside the profile or hidden by a filter shows it (the panel fell back to the list's first mod). Reading the mod list only reconciles the Zomboid folder that holds the default.txt it read: with a temporary folder in the tests it fell through to the user's real one and rewrote its active profile with the test's mods",
-    "Mod List: a mod that is not installed shows one 'not installed' chip, the health check's (with its fix), not two",
-    "Mod Health: a mod whose author changed its id in an update is no longer 'unsubscribed or deleted'. When an installed folder is named like the missing id but holds another, the issue says so and offers to put the new id in the old one's place, switched on (RadioVoices became RadioVoicesLocal today; checked on the real list)",
-    "Mod List: the mod panel scrolls instead of squeezing its sections (a flex column shrank 'Mod data' to a sliver, so the scroll never appeared)",
-    "Steam downloads on every screen: a bar shows what Steam is downloading for the game (the items, queued / preparing / downloading / installing, MB and speed) and says when it is done, reading the mods again so the Mod List has them. Read from Steam's own logs and the bytes its process has written since the job started (Steam logs no progress and preallocates the files); no Steam API, so the player is never shown as in-game. Checked on a real download: 9.9 MB written for a 9.8 MB job",
-    "Shim: the place-item cursor no longer throws once its last item is placed (42.21's ISPlace3DItemCursor reads self.items[1] after create() removed it; isValid answers false and render/renderOpaqueObjectsInWorld do nothing on an empty list). The error Take A Bath was blamed for; checked in the game, wrapping once however often the shim runs",
-    "Mod List: Share to the index is gone (menu item, the For the index / In the index chips, the report pull request). It sent the Monitor's raw counts with a guessed owner and no fix, so the index got facts that were wrong or that the Studio already fixes; the index stays, curated by hand, and the app still reads it. The warn chip hides when the index has a known issue for the mod",
-    "Shim: Propane Explosion's aim check only with a ranged weapon (findAimTarget called getMaxRange on items that are not weapons; reproduced and checked in the game). Monitor: a card shows its own advice, and 'the shim covers this' only when it has none (the game's door code, which no Lua reaches, was told it was covered)",
-    "Shim: ModernStatus' auto-hidden indicators leave the screen again (42.21 clamps top-level UI to it, so 22 invisible ones sat at 0,0 taking the clicks over the primary-hand icon); checked in the game; ModernStatus in the index",
-    "Shim: Core:getKey(nil) answers nil without asking Java, which logged a NullPointerException each time (Fancy Handwork's key handler, hundreds a session); checked in the game; the index's Fancy Handwork entry says so",
-    "Link 1.18.3: the game's tooltips without the ghost box at the top-left (tick boxes, lists, combos... set their tooltip at a control-relative spot every frame, and it was drawn there before moving to the mouse); seen and checked in the game on sandbox options",
-    "Monitor: every Translator exception is the bare-% card (MissingFormatArgument and FormatFlagsConversionMismatch too), one card per mod whichever it threw; the MCP diagnostics fold per mod as the Monitor does",
-    "Mod List: chips laid right to left so the origin keeps the last column and the same chips line up; the warning count and In the index give way once the index knows the mod",
-    "Settings: Fetch now for the community files; the index and lists links open the site's mods page, not its home (also on the Workshop page)",
-    "Share: a registry the index's own check accepts (a compatible copy with no file named is fix none, mod.info incompatibilities say their source); the registries merged tonight brought in",
-    "Share: off while everything seen is in the index or a pull request; an issue proposed again replaces its entry in the registry instead of standing twice",
-    "Mod List: a mark on each mod with something for the community index (For the index / Something new / In the index), a tag to filter by it, and what was proposed remembered",
-    "Monitor: a bare % in a mod's texts names the mod (the key's owner), one card per mod, and counts toward that mod so it can be shared"
+    "Rules and mod index built into the app",
+    "Explore: unsubscribing takes the mods out of the list",
+    "Merger: translation files merged into one JSON",
+    "Monitor: a Java mod's own error gets its own card",
+    "Monitor: harmless require lines marked as noise"
    ]
   },
   {
@@ -150,14 +77,14 @@
    "notes": [
     "Settings: Connect with GitHub works again, for sharing a rule or what you know about a mod",
     "Link 1.18.2: the website's address in the mod's description",
-    "Packages: the card shows the whole description, and a package's own description next to its files"
+    "Packages: the card shows the whole description"
    ]
   },
   {
    "version": "1.7.14",
    "date": "2026-10-29",
    "notes": [
-    "Help: every page checked against the screens and brought up to date; the Workshop remove button and Mod Health's \"Take out of the package\" no longer show a raw text key",
+    "Help: every page checked against the screens and brought up to date",
     "Developer: no New mod button in the header, the tab is enough"
    ]
   },
@@ -165,7 +92,7 @@
    "version": "1.7.13",
    "date": "2026-10-29",
    "notes": [
-    "Developer: publishing a mod to the Steam Workshop from the Studio now says when Steam has finished"
+    "Developer: Workshop publishing says when Steam has finished"
    ]
   },
   {
@@ -174,42 +101,13 @@
    "notes": [
     "Developer: a header with the mod being worked on, and a tab per tool",
     "Developer picker: mods grouped by where they come from, no \"yours\"",
-    "Translation drafts: each language by name, missing and complete apart, the intro in two sentences",
+    "Translation drafts: each language by name, missing and complete apart",
     "Developer: the file check's verdict right under the picker, scrolled to",
     "Publish: not other people's mods, and items can be taken off the list",
     "Developer: publish a mod to the Steam Workshop from the Studio",
     "Compatible copy: Build 41 recipes written as Build 42 craftRecipe blocks",
-    "Developer: a mod's Lua checked against the installed build (MCP check_mod_api)",
-    "Developer: translation drafts of a mod's own texts",
-    "What's New: one chip per profile that has the mod on, no on/off chip",
-    "What's New: no risk chips; the date, on or off, and which profiles have it on",
-    "What's New: no verdict from a word match",
-    "Maps: the \"only mods on in my list\" tick is remembered, and only a clicked map takes the wheel",
-    "Disk: the measurement is kept while the app runs, not taken again on every return to the tab",
-    "Mod Health: no reloads for nothing, Performance in sub-tabs, Disk with the game's folders",
-    "Mod Health: a Security tab of its own, and sections that fold",
-    "Security: a capability is good to know; only a red-flag pattern is a warning",
-    "Low memory: a Monitor card the moment the game closes, a quiet log line in Memory",
-    "Memory: the Windows low-memory notice fades after three days and can be dismissed",
-    "Frames panel: no mod named; the profiler is the source, console measurements an extra",
-    "Mod Health: a security scan of the active mods, as heuristics",
-    "Update check: itch.io answers when GitHub does not",
-    "Memory: a program's processes are one line, nameless entries none",
-    "Memory: when Windows itself ran out with the game open, from the event log",
-    "Saves: the build a save was made on, from its world version",
-    "Monitor: each card says whether its error is new or seen in earlier sessions",
-    "Profiler: frames, hitches and chunks counted by the Studio's own mod",
-    "Saves: what a save holds, character and vehicles, read from its databases",
-    "Health: frames and hitches per mod, read from the game's console lines",
-    "What's New: reloads on mod changes only and keeps its list on screen while it reads",
-    "Mod Health: a package copy that is not what the only mod shipping it has is reported",
-    "Claude Agent: Kahlua has no next(); a pairs loop says whether a task runs",
-    "Settings: the kept translations are counted and can be deleted",
-    "Explore Mods: the translated title takes the header, the original moves under it",
-    "Explore Mods: titles are translated too, and the script names the source language",
-    "Explore Mods: mod descriptions and summaries translated on demand",
-    "Explore Mods: Workshop videos play inside the mod page",
-    "Bridge and Claude Agent poll their files slowly while nobody is talking to them"
+    "Developer: a mod's Lua checked against the installed build",
+    "And 30 smaller fixes"
    ]
   },
   {
