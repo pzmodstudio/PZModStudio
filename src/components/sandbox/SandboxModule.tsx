@@ -30,6 +30,8 @@ import {
 
 interface SandboxModuleProps {
   paths: StudioPathsUI;
+  /** The active profile's name, for saying where a fix lands. */
+  profileName?: string | null;
   /** The installed mods, for the hunt: its suspects and their requirements. */
   mods: ModInfo[];
   /** Re-reads the Mod List after the hunt has written a trial to disk. */
@@ -96,6 +98,7 @@ const TAB_ORDER_KEY = 'pz_monitor_tab_order';
 
 export const SandboxModule: React.FC<SandboxModuleProps> = ({
   paths,
+  profileName = null,
   mods,
   onRefreshMods,
   errorCards,
@@ -323,6 +326,14 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
     setActiveTabId(newTab.id);
   };
 
+  /**
+   * The cards shown are the log in front's own: the server's tab shows the server's cards, player
+   * 2's tab player 2's, and the game's tab and any saved log the game's. Their counts and stacks
+   * read that same log.
+   */
+  const cardLog: 'game' | 'server' | 'player2' = activeTabId === 'live_server' ? 'server' : activeTabId === 'live_player2' ? 'player2' : 'game';
+  const cardLines = (cardLog === 'game' ? tabs.find((tab) => tab.id === 'live_console') : tabs.find((tab) => tab.id === activeTabId))?.lines ?? [];
+
   const isPermanentTab = (tabId: string) => tabId === 'live_console' || tabId === 'live_server' || tabId === 'live_player2';
 
   /** Tabs are reordered by dragging one onto another; the order of the three live ones is kept. */
@@ -382,7 +393,10 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
   const openLastSession = async () => {
     if (!paths.user_zomboid_dir) return;
     const files = await TauriService.listAvailableLogFiles(paths.user_zomboid_dir);
-    const last = files.find((l) => l.is_active_console) ?? files[0];
+    // The game's console.txt or the Studio server's server-console.txt, whichever ran last: a server
+    // that did not start left its story in its own log.
+    const sessions = files.filter((l) => l.file_name === 'console.txt' || l.file_name === 'server-console.txt').sort((x, y) => y.modified_timestamp - x.modified_timestamp);
+    const last = sessions[0] ?? files[0];
     if (last) await handleOpenLogFile(last);
   };
 
@@ -811,9 +825,9 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
         <DiagnosticsPanel
           paths={paths}
           mods={mods}
-          errorCards={errorCards}
+          errorCards={errorCards.filter((c) => (c.log ?? 'game') === cardLog)}
           logLines={activeTab?.lines ?? []}
-          reportLines={(shownTabs.find((tab) => tab.isLive) ?? activeTab).lines}
+          reportLines={cardLines}
           onRefreshMods={onRefreshMods}
           onOpenMerger={onOpenMerger}
           onSwitchOffMod={onSwitchOffMod}
@@ -828,6 +842,9 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
             setSaveStatus(message);
             setTimeout(() => setSaveStatus(null), 4000);
           }}
+          profileName={profileName}
+          viewingOther={activeTab && !['live_console', 'live_server', 'live_player2'].includes(activeTab.id) ? activeTab.title : null}
+          cardsFrom={cardLog === 'game' ? null : activeTab?.title ?? null}
         />
       </div>
     </div>

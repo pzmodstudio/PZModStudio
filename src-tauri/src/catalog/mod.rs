@@ -266,6 +266,13 @@ const KNOWN_WORKSHOP_FILE: &str = "mod_workshop_ids.json";
 
 /// Adds the Workshop mods on disk now to the ids remembered before, writes the file when it
 /// grew, and returns the whole map. Only the folder given is used (never a guessed one).
+/// Every mod id the Studio has seen in a Workshop item, and that item: kept when the author
+/// renames the id, so the old one still points at its item. Read only.
+pub fn known_workshop_ids(user_zomboid_dir: &Path) -> BTreeMap<String, String> {
+    let path = user_zomboid_dir.join("PZModStudio_Cache").join(KNOWN_WORKSHOP_FILE);
+    fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
 fn remember_workshop_ids(user_zomboid_dir: &Path, mods: &[CatalogMod]) -> BTreeMap<String, String> {
     let path = user_zomboid_dir.join("PZModStudio_Cache").join(KNOWN_WORKSHOP_FILE);
     let mut known: BTreeMap<String, String> = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
@@ -292,19 +299,155 @@ fn remember_workshop_ids(user_zomboid_dir: &Path, mods: &[CatalogMod]) -> BTreeM
 pub struct ModHealth {
     pub catalog: ModCatalog,
     pub report: HealthReport,
+    /// The quick check: the file conflicts, security and build-check findings are the last full
+    /// check's for these same mods (or missing), and a full check follows.
+    #[serde(default)]
+    pub partial: bool,
+}
+
+/// What the slow steps of the last full check found, for the quick check of the same mods.
+struct SlowFindings {
+    /// The active mods (any order) and the Zomboid folder they were checked for.
+    key: String,
+    conflicts: Vec<HealthIssue>,
+    security: Vec<HealthIssue>,
+    api: Vec<HealthIssue>,
+}
+
+static SLOW_FINDINGS: std::sync::Mutex<Option<SlowFindings>> = std::sync::Mutex::new(None);
+
+/// The issues `now` has that `before` did not: a step adds its own and then sorts the whole list by
+/// severity, so they are not simply the ones at the end.
+fn added_since(before: &[HealthIssue], now: &[HealthIssue]) -> Vec<HealthIssue> {
+    let key = |i: &HealthIssue| format!("{}|{:?}|{}", i.code, i.mod_id, i.message);
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    for i in before {
+        *seen.entry(key(i)).or_default() += 1;
+    }
+    now.iter()
+        .filter(|i| match seen.get_mut(&key(i)) {
+            Some(n) if *n > 0 => {
+                *n -= 1;
+                false
+            }
+            _ => true,
+        })
+        .cloned()
+        .collect()
+}
+
+/// The list a full check was made for, in its order: a move changes who wins a file, a
+/// definition or a function, so findings about those belong to that order only.
+fn slow_key(paths: &crate::vfs::StudioPaths, active: &[String]) -> String {
+    let ids: Vec<&str> = active.iter().map(|s| s.trim()).collect();
+    format!("{}\n{}", paths.user_zomboid_dir, ids.join("\n"))
+}
+
+/// Findings that depend on the load order (who loads last): never borrowed for another order or
+/// another list, or a move just made would still show what it fixed.
+fn order_dependent(code: &str) -> bool {
+    code == "function_overridden" || code.starts_with("file_conflict") || code.starts_with("script_definition") || code.starts_with("translation_")
 }
 
 pub fn mod_health(workshop_dir: &str, user_zomboid_dir: &str, active: &[String]) -> ModHealth {
     let catalog = build_catalog(workshop_dir, user_zomboid_dir, None);
     let report = health_report(&catalog, active);
-    ModHealth { catalog, report }
+    ModHealth { catalog, report, partial: false }
 }
 
 /// `mod_health` plus shared-file conflicts (needs the game folder for the vanilla files).
 pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> ModHealth {
+    mod_health_checked(paths, active, false)
+}
+
+/// The health check. `quick`: the three steps that read every file of every mod (file conflicts,
+/// security, the build check; about 4 s of a 4.5 s check on 165 mods) are not run, and what the
+/// last full check found for the same mods stands in for them; the result says `partial`. A
+/// switch or a move answers at once that way, and the full check follows.
+/// What a full check depends on, read without opening a mod's files (each mod.info and Steam's
+/// records only): the game's build, when the game last wrote its log, and per active mod a stamp
+/// that changes when the mod does (Steam's install time for a Workshop mod, the newest change of
+/// its folder and media/lua for a local one). Mod Health keeps the one taken at its last check and
+/// compares, to say whether checking again would find anything new.
+#[derive(Debug, Clone, Serialize)]
+pub struct HealthInputs {
+    pub build: Option<String>,
+    pub log_written: Option<u64>,
+    pub mods: std::collections::BTreeMap<String, String>,
+}
+
+pub fn health_inputs(paths: &crate::vfs::StudioPaths, active: &[String]) -> HealthInputs {
     let catalog = build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let mtime = |p: &std::path::Path| -> Option<u64> {
+        std::fs::metadata(p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_secs())
+    };
+    let mut mods = std::collections::BTreeMap::new();
+    for id in active {
+        let stamp = match catalog.resolve(id.trim()) {
+            None => "missing".to_string(),
+            Some(m) => match m.workshop_state.as_ref().and_then(|s| s.installed_time) {
+                Some(t) => format!("w{}|{}", t, m.root_dir),
+                None => {
+                    let root = std::path::Path::new(&m.root_dir);
+                    let newest = [root.to_path_buf(), root.join("media"), root.join("media").join("lua"), root.join("mod.info")]
+                        .iter()
+                        .filter_map(|p| mtime(p))
+                        .max()
+                        .unwrap_or(0);
+                    format!("l{}|{}", newest, m.root_dir)
+                }
+            },
+        };
+        mods.insert(id.trim().to_string(), stamp);
+    }
+    let log_written = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir)
+        .into_iter()
+        .next()
+        .and_then(|z| mtime(&z.join("console.txt")));
+    HealthInputs { build: read_game_install(&paths.pz_install_dir).and_then(|g| g.build_id), log_written, mods }
+}
+
+pub fn mod_health_checked(paths: &crate::vfs::StudioPaths, active: &[String], quick: bool) -> ModHealth {
+    let key = slow_key(paths, active);
+    // The last full check's findings: all of them for the same mods; after a switch, those about
+    // mods still on only (a finding about a mod switched off is gone; one about a mod just switched
+    // on comes with the full check).
+    let cached = if quick {
+        SLOW_FINDINGS.lock().ok().and_then(|g| {
+            g.as_ref().filter(|s| s.key.split('\n').next() == key.split('\n').next()).map(|s| {
+                if s.key == key {
+                    return (s.conflicts.clone(), s.security.clone(), s.api.clone());
+                }
+                let on: HashSet<&str> = active.iter().map(|a| a.trim()).collect();
+                let still = |list: &[HealthIssue]| -> Vec<HealthIssue> {
+                    list.iter()
+                        .filter(|i| !order_dependent(&i.code))
+                        .filter(|i| i.mod_id.as_deref().is_none_or(|m| on.contains(m)) && i.related.iter().all(|r| on.contains(r.as_str())))
+                        .cloned()
+                        .collect()
+                };
+                (still(&s.conflicts), still(&s.security), still(&s.api))
+            })
+        })
+    } else {
+        None
+    };
+    let mut found: (Vec<HealthIssue>, Vec<HealthIssue>, Vec<HealthIssue>) = Default::default();
+    // PZMS_HEALTH_TIMING=1: how long each step took, on stderr (finding what makes a refresh slow).
+    let timing = std::env::var_os("PZMS_HEALTH_TIMING").is_some();
+    let mut clock = std::time::Instant::now();
+    let mut lap = |what: &str| {
+        if timing {
+            eprintln!("health {:>6} ms  {}", clock.elapsed().as_millis(), what);
+        }
+        clock = std::time::Instant::now();
+    };
+    let catalog = build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    lap("catalog");
     let mut report = health_report(&catalog, active);
+    lap("health rules");
     report.install = read_game_install(&paths.pz_install_dir);
+    lap("rules + install");
     add_user_rule_issues(&mut report, &catalog, active, &crate::rules::load_rules(&paths.user_zomboid_dir));
     add_community_rule_issues(&mut report, &catalog, active, crate::rules::community::current());
     {
@@ -323,13 +466,33 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
         add_index_issues(&mut report, &catalog, active, &index, &shim_on, &package_root, session.as_deref());
         report.community = Some(crate::rules::community::summary(&paths.user_zomboid_dir));
     }
-    let conflicts = crate::vfs::file_conflict_states(paths, &catalog, active);
-    add_file_conflict_issues(&mut report, &conflicts);
+        lap("index + console read");
+    if quick {
+        report.issues.extend(cached.as_ref().map(|c| c.0.clone()).unwrap_or_default());
+    } else {
+        let before = report.issues.clone();
+        let conflicts = crate::vfs::file_conflict_states(paths, &catalog, active);
+        add_file_conflict_issues(&mut report, &conflicts);
+        // Game functions one mod replaces after another changed them.
+        let shared = crate::overrides::shared_functions(std::path::Path::new(&paths.pz_install_dir), &catalog, active);
+        add_override_issues(&mut report, &catalog, &shared);
+        found.0 = added_since(&before, &report.issues);
+    }
+    lap("file conflicts (vfs)");
     add_package_file_issues(&mut report, &catalog, active);
+    lap("package files");
     if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
-        add_security_issues(&mut report, &catalog, active, &z);
+        if quick {
+            report.issues.extend(cached.as_ref().map(|c| c.1.clone()).unwrap_or_default());
+        } else {
+            let before = report.issues.clone();
+            add_security_issues(&mut report, &catalog, active, &z);
+            found.1 = added_since(&before, &report.issues);
+        }
+        lap("security");
         // Where two active mods' Java (ZombieBuddy patches) changes the same class of the game.
         report.issues.extend(crate::java_patches::overlap_issues(&crate::java_patches::radar(&z, &catalog, active)));
+        lap("java patches");
         // Copies of Workshop mods in Zomboid/mods (by hand or by the Studio for a NoSteam server),
         // and the servers whose lists keep a copy in use.
         let servers = crate::server_manager::mod_sync::server_mod_lists(&z);
@@ -339,16 +502,31 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
         let copied: HashSet<&str> = copies.iter().map(|c| c.id.as_str()).collect();
         report.issues.retain(|i| !(i.code == "shadowed_copy" && i.mod_id.as_deref().is_some_and(|id| copied.contains(id))));
         guard_server_copies(&mut report, &servers);
+        lap("server copies");
         report.errors = report.issues.iter().filter(|i| i.severity == Severity::Error).count();
         report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
     }
     let stats = crate::sandbox::error_stats_from_console(&paths.user_zomboid_dir);
     add_console_flood_issues(&mut report, &catalog, active, &stats);
+    add_zb_exclusion_issues(&mut report, &catalog, active, &paths.user_zomboid_dir);
+    lap("console stats");
     // What the active mods' Lua calls that this build does not have, when every mod's reading is
     // at hand within the time a refresh may take (else the rest is read behind, for next time).
-    if let Some(reports) = crate::api_lint::reports_for_health(paths, &catalog, active, crate::api_lint::HEALTH_BUDGET) {
+    if quick {
+        report.issues.extend(cached.as_ref().map(|c| c.2.clone()).unwrap_or_default());
+    } else if let Some(reports) = crate::api_lint::reports_for_health(paths, &catalog, active, crate::api_lint::HEALTH_BUDGET) {
+        let before = report.issues.clone();
         add_api_issues(&mut report, &catalog, &reports, &stats);
+        found.2 = added_since(&before, &report.issues);
+    } else if std::path::Path::new(&paths.pz_install_dir).join("projectzomboid.jar").is_file() {
+        // Read behind (a cold disk, a long list): said, so no findings does not read as none.
+        // (No game at all reads nothing, and is no part "coming".)
+        report.incomplete.push("api_lint".to_string());
     }
+    // The API findings (cached ones in a quick check) count too.
+    report.errors = report.issues.iter().filter(|i| i.severity == Severity::Error).count();
+    report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
+        lap("api lint");
     // A package is a mod of its own, in every profile's list: it was built for one list, and this
     // profile's may not be it.
     if let Some((package_id, root)) = crate::vfs::active_package_dir(&catalog, active) {
@@ -363,7 +541,13 @@ pub fn mod_health_full(paths: &crate::vfs::StudioPaths, active: &[String]) -> Mo
         }
     }
     mark_own_mods(&mut report, &catalog);
-    ModHealth { catalog, report }
+    lap("rest");
+    if !quick {
+        if let Ok(mut g) = SLOW_FINDINGS.lock() {
+            *g = Some(SlowFindings { key, conflicts: found.0, security: found.1, api: found.2 });
+        }
+    }
+    ModHealth { catalog, report, partial: quick }
 }
 
 /// Says which issues are about a mod the player is making (its folder is a link from elsewhere).
@@ -486,6 +670,77 @@ pub fn listed_by_a_server(user_zomboid_dir: &str, mod_id: &str) -> Option<String
     crate::server_manager::mod_sync::server_mod_lists(&z).get(mod_id).map(|s| s.join(", "))
 }
 
+/// Java mods on this list that ZombieBuddy left out of the last game or server session (a
+/// signature that did not verify), with the active mods that require them. Without its Java, an
+/// addon exposed to Lua takes the session down at boot; the player only saw "did not start".
+pub fn add_zb_exclusion_issues(report: &mut HealthReport, catalog: &ModCatalog, active: &[String], user_zomboid_dir: &str) {
+    let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next() else { return };
+    let on: Vec<String> = active.iter().map(|e| e.trim().rsplit('/').next().unwrap_or_default().trim_start_matches('\\').to_string()).collect();
+    let mut seen: Vec<String> = Vec::new();
+    let mut list = IssueList(Vec::new());
+    for (file, place) in [("console.txt", "game"), ("server-console.txt", "server")] {
+        let path = z.join(file);
+        let Ok(text) = fs::read_to_string(&path) else { continue };
+        let when = fs::metadata(&path).ok().and_then(|m| m.modified().ok()).map(|t| chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default();
+        let found = crate::zb_exclusions::analyze(&text, |_| Vec::new());
+        for ex in found {
+            if !on.contains(&ex.mod_id) || seen.contains(&ex.mod_id) {
+                continue;
+            }
+            seen.push(ex.mod_id.clone());
+            let Some(m) = catalog.resolve(&ex.mod_id) else { continue };
+            let users: Vec<&CatalogMod> = catalog
+                .mods
+                .iter()
+                .filter(|o| o.shadowed_by.is_none() && o.id != m.id && on.contains(&o.id))
+                .filter(|o| o.info.require.iter().any(|r| r.trim().trim_start_matches('\\') == m.id))
+                .collect();
+            let user_names: Vec<String> = users.iter().map(|u| u.name.clone()).collect();
+            let why = if ex.kind == "signature" { "its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded" } else { "its Java never loaded" };
+            let crashed = if ex.fatal && !ex.addons.is_empty() {
+                format!(" Without it, {} took the {} down at boot.", ex.addons.join(", "), place)
+            } else if !ex.addons.is_empty() {
+                format!(" Without it, {} stopped working.", ex.addons.join(", "))
+            } else {
+                String::new()
+            };
+            let mut fixes = vec![SuggestedFix::DisableMod { mod_id: m.id.clone() }];
+            fixes.extend(users.iter().map(|u| SuggestedFix::DisableMod { mod_id: u.id.clone() }));
+            list.push(
+                if ex.fatal { Severity::Error } else { Severity::Warning },
+                "zb_excluded",
+                Some(&m.id),
+                format!(
+                    "ZombieBuddy left {} out of your last {} session ({}): {}.{} Its author has to fix it; until then switch it off along with the mods that use it ({}), or wait for the author's update.",
+                    m.name, place, when, why, crashed, if user_names.is_empty() { "none on".to_string() } else { user_names.join(", ") }
+                ),
+                fixes,
+            );
+            list.with(&[
+                ("mod", &m.name),
+                ("place", place),
+                ("when", &when),
+                ("addons", &ex.addons.join(", ")),
+                ("users", &user_names.join(", ")),
+                ("variant", match (ex.kind.as_str(), ex.fatal && !ex.addons.is_empty(), !ex.addons.is_empty()) {
+                    ("signature", true, _) => "signature_fatal",
+                    ("signature", false, true) => "signature_addons",
+                    ("signature", _, _) => "signature",
+                    (_, true, _) => "other_fatal",
+                    _ => "other",
+                }),
+            ]);
+        }
+    }
+    if list.0.is_empty() {
+        return;
+    }
+    report.issues.extend(list.0);
+    report.issues.sort_by(|a, b| a.severity.cmp(&b.severity));
+    report.errors = report.issues.iter().filter(|i| i.severity == Severity::Error).count();
+    report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
+}
+
 /// From this many console lines of trouble in one session, a mod "floods the console". Measured
 /// on real sessions: Fancy Handwork's key handler threw 359 times for 9,330 lines; a mod that threw
 /// 51 times made 407, which is a broken mod (the Monitor's business) more than a flood.
@@ -549,7 +804,8 @@ pub fn package_list_issue(package_id: &str, packaged: &[String], active: &[Strin
             package_id,
             parts.join("; ")
         ),
-        fixes: vec![SuggestedFix::DisableMod { mod_id: package_id.to_string() }],
+        // Rebuilding it for this list is the fix; switching it off loses its merges, so it comes second.
+        fixes: vec![SuggestedFix::UpdatePackage { package: package_id.to_string() }, SuggestedFix::DisableMod { mod_id: package_id.to_string() }],
         related: Vec::new(),
         details: Vec::new(),
         params: {
@@ -588,7 +844,7 @@ pub fn script_definition_issues(paths: &crate::vfs::StudioPaths, active: &[Strin
     let states = crate::vfs::definition_merge_states(&catalog, active, &conflicts);
     let mut issues = issues_for_script_conflicts_with_state(&conflicts, &states);
     let language = crate::translations::game_language(&paths.user_zomboid_dir);
-    let translations: Vec<_> = crate::translations::translation_conflicts(&catalog, active).into_iter().filter(|c| c.lang == language).collect();
+    let translations: Vec<_> = crate::translations::translation_conflicts(&catalog, active, Some(&language)).into_iter().filter(|c| c.lang == language).collect();
     let package = crate::vfs::active_package_dir(&catalog, active).map(|(_, root)| root);
     issues.extend(issues_for_translation_conflicts(&translations, package.as_ref()));
     issues
@@ -928,6 +1184,42 @@ pub fn add_file_conflict_issues(report: &mut HealthReport, conflicts: &[crate::v
     report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
 }
 
+/// Game functions one active mod replaces after another changed them: that change never runs.
+/// The order alone fixes it when the replacing mod can load first (the others then wrap it);
+/// else the two do the same job and one is to be chosen.
+pub fn add_override_issues(report: &mut HealthReport, catalog: &ModCatalog, shared: &[crate::overrides::SharedFunction]) {
+    let name_of = |id: &str| catalog.resolve(id).map(|m| m.name.clone()).unwrap_or_else(|| id.to_string());
+    let mut list = IssueList(Vec::new());
+    for f in shared {
+        let Some(winner) = f.winner.as_deref() else { continue };
+        let at = f.redefinitions.iter().rev().find(|r| r.mod_id == winner && !r.keeps_original);
+        let place = at.map(|r| format!("{}:{}", r.file, r.line)).unwrap_or_default();
+        let cut_names: Vec<String> = f.cut.iter().map(|id| name_of(id)).collect();
+        let (fixes, how, how_key) = match &f.fixed_by_moving_before {
+            Some(before) => (
+                vec![SuggestedFix::MoveBefore { mod_id: winner.to_string(), before: before.clone() }],
+                format!("Loading {} before {} fixes it: they then build on its version.", name_of(winner), name_of(before)),
+                "fo_move",
+            ),
+            None => (Vec::new(), format!("Only {}'s version stays. If nothing of {} seems missing in the game, there is nothing to do; if something is, keep only one of the two on.", name_of(winner), cut_names.join(", ")), "fo_choose"),
+        };
+        let message = format!(
+            "{} replaces the game's {} ({}) after {} changed it, so that change never runs. {}",
+            name_of(winner), f.function, place, cut_names.join(", "), how
+        );
+        // With the order as a fix it is worth doing; without one, the text says when to act (only if
+        // something is missing in the game), so it is something to know, not a to-do.
+        let severity = if fixes.is_empty() { Severity::Info } else { Severity::Warning };
+        list.push(severity, "function_overridden", Some(winner), message, fixes);
+        let before_name = f.fixed_by_moving_before.as_deref().map(|b| name_of(b)).unwrap_or_default();
+        list.with(&[("winner", &name_of(winner)), ("function", &f.function), ("place", &place), ("cut", &cut_names.join(", ")), ("before", &before_name), ("howKey", how_key)]);
+        if let Some(last) = list.0.last_mut() {
+            last.related = f.cut.clone();
+        }
+    }
+    report.issues.extend(list.0);
+}
+
 /// The active package's copies of mod files that the mod has changed since (the game reads the
 /// copy, so the mod's change never runs), and the copies no mod in the list ships.
 pub fn add_package_file_issues(report: &mut HealthReport, catalog: &ModCatalog, active: &[String]) {
@@ -1021,7 +1313,7 @@ pub fn add_security_issues(report: &mut HealthReport, catalog: &ModCatalog, acti
                 )
             };
             list.push(if red_flag { Severity::Warning } else { Severity::Info }, if binaries { "security_executable" } else { "security_script" }, Some(&m.id), message, fixes.clone());
-            list.with(&[("mod", &m.name), ("count", &programs.len().to_string()), ("files", &files.join(", ")), ("more", &more.to_string()), ("moreKey", if more > 0 { "and_more" } else { "" })]);
+            list.with(&[("mod", &m.name), ("count", &programs.len().to_string()), ("files", &files.join(", ")), ("more", &if more > 0 { more.to_string() } else { String::new() }), ("moreKey", if more > 0 { "and_more" } else { "" })]);
         }
         // Java
         let java: Vec<&&crate::security::Finding> = flagged.iter().filter(|f| f.rule.starts_with("java_")).collect();
@@ -1040,7 +1332,7 @@ pub fn add_security_issues(report: &mut HealthReport, catalog: &ModCatalog, acti
                 m.name, what.join(", "), shown.join(", "), if classes.len() > 3 { format!(" and {} more classes", classes.len() - 3) } else { String::new() }
             );
             list.push(if high { Severity::Warning } else { Severity::Info }, "security_java", Some(&m.id), message, fixes.clone());
-            list.with(&[("mod", &m.name), ("rulesList", &rules.join(",")), ("where", &shown.join(", ")), ("more", &classes.len().saturating_sub(3).to_string()), ("moreKey", if classes.len() > 3 { "and_more_classes" } else { "" })]);
+            list.with(&[("mod", &m.name), ("rulesList", &rules.join(",")), ("where", &shown.join(", ")), ("more", &if classes.len() > 3 { (classes.len() - 3).to_string() } else { String::new() }), ("moreKey", if classes.len() > 3 { "and_more_classes" } else { "" })]);
         }
         // Lua
         let lua: Vec<&&crate::security::Finding> = flagged.iter().filter(|f| f.rule.starts_with("lua_")).collect();
@@ -1059,7 +1351,7 @@ pub fn add_security_issues(report: &mut HealthReport, catalog: &ModCatalog, acti
                 m.name, what.join(", "), shown.join(", "), if places.len() > 3 { format!(" and {} more places", places.len() - 3) } else { String::new() }
             );
             list.push(if high { Severity::Warning } else { Severity::Info }, "security_lua", Some(&m.id), message, fixes.clone());
-            list.with(&[("mod", &m.name), ("rulesList", &rules.join(",")), ("where", &shown.join(", ")), ("more", &places.len().saturating_sub(3).to_string()), ("moreKey", if places.len() > 3 { "and_more_places" } else { "" })]);
+            list.with(&[("mod", &m.name), ("rulesList", &rules.join(",")), ("where", &shown.join(", ")), ("more", &if places.len() > 3 { (places.len() - 3).to_string() } else { String::new() }), ("moreKey", if places.len() > 3 { "and_more_places" } else { "" })]);
         }
     }
     if list.0.is_empty() {
@@ -1118,6 +1410,8 @@ pub enum SuggestedFix {
     AdoptWorkshopCopy { folder: String },
     /// Copy a Workshop mod into Zomboid/mods again (the Studio's copy, outgrown by the item).
     RecopyWorkshop { mod_id: String },
+    /// Rebuild a patch package for the list as it is now (the Merger's Update patch: rescan, publish).
+    UpdatePackage { package: String },
 }
 
 /// What the player has to do about an issue, in the four words every screen uses. Severity says
@@ -1238,7 +1532,8 @@ impl IssueList {
                 | SuggestedFix::RemoveFromPackage { .. }
                 | SuggestedFix::DismissKnownIssue { .. }
                 | SuggestedFix::AdoptWorkshopCopy { .. }
-                | SuggestedFix::RecopyWorkshop { .. } => None,
+                | SuggestedFix::RecopyWorkshop { .. }
+                | SuggestedFix::UpdatePackage { .. } => None,
             };
             if let Some(other) = other.filter(|o| Some(o.as_str()) != mod_id && !related.contains(o)) {
                 related.push(other.clone());
@@ -1274,6 +1569,10 @@ pub struct HealthReport {
     pub errors: usize,
     pub warnings: usize,
     pub issues: Vec<HealthIssue>,
+    /// Parts of the check that did not fit in the time a refresh may take and are being read
+    /// behind ("api_lint"): their findings are missing from this report, and the next has them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub incomplete: Vec<String>,
 }
 
 /// The player's own load-order rules, checked against the active list. A broken rule is a
@@ -1327,6 +1626,24 @@ mod user_rule_tests {
     }
 
     #[test]
+    fn a_mod_the_game_now_does_is_said_unneeded_only_from_that_build() {
+        let u = crate::rules::index::Unneeded { since: "42.22".into(), by: None, note: Some("ladders".into()) };
+        let none = |_: &str| false;
+        let name = |s: &str| s.to_string();
+        assert!(unneeded_issue("L", "Ladders", &u, Some(42_021), &none, &name, &[]).is_none(), "42.21 still needs it");
+        let i = unneeded_issue("L", "Ladders", &u, Some(42_022), &none, &name, &[]).expect("from 42.22");
+        assert_eq!((i.code.as_str(), i.state), ("community_unneeded", IssueState::Recommended));
+        assert!(matches!(i.fixes.as_slice(), [SuggestedFix::DisableMod { .. }]));
+        // Unneeded because another mod does it: only while that mod is on.
+        let by = crate::rules::index::Unneeded { since: "42.0".into(), by: Some("Viewpoint".into()), note: None };
+        assert!(unneeded_issue("Fix", "Fix", &by, Some(42_022), &none, &name, &[]).is_none());
+        assert!(unneeded_issue("Fix", "Fix", &by, Some(42_022), &|m: &str| m == "Viewpoint", &name, &[]).is_some());
+        // Another mod on requires it: no switch-off offered.
+        let req = unneeded_issue("L", "Ladders", &u, Some(42_022), &none, &name, &["Tower".to_string()]).unwrap();
+        assert!(req.fixes.is_empty() && req.message.contains("Tower require it"));
+    }
+
+    #[test]
     fn a_broken_rule_is_a_warning_with_the_move_that_mends_it() {
         let mut catalog = ModCatalog { game_version: None, mods: Vec::new(), ..Default::default() };
         for id in ["Overhaul", "Library"] {
@@ -1339,7 +1656,7 @@ mod user_rule_tests {
         }
         let rules = vec![crate::rules::UserRule { mod_id: "Overhaul".into(), after: "Library".into(), note: Some("recipes vanish".into()) }];
         let active = vec!["Overhaul".to_string(), "Library".to_string()];
-        let mut report = HealthReport { game_version: None, install: None, community: None, active_count: 2, errors: 0, warnings: 0, issues: vec![] };
+        let mut report = HealthReport { game_version: None, install: None, community: None, active_count: 2, errors: 0, warnings: 0, issues: vec![], incomplete: vec![] };
         add_user_rule_issues(&mut report, &catalog, &active, &rules);
         assert_eq!(report.warnings, 1);
         let issue = &report.issues[0];
@@ -1348,7 +1665,7 @@ mod user_rule_tests {
         assert!(matches!(&issue.fixes[0], SuggestedFix::MoveBefore { mod_id, before } if mod_id == "Library" && before == "Overhaul"));
 
         // In order: nothing to say. A mod that is off: nothing either.
-        let mut ok = HealthReport { game_version: None, install: None, community: None, active_count: 2, errors: 0, warnings: 0, issues: vec![] };
+        let mut ok = HealthReport { game_version: None, install: None, community: None, active_count: 2, errors: 0, warnings: 0, issues: vec![], incomplete: vec![] };
         add_user_rule_issues(&mut ok, &catalog, &["Library".to_string(), "Overhaul".to_string()], &rules);
         assert!(ok.issues.is_empty());
         add_user_rule_issues(&mut ok, &catalog, &["Overhaul".to_string()], &rules);
@@ -1459,6 +1776,40 @@ fn require_already_mended(m: &CatalogMod, file: &str, from: &str, game_version: 
         return false;
     };
     !text.contains(&format!("\"{}\"", from)) && !text.contains(&format!("'{}'", from))
+}
+
+/// A mod the index says is no longer needed on this build: the game does it now (from `since`),
+/// or another mod that is on does. Recommended, with Switch off.
+fn unneeded_issue(
+    id: &str,
+    mod_name: &str,
+    u: &crate::rules::index::Unneeded,
+    game: Option<u32>,
+    is_on: &dyn Fn(&str) -> bool,
+    name_of: &dyn Fn(&str) -> String,
+    required_by: &[String],
+) -> Option<HealthIssue> {
+    let since = crate::load_order::mod_info::version_dir_int(&u.since)?;
+    if game.is_none_or(|g| g < since) {
+        return None;
+    }
+    if u.by.as_deref().is_some_and(|by| !is_on(by)) {
+        return None;
+    }
+    let by = u.by.as_deref().map(name_of).unwrap_or_default();
+    let note = u.note.clone().map(|n| format!(" ({})", n)).unwrap_or_default();
+    let who = if by.is_empty() { "the game does it itself".to_string() } else { format!("{} does it now", by) };
+    // Required by mods that are on: off, it would break them; said, and no switch-off offered.
+    let (tail, fixes, safe_key) = if required_by.is_empty() {
+        ("Switching it off is safe.".to_string(), vec![SuggestedFix::DisableMod { mod_id: id.to_string() }], "un_safe")
+    } else {
+        (format!("But {} require it: keep it while they are on.", required_by.join(", ")), Vec::new(), "un_required")
+    };
+    let message = format!("{} is no longer needed from build {}, per the Studio's mod index: {}{}. {}", mod_name, u.since, who, note, tail);
+    let mut list = IssueList(Vec::new());
+    list.push(Severity::Warning, "community_unneeded", Some(id), message, fixes);
+    list.with(&[("mod", mod_name), ("since", &u.since), ("by", &by), ("note", &note), ("whoKey", if by.is_empty() { "un_game" } else { "un_mod" }), ("requiredBy", &required_by.join(", ")), ("safeKey", safe_key)]);
+    list.0.pop()
 }
 
 pub fn add_index_issues(
@@ -1573,6 +1924,18 @@ pub fn add_index_issues(
                 fixes);
             list.with(&[("mod", &name(id)), ("title", &issue.title), ("evidence", &evidence), ("note", &note), ("howKey", how_key), ("from", from), ("to", to),
                 ("build", issue.build.as_deref().unwrap_or("")), ("seenKey", seen_key(&issue.build, issue.status))]);
+        }
+        if let Some(unneeded) = &registry.unneeded {
+            // Mods on that require it: switching it off would break them.
+            let required_by: Vec<String> = active_ids
+                .iter()
+                .filter_map(|other| catalog.get(other))
+                .filter(|m| m.info.require.iter().any(|r| r.trim().trim_start_matches('\\') == id))
+                .map(|m| m.name.clone())
+                .collect();
+            if let Some(issue) = unneeded_issue(id, &name(id), unneeded, catalog.game_version_int(), &|m: &str| position.contains_key(m), &|m: &str| name(m), &required_by) {
+                list.0.push(issue);
+            }
         }
         if let Some(successor) = &registry.successor {
             let loadable = catalog.get(id).map(|m| matches!(m.loadability, Loadability::Loadable)).unwrap_or(true);
@@ -1693,6 +2056,27 @@ fn near_match<'a>(catalog: &'a ModCatalog, id: &str) -> Option<&'a CatalogMod> {
 /// whose folder is named like the missing id but whose mod.info says another, or else a mod of
 /// the Workshop item the missing id was last seen in (so a change back is caught too). One
 /// already in the list is not offered: the old entry is then only a leftover.
+/// Every mod the missing id may have become: the folder named like it first, then the other mods
+/// of its Workshop item (an author may split one id into two, a stable and an experimental): each
+/// is offered, the player picks.
+fn renamed_options<'a>(catalog: &'a ModCatalog, id: &str, active_ids: &[&str]) -> Vec<&'a CatalogMod> {
+    let mut out: Vec<&CatalogMod> = renamed_to(catalog, id, active_ids).into_iter().collect();
+    if let Some(item) = catalog.known_workshop.get(id) {
+        for m in catalog.mods.iter().filter(|m| m.shadowed_by.is_none() && m.id != id && !active_ids.contains(&m.id.as_str())) {
+            if matches!(&m.source, ModSource::Workshop { workshop_id } if workshop_id == item) && !out.iter().any(|o| o.id == m.id) {
+                out.push(m);
+            }
+        }
+    }
+    // The one to go on with first: a name that says experimental, beta or test goes after.
+    let trial = |m: &CatalogMod| {
+        let n = m.name.to_ascii_lowercase();
+        ["experimental", "beta", "test", "unstable", "dev"].iter().any(|w| n.split(|c: char| !c.is_ascii_alphanumeric()).any(|x| x == *w))
+    };
+    out.sort_by_key(|m| trial(m));
+    out
+}
+
 fn renamed_to<'a>(catalog: &'a ModCatalog, id: &str, active_ids: &[&str]) -> Option<&'a CatalogMod> {
     let candidate = |m: &&CatalogMod| m.shadowed_by.is_none() && m.id != id && !active_ids.contains(&m.id.as_str());
     let by_folder = catalog.mods.iter().filter(candidate).find(|m| {
@@ -1769,10 +2153,19 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             let mut fixes = vec![SuggestedFix::RemoveFromList { entry: entry.to_string() }];
             let (message, params) = match near_match(catalog, id) {
                 None if renamed_to(catalog, id, &active_ids).is_some() => {
-                    let renamed = renamed_to(catalog, id, &active_ids).unwrap();
-                    fixes.insert(0, SuggestedFix::ReplaceInList { entry: entry.to_string(), mod_id: renamed.id.clone() });
-                    (format!("{} is not installed: the same Workshop mod is now {} ({}), its author changed the id in an update", id, renamed.id, renamed.name),
-                        issue_params(&[("variant", "renamed"), ("mod", id), ("renamed", &renamed.id), ("name", &renamed.name)]))
+                    let options = renamed_options(catalog, id, &active_ids);
+                    let renamed = options[0];
+                    for (n, o) in options.iter().enumerate() {
+                        fixes.insert(n, SuggestedFix::ReplaceInList { entry: entry.to_string(), mod_id: o.id.clone() });
+                    }
+                    if options.len() > 1 {
+                        let others: Vec<String> = options[1..].iter().map(|o| o.name.clone()).collect();
+                        (format!("{} is not installed: in an update its author replaced it. The version to go on with is {} ({}); the item also has {}", id, renamed.name, renamed.id, others.join(", ")),
+                            issue_params(&[("variant", "renamed_many"), ("mod", id), ("renamed", &renamed.id), ("name", &renamed.name), ("others", &others.join(", "))]))
+                    } else {
+                        (format!("{} is not installed: the same Workshop mod is now {} ({}), its author changed the id in an update", id, renamed.id, renamed.name),
+                            issue_params(&[("variant", "renamed"), ("mod", id), ("renamed", &renamed.id), ("name", &renamed.name)]))
+                    }
                 }
                 Some(similar) => {
                     fixes.insert(0, SuggestedFix::EnableMod { mod_id: similar.id.clone() });
@@ -1947,7 +2340,26 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
                 c.contains("blocked build") || c.starts_with("Created the Build 42 layout") || c.starts_with("This mod only had files for build") || c.starts_with("Fixed an invalid version value") || c.starts_with("Nothing needed changing")
             });
             let original_loads = only_for_loading && catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local && matches!(o.loadability, Loadability::Loadable));
-            if original_loads {
+            // The author of the original renamed its id since the copy was made: no Workshop mod
+            // has this id now, its item has another. The copy keeps the version from before.
+            let renamed = (!catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local))
+                .then(|| catalog.known_workshop.get(&m.id))
+                .flatten()
+                .and_then(|item| catalog.mods.iter().find(|o| o.id != m.id && o.shadowed_by.is_none() && matches!(&o.source, ModSource::Workshop { workshop_id } if workshop_id == item)));
+            if let Some(now) = renamed {
+                let loads = matches!(now.loadability, Loadability::Loadable);
+                let version = now.info.mod_version.clone().unwrap_or_default();
+                let fixes = if loads {
+                    vec![SuggestedFix::ReplaceInList { entry: m.id.clone(), mod_id: now.id.clone() }]
+                } else {
+                    vec![SuggestedFix::MakeCompatibleCopy { mod_id: now.id.clone() }]
+                };
+                list.push(Severity::Warning, "compatible_copy_renamed", Some(id),
+                    format!("{} runs from a compatible copy the Studio made in Zomboid/mods of the version from before its author renamed it: the Workshop item now has {} ({}){}. Your games keep loading the old copy.",
+                        describe(m), now.id, version, if loads { format!(", which loads on build {} as it is: use it", build) } else { ", which this build does not load as it is: make a compatible copy of it".to_string() }),
+                    fixes);
+                list.with(&[("mod", &name), ("renamed", &now.id), ("version", &version), ("build", build), ("variant", if loads { "loads" } else { "needs_copy" })]);
+            } else if original_loads {
                 list.push(Severity::Warning, "compatible_copy_unneeded", Some(id),
                     format!("{} runs from a compatible copy the Studio made in Zomboid/mods, but the Workshop original now loads on build {} as it is. The copy keeps the older files running and hides the author's updates: go back to the original.",
                         describe(m), build),
@@ -1977,14 +2389,14 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             format!("{} active mods were updated since you last played: {}{}. If a save misbehaves, start with these.",
                 updated_since_play.len(), shown.join(", "), if more > 0 { format!(" and {} more", more) } else { String::new() }),
             vec![]);
-        list.with(&[("n", &updated_since_play.len().to_string()), ("mods", &shown.join(", ")), ("more", &more.to_string()), ("andMoreKey", if more > 0 { "and_more" } else { "" })]);
+        list.with(&[("n", &updated_since_play.len().to_string()), ("mods", &shown.join(", ")), ("more", &if more > 0 { more.to_string() } else { String::new() }), ("andMoreKey", if more > 0 { "and_more" } else { "" })]);
     }
 
     let mut issues = list.0;
     issues.sort_by(|a, b| a.severity.cmp(&b.severity));
     let errors = issues.iter().filter(|i| i.severity == Severity::Error).count();
     let warnings = issues.iter().filter(|i| i.severity == Severity::Warning).count();
-    HealthReport { game_version: catalog.game_version.clone(), install: None, community: None, active_count: active.len(), errors, warnings, issues }
+    HealthReport { game_version: catalog.game_version.clone(), install: None, community: None, active_count: active.len(), errors, warnings, issues, incomplete: Vec::new() }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2487,7 +2899,7 @@ name=Off Noisy
             strategy: String::new(),
             collisions: if auto { 0 } else { 1 },
         };
-        let mut report = HealthReport { game_version: None, install: None, community: None, active_count: 2, errors: 0, warnings: 0, issues: vec![] };
+        let mut report = HealthReport { game_version: None, install: None, community: None, active_count: 2, errors: 0, warnings: 0, issues: vec![], incomplete: vec![] };
         add_file_conflict_issues(
             &mut report,
             &[state("a.lua", "pending", true), state("b.lua", "pending", false), state("c.lua", "merged", true), state("d.lua", "stale", true)],
@@ -2612,5 +3024,61 @@ mod live_health_tests {
             println!("[{:?}] {} {:?}: {}", i.severity, i.code, i.mod_id, i.message.chars().take(160).collect::<String>());
         }
         println!("warnings {}, errors {}", health.report.warnings, health.report.errors);
+    }
+}
+#[cfg(test)]
+mod live_timing {
+    /// The health check on a real list, timed step by step.
+    /// PZMS_PATHS=<pz>|<workshop>|<zomboid> PZMS_ORDER=<json array file> PZMS_HEALTH_TIMING=1
+    /// cargo test --release --lib health_check_timed -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn health_check_timed() {
+        let (Ok(paths), Ok(order)) = (std::env::var("PZMS_PATHS"), std::env::var("PZMS_ORDER")) else { return };
+        let parts: Vec<&str> = paths.split('|').collect();
+        let studio = crate::vfs::StudioPaths {
+            pz_install_dir: parts[0].to_string(),
+            workshop_dir: parts[1].to_string(),
+            user_zomboid_dir: parts[2].to_string(),
+            mod_list_ini_path: String::new(),
+            carrier_workshop_id: None,
+            is_valid: true,
+        };
+        let active: Vec<String> = serde_json::from_str(&std::fs::read_to_string(order).unwrap()).unwrap();
+        for run in 1..=2 {
+            let t = std::time::Instant::now();
+            let h = super::mod_health_full(&studio, &active);
+            eprintln!("run {}: {} ms, {} issues\n", run, t.elapsed().as_millis(), h.report.issues.len());
+        }
+        // The quick check after a full one of the same mods: the slow steps' findings come from it.
+        let full = super::mod_health_full(&studio, &active);
+        let t = std::time::Instant::now();
+        let quick = super::mod_health_checked(&studio, &active, true);
+        eprintln!("quick: {} ms, {} issues (full: {})", t.elapsed().as_millis(), quick.report.issues.len(), full.report.issues.len());
+        assert!(quick.partial && !full.partial);
+        for run in 1..=2 {
+            let t = std::time::Instant::now();
+            let s = super::script_definition_issues(&studio, &active);
+            eprintln!("script conflicts {}: {} ms, {} issues", run, t.elapsed().as_millis(), s.len());
+        }
+        let key = |i: &super::HealthIssue| format!("{} {:?} {}", i.code, i.mod_id, i.message);
+        let q: std::collections::HashSet<String> = quick.report.issues.iter().map(key).collect();
+        let f: std::collections::HashSet<String> = full.report.issues.iter().map(key).collect();
+        for k in f.difference(&q) {
+            eprintln!("only in full: {}", k);
+        }
+        for k in q.difference(&f) {
+            eprintln!("only in quick: {}", k);
+        }
+        let mut counts: std::collections::BTreeMap<String, (usize, usize)> = Default::default();
+        for i in &full.report.issues {
+            counts.entry(i.code.clone()).or_default().0 += 1;
+        }
+        for i in &quick.report.issues {
+            counts.entry(i.code.clone()).or_default().1 += 1;
+        }
+        for (code, (a, b)) in counts.iter().filter(|(_, (a, b))| a != b) {
+            eprintln!("count {}: full {} quick {}", code, a, b);
+        }
     }
 }

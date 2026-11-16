@@ -1,12 +1,60 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as rawInvoke, InvokeArgs, InvokeOptions } from '@tauri-apps/api/core';
 import { cached, clearRemoteCache, prefetch } from './cache';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
-import { MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport } from '../types';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus } from '../types';
+import { MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod } from '../types';
+
+/** A process holding a file Windows would not let the Studio touch. */
+export interface FileHolder {
+  pid: number;
+  exe: string;
+  /** "server" (a Project Zomboid server), "game" or "other". */
+  role: string;
+  /** A server's name; "2" for player 2's game of a multiplayer test. */
+  label: string;
+}
+
+const ACCESS_DENIED = /Access is denied|os error 5\b|os error 32\b|being used by another process/i;
+/** The line added to such an error: readable where an error is shown as it came. */
+const HELD_BY = /\n\(open in: [^\n]*\)$/;
+/** The holders of each such error text, for `explainError` to say them in the player's language. */
+const HOLDERS = new Map<string, FileHolder[]>();
+
+/**
+ * Every backend call. When Windows refused a file (open in another program), the error comes back
+ * with who holds it, so the message can name the program instead of guessing it is the game.
+ */
+async function invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
+  try {
+    return await rawInvoke<T>(cmd, args, options);
+  } catch (err) {
+    const text = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err ?? '');
+    if (cmd === 'who_holds_cmd' || !ACCESS_DENIED.test(text) || HELD_BY.test(text)) throw err;
+    let holders: FileHolder[] = [];
+    try {
+      holders = await rawInvoke<FileHolder[]>('who_holds_cmd', { text });
+    } catch {
+      // Not knowing who holds it is no reason to lose the error itself.
+    }
+    if (holders.length === 0) throw err;
+    const said = `${text}\n(open in: ${holders.map((h) => `${h.exe}, PID ${h.pid}`).join('; ')})`;
+    if (HOLDERS.size > 50) HOLDERS.clear();
+    HOLDERS.set(said.replace(/^Error:\s*/i, '').trim(), holders);
+    throw said;
+  }
+}
+
+/** How a holder is said: the game, a server by name, or the program's own name. */
+const holderName = (h: FileHolder): string =>
+  h.role === 'server'
+    ? i18next.t('backend.holder.server', { name: h.label || h.exe })
+    : h.role === 'game'
+      ? h.label === '2' ? i18next.t('backend.holder.game2') : i18next.t('backend.holder.game')
+      : i18next.t('backend.holder.other', { exe: h.exe, pid: h.pid });
 
 export interface LuaSyntaxResult {
   is_valid: boolean;
@@ -200,7 +248,14 @@ export function backendSays(text: string): string {
  * into something a person can act on, and leaves anything else as it came.
  */
 export function explainError(err: unknown): string {
-  const raw = String(err ?? '').replace(/^Error:\s*/i, '').trim();
+  const full = String(err ?? '').replace(/^Error:\s*/i, '').trim();
+  // Who holds the file, when Windows refused it: named instead of guessed.
+  const holders = HOLDERS.get(full);
+  if (holders && holders.length > 0) {
+    const names = [...new Set(holders.map(holderName))];
+    return i18next.t('backend.explain.accessDeniedBy', { who: names.join(', ') });
+  }
+  const raw = full.replace(HELD_BY, '').trim();
   const said = backendSays(raw);
   if (said !== raw) return said;
   const known: [RegExp, string][] = [
@@ -362,6 +417,7 @@ export const TauriService = {
         mod_changes: c.mod_changes ?? [],
         collisions: c.collisions ?? [],
         strategy: c.strategy ?? '',
+        auto_mergeable: c.auto_mergeable ?? false,
       }));
     } catch (err) {
       console.warn('Scan conflicts error:', err);
@@ -411,8 +467,23 @@ export const TauriService = {
    * Read-only health check of the active load order (game rules: build, dependencies, order,
    * incompatibilities). Throws on backend failure so callers can show it.
    */
-  getModHealth: async (paths: StudioPathsUI, active: string[]): Promise<ModHealth> => {
-    return await invoke<ModHealth>('get_mod_health_cmd', { paths, active });
+  getModHealth: async (paths: StudioPathsUI, active: string[], quick = false): Promise<ModHealth> => {
+    // quick: in well under a second, the slow file-reading findings taken from the last full check.
+    return await invoke<ModHealth>('get_mod_health_cmd', { paths, active, quick });
+  },
+
+  /** Java mods ZombieBuddy left out of the last game or server session, with the addons that failed without them. */
+  zbExclusions: async (userZomboidDir: string, log: 'game' | 'server'): Promise<ExcludedMod[]> => {
+    try {
+      return await invoke<ExcludedMod[]>('zb_exclusions_cmd', { userZomboidDir, log });
+    } catch {
+      return [];
+    }
+  },
+
+  /** What a full check depends on, read without opening mod files: says whether checking again would find anything new. */
+  healthInputs: async (paths: StudioPathsUI, active: string[]): Promise<HealthInputs> => {
+    return await invoke<HealthInputs>("health_inputs_cmd", { paths, active });
   },
 
   /** Project Zomboid mods on Nexus Mods (public API). Throws on failure. */
@@ -486,6 +557,9 @@ export const TauriService = {
   mpTestStatus: async (paths: StudioPathsUI): Promise<MpTestStatus> => invoke<MpTestStatus>('mp_test_status_cmd', { paths }),
   /** Gets the second player's Zomboid folder ready for this server (its mods copied or linked). */
   mpTestPrepare: async (paths: StudioPathsUI, server: string): Promise<MpTestPrepareReport> => invoke<MpTestPrepareReport>('mp_test_prepare_cmd', { paths, server }),
+  /** Each mod "Get player 2 ready" copies or links, as it starts on it, and once at the end. */
+  listenMpTestPrepareProgress: async (callback: (p: MpTestPrepareProgress) => void): Promise<UnlistenFn> =>
+    listen<MpTestPrepareProgress>('mp-test-prepare-progress', (event) => callback(event.payload)),
   /** Starts the server without Steam, then the games once it has started. */
   mpTestStart: async (paths: StudioPathsUI, server: string, memoryGb: number, players: number, automation: MpAutomation, adminPassword?: string): Promise<number> =>
     invoke<number>('mp_test_start_cmd', { paths, server, memoryGb, players, automation, adminPassword: adminPassword || null }),
@@ -1602,6 +1676,11 @@ export const TauriService = {
     return await listen('sandbox-session-started', () => callback());
   },
 
+  /** A log besides the game's (the Studio server's, player 2's) was rewritten from the top: its cards are stale. */
+  listenLogSessionStarted: async (callback: (log: 'server' | 'player2') => void): Promise<UnlistenFn> => {
+    return await listen<'server' | 'player2'>('sandbox-log-session-started', (event) => callback(event.payload));
+  },
+
   listenSandboxErrorCards: async (callback: (card: TranslatedErrorCard) => void): Promise<UnlistenFn> => {
     return await listen<TranslatedErrorCard>('sandbox-error-card', (event) => {
       callback(event.payload);
@@ -1665,6 +1744,52 @@ export const TauriService = {
       return await invoke<string>('mcp_server_path_cmd');
     } catch {
       return 'pz-mcp-server.exe';
+    }
+  },
+
+  /** What the game and the Studio server take from the PC now; null when it cannot be read. */
+  gameResources: async (paths: StudioPathsUI): Promise<GameResources | null> => {
+    try {
+      return await invoke<GameResources>('resources_cmd', { paths });
+    } catch {
+      return null;
+    }
+  },
+
+  /** Photos of a profile (utils/profileSnapshot): kept, listed, read, deleted; all of them counted or cleared. */
+  profileSnapshotSave: async (paths: StudioPathsUI, profileId: string, json: string): Promise<string> => {
+    return await invoke<string>('profile_snapshot_save_cmd', { paths, profileId, json });
+  },
+  profileSnapshotList: async (paths: StudioPathsUI, profileId: string): Promise<{ file: string; taken_at: number; label: string; mods_on: number; findings: number; game_version: string | null }[]> => {
+    try {
+      return await invoke('profile_snapshot_list_cmd', { paths, profileId });
+    } catch {
+      return [];
+    }
+  },
+  profileSnapshotRead: async (paths: StudioPathsUI, profileId: string, file: string): Promise<string> => {
+    return await invoke<string>('profile_snapshot_read_cmd', { paths, profileId, file });
+  },
+  profileSnapshotDelete: async (paths: StudioPathsUI, profileId: string, file: string): Promise<void> => {
+    await invoke('profile_snapshot_delete_cmd', { paths, profileId, file });
+  },
+  profileSnapshotInfo: async (paths: StudioPathsUI): Promise<[number, number]> => {
+    try {
+      return await invoke<[number, number]>('profile_snapshot_info_cmd', { paths });
+    } catch {
+      return [0, 0];
+    }
+  },
+  profileSnapshotClear: async (paths: StudioPathsUI): Promise<number> => {
+    return await invoke<number>('profile_snapshot_clear_cmd', { paths });
+  },
+
+  /** Opens player 2's Zomboid folder in Explorer. */
+  mpTestOpenSecondDir: async (paths: StudioPathsUI): Promise<void> => {
+    try {
+      await invoke('mp_test_open_second_dir_cmd', { paths });
+    } catch (err) {
+      reportBackendError('Opening the folder', err);
     }
   },
 

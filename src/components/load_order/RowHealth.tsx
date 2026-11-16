@@ -67,6 +67,7 @@ const fixLabel = (fix: HealthFix, nameOf: (id: string) => string, rowModId?: str
     case 'dismiss_known_issue':
     case 'adopt_workshop_copy':
     case 'recopy_workshop':
+    case 'update_package':
       return t('modList.health.fix.inHealth');
   }
 };

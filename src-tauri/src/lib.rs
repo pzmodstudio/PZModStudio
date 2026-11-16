@@ -12,14 +12,18 @@ pub mod discord;
 pub mod discord_commands;
 pub mod disk_usage;
 pub mod error_report;
+pub mod file_holders;
+pub mod game_archive;
 pub mod game_memory;
 pub mod images;
 pub mod instance_manager;
 pub mod java_patches;
 pub mod zb_watermark;
+pub mod zb_exclusions;
 pub mod lists;
 pub mod load_order;
 pub mod map_cells;
+pub mod mod_cache;
 pub mod mod_changelog;
 pub mod mod_meta;
 pub mod mcp;
@@ -27,8 +31,11 @@ pub mod mod_install;
 pub mod mplint;
 pub mod nexus;
 pub mod origins;
+pub mod overrides;
 pub mod patch_generator;
 pub mod preset_manager;
+pub mod profile_snapshots;
+pub mod resources;
 pub mod rules;
 pub mod sandbox;
 pub mod save_backup;
@@ -115,8 +122,24 @@ fn scan_all_installed_mods_cmd(paths: StudioPaths) -> Vec<ModManifest> {
 /// Read-only health check of `active` (mod ids in load order) against what is installed,
 /// following the game's own rules. Returns the catalog too, so the UI can show details.
 #[tauri::command(async)]
-fn get_mod_health_cmd(paths: StudioPaths, active: Vec<String>) -> catalog::ModHealth {
-    catalog::mod_health_full(&paths, &active)
+fn get_mod_health_cmd(paths: StudioPaths, active: Vec<String>, quick: Option<bool>) -> catalog::ModHealth {
+    // quick: the order, dependency and rule findings now, the slow file-reading ones from the last full check.
+    catalog::mod_health_checked(&paths, &active, quick.unwrap_or(false))
+}
+
+/// Java mods ZombieBuddy left out of the last session of the game ("game": console.txt) or the
+/// Studio's server ("server": server-console.txt), and the addons that failed without them.
+#[tauri::command(async)]
+fn zb_exclusions_cmd(user_zomboid_dir: String, log: String) -> Vec<zb_exclusions::ExcludedMod> {
+    let Some(z) = load_order::mod_info::get_existing_user_zomboid_dirs(&user_zomboid_dir).into_iter().next() else { return Vec::new() };
+    let file = if log == "server" { "server-console.txt" } else { "console.txt" };
+    std::fs::read_to_string(z.join(file)).map(|t| zb_exclusions::analyze(&t, |_| Vec::new())).unwrap_or_default()
+}
+
+/// What a full check depends on (build, log, a stamp per active mod), read without opening mod files.
+#[tauri::command(async)]
+fn health_inputs_cmd(paths: StudioPaths, active: Vec<String>) -> catalog::HealthInputs {
+    catalog::health_inputs(&paths, &active)
 }
 
 /// Merges the given shared files automatically (only those needing no decision) and publishes
@@ -478,6 +501,56 @@ fn workshop_details_cmd(ids: Vec<String>) -> Result<Vec<workshop::WorkshopItem>,
     workshop::get_details(&ids)
 }
 
+/// The game's code kept per build (Zomboid/PZModStudio_GameArchive); `archive_now` keeps the installed build first when it is new.
+#[tauri::command(async)]
+fn game_archive_cmd(paths: StudioPaths, archive_now: bool) -> Result<game_archive::ArchiveStatus, String> {
+    game_archive::status(&paths, archive_now)
+}
+
+/// What the game and the Studio server take from the PC now (memory against their limit, CPU), for the meter.
+#[tauri::command(async)]
+fn resources_cmd(paths: StudioPaths) -> resources::Resources {
+    resources::read(&paths)
+}
+
+fn photos_dir(paths: &StudioPaths) -> Result<std::path::PathBuf, String> {
+    load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or_else(|| "Zomboid folder not found".to_string())
+}
+
+/// Keeps a photo of a profile (made by the app); returns its file name.
+#[tauri::command(async)]
+fn profile_snapshot_save_cmd(paths: StudioPaths, profile_id: String, json: String) -> Result<String, String> {
+    profile_snapshots::save(&photos_dir(&paths)?, &profile_id, &json)
+}
+
+/// A profile's photos, newest first.
+#[tauri::command(async)]
+fn profile_snapshot_list_cmd(paths: StudioPaths, profile_id: String) -> Result<Vec<profile_snapshots::SnapshotEntry>, String> {
+    profile_snapshots::list(&photos_dir(&paths)?, &profile_id)
+}
+
+#[tauri::command(async)]
+fn profile_snapshot_read_cmd(paths: StudioPaths, profile_id: String, file: String) -> Result<String, String> {
+    profile_snapshots::read(&photos_dir(&paths)?, &profile_id, &file)
+}
+
+/// Every profile's photos: (how many, bytes).
+#[tauri::command(async)]
+fn profile_snapshot_info_cmd(paths: StudioPaths) -> Result<(usize, u64), String> {
+    Ok(profile_snapshots::info(&photos_dir(&paths)?))
+}
+
+/// Deletes every profile's photos.
+#[tauri::command(async)]
+fn profile_snapshot_clear_cmd(paths: StudioPaths) -> Result<usize, String> {
+    profile_snapshots::clear_all(&photos_dir(&paths)?)
+}
+
+#[tauri::command(async)]
+fn profile_snapshot_delete_cmd(paths: StudioPaths, profile_id: String, file: String) -> Result<(), String> {
+    profile_snapshots::delete(&photos_dir(&paths)?, &profile_id, &file)
+}
+
 /// Looks up pasted Workshop links / ids / a collection link.
 #[tauri::command(async)]
 fn workshop_lookup_cmd(input: String) -> Result<workshop::WorkshopLookup, String> {
@@ -575,12 +648,22 @@ fn mp_test_status_cmd(paths: StudioPaths) -> Result<server_manager::mp_test::MpS
     Ok(server_manager::mp_test::status(&primary, std::path::Path::new(&vfs::trusted_install_dir())))
 }
 
-/// Gets the second player's Zomboid folder ready for this server (its mods copied or linked).
+/// The processes holding the files an error names (for "Windows would not allow that": who has
+/// the file open). Read-only.
 #[tauri::command(async)]
-fn mp_test_prepare_cmd(paths: StudioPaths, server: String) -> Result<server_manager::mp_test::PrepareReport, String> {
+fn who_holds_cmd(text: String) -> Vec<file_holders::FileHolder> {
+    file_holders::holders_in_text(&text)
+}
+
+/// Gets the second player's Zomboid folder ready for this server (its mods copied or linked).
+/// Runs off the main thread (`async`), so each mod's progress event reaches the app while it copies.
+#[tauri::command(async)]
+fn mp_test_prepare_cmd<R: tauri::Runtime>(app_handle: tauri::AppHandle<R>, paths: StudioPaths, server: String) -> Result<server_manager::mp_test::PrepareReport, String> {
     let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
     let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
-    server_manager::mp_test::prepare_second(&catalog, &primary, &server)
+    server_manager::mp_test::prepare_second_with(&catalog, &primary, &server, &mut |p| {
+        let _ = tauri::Emitter::emit(&app_handle, server_manager::mp_test::PREPARE_PROGRESS_EVENT, &p);
+    })
 }
 
 /// Starts the test: the server without Steam, then the games once it says SERVER STARTED.
@@ -601,6 +684,17 @@ fn mp_test_start_cmd(paths: StudioPaths, server: String, memory_gb: Option<u32>,
 
 /// Opens the Zomboid folder or the log of one process of the test (by PID), or the second
 /// player's folder (pid 0): only paths the status itself found, never one the page names.
+/// Opens player 2's Zomboid folder (Zomboid2 beside the player's), made by the Studio: never a path the page names.
+#[tauri::command(async)]
+fn mp_test_open_second_dir_cmd(paths: StudioPaths) -> Result<(), String> {
+    let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
+    let dir = server_manager::mp_test::second_dir(&primary);
+    if !dir.is_dir() {
+        return Err(format!("{} does not exist yet: \"Prepare player 2\" makes it.", dir.display()));
+    }
+    open::that(&dir).map_err(|e| format!("Could not open {}: {}", dir.display(), e))
+}
+
 #[tauri::command(async)]
 fn mp_test_open_cmd(paths: StudioPaths, pid: u32, log: bool) -> Result<(), String> {
     let primary = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("Zomboid folder not found")?;
@@ -2018,8 +2112,12 @@ pub fn run() {
                 let _ = tauri::Emitter::emit(&handle, diagnostics::PANIC_EVENT, text);
             });
             diagnostics::log("INFO", &format!("PZ Mod Studio {} started", env!("CARGO_PKG_VERSION")));
+            // The installed build's Lua and scripts, kept once per build (for what a game update changes).
+            game_archive::archive_in_background();
             // Follow console.txt from the start: the game is often launched from Steam.
             sandbox::watch_console_log(app.handle().clone());
+            // The Studio server's and player 2's logs make cards too, marked with their log.
+            sandbox::watch_other_logs(app.handle().clone());
             // What the game's Mods screen changes comes back to the active profile.
             studio_link::watch_mod_list(app.handle().clone());
             // The hosted server's news to its Discord channel, when the player set one.
@@ -2045,6 +2143,15 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            profile_snapshot_save_cmd,
+            profile_snapshot_list_cmd,
+            profile_snapshot_read_cmd,
+            profile_snapshot_delete_cmd,
+            profile_snapshot_info_cmd,
+            profile_snapshot_clear_cmd,
+            resources_cmd,
+            mp_test_open_second_dir_cmd,
+            game_archive_cmd,
             get_auto_paths,
             set_and_validate_paths,
             scan_conflicts_cmd,
@@ -2054,6 +2161,8 @@ pub fn run() {
             write_mod_list_ini_cmd,
             scan_all_installed_mods_cmd,
             get_mod_health_cmd,
+            health_inputs_cmd,
+            zb_exclusions_cmd,
             auto_merge_conflicts_cmd,
             sort_load_order_cmd,
             list_load_rules_cmd,
@@ -2075,6 +2184,7 @@ pub fn run() {
             adopt_workshop_copy_cmd,
             mp_test_status_cmd,
             mp_test_prepare_cmd,
+            who_holds_cmd,
             mp_test_start_cmd,
             mp_test_stop_cmd,
             mp_test_open_cmd,
@@ -2320,7 +2430,7 @@ mod fixture_dump {
         let dump = serde_json::json!({
             "paths": paths,
             "scan_all_installed_mods_cmd": super::scan_all_installed_mods_cmd(paths.clone()),
-            "get_mod_health_cmd": super::get_mod_health_cmd(paths.clone(), active.clone()),
+            "get_mod_health_cmd": super::get_mod_health_cmd(paths.clone(), active.clone(), None),
             "scan_conflicts_cmd": super::scan_conflicts_cmd(paths.clone(), None),
             "scan_conflicts_for_package": super::scan_conflicts_cmd(paths.clone(), Some("Z_PZModStudio_MergedPatch".to_string())),
             "list_merged_packages_cmd": super::list_merged_packages_cmd(paths.user_zomboid_dir.clone(), paths.mod_list_ini_path.clone()),

@@ -13,7 +13,7 @@ interface SubscribeRequirementsProps {
   /** Subscribe to what was asked for plus these. */
   onSubscribe: (extra: string[]) => void;
   /** Read the chain again (some pages could not be read). */
-  onRetry: () => void;
+  onRetry: () => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -25,6 +25,15 @@ interface SubscribeRequirementsProps {
 export const SubscribeRequirements: React.FC<SubscribeRequirementsProps> = ({ titles, chain, installed, onSubscribe, onRetry, onCancel }) => {
   const missing = useMemo(() => chain.items.filter((n) => n.found && !installed.has(n.workshop_id)), [chain, installed]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(missing.map((n) => n.workshop_id)));
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setRetrying(false);
+    }
+  };
   const size = missing.filter((n) => picked.has(n.workshop_id)).reduce((a, n) => a + n.file_size, 0);
   const toggle = (id: string) =>
     setPicked((prev) => {
@@ -41,8 +50,8 @@ export const SubscribeRequirements: React.FC<SubscribeRequirementsProps> = ({ ti
       <div role="dialog" aria-modal="true" aria-label={i18next.t('browse.requirements.title', { name })} className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2"><PackagePlus className="w-4 h-4 text-sky-400" />{i18next.t('browse.requirements.title', { name })}</h3>
-            <p className="text-[11px] text-slate-400 mt-1">{i18next.t('browse.requirements.blurb')}</p>
+            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2"><PackagePlus className="w-4 h-4 text-sky-400" />{i18next.t(missing.length > 0 ? 'browse.requirements.title' : 'browse.requirements.titleChecking', { name })}</h3>
+            <p className="text-[11px] text-slate-400 mt-1">{i18next.t(missing.length > 0 ? 'browse.requirements.blurb' : 'browse.requirements.blurbNothing')}</p>
           </div>
           <button type="button" onClick={onCancel} className="text-slate-500 hover:text-slate-300 p-1 cursor-pointer" aria-label={i18next.t('preview.cancel')}>
             <X className="w-4 h-4" />
@@ -83,8 +92,8 @@ export const SubscribeRequirements: React.FC<SubscribeRequirementsProps> = ({ ti
             <TriangleAlert className="w-3.5 h-3.5 shrink-0" />
             <span className="flex-1">{chain.unread.length > 0 ? i18next.t('browse.requirements.unread', { count: chain.unread.length }) : i18next.t('browse.requirements.cutShort')}</span>
             {chain.unread.length > 0 && (
-              <button type="button" onClick={onRetry} className="flex items-center gap-1 px-2 py-1 rounded border border-amber-700/60 hover:bg-amber-900/40 cursor-pointer">
-                <RefreshCw className="w-3 h-3" />{i18next.t('browse.requirements.retry')}
+              <button type="button" onClick={() => void retry()} disabled={retrying} className="flex items-center gap-1 px-2 py-1 rounded border border-amber-700/60 hover:bg-amber-900/40 cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+                <RefreshCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} />{retrying ? i18next.t('browse.requirements.retrying', { count: chain.unread.length }) : i18next.t('browse.requirements.retry')}
               </button>
             )}
           </div>
@@ -92,13 +101,16 @@ export const SubscribeRequirements: React.FC<SubscribeRequirementsProps> = ({ ti
 
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
           <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded-md text-xs text-slate-300 hover:bg-slate-800 cursor-pointer">{i18next.t('preview.cancel')}</button>
-          <button type="button" onClick={() => onSubscribe([])} className="px-3 py-1.5 rounded-md border border-slate-700 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer">
-            {i18next.t('browse.requirements.onlyThis', { name })}
-          </button>
+          {/* Without the requirements is a choice only when there are some to leave out. */}
+          {picked.size > 0 && (
+            <button type="button" onClick={() => onSubscribe([])} className="px-3 py-1.5 rounded-md border border-slate-700 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer">
+              {i18next.t('browse.requirements.onlyThis', { name })}
+            </button>
+          )}
           <button type="button" onClick={() => onSubscribe([...picked])} autoFocus className="px-3 py-1.5 rounded-md bg-emerald-700/80 hover:bg-emerald-600 text-xs font-semibold text-emerald-50 cursor-pointer">
             {picked.size > 0
-              ? i18next.t('browse.requirements.subscribeAll', { count: titles.length + picked.size, size: size > 0 ? `(${formatBytes(size)})` : '' }).trim()
-              : i18next.t('browse.requirements.subscribeAsked', { count: titles.length })}
+              ? i18next.t('browse.requirements.subscribeAll', { name, count: picked.size, size: size > 0 ? `(${formatBytes(size)})` : '' }).trim()
+              : i18next.t('browse.requirements.subscribeAsked', { name })}
           </button>
         </div>
       </div>

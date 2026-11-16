@@ -45,6 +45,8 @@ export interface VfsConflict {
   collisions?: CollisionRegion[];
   /** How the merged output was built, in plain words. */
   strategy?: string;
+  /** The merge needs no decision (different lines, a list that adds up); false: someone must choose. */
+  auto_mergeable?: boolean;
 }
 
 export interface ChangeRegion {
@@ -379,6 +381,10 @@ export type GameLaunchMode =
 
 export interface TranslatedErrorCard {
   id: string;
+  /** The log it came from: left out for the game's own console.txt. */
+  log?: 'server' | 'player2';
+  /** The server's name, for a card from its log. */
+  log_name?: string;
   raw_error: string;
   source_file?: string;
   line_number?: number;
@@ -711,6 +717,10 @@ export interface UpdatedItem {
   /** "later", "busy", or what went wrong reading the notes. */
   notes_error: string | null;
   risks: { code: string; level: 'breaks' | 'read'; detail: string }[];
+  /** Ids the list still names that this item no longer has: renamed by its author in an update. */
+  renamed_in_list?: string[];
+  /** The old id still loads, from a copy in Zomboid/mods (the version from before the rename). */
+  renamed_copy?: boolean;
   /** The profiles that have one of its mods on; `current` is the one on now. */
   profiles: { name: string; current: boolean }[];
   /** The entries of the mod's own changelog not read yet, newest first. */
@@ -1249,7 +1259,8 @@ export type HealthFix =
   | { action: 'remove_from_package'; relative_path: string; package: string }
   | { action: 'dismiss_known_issue'; mod_id: string; title: string }
   | { action: 'adopt_workshop_copy'; folder: string }
-  | { action: 'recopy_workshop'; mod_id: string };
+  | { action: 'recopy_workshop'; mod_id: string }
+  | { action: 'update_package'; package: string };
 
 /** Texts in the app's language, in the order they were sent. */
 export interface Translation {
@@ -1470,6 +1481,10 @@ export interface HealthReport {
   errors: number;
   warnings: number;
   issues: HealthIssue[];
+  /** Parts of the check still being read behind ("api_lint"): their findings come with a later check. */
+  incomplete?: string[];
+  /** A quick check's report (the slow parts borrowed from the last full one): the full one follows. */
+  partial?: boolean;
 }
 
 export interface WorkshopInstallState {
@@ -1478,6 +1493,22 @@ export interface WorkshopInstallState {
   size: number | null;
   update_pending: boolean;
   updated_since_last_play: boolean;
+}
+
+/** A Java mod ZombieBuddy left out of a session, and the addons that failed without it. */
+export interface ExcludedMod {
+  mod_id: string;
+  kind: 'signature' | 'other';
+  reason: string;
+  addons: string[];
+  fatal: boolean;
+}
+
+/** What a full check depends on: the game's build, when its log was written, a stamp per active mod. */
+export interface HealthInputs {
+  build: string | null;
+  log_written: number | null;
+  mods: Record<string, string>;
 }
 
 export interface CatalogModSummary {
@@ -1813,6 +1844,8 @@ export interface BisectSession {
 export interface ModHealth {
   catalog: { game_version: string | null; mods: CatalogModSummary[] };
   report: HealthReport;
+  /** The quick check: file conflicts, security and the build check come from the last full check; a full one follows. */
+  partial?: boolean;
 }
 
 /** One process of the multiplayer test on this PC (the server, or a game). */
@@ -1868,10 +1901,24 @@ export interface MpTestStatus {
   game_heap_mb: number | null;
 }
 
+/** Where getting player 2 ready is: `done` of `total` mods copied or linked, `name` the one being copied (empty at the end). */
+export interface MpTestPrepareProgress {
+  done: number;
+  total: number;
+  name: string;
+}
+
 export interface MpTestPrepareReport {
   second_dir: string;
   copied: string[];
   linked: string[];
   kept: string[];
   missing: string[];
+}
+
+/** What the game and the Studio's server take from the PC now (resources::Resources). */
+export interface GameResources {
+  pc_total_mb: number;
+  pc_free_mb: number;
+  processes: { pid: number; kind: 'game' | 'server'; ram_mb: number; ram_max_mb: number | null; cpu_percent: number | null }[];
 }

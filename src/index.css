@@ -30,6 +30,20 @@
   }
 }
 
+/* A bar that says "working" without knowing how much is left: a stripe running across. */
+@keyframes pzms-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.animate-indeterminate {
+  animation: pzms-indeterminate 1.3s ease-in-out infinite;
+}
+
 /* Modals and panels say they fade in: here is the animation they were asking for. */
 @keyframes pzms-fade-in {
   from {

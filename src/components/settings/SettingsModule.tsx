@@ -171,6 +171,20 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
       setDeeplError(String(err));
     }
   };
+  /** Every profile's photos (Mod Health), counted and cleared like the cache. */
+  const [photos, setPhotos] = useState<[number, number]>([0, 0]);
+  useEffect(() => {
+    void TauriService.profileSnapshotInfo(paths).then(setPhotos);
+  }, [paths]);
+  const clearPhotos = async () => {
+    if (!confirm(t('settings.photos.clearConfirm', { count: photos[0] }))) return;
+    try {
+      await TauriService.profileSnapshotClear(paths);
+      setPhotos([0, 0]);
+    } catch (err) {
+      setDeeplError(String(err));
+    }
+  };
   const removeDeeplKey = async () => {
     if (!confirm(t('settings.translate.removeConfirm'))) return;
     try {
@@ -929,6 +943,15 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
                 <button type="button" onClick={() => void clearTranslationCache()}
                   className="px-2.5 py-1 rounded-lg text-[11px] text-slate-300 hover:text-red-300 border border-slate-800 hover:border-red-900 cursor-pointer transition">
                   {t('settings.translate.clear')}
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+              <span>{t('settings.photos.kept', { count: photos[0], size: formatKb(photos[1]) })}</span>
+              {photos[0] > 0 && (
+                <button type="button" onClick={() => void clearPhotos()}
+                  className="px-2.5 py-1 rounded-lg text-[11px] text-slate-300 hover:text-red-300 border border-slate-800 hover:border-red-900 cursor-pointer transition">
+                  {t('settings.photos.clear')}
                 </button>
               )}
             </div>

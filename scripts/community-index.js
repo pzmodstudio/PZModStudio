@@ -81,6 +81,11 @@ function problemsOf(registry, fileName, patches, reportDir) {
     if (!str(registry.successor.id)) p.push('successor: id is missing');
     if (registry.successor.workshop_id !== undefined && !/^\d+$/.test(registry.successor.workshop_id)) p.push('successor: workshop_id must be a number');
   }
+  if (registry.unneeded !== undefined) {
+    // No longer needed from a build: the game does it, or the mod named in `by`.
+    if (!/^d+.d+/.test(registry.unneeded.since ?? '')) p.push('unneeded: since must be a build like 42.22');
+    if (registry.unneeded.by !== undefined && !str(registry.unneeded.by)) p.push('unneeded: by is a mod id');
+  }
   const issues = registry.issues ?? [];
   if (!Array.isArray(issues)) p.push('issues must be a list');
   else issues.forEach((issue, i) => {

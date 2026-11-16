@@ -99,13 +99,18 @@
     }
   },
   "settings": {
+    "photos": {
+      "kept": "Profile photos kept: {{count}} ({{size}})",
+      "clear": "Delete photos",
+      "clearConfirm": "Delete the {{count}} profile photos? This cannot be undone."
+    },
     "language": {
       "title": "Language",
       "blurb": "The language the Studio speaks. English is the source; a language that misses a line shows it in English. The game's own messages (errors, warnings, the Monitor's log lines) stay as the game writes them.",
       "contribute": "Another language is one file: src/locales/<code>.json in the Studio's repository, proposed like anything else there."
     },
     "title": "Settings",
-    "blurb": "Where your game and mods live, which warnings you see, and what the Build 42 shim covers.",
+    "blurb": "Where your game and mods live, which warnings you see, and what the Build 42 compatibility patch covers.",
     "tabPaths": "Directory Paths",
     "tabShim": "Build 42 fixes",
     "tabMcp": "MCP Agent Server",
@@ -179,17 +184,17 @@
     },
     "developer": "Developer features",
     "developerBlurb": "Shows the Developer screen, the multiplayer test in Servers, the MCP agent server, which lets an AI assistant drive the Studio, and the companion mod that runs commands inside the game. Nothing a player needs; leave it off unless you are building with it.",
-    "shimTitle": "Build 42 compatibility shim",
-    "shimBlurb": "Many Build 41 mods call things Build 42 renamed or removed, and crash. The Studio ships one shim that patches those calls at runtime, and writes it into every merge package you build. Parts 1 to 6 are all or nothing: they guard the game's own code and need nothing from you beyond a merge package being active. Part 7 patches particular mods, and each of those has a switch below.",
+    "shimTitle": "Build 42 compatibility patch",
+    "shimBlurb": "Many Build 41 mods call things Build 42 renamed or removed, and crash. The Studio ships one shim that patches those calls at runtime, and writes it into every patch package you build. Parts 1 to 6 are all or nothing: they guard the game's own code and need nothing from you beyond a patch package being active. Part 7 patches particular mods, and each of those has a switch below.",
     "whatItCovers": "What it covers",
-    "readFromShim": "read from the shim itself",
+    "readFromShim": "read from the compatibility patch itself",
     "linesOfLua": " · {{count}} lines of Lua",
     "partLines": "part {{number}} · {{lines}} lines",
-    "shimUnreadable": "The shim could not be read from this build of the Studio.",
+    "shimUnreadable": "The compatibility patch could not be read from this build of the Studio.",
     "perModPatches": "Per-mod patches (part 7)",
-    "perModNote": "each runs only while its mod is active; off = the shim leaves that mod alone",
-    "patchOnTitle": "On: the shim patches this mod while it is active. Click to switch it off.",
-    "patchOffTitle": "Off: the shim leaves this mod alone. Click to switch it on.",
+    "perModNote": "each runs only while its mod is active; off = the compatibility patch leaves that mod alone",
+    "patchOnTitle": "On: the compatibility patch fixes this mod while it is active. Click to switch it off.",
+    "patchOffTitle": "Off: the compatibility patch leaves this mod alone. Click to switch it on.",
     "on": "ON",
     "off": "OFF",
     "patchWritten": "{{label}} is {{state}}. Written into {{count}} package(s); the game reads it on its next launch.",
@@ -595,6 +600,8 @@
         "security_lua": "Unusual Lua calls",
         "compatible_copy": "Compatible copy",
         "compatible_copy_unneeded": "Compatible copy no longer needed",
+        "community_unneeded": "No longer needed",
+        "function_overridden": "Cuts another mod off",
         "workshop_update_pending": "Update waiting",
         "updated_since_last_play": "Updated since you last played",
         "script_definition_conflict": "Same definition as another mod",
@@ -611,6 +618,9 @@
         "two_mod_managers": "Two mod managers",
         "floods_console": "Fills the console",
         "workshop_copy_by_hand": "Copy made by hand",
+        "compatible_copy_renamed": "Copy from before the id change",
+        "zb_excluded": "Left out by ZombieBuddy",
+      "workshop_copy_renamed": "Copy from before the id change",
         "workshop_copy_stale": "Copy out of date",
         "workshop_copy_kept": "Copy for a server",
         "api_missing": "Calls things this build lacks"
@@ -626,12 +636,12 @@
         "openMerger": "Open in the Merger",
         "removeFromPackage": "Take out of the package",
         "keepVersion": "Keep this version",
-        "shimOn": "Switch the shim patch on",
+        "shimOn": "Switch the compatibility fix on",
         "inHealth": "Fix in Mod Health",
         "replace": "Use {{name}}"
       },
       "kept": "{{name}} as it is today is kept ({{when}}). Right-click the row for its kept versions.",
-      "shimOn": "The shim's patch {{name}} is on, written into {{count}} package(s); the game reads it on its next launch.",
+      "shimOn": "The compatibility fix {{name}} is on, written into {{count}} package(s); the game reads it on its next launch.",
       "confirmDisable": "Switch off {{name}}?\n\nIt stays installed, and you can switch it back on here.",
       "clickGoTo": "Click: go to {{name}}",
       "clickHealthAll": "Click: open Mod Health on this, which shows all {{count}} mods, the files and the fixes",
@@ -747,7 +757,8 @@
       "unsubscribeNeededByOn_other": "\n\n{{count}} of those are on: the game stops loading them once what they need is gone.",
       "unsubscribed": "Unsubscribed from {{count}} items. Steam deletes them in a moment.",
       "unsubscribedPartly": "Unsubscribed from {{done}} of {{count}} items. The first that failed: {{reason}}",
-      "unsubscribeFailed": "Could not unsubscribe: {{reason}}"
+      "unsubscribeFailed": "Could not unsubscribe: {{reason}}",
+      "groups": "Add {{count}} mods to a group…"
     }
   },
   "health": {
@@ -758,14 +769,128 @@
     "activeCount": "{{count}} active",
     "errorsCount": "{{count}} errors",
     "warningsCount": "{{count}} warnings",
-    "indexUpdated": " (index updated {{date}})",
-    "communityTitle": "What the Studio carries inside: {{rules}} load-order rule(s), {{pairs}} incompatible pair(s), {{mods}} mod registr(y/ies) with known issues and fixes{{updated}}. It comes with each version of the app; nothing is downloaded.",
-    "community": "the Studio's knowledge: {{rules}} rules, {{mods}} mods",
+    "indexUpdated": " (reviewed {{date}})",
+    "communityTitle": "Notes the Studio ships with about {{mods}} mod(s) with known issues and how they are fixed{{updated}}. They are inside the app and update with each version: nothing is downloaded or shared. Your own load-order rules are separate (Mod List).",
+    "community": "Studio notes: {{mods}} mods",
     "mergeAllTitle": "Merges every conflicting file that has no overlapping changes into your patch package",
     "mergeAll": "Merge {{count}} files automatically",
     "fixAllTitle": "Enables missing requirements and moves libraries before the mods that need them",
     "fixAll": "Fix {{count}} problem(s) automatically",
+    "packageUpdated": "{{name}} was rebuilt for this list.",
+    "packageUpdateFailed": "The package could not be rebuilt: open it in the Mod Merger.",
     "checkAgain": "Check again",
+    "lastCheck": {
+      "same": "Checked at {{when}}: nothing changed since.",
+      "changed": "Checked at {{when}}. Since then {{what}}: check again.",
+      "justNow": "just now",
+      "minutesAgo_one": "{{count}} min ago",
+      "minutesAgo_other": "{{count}} min ago",
+      "list": "your list changed",
+      "updated_one": "{{count}} mod was updated",
+      "updated_other": "{{count}} mods were updated",
+      "build": "the game was updated",
+      "played": "you played"
+    },
+    "checking": {
+      "button": "Checking…",
+      "quick": "Checking the order and the dependencies…",
+      "full": "Reading every mod's files: a few seconds on a long list. What you see updates by itself when it ends.",
+      "scripts": "Almost done: looking for what two mods declare at once…",
+      "short": {
+        "quick": "Checking the order…",
+        "full": "Reading each mod's files…",
+        "scripts": "Almost done…"
+      },
+      "done": "Check finished: what you see is up to date."
+    },
+    "pendingFix": "Done · checking…",
+    "audit": {
+      "intro": "Your list mod by mod, each with a verdict from what Mod Health found. Click a mod to see why, and Go to reach the finding.",
+      "reasons_one": "1 reason",
+      "reasons_other": "{{count}} reasons",
+      "broken": {
+        "title_one": "Broken: 1 mod",
+        "title_other": "Broken: {{count}} mods",
+        "what": "does not load, or lacks what it needs to"
+      },
+      "choose": {
+        "title_one": "Choose: 1 mod",
+        "title_other": "Choose: {{count}} mods",
+        "what": "clashes with another and one of the two is cut off: keep one"
+      },
+      "unneeded": {
+        "title_one": "Unneeded: 1 mod",
+        "title_other": "Unneeded: {{count}} mods",
+        "what": "the game or another mod you have does it already"
+      },
+      "check": {
+        "title_one": "Check: 1 mod",
+        "title_other": "Check: {{count}} mods",
+        "what": "only suspicions (code that may fail): try it in the game"
+      },
+      "keep": {
+        "title_one": "Keep: 1 mod",
+        "title_other": "Keep: {{count}} mods",
+        "what": "nothing found"
+      }
+    },
+    "certainty": {
+      "seen": {
+        "word": "Seen in the log",
+        "title": "The game wrote it in its log this session (or the Studio verified it in the game): it really happens."
+      },
+      "rule": {
+        "word": "Game rule",
+        "title": "It follows from the game's rules and the files (mod.info, folders, order): the game will do this."
+      },
+      "suspicion": {
+        "word": "Suspicion",
+        "title": "Read from the mods' code or others' reports: it may be right and still not happen. Worth trying in the game."
+      }
+    },
+    "variants": {
+      "line_one": "1 mod is an alternative of a Workshop item switched on beside another it does not go with (their mods say so), in {{items}} item(s).",
+      "line_other": "{{count}} mods are alternatives of Workshop items switched on beside others they do not go with (their mods say so), in {{items}} item(s).",
+      "button": "Keep one of each",
+      "confirm": "{{count}} mods go off: of each item one alternative stays on (the first that loads on your build). They stay in the profile, off, in case you prefer another.\n\n{{list}}",
+      "done_one": "1 alternative switched off.",
+      "done_other": "{{count}} alternatives switched off."
+    },
+    "list": {
+      "checking": "Checking:",
+      "profile": "My profile \"{{name}}\"",
+      "server": "Server {{name}}",
+      "serverNote": "This is server \"{{name}}\"'s list ({{count}} mods from its Mods=), the one the server and every game joined to it load. Fixes to files (compatible copy, patch package) count here too; which mods go and in what order is changed in Servers, so those buttons are not shown.",
+      "same": "It is the same list as your profile \"{{profileName}}\".",
+      "differs": "It is not the same list as your profile \"{{profileName}}\": {{onlyProfile}} mods only in your profile, {{onlyServer}} only on the server.",
+      "onlyServer": "Only on the server: {{names}}",
+      "onlyProfile": "Only in your profile: {{names}}",
+      "writeProfile": "Write my profile's list into this server",
+      "writeConfirm": "Replace server \"{{name}}\"'s list ({{server}} mods) with your profile \"{{profileName}}\" ({{profile}} mods)?\n\nIts .ini Mods=, WorkshopItems= and Map= change; a copy is kept first. It counts from the server's next start.",
+      "takeOff": "Take it off the server's list",
+      "takeOffConfirm": "Take {{mod}} off server \"{{name}}\"'s list?\n\nIts .ini (Mods=, WorkshopItems=, Map=) is rewritten, with a copy first. It counts from the server's next start.",
+      "takenOff": "{{mod}} is off the server's list.",
+      "written": "Server \"{{name}}\"'s list written: {{count}} mods (from its next start)."
+    },
+    "verdict": {
+      "act_one": "1 thing breaks something: fix it before playing",
+      "act_other": "{{count}} things break something: fix them before playing",
+      "recommended_one": "Your list starts. 1 thing is worth doing",
+      "recommended_other": "Your list starts. {{count}} things are worth doing",
+      "ok": "Your list is in order: nothing to do",
+      "countAct_one": "1 to fix",
+      "countAct_other": "{{count}} to fix",
+      "countRecommended_one": "1 recommended",
+      "countRecommended_other": "{{count}} recommended",
+      "countInfo_one": "1 to know",
+      "countInfo_other": "{{count}} to know",
+      "countHandled_one": "1 the Studio already fixed",
+      "countHandled_other": "{{count}} the Studio already fixed",
+      "nothingFound": "The check found nothing",
+      "incomplete": "One part is still coming: each mod's calls into the game are being read in the background (slow disk or long list). Their findings show up by themselves in a few seconds.",
+      "next": "First:",
+      "go": "Go"
+    },
     "makingCopy": "Making a compatible copy...",
     "merging": "Merging conflicting files...",
     "mergedInto": "{{count}} file(s) merged into {{package}}",
@@ -803,19 +928,23 @@
       "removeCopy": "Back to the original",
       "mergeAuto": "Merge automatically",
       "openMerger": "Open in Merger",
-      "shimOn": "Switch the shim's {{name}} patch on",
+      "shimOn": "Switch the compatibility fix {{name}} on",
       "removeCopyTitle": "Optional. Removes the compatible copy so the game uses the Workshop original again: for when its author has updated it for Build 42.",
       "removeFromPackage": "Take out of the package",
       "replace": "Use {{id}} instead of {{entry}}",
+      "replaceNamed": "Use {{name}}",
+      "offWithUsers_one": "Switch off {{name}} and {{count}} mod that uses it",
+      "offWithUsers_other": "Switch off {{name}} and {{count}} mods that use it",
       "dismissKnown": "No longer happens",
       "adoptCopy": "Let the Studio keep it",
       "recopy": "Copy it again",
+      "updatePackage": "Update the package for this list",
       "useStudioScreen": "Use PZ Mod Studio's screen"
     },
     "freshCopy": "{{mod}} already has a compatible copy. Make a fresh one? The current copy is moved to Zomboid/PZModStudio_Backups/mods.",
     "removeFromPackageConfirm": "Take {{file}} out of {{package}}?\n\nThe package is published again without it, and the game reads the mod's own file on its next launch. If you edited the copy, those edits go.",
     "removeCopyConfirm": "Remove the compatible copy of {{folder}}? The game goes back to the original (which your build may not load). The copy is moved to Zomboid/PZModStudio_Backups/mods.",
-    "shimOnDone": "The shim's patch {{name}} is on, written into {{count}} package(s); the game reads it on its next launch.",
+    "shimOnDone": "The compatibility fix {{name}} is on, written into {{count}} package(s); the game reads it on its next launch.",
     "keptDone": "{{name}} as it is today is kept ({{when}}). If the update breaks a save: Mod List, right-click, Kept versions.",
     "confirmDisable": "Switch off {{name}}?\n\nIt stays installed, and you can switch it back on in the Mod List.",
     "nowUsesVersion": "The game will now use {{anchor}}'s version: {{moved}} loads before it.",
@@ -830,6 +959,7 @@
     "confirmFixAll": "This will {{what}}.\n\nNothing is switched off, and the Mod List can undo it.",
     "and": " and ",
     "tabs": {
+      "audit": "Audit",
       "problems": "What to do now",
       "conflicts": "Conflicts",
       "info": "Good to know",
@@ -893,9 +1023,9 @@
       "replace_in_list": "Replaces that line of your list with the right mod.",
       "subscribe_workshop": "Opens the Workshop so you can subscribe. Nothing changes on your PC.",
       "open_workshop_page": "Opens the mod's Workshop page. Nothing changes on your PC.",
-      "make_compatible_copy": "Makes a copy adapted to your build in Zomboid/mods; the game uses it instead of the Workshop one. An older copy goes to the backups.",
+      "make_compatible_copy": "The Workshop original is not touched. A copy of your own is made, fixed for your build (in Zomboid/mods), and the game uses it instead. If the author updates it, Mod Health tells you so you can go back to the original.",
       "keep_version": "Keeps a copy of the mod as it is today, in case an update breaks your save. What the game loads does not change.",
-      "remove_compatible_copy": "Deletes the copy in Zomboid/mods (kept in the backups); the game uses the Workshop one again.",
+      "remove_compatible_copy": "Your fixed copy is taken out (kept in the backups) and the game uses the Workshop original again.",
       "merge_files": "Combines those files in the Studio's package, which loads last. The mods are not touched.",
       "open_in_merger": "Opens the Merger so you choose by hand what stays.",
       "enable_shim_patch": "Switches on a Studio fix for that mod. It can be switched off in Settings.",
@@ -903,6 +1033,7 @@
       "dismiss_known_issue": "Stops showing this warning on this PC. It can be shown again.",
       "adopt_workshop_copy": "Puts the Studio's marker in the copy. No file of the mod changes; from then on the app says when the Workshop has a newer version.",
       "recopy_workshop": "Replaces the copy in Zomboid/mods with the current Workshop version. Your games and a server without Steam load the new one."
+      ,"update_package": "Rescans with your list as it is now and publishes the package: what merges by itself goes in, what waits for your choice stays out and the Merger says which."
     },
     "group": {
       "compatible_copy_unneeded": {
@@ -918,8 +1049,8 @@
         "body": "Their Workshop originals do not load on your build; these copies do. Leave them. When an author updates a mod, it shows under \"Worth doing\"."
       },
       "community_known_issue": {
-        "title_one": "{{count}} known issue, from the Studio index:",
-        "title_other": "{{count}} known issues, from the Studio index:"
+        "title_one": "{{count}} known issue, from the Studio's notes:",
+        "title_other": "{{count}} known issues, from the Studio's notes:"
       },
       "workshop_copy_by_hand": {
         "title_one": "{{count}} mod runs from a copy made by hand",
@@ -976,8 +1107,8 @@
         "title": "The mod against your game build: it happens to anyone who uses it on this build."
       },
       "combo": {
-        "word": "your combination",
-        "title": "This mod beside the others you have on: it depends on your list."
+        "word": "between your mods",
+        "title": "It comes from putting this mod together with others you have on: none is broken alone, it depends on your list."
       },
       "install": {
         "word": "your install",
@@ -1088,7 +1219,10 @@
       "deleteGroupConfirm": "Delete the group \"{{name}}\"? Its mods stay as they are.",
       "newGroupPlaceholder": "New group (Weapons, Interface…)",
       "addGroup": "Add to it",
-      "groupsBlurb": "A group left empty goes away. Groups do not change the load order."
+      "groupsBlurb": "Every change is saved at once. A group left empty goes away. Groups do not change the load order.",
+      "saved": "Saved",
+      "done": "Done",
+      "severalTitle": "{{count}} mods selected"
     }
   },
   "browse": {
@@ -1182,8 +1316,8 @@
       "collections": "Collections",
       "collectionLine": "Collection <b>{{title}}</b>: {{count}} items, ",
       "notInstalled": "{{count}} not installed",
-      "openCollection": "Open collection (Subscribe to all)",
-      "openCollectionTitle": "Opens the collection page in your browser, where Subscribe to all is",
+      "openCollection": "Show the collection",
+      "openCollectionTitle": "Opens the collection page here: its mods, \"New profile with this collection\" and its Steam page",
       "itemsNotInstalled": "{{count}} items, {{missing}} not installed",
       "searching": "Searching...",
       "results": "{{total}} {{what}}{{text}}{{category}}",
@@ -1197,6 +1331,8 @@
       "copyLink": "Copy the link",
       "copyId": "Copy the Workshop id",
       "subscribeMissing": "Subscribe to the missing ones ({{count}})",
+      "collectionToProfile": "New profile with this collection",
+      "collectionToProfileMissing": "New profile with this collection (and subscribe to the {{count}} missing)",
       "showCollection": "Show the collection",
       "tryAgain": "Try again"
     },
@@ -1331,8 +1467,8 @@
       "noItems": "This collection has no items.",
       "subscribeMissing": "Subscribe to the {{count}} missing",
       "all": "all",
-      "makeProfile": "Make a profile from this",
-      "makeProfileTitle": "Makes a profile with the mods of this collection you have installed, so you can switch your whole list to it",
+      "makeProfile": "New profile with this collection",
+      "makeProfileTitle": "Makes a profile just for this collection: what you have goes in switched on, and what is missing is subscribed to and joins it switched on as Steam downloads it. Your active profile does not change",
       "openCollectionPage": "Open page (Subscribe to all)",
       "openCollectionTitle": "Opens the collection page in your browser, where Subscribe to all is",
       "steamDownloads": "Steam downloads what you subscribe to; the mods show up here after the next refresh.",
@@ -1379,7 +1515,7 @@
       "successor": "There is a version for Build {{build}}: {{name}}",
       "doesNotGoWith": "Does not go with",
       "loadsAfter": "Loads after",
-      "shimFix": "(the Studio's shim patches it)",
+      "shimFix": "(the Studio's compatibility patches it)",
       "noFix": "(nothing to fix)",
       "studioFix": "(the Studio fixes it: compatible copy, or Fix the path in the Monitor Center)",
       "verified": "verified",
@@ -1387,22 +1523,34 @@
       "on": " on {{build}}"
     },
     "subscribePartial": "{{failed}} of {{total}} did not go through: {{reason}}",
+    "subscribeIntoActive": "These {{count}} items will join your active profile, \"{{profile}}\", switched on.\n\nIf this is a collection to play on its own, cancel and use \"New profile with this collection\" (right-click the collection, or the button on its page).\n\nAdd them to \"{{profile}}\"?",
+    "collectionNotSubscribed": "Nothing was subscribed: the window of what they also need was closed.\n\nThe profile was made. To download what is missing, press \"New profile with this collection\" again: it takes up that same profile.",
     "requirements": {
       "title": "{{name}} needs other mods",
+      "titleChecking": "Subscribe to {{name}}",
+      "blurbNothing": "Before subscribing, the app checks whether these mods need others you do not have.",
       "theseMods": "these {{count}} mods",
-      "blurb": "Its \"Required items\" on the Workshop, and what those need in turn. The ticked ones come in the same subscription, and go on with it in your profile.",
+      "blurb": "Below are the mods needed for it to work (its \"Required items\" on the Workshop). The ticked ones are downloaded together with what you chose and switched on in your profile.",
       "installed": "Already installed",
       "gone": "Not on the Workshop any more (removed or private)",
       "neededBy": "needed by {{names}}",
-      "unread": "The page of {{count}} item(s) could not be read (Steam busy?), so this list may be incomplete.",
+      "unread": "Steam did not let the page of {{count}} of them be read (it slows down when asked for many in a row), so for those it is not known whether they need anything else. You can subscribe anyway: if something is missing later, Mod Health tells you.",
       "cutShort": "The chain of requirements is very long; only its first part is listed.",
-      "retry": "Try again",
-      "onlyThis": "Only {{name}}",
-      "subscribeAll": "Subscribe to all {{count}} {{size}}",
-      "subscribeAsked": "Subscribe"
+      "retry": "Read them again",
+      "retrying": "Reading {{count}} pages at Steam's pace…",
+      "onlyThis": "Without the requirements: only {{name}}",
+      "subscribeAll": "Subscribe to {{name}} and {{count}} requirements {{size}}",
+      "subscribeAsked": "Subscribe to {{name}}"
     }
   },
   "merger": {
+    "outOfDate_one": "Your patch is out of date: 1 thing changed since you published it (a mod updated or the list changed). Updating rebuilds it for your list as it is now; what you already decided stays.",
+    "outOfDate_other": "Your patch is out of date: {{count}} things changed since you published it (mods updated or the list changed). Updating rebuilds it for your list as it is now; what you already decided stays.",
+    "updatePatch": "Update patch",
+    "updating": "Updating…",
+    "updated": "Patch updated for your list as it is now.",
+    "waiting_one": "1 file stayed out of the package because two mods change the same lines and you have not chosen yet:\n\n{{list}}\n\nMeanwhile the game uses the last loaded mod's. Open it in the Merger and choose which to keep.",
+    "waiting_other": "{{count}} files stayed out of the package because two mods change the same lines and you have not chosen yet:\n\n{{list}}\n\nMeanwhile the game uses the last loaded mod's. Open them in the Merger and choose which to keep.",
     "panels": {
       "vanilla": "Vanilla Base Game",
       "lines": "{{count}} lines",
@@ -1433,6 +1581,7 @@
       "more": "+{{count}} more"
     },
     "editor": {
+      "askFirst": "{{mods}} change the same lines of this file differently, so they cannot simply add up. Choose which one to keep (\"Only …\"); merging them is the last option. Until you choose, this file stays out of the package and the game uses the last loaded mod's.",
       "whatToRead": "What should the game read?",
       "yourOwnEdit": "Your own edit",
       "result": "Merge Result (Master Patch)",
@@ -1445,8 +1594,8 @@
       "unpackTitle": "Unpack this package to edit its merged code",
       "opening": "Opening...",
       "unmergeOpen": "🔓 Unmerge / Open to Edit",
-      "astAppliedTitle": "The automatic AST merge is already applied in this file",
-      "restoreAstTitle": "Restores the automatic merge generated by the AST engine",
+      "astAppliedTitle": "The automatic merge is already applied in this file",
+      "restoreAstTitle": "Restores the automatic merge generated by the Studio",
       "restoreAst": "Restore AST Merge",
       "unmergedTitle": "This file is already in its original unmerged state",
       "unmergeTitle": "Restores this file to its unmerged base code (removes merged state)",
@@ -1560,7 +1709,7 @@
       "imported": "✨ Package '{{name}}' loaded and imported successfully.",
       "importError": "Error importing package: {{error}}",
       "unpacked": "Package \"{{name}}\" unpacked. Ready to edit.",
-      "allMerged": "⚡ All conflicts have been merged with the AST engine! Review the code and edit if you wish.",
+      "allMerged": "⚡ All conflicts have been merged automatically! Review the code and edit if you wish.",
       "nothingChanged": "Nothing changed in \"{{path}}\": an identical copy would only freeze the file. Edit it first.",
       "filePublished": "✓ \"{{path}}\" published in the package. Relaunch the game to read it.",
       "fileSaved": "✓ \"{{path}}\" saved. Press Package & Publish to put it in the game.",
@@ -1568,12 +1717,12 @@
       "codeRemoved": "➖ Code from \"{{mod}}\" removed from editor.",
       "codeAdded": "➕ Code from \"{{mod}}\" added to editor.",
       "chosen": "{{choice}}: press Save to keep it for {{path}}.",
-      "astRestored": "Automatic AST merge restored for \"{{path}}\".",
+      "astRestored": "automatic merge restored for \"{{path}}\".",
       "publishedIn": "Package packed and successfully published in Zomboid/mods/{{folder}}.",
       "scan1": "Step 1/5: Reading active mods from load list and Workshop...",
       "scan2": "Step 2/5: Analyzing Lua and Script files of B41 and B42 mods...",
-      "scan3": "Step 3/5: Resolving VFS collisions and code differences...",
-      "scan4": "Step 4/5: Injecting real AST merges into the editor...",
+      "scan3": "Step 3/5: Resolving files that clash and code differences...",
+      "scan4": "Step 4/5: Injecting real automatic merges into the editor...",
       "scan5": "Step 5/5: Scan 100% complete!",
       "scanDone": "Scan complete! Mods analyzed and integrated successfully.",
       "unsaved": "You have edits here that are not saved. Leave them behind?",
@@ -1582,6 +1731,8 @@
       "jsonUnreadable": "The text in the editor or the mod's is not valid JSON, so their keys cannot be joined. Pick one of the versions above, or fix it in the editor."
     },
     "choices": {
+      "mergeAnyway": "Merge anyway (advanced)",
+      "mergeAnywayHelp": "Puts both mods' changes together even where they touch the same lines. Neither may then work as its author wrote it: check the result in the editor before saving.",
       "mergeThem": "Merge them",
       "keepBoth": "Keep both",
       "mergeThemHelp": "Everything the mods set differently that can hold both values keeps both; where only one value fits, what the game does today stays active and the other is left in a comment, one word away.",
@@ -1703,7 +1854,7 @@
       "Searching Nexus Mods": "Searching Nexus Mods",
       "Sorting the load order": "Sorting the load order",
       "Starting the map tool": "Starting the map tool",
-      "Switching a shim patch": "Switching a shim patch",
+      "Switching a shim patch": "Switching a compatibility patch",
       "Taking out of a list": "Taking out of a list",
       "Unpacking the merge package": "Unpacking the merge package",
       "Updating the package in the mod list": "Updating the package in the mod list",
@@ -1727,7 +1878,8 @@
       "steamBusy": "Steam's Workshop search is refusing searches right now (its own site shows the same error). It is not your internet or the app: try again in a while.",
       "rateLimit": "Steam is rate-limiting requests. Try again in a minute.",
       "accessDenied": "Windows would not allow that. The file may be open in the game or another program.",
-      "gone": "That file is no longer there. Refresh and try again."
+      "gone": "That file is no longer there. Refresh and try again.",
+      "accessDeniedBy": "Windows would not allow that: {{who}} has the file open. Close it (or let it finish) and try again."
     },
     "say": {
       "bisectNothingToHalve": "There is nothing to halve: {{on}} of the {{total}} switched-on mods are required by another one, so they stay on in every trial. Switch more mods on, or test the remaining one by hand.",
@@ -1807,6 +1959,12 @@
       "copyStaysForServer": "The copy of {{what}} stays: the server {{server}} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.",
       "folderNotCompat": "There is already a folder {{what}} in Zomboid/mods that is not a Studio compatible copy: move or rename it first.",
       "earlierCompat": "There is already an earlier compatible copy of {{what}} in Zomboid/mods."
+    },
+    "holder": {
+      "server": "the server \"{{name}}\"",
+      "game": "the game",
+      "game2": "player 2's game",
+      "other": "{{exe}} (PID {{pid}})"
     }
   },
   "source": {
@@ -1829,7 +1987,7 @@
     "openPage": "{{title}}: open its page",
     "compatHead": "Compatible copy made by PZ Mod Studio",
     "compatChanges": "What was changed",
-    "compatWins": "It is in Zomboid/mods with the same id ({{id}}) as the Workshop original. The Studio starts the game with -modfolders mods,workshop,steam, so the game uses this copy and leaves the Workshop one aside: that is expected.",
+    "compatWins": "This is your fixed copy of the mod: it has the same id ({{id}}) as the Workshop original, which was not touched. When the game is started from the Studio this copy is used instead of the original: that is expected.",
     "openPageAction": "Click: open its page in the browser",
     "folder": "Folder: {{path}}"
   },
@@ -1985,7 +2143,9 @@
     "noLibrary": "No base library required by this mod",
     "modsRequiring": "Mods Requiring This Library ({{count}})",
     "childTitle": "Click to center and go to child mod [{{name}}] ({{state}})",
-    "noDependents": "No installed mods require this library"
+    "noDependents": "No installed mods require this library",
+    "movedOne": "{{other}} now loads before {{name}}. Checking the order…",
+    "movedMany": "{{count}} mods now load before {{name}}. Checking the order…"
   },
   "app": {
     "init": {
@@ -1997,7 +2157,14 @@
       "noneInstalled": "None of the {{count}} mods in \"{{name}}\" are installed yet.\n\nSubscribe to them first (the button above), let Steam download them, then make the profile.",
       "confirm": "Make a profile \"{{name}}\" with {{count}} mod(s)?{{missing}}\n\nYour current list is not touched: a profile is switched to when you want it.",
       "missing": "\n\n{{count}} of the collection's mods are not installed, so they are left out. Subscribe to them and make the profile again to include them.",
-      "description": "From the Steam collection"
+      "description": "From the Steam collection",
+      "resume": "You already have a profile of this collection: \"{{name}}\". It is missing {{count}} items.\n\nSubscribe to them now? They go into \"{{name}}\" switched on as Steam downloads them.",
+      "allThere": "You already have a profile of this collection, \"{{name}}\", and all its items are installed.",
+      "confirmNew": "A new profile for this collection.\n\n{{installed}} mods you already have go in switched on{{missing}}.\n\nYour active profile (\"{{active}}\") does not change: you switch to this one from Profiles when you want.\n\nProfile name:",
+      "missingNew": "; the {{count}} missing items are subscribed to now and go in switched on as Steam downloads them (with many it can take hours; keep the Studio open)",
+      "alternatives_one": "1 item of the collection brings alternatives that do not go together (its mods say so): one went on and the others are in the profile, off. To use another, swap it in the Mod List.\n\n{{list}}",
+      "alternatives_other": "{{count}} items of the collection bring alternatives that do not go together (their mods say so): one of each went on and the others are in the profile, off. To use another, swap it in the Mod List.\n\n{{list}}",
+      "alternativeLine": "• {{picked}} (off: {{left}})"
     },
     "pathsFirst": "Configure and validate PZ paths before generating automatic patches.",
     "build": {
@@ -2262,9 +2429,13 @@
       "title": "Multiplayer test on this PC",
       "what": "Starts this server without Steam and opens one or two games joined to it, to test mods in multiplayer without another PC. Each game shows the server's connect window: type an account name and a password (a new name makes the account).",
       "touches": "Player 2 uses a Zomboid folder of its own ({{dir}}): its options, saves and logs do not mix with yours. \"Get player 2 ready\" copies the server's mods there (with the Studio's marker, copied again when they change); the first time it can take several GB.",
+      "player2List": "It has no mod list or Mod Health of its own: when it joins it loads the server's list. Its files are copies of yours, so what you fix in your mods (compatible copy, patch package) reaches it when you bring it up to date.",
+      "openSecondDir": "Open player 2's folder",
       "players": "Players",
       "serverMemory": "Server memory",
       "prepare": "Get player 2 ready",
+      "prepareProgress": "{{done}} / {{total}} · copying {{name}}",
+      "prepareProgressEnd": "{{done}} / {{total}}",
       "prepareAgain": "Update player 2's mods",
       "prepareFirst": "Get it ready first: player 2 needs the server's mods in its folder.",
       "start_one": "Start server and {{count}} game",
@@ -2294,6 +2465,13 @@
         "menu": "In the menu",
         "connecting": "Connecting",
         "in_game": "In game"
+      },
+      "zbExcluded": {
+        "signature": "ZombieBuddy left {{mod}} out: its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. It is the author's mistake.",
+        "other": "ZombieBuddy left {{mod}} out: its Java never loaded.",
+        "fatal": "Without it, {{addons}} took the server down at boot.",
+        "addons": "Without it, {{addons}} stopped working.",
+        "what": "Mod Health shows it with a button to switch it off along with the mods that use it, until its author fixes it."
       },
       "phase": {
         "waiting_for_server": "Waiting for the server to finish starting (with many mods it takes minutes); then the games open.",
@@ -2645,6 +2823,8 @@
       "savedTo": "Saved to {{path}}",
       "reportCopied": "Report copied to the clipboard",
       "heading": "DIAGNOSTICS",
+      "fromGameLog": "These cards are from your game's log, not from \"{{log}}\", which is what you see on the left.",
+      "fromOtherLog": "Cards of \"{{log}}\": what that log showed since the Studio began reading it. The game's are on its tab.",
       "exceptionsBadge": "{{count}} exception(s)",
       "exceptionsBadgeTitle": "The game reported an exception on these lines. Each card says whether there is anything to do",
       "warningsBadge": "{{count}} warning(s)",
@@ -2692,6 +2872,7 @@
       "ownAction": "This is your mod. The lines around this one in the console may name the file and the line."
     },
     "fixes": {
+      "serverListElsewhere": "To take it off server {{server}}: Servers → its mod list",
       "noFileAsks": "No file of any active mod asks for {{module}} in a way the Studio can rewrite, so there is nothing to change.",
       "doneItem": "{{file}} of {{mod}} (line {{line}})",
       "nothingToRewrite": "Nothing to rewrite for {{module}}.",
@@ -2714,9 +2895,9 @@
       "patchAFile": "Patch a file of it",
       "switchOffTitle": "Switch {{mod}} off in the Mod List, to see whether it is the cause",
       "switchOff": "Switch it off",
-      "shimLive": "The shim is already in the game: it rides in your package \"{{package}}\", published and on. If this warning is from a session the package was not in, restart the game; if it comes back, the shim does not cover it.",
-      "shimDraft": "Your package \"{{package}}\" is open (a draft), so the shim is not in the game. Publish it in the Merger (Package & Publish) and restart the game.",
-      "openMergerTitle": "The Build 42 shim ships inside a merge package: build one in the Mod Merger",
+      "shimLive": "The compatibility patch is already in the game: it rides in your package \"{{package}}\", published and on. If this warning is from a session the package was not in, restart the game; if it comes back, the compatibility patch does not cover it.",
+      "shimDraft": "Your package \"{{package}}\" is open (a draft), so the compatibility patch is not in the game. Publish it in the Merger (Package & Publish) and restart the game.",
+      "openMergerTitle": "The Build 42 compatibility patch ships inside a patch package: build one in the Mod Merger",
       "openMerger": "A merge package may fix this — open the Mod Merger",
       "shimCovers": "The Build 42 shim already covers this",
       "fixPathQuiet": "Fix the path (only quiets the warning)",
@@ -2787,7 +2968,7 @@
       "load_before_order": "{{mod}} asks to load before {{other}}, but {{other}} comes earlier in the list",
       "incompatible": "{{mod}} is marked incompatible with {{other}}, and both are enabled",
       "workshop_update_pending": "Steam has a newer version of {{mod}}{{published}} that is not downloaded yet. Let Steam download it (restart Steam if it is stuck): servers reject players whose mod versions differ (\"Workshop item version is different than the server's\").",
-      "compatible_copy": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods ({{changes}}); the Workshop original is ignored meanwhile. It is used when the game is started from PZ Mod Studio; starting it from Steam needs the launch option -modfolders mods,workshop,steam. Nothing to do: once the author updates the mod for Build 42, \"Back to the original\" removes the copy.",
+      "compatible_copy": "{{mod}} uses your fixed copy ({{changes}}) instead of the Workshop original, which does not load on your build. Nothing to do. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Once the author updates it, \"Back to the original\" removes the copy.",
       "compatible_copy_unneeded": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods, but the Workshop original now loads on build {{build}} as it is. The copy keeps the older files running and hides the author's updates: go back to the original.",
       "shadowed_copy": "Another copy of {{mod}} at {{ignored}} is ignored: the game uses the one at {{used}}",
       "security_executable": "{{mod}} ships {{count}} program file(s): {{files}}{{more}}. A program in a mod runs with your rights, outside the game's Lua; keep the mod only if you trust its author. Nothing here says the file is harmful.",
@@ -2801,16 +2982,18 @@
       "user_rule_order": "You asked for {{mod}} to load after {{after}}{{note}}, and it comes before it in the list",
       "community_rule_order_rules": "The Studio's rules have it that {{mod}} loads after {{after}}{{note}}{{sourceText}}, and it comes before it in the list",
       "community_incompatible_rules": "The Studio's rules have it that {{mod}} and {{other}} do not go together{{note}}{{sourceText}}, and both are on",
-      "community_rule_order_index": "The Studio's mod index has it that {{mod}} loads after {{after}} ({{note}}{{seen}}), and it comes before it in the list",
-      "community_incompatible_index": "The Studio's mod index has it that {{mod}} and {{other}} do not go together ({{note}}{{seen}}), and both are on",
-      "community_known_issue": "{{mod}} has a known issue, per the Studio's mod index: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
-      "community_successor": "{{mod}} has a version for this build, per the Studio's mod index: {{successor}}{{note}}",
-      "package_built_for_other_list": "{{package}} was built with a different list: {{missing}}{{sep}}{{extra}}. A package is a mod of its own, so it shows in every profile; its merges only settle the mods it was built with. In the Mod Merger, open it, rescan and publish to rebuild it for this list, or switch it off in this profile.",
+      "community_rule_order_index": "The notes the Studio ships with have it that {{mod}} loads after {{after}} ({{note}}{{seen}}), and it comes before it in the list",
+      "community_incompatible_index": "The notes the Studio ships with have it that {{mod}} and {{other}} do not go together ({{note}}{{seen}}), and both are on",
+      "community_known_issue": "{{mod}} has a known issue, per the notes the Studio ships with: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
+      "community_successor": "{{mod}} has a version for this build, per the notes the Studio ships with: {{successor}}{{note}}",
+      "package_built_for_other_list": "{{package}} was built with a different list: {{missing}}{{sep}}{{extra}}. A package is a mod of its own, so it shows in every profile; its merges only settle the mods it was built with. The blue button rebuilds it for this list (the same as Update patch in the Mod Merger); switching it off in this profile is the other way.",
       "definition": "{{losers}} and {{winner}} {{all}} set {{properties}} on {{what}}, in different files ({{files}}). The game applies {{each}} to the same {{things}}, so everything else each of them sets is kept; only {{props}} decided by the load order, and {{winner}} loads last.{{example}}{{settled}}",
       "definition_nested": "{{losers}} and {{winner}} all declare {{what}}, in different files ({{files}}), and their contents differ. What differs is inside nested blocks, which the Studio does not compare, so it cannot say what is at stake here — only that {{winner}} loads last.{{settled}}",
       "script_definition_conflict_more": "{{left}} more things, across {{pairs}} other pairs of mods, have a property two mods set differently. Whichever mod loads last decides each one.",
       "translation": "{{losers}} and {{winner}} name {{what}} differently in {{lang}} ({{category}}).{{example}} The game reads every mod's translations and keeps the last loaded, so {{winner}}'s words show today.{{settled}}",
       "file_conflict": "{{others}} and {{winner}} both ship {{path}}. Without a merge the game only uses {{winner}}'s copy, so {{others}}'s version is ignored. {{how}}",
+      "community_unneeded": "{{mod}} is no longer needed from build {{since}}, per the notes the Studio ships with: {{who}}{{note}}. {{safe}}",
+      "function_overridden": "{{winner}} replaces the game's {{function}} ({{place}}) after {{cut}} changed it, so that change never runs. {{how}}",
       "file_conflict_stale": "{{path}} was merged, but {{mods}} changed since. Merge it again so the package matches the current versions.",
       "package_file_stale": "{{package}} carries a copy of {{path}} made on {{copyDate}}, and {{mod}} changed its own file on {{modDate}}. The game reads the copy, so that change never runs, and the copy may call things the new version no longer has. Take the file out of the package, or patch the new version in the Merger.",
       "package_file_differs": "{{package}} carries a copy of {{path}} that is not what {{mod}} ships, and {{mod}} is the only mod in this list with that file. Either a merge made when another mod shipped it too (that mod is off now), or a patch of yours. If the merge is no longer needed, take it out: the game then reads {{mod}}'s own file.",
@@ -2834,8 +3017,22 @@
       "two_mod_managers": "{{mod}} also draws the game's Mods screen. While it is on, the Studio leaves that screen to it (the save backups and the check before a save loads stay the Studio's). Turn it off in this profile to use the Studio's screen.",
       "floods_console": "{{mod}} filled the console in the last session: {{lines}} lines of errors ({{share}}% of all of them), from {{exceptions}} exceptions and {{warnings}} warnings. Writing them slows the game, and other mods' errors are lost among them. Look at them in the Monitor, or turn it off in this profile.",
       "missing_mod_renamed": "{{mod}} is not installed: the same Workshop mod is now called {{renamed}} ({{name}}). The author changed its id in an update.",
+      "missing_mod_renamed_many": "{{mod}} is not installed: in an update its author replaced it. The version to go on with is {{name}} ({{renamed}}): use the blue button. The item also has {{others}}, if you want that one instead.",
       "workshop_copy_by_hand": "{{mod}} runs from a copy in Zomboid/mods ({{folder}}) made by hand of Workshop item {{item}}. It wins over the Workshop in every profile the Studio starts and in a server without Steam, and it does not update when the author does. Let the Studio keep it: it then says when the Workshop item is newer and copies it again.",
       "workshop_copy_by_hand_server": "{{mod}} runs from a copy in Zomboid/mods ({{folder}}) made by hand of Workshop item {{item}}. It wins over the Workshop in every profile the Studio starts, and the server {{servers}} uses it. It does not update when the author does. Let the Studio keep it: it then says when the Workshop item is newer and copies it again.",
+      "compatible_copy_renamed_loads": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods, of the version from before its author renamed it: the Workshop item now has {{renamed}} ({{version}}), which loads on {{build}} as it is. Your games keep loading the old copy: use the new one.",
+      "compatible_copy_renamed_needs_copy": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods, of the version from before its author renamed it: the Workshop item now has {{renamed}} ({{version}}), which this build does not load as it is. Your games keep loading the old copy: make a compatible copy of the new one.",
+      "zb_excluded_signature_fatal_game": "ZombieBuddy left {{mod}} out of your last game session ({{when}}): its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. Without it, {{addons}} took the game down at boot. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_signature_addons_game": "ZombieBuddy left {{mod}} out of your last game session ({{when}}): its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. Without it, {{addons}} stopped working. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_signature_game": "ZombieBuddy left {{mod}} out of your last game session ({{when}}): its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_other_fatal_game": "ZombieBuddy left {{mod}} out of your last game session ({{when}}): its Java never loaded. Without it, {{addons}} took the game down at boot. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_other_game": "ZombieBuddy left {{mod}} out of your last game session ({{when}}): its Java never loaded. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_signature_fatal_server": "ZombieBuddy left {{mod}} out of your last server session ({{when}}): its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. Without it, {{addons}} took the server down at boot. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_signature_addons_server": "ZombieBuddy left {{mod}} out of your last server session ({{when}}): its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. Without it, {{addons}} stopped working. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_signature_server": "ZombieBuddy left {{mod}} out of your last server session ({{when}}): its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_other_fatal_server": "ZombieBuddy left {{mod}} out of your last server session ({{when}}): its Java never loaded. Without it, {{addons}} took the server down at boot. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "zb_excluded_other_server": "ZombieBuddy left {{mod}} out of your last server session ({{when}}): its Java never loaded. Its author has to fix it; until then switch it off along with the mods that use it ({{users}}), or wait for the author's update.",
+      "workshop_copy_renamed": "{{mod}} runs from a copy in Zomboid/mods ({{folder}}) of the version from before its author renamed it: Workshop item {{item}} now has {{renamed}} ({{version}}). Your games keep loading the old copy. Use the new one: your list then names it, and the old copy is no longer used.",
       "workshop_copy_stale": "{{mod}}: its copy in Zomboid/mods is older than Workshop item {{item}}, which was updated since. Your games and a server without Steam still load the old copy. Copy it again.",
       "workshop_copy_stale_server": "{{mod}}: its copy in Zomboid/mods is older than Workshop item {{item}}, which was updated since. Your games and the server {{servers}} still load the old copy. Copy it again.",
       "workshop_copy_kept": "{{mod}} runs from the Studio's copy in Zomboid/mods (for a server without Steam), up to date with Workshop item {{item}}. It wins over the Workshop in your games too; the Studio says when the item is updated.",
@@ -2907,6 +3104,12 @@
       "tr_merged": " Your package already carries the words you chose; it loads last, so they show.",
       "tr_stale": " The words you chose are in your package, but a mod changed since: look again.",
       "fc_auto": "It can be merged automatically.",
+      "un_game": "the game does it itself now",
+      "un_mod": "{{by}} does it now",
+      "un_safe": "Switching it off is safe.",
+      "un_required": "But {{requiredBy}} require it: keep it while they are on.",
+      "fo_move": "Loading {{winner}} before {{before}} fixes it: they then build on its version instead of being lost.",
+      "fo_choose": "Only {{winner}}'s version stays. If nothing of {{cut}} seems missing in the game, there is nothing to do; if something is, keep only one of the two on.",
       "fc_manual": "They change the same lines differently: choose in the Mod Merger.",
       "a_file": "a file",
       "api_more_names": " and {{moreNames}} more",
@@ -3279,6 +3482,16 @@
     "onlyThis": "Only {{name}}"
   },
   "whatsNew": {
+    "renamedCopy": "In this update its author changed the id to {{now}}, but your list says {{old}} and you have an old copy in Zomboid/mods with that id: the game loads that copy, the version from before. Mod Health has the button to switch to the new one.",
+    "renamed": "In this update its author changed the id: your list still says {{old}}, and the mod is now {{now}}. The game will not load it until that line changes: Mod Health has the button for it.",
+    "seen": {
+      "one": "Mark as seen",
+      "oneTitle": "It stays on this page, dimmed, and leaves the number in the menu. This mod's next update shows as new again.",
+      "done": "Seen",
+      "undoTitle": "Mark it as new again",
+      "all": "Mark all as seen ({{count}})",
+      "allTitle": "The updates stay here, dimmed; the number in the left menu goes away until another update comes."
+    },
     "localMod": "local mod",
     "readInGame": "read in the game",
     "readInGameTitle": "The game's mod alerts already showed you this mod's newest entry",
@@ -3647,6 +3860,8 @@
       "cache": "Studio cache",
       "staging": "Half-installed downloads",
       "studioLogs": "Studio logs",
+      "gameArchive": "The game's code of each build (to compare after an update)",
+      "profilePhotos": "Profile photos (Mod Health; deleted from Settings)",
       "gameLogs": "Game logs (Zomboid/Logs)"
     },
     "how": "A mod counts as used when a profile has it (on, or as part of the profile), the game's active list has it, a save's mod list (mods.txt) names it, or a kept server loaded it the last time you joined. Nothing goes to the Recycle Bin while the game is open.",
@@ -3846,6 +4061,9 @@
       "installing": "Installing"
     },
     "someItem": "a Workshop item",
+    "batch": "Profile \"{{name}}\": {{arrived}} of {{total}} arrived",
+    "batchWaiting": "Waiting for Steam to go on downloading (if it is paused, resume it in Steam > Downloads)",
+    "stopWaiting": "Stop waiting (what arrived stays in the profile)",
     "andMore": "{{name}} and {{count}} more",
     "done": "Steam finished downloading {{name}}. The mod list has it now.",
     "failed": "Steam could not download {{name}}: {{result}}"
@@ -3874,6 +4092,147 @@
       "what": "Tools for people who make mods: check a mod's files, see whether it uses things your game build does not have, test it alone, translate it and upload it to the Workshop.",
       "who": "If you just play, no. It is for making or fixing a mod.",
       "touches": "Checking files, the build check and Multiplayer only read. \"Start the game with only this mod\" changes your list while the game is open and puts it back when it closes. \"New mod\" makes a folder in Zomboid/mods."
+    }
+  },
+  "fixReach": {
+    "packageMods": "The fix is in your patch package (Zomboid/mods): it counts from the next start.",
+    "packageProfile": "Your profile \"{{profile}}\" uses it (single player).",
+    "packageServers_one": "Server {{names}} uses it too.",
+    "packageServers_other": "Servers {{names}} use it too.",
+    "packageNotServers_one": "Server {{names}} does not load your package: it is still unfixed there.",
+    "packageNotServers_other": "Servers {{names}} do not load your package: it is still unfixed there.",
+    "offProfile": "It goes off in your profile \"{{profile}}\" (single player).",
+    "offStillServers_one": "Server {{names}} still loads it: it uses its own list (changed in Servers).",
+    "offStillServers_other": "Servers {{names}} still load it: they use their own list (changed in Servers)."
+  },
+  "where": {
+    "question": "Where does everything live? (your mods, the lists, who loads what)",
+    "mods": {
+      "title": "Your mods",
+      "text": "The files: Workshop and Zomboid/mods. Fixes to files go here (compatible copy, patch package): one place, for every list."
+    },
+    "toLists": "each list picks which of those mods load and in what order",
+    "profile": {
+      "title": "Your profile's list",
+      "text": "default.txt. Fixes to the list go here: switch on, switch off, order (Mod List and Mod Health)."
+    },
+    "server": {
+      "title": "Each server's list",
+      "text": "The Mods= line of its .ini. Changed in Servers; Mod Health can check it."
+    },
+    "toGames": "who loads which list",
+    "single": {
+      "title": "Your game (single player)",
+      "text": "Loads your profile's list."
+    },
+    "hosted": {
+      "title": "The server and whoever joins",
+      "text": "Load the server's list, not your profile's."
+    },
+    "player2": {
+      "title": "Player 2 (multiplayer test)",
+      "text": "Joins the server: its list. Its files are copies of yours (Zomboid2)."
+    }
+  },
+  "meter": {
+    "title": "What the game uses now",
+    "game": "Game",
+    "gameN": "Game {{n}}",
+    "server": "Server",
+    "pcFree": "The PC has {{free}} of {{total}} GB free",
+    "ram": "{{used}} GB of process memory",
+    "cpu": "{{pct}}% of the CPU",
+    "cpuReading": "reading the CPU…",
+    "nothingRunning": "Neither the game nor a Studio server is open. Once they start, here and up top show the memory and CPU they use.",
+    "high": "The PC has little free memory left. If the game stutters, close programs (browser, another game) or give the server less memory.",
+    "nearFull": "The PC is nearly out of free memory: Windows may close the game. Close programs, or give the game or the server less memory in Performance > Memory.",
+    "javaLimit": " (its Java limit is {{max}} GB; the process uses more: textures, maps, the virtual machine)"
+  },
+  "photos": {
+    "title": "Photos of this profile:",
+    "take": "Take a photo",
+    "takeTitle": "Keeps how the profile is now: its mods (on, order, each one's version) and what Mod Health finds. Later you can compare it to see what changed.",
+    "labelAsk": "Name of the photo (for example: before updating):",
+    "labelDefault": "Photo of {{when}}",
+    "taken": "Photo kept: {{mods}} mods on, {{findings}} findings.",
+    "pick": "Photo to compare",
+    "entryCounts": "{{mods}} mods, {{findings}} findings",
+    "compare": "Compare with now",
+    "delete": "Delete this photo",
+    "deleteConfirm": "Delete the photo \"{{label}}\"?",
+    "none": "none yet. Take one before changing something (updating, adding a collection) to see later what changed.",
+    "since": "Since \"{{label}}\" ({{when}}):",
+    "nothingChanged": "Nothing changed: same mods, same versions, same findings.",
+    "andMore": " and {{count}} more",
+    "diff": {
+      "game": "Game build:",
+      "added_one": "1 new mod in the profile:",
+      "added_other": "{{count}} new mods in the profile:",
+      "removed_one": "1 mod is gone:",
+      "removed_other": "{{count}} mods are gone:",
+      "switchedOn_one": "1 switched on:",
+      "switchedOn_other": "{{count}} switched on:",
+      "switchedOff_one": "1 switched off:",
+      "switchedOff_other": "{{count}} switched off:",
+      "moved_one": "1 moved:",
+      "moved_other": "{{count}} moved:",
+      "updated_one": "1 updated by its author:",
+      "updated_other": "{{count}} updated by their authors:",
+      "newFindings_one": "1 new finding:",
+      "newFindings_other": "{{count}} new findings:",
+      "goneFindings_one": "1 finding gone:",
+      "goneFindings_other": "{{count}} findings gone:"
+    }
+  },
+  "doctor": {
+    "button": "Doctor",
+    "buttonTitle": "Something wrong? A step-by-step guide from what the Studio knows about your list and the game.",
+    "title": "Doctor",
+    "close": "Close",
+    "ask": "What is wrong?",
+    "symptom": {
+      "crash": {
+        "title": "The game crashes or will not start",
+        "text": "It crashes, hangs loading or closes by itself."
+      },
+      "mod": {
+        "title": "A mod does not work",
+        "text": "Something of a mod is missing or does not work."
+      },
+      "slow": {
+        "title": "It is slow",
+        "text": "Stutters, low FPS, slow loading."
+      },
+      "other": {
+        "title": "Something else",
+        "text": "A summary of what I know, to ask for help."
+      }
+    },
+    "health_one": "This first: your list has 1 thing that breaks the game. Fix it and try again.",
+    "health_other": "This first: your list has {{count}} things that break the game. Start with this one and try again.",
+    "goFix": "Go fix it",
+    "alreadyDone": "I fixed it",
+    "blamed": "Your last session's log names {{mod}} in an error. Try switching it off and opening the game: if it works then, that was it.",
+    "switchOffTry": "Switch {{mod}} off and try",
+    "goMonitor": "See the log in the Monitor",
+    "skip": "Skip this step",
+    "memory": "The game ran out of memory ({{oom}} session(s) with the memory error, {{low}} time(s) Windows ran out with the game open). Check the game's memory and close programs.",
+    "goPerformance": "Go to Performance",
+    "unknown": "From what I can see I do not know what causes it: your list has nothing that breaks and the log names no mod. The surest way is to find the culprit by halving the list, or to hand what I know to someone.",
+    "hunt": "Find the mod causing it",
+    "copy": "Copy what I know",
+    "copied": "Copied: paste it where you ask for help (Discord, the author, an assistant).",
+    "playAndComeBack": "Open the game and try. When you are back: did it work?",
+    "itWorks": "It works",
+    "stillBroken": "Still failing: look again",
+    "slow": "For slowness, Performance shows what the game uses now, its frames and which mods take the most time.",
+    "mod": "The Audit shows each mod with its verdict and why; the Monitor, what the log said about that mod.",
+    "goAudit": "Go to the Audit",
+    "other": "Copy a summary of what the Studio knows about your list and the last session, to paste where you ask for help.",
+    "startOver": "Start over",
+    "report": {
+      "head": "PZ Mod Studio summary (list and last session):",
+      "memory": "Memory: {{oom}} session(s) out of memory, {{low}} Windows warning(s)."
     }
   }
 }

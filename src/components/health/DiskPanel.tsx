@@ -37,6 +37,8 @@ const FOLDER_KEYS: Record<string, string> = {
   PZModStudio_Cache: 'cache',
   PZModStudio_Staging: 'staging',
   PZModStudio_Logs: 'studioLogs',
+  PZModStudio_GameArchive: 'gameArchive',
+  PZModStudio_ProfileSnapshots: 'profilePhotos',
   Logs: 'gameLogs',
 };
 

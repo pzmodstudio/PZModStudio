@@ -881,6 +881,24 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "publish_file_into_package" => handle_publish_file_into_package(args),
         "remove_file_from_package" => handle_remove_file_from_package(args),
         "get_frame_report" => handle_get_frame_report(args),
+        "function_overrides" => {
+            let paths = resolve_paths(&args);
+            let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+            let active: Vec<String> = match args.get("active_mod_ids").and_then(|v| v.as_array()) {
+                Some(ids) => ids.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
+                None => crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default(),
+            };
+            let mut shared = crate::overrides::shared_functions(std::path::Path::new(&paths.pz_install_dir), &catalog, &active);
+            if args.get("only_cut").and_then(|v| v.as_bool()).unwrap_or(false) {
+                shared.retain(|f| f.winner.is_some());
+            }
+            json_result::<Vec<crate::overrides::SharedFunction>>(Ok(shared))
+        }
+        "game_resources" => json_result::<crate::resources::Resources>(Ok(crate::resources::read(&resolve_paths(&args)))),
+        "game_code_archive" => {
+            let paths = resolve_paths(&args);
+            json_result(crate::game_archive::status(&paths, args.get("archive_now").and_then(|v| v.as_bool()).unwrap_or(false)))
+        }
         "keep_mod_version" => handle_keep_mod_version(args),
         "make_compatible_copy" => handle_make_compatible_copy(args),
         "remove_compatible_copy" => handle_remove_compatible_copy(args),

@@ -122,6 +122,8 @@ pub fn low_memory_card(e: &LowMemoryEvent) -> super::TranslatedErrorPayload {
         own_mod: false,
         own_file: None,
         frame_mod: None,
+        log: None,
+        log_name: None,
         id: format!("lowmem_{}", e.at),
         raw_error: format!("Windows Resource-Exhaustion-Detector 2004 at {}: {} of {} GB committed, {} {} GB", when, charge, limit, GAME_EXE, game),
         source_file: None,

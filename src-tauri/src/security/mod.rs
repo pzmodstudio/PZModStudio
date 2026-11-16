@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// Bumped when a rule changes: older scans are made again.
-const ENGINE: &str = "security-v4";
+const ENGINE: &str = "security-v5";
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_JAR_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -407,7 +407,9 @@ pub fn scan_tree(mod_id: &str, root: &Path) -> ModScan {
         let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let ext = path.extension().map(|x| x.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
         let size = e.metadata().map(|m| m.len()).unwrap_or(0);
-        if CODE_EXT.contains(&ext.as_str()) {
+        // Not on Lua: "inject" is everyday modding talk there (a mod hooking a game function), and a
+        // Lua file is read for what it calls anyway.
+        if CODE_EXT.contains(&ext.as_str()) && ext != "lua" {
             if let Some(token) = name_has_token(&name) {
                 findings.push(Finding { rule: "suspect_name".to_string(), risk: Risk::Medium, file: rel.clone(), line: None, detail: token.to_string() });
             }
@@ -590,13 +592,14 @@ mod tests {
         std::fs::write(dir.join("helper.exe"), b"x").unwrap();
         std::fs::write(dir.join("build.ps1"), b"x").unwrap();
         std::fs::write(dir.join("Hat_Miner.xml"), b"x").unwrap();
+        std::fs::write(lua.join("VPWindshield_Inject.lua"), "print(1)").unwrap();
         let scan = scan_tree("Test", &dir);
         assert_eq!(scan.risk, Risk::High);
         assert!(!scan.clean);
         let rules: Vec<&str> = scan.findings.iter().map(|f| f.rule.as_str()).collect();
         assert!(rules.contains(&"executable") && rules.contains(&"known_native") && rules.contains(&"lua_loadstring") && rules.contains(&"script"));
         assert!(!rules.contains(&"suspect_name"), "a miner's hat is not a miner: names count on code files only");
-        assert_eq!(scan.files_scanned, 6);
+        assert_eq!(scan.files_scanned, 7);
         assert!(is_studio_mod("Z_ClaudeAgent") && !is_studio_mod("ZombieBuddy"));
         // the cache answers the second time
         let z = dir.join("z");

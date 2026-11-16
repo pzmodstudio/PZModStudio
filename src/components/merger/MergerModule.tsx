@@ -1,4 +1,5 @@
 import { freshProfile } from '../../utils/profiles';
+import { needsChoice } from '../../utils/publishPlan';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { VfsConflict, ModInfo, AppInstance, MissingModsReport, profileMembers } from '../../types';
 import { ImportCheck, importCheckHasNews } from './ImportCheck';
@@ -42,6 +43,10 @@ import { tHtml } from '../../i18n/html';
 
 interface MergerModuleProps {
   conflicts: VfsConflict[];
+  /** Rescans with the list as it is now and publishes the package again (what is decided or merges by itself). */
+  onUpdatePatch?: (packageFolderName: string) => Promise<boolean>;
+  /** How many things Mod Health says changed since the active package was published. */
+  patchOutOfDate?: number;
   /** Installed mods, to pick one whose file you want to patch. */
   mods: ModInfo[];
   paths: StudioPathsUI;
@@ -77,6 +82,8 @@ interface MergerModuleProps {
 const isPatchTarget = (c: VfsConflict | null | undefined) => !!c && c.id.startsWith('modfile_');
 
 export const MergerModule: React.FC<MergerModuleProps> = ({
+  onUpdatePatch,
+  patchOutOfDate = 0,
   conflicts: scannedConflicts,
   mods,
   paths,
@@ -131,6 +138,7 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
   const [packages, setPackages] = useState<MergedPackageInfoUI[]>([]);
   const [packagesLoaded, setPackagesLoaded] = useState(false);
   const [selectedPackageFolder, setSelectedPackageFolder] = useState<string>('Z_PZModStudio_MergedPatch');
+  const [updatingPatch, setUpdatingPatch] = useState(false);
   const [isPackageOpened, setIsPackageOpened] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [renamingPackage, setRenamingPackage] = useState<MergedPackageInfoUI | null>(null);
@@ -709,7 +717,11 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
     const merged = currentConflict.auto_ast_output || currentConflict.merged_output || '';
     const isDefinition = currentConflict.file_type === 'SCRIPT_DEFINITION' || currentConflict.file_type === 'TRANSLATION';
     const choices: Choice[] = [];
-    if (merged) {
+    // Two mods change the same lines (or set one value differently): one of them is the answer,
+    // so the mods come first and merging both is the last, advanced choice. Merging what needs no
+    // decision (different lines, a list that adds up) stays first, as the obvious thing to do.
+    const askFirst = needsChoice(currentConflict);
+    if (merged && !askFirst) {
       choices.push({
         key: 'merged',
         label: isDefinition ? i18next.t('merger.choices.mergeThem') : i18next.t('merger.choices.keepBoth'),
@@ -723,6 +735,14 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
         label: i18next.t('merger.choices.only', { mod: mod.mod_name }),
         help: isDefinition ? i18next.t('merger.choices.onlyDefinitionHelp', { mod: mod.mod_name }) : i18next.t('merger.choices.onlyFileHelp', { mod: mod.mod_name }),
         content: mod.content,
+      });
+    }
+    if (merged && askFirst) {
+      choices.push({
+        key: 'merged',
+        label: i18next.t('merger.choices.mergeAnyway'),
+        help: i18next.t('merger.choices.mergeAnywayHelp'),
+        content: merged,
       });
     }
     if (!vanillaMissing) {
@@ -995,6 +1015,27 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
         onClose={() => setPatchPicker({ open: false, modId: null })}
         onPick={(modId, relativePath) => void openModFileToPatch(modId, relativePath)}
       />
+
+      {(patchOutOfDate ?? 0) > 0 && onUpdatePatch && isCurrentlyPackaged && (
+        <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-700/60 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-100">
+          <span className="flex-1 min-w-[240px]">{i18next.t('merger.outOfDate', { count: patchOutOfDate })}</span>
+          <button
+            type="button"
+            disabled={updatingPatch}
+            onClick={async () => {
+              setUpdatingPatch(true);
+              try {
+                if (await onUpdatePatch(selectedPackageFolder)) showToast(i18next.t('merger.updated'));
+              } finally {
+                setUpdatingPatch(false);
+              }
+            }}
+            className="px-2.5 py-1 rounded font-bold bg-amber-700 hover:bg-amber-600 text-white cursor-pointer disabled:opacity-60"
+          >
+            {updatingPatch ? i18next.t('merger.updating') : i18next.t('merger.updatePatch')}
+          </button>
+        </div>
+      )}
 
       {toastMessage && (
         <div className="bg-gradient-to-r from-cyan-900/90 to-emerald-900/90 border-b border-cyan-500/50 text-cyan-100 text-xs px-4 py-2 flex items-center justify-between animate-fade-in shadow-md shrink-0">

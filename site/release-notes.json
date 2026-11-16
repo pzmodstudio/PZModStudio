@@ -1,4 +1,18 @@
 {
+ "1.8.6": [
+  "Mod Health: names a Java mod left out at boot and the mods it took down",
+  "Mod Health: one line verdict and the one thing to do first",
+  "Mod Health: an Audit tab sorting every mod (broken, choose, unneeded, keep)",
+  "Mod Health: mods that cancel another mod's change to the game",
+  "Mod Health: mods whose author changed their id, with the one to switch to",
+  "Mod Health: opens without checking again; says what changed since",
+  "Doctor: answers 'what is wrong' step by step",
+  "Merger: asks which version to keep; publishes only what you decided",
+  "Profiles: photos to compare a profile before and after",
+  "Collections: a profile per collection, with download progress",
+  "What's New: mark updates as seen; finds every updated mod",
+  "Faster first check on long lists"
+ ],
  "1.8.5": [
   "Monitor: one card per repeated error, with its file and line",
   "Monitor: cards say only what the log shows",

@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 /// One translation file of one mod: where, which language and category, and its entries.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslationFile {
     pub mod_id: String,
     pub mod_name: String,
@@ -65,12 +65,23 @@ pub fn parse_entries(text: &str) -> Vec<(String, String)> {
 
 /// The translation files of one mod, from the media layers the installed build reads.
 pub fn files_of_mod(mod_id: &str, mod_name: &str, root: &Path, game_version: Option<u32>) -> Vec<TranslationFile> {
+    files_of_mod_in(mod_id, mod_name, root, game_version, None)
+}
+
+/// `files_of_mod`, only one language's (its folder name, EN): every other language's files are
+/// neither listed nor read. Mod Health speaks only of the game's language, and reading every
+/// language of every mod (CN, RU, PTBR...) was most of the time it spent on translations.
+pub fn files_of_mod_in(mod_id: &str, mod_name: &str, root: &Path, game_version: Option<u32>, only_lang: Option<&str>) -> Vec<TranslationFile> {
     let mut out = Vec::new();
     for layer in crate::load_order::mod_info::media_layers_for_build(root, game_version) {
         let shared = layer.join("media").join("lua").join("shared");
         let Ok(dirs) = std::fs::read_dir(&shared) else { continue };
         let Some(translate) = dirs.flatten().map(|e| e.path()).find(|p| p.is_dir() && p.file_name().and_then(|n| n.to_str()).map(|n| n.eq_ignore_ascii_case("translate")).unwrap_or(false)) else { continue };
-        for entry in WalkDir::new(&translate).min_depth(2).max_depth(2).into_iter().filter_map(Result::ok) {
+        let walk = WalkDir::new(&translate).min_depth(2).max_depth(2).into_iter().filter_entry(|e| {
+            // At depth 1 the language folders: only the one asked for, when one is.
+            e.depth() != 1 || only_lang.is_none_or(|l| e.file_name().to_string_lossy().eq_ignore_ascii_case(l))
+        });
+        for entry in walk.filter_map(Result::ok) {
             let path = entry.path();
             if !path.is_file() || !path.extension().map(|e| e.eq_ignore_ascii_case("json")).unwrap_or(false) {
                 continue;
@@ -134,7 +145,39 @@ pub fn conflicts_in(files: &[TranslationFile]) -> Vec<TranslationConflict> {
 }
 
 /// Every conflict among the active mods, in load order.
-pub fn translation_conflicts(catalog: &crate::catalog::ModCatalog, active: &[String]) -> Vec<TranslationConflict> {
+type FilesKey = (String, u64, Option<u64>, Option<u32>, Option<String>);
+/// A Workshop mod's translation files, by its folder, install time, size, the game build and the
+/// language asked for: read once, then again only when Steam updates the mod (as the scripts'
+/// declarations). Mods in Zomboid/mods are always read.
+static FILES: std::sync::Mutex<Option<std::collections::HashMap<FilesKey, Vec<TranslationFile>>>> = std::sync::Mutex::new(None);
+
+fn cached_files_of_mod(m: &crate::catalog::CatalogMod, game: Option<u32>, only_lang: Option<&str>) -> Vec<TranslationFile> {
+    let key = m.workshop_state.as_ref().and_then(|s| s.installed_time.map(|t| (m.root_dir.clone(), t, s.size, game, only_lang.map(str::to_uppercase))));
+    if let Some(key) = &key {
+        if let Some(found) = FILES.lock().unwrap_or_else(|p| p.into_inner()).as_ref().and_then(|c| c.get(key)) {
+            return found.clone();
+        }
+    }
+    // Kept on disk from an earlier start (mod_cache), until Steam updates the mod.
+    let disk_key = crate::mod_cache::workshop_key(m, &format!("translations {:?} {:?}", game, only_lang.map(str::to_uppercase)));
+    let files = match disk_key.as_deref().and_then(|k| crate::mod_cache::load::<Vec<TranslationFile>>("translations", k)) {
+        Some(found) => found,
+        None => {
+            let read = files_of_mod_in(&m.id, &m.name, Path::new(&m.root_dir), game, only_lang);
+            if let Some(k) = disk_key.as_deref() {
+                crate::mod_cache::save("translations", k, &read);
+            }
+            read
+        }
+    };
+    if let Some(key) = key {
+        FILES.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(std::collections::HashMap::new).insert(key, files.clone());
+    }
+    files
+}
+
+/// What two active mods word differently, in every language, or only in `only_lang`.
+pub fn translation_conflicts(catalog: &crate::catalog::ModCatalog, active: &[String], only_lang: Option<&str>) -> Vec<TranslationConflict> {
     let game = catalog.game_version_int();
     let mut files = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -146,7 +189,7 @@ pub fn translation_conflicts(catalog: &crate::catalog::ModCatalog, active: &[Str
         if m.loadability != crate::catalog::Loadability::Loadable || !seen.insert(m.id.clone()) {
             continue;
         }
-        files.extend(files_of_mod(&m.id, &m.name, Path::new(&m.root_dir), game));
+        files.extend(cached_files_of_mod(m, game, only_lang));
     }
     conflicts_in(&files)
 }

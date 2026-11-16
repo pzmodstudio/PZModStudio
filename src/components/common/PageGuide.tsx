@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, Compass, HardDrive, HelpCircle, Route, Target, UserCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { WhereThingsLive } from './WhereThingsLive';
 
 interface PageGuideProps {
   /** The page: its texts are under `guide.<page>` (what, who, touches, and optionally flow). */
@@ -80,6 +81,7 @@ export const PageGuide: React.FC<PageGuideProps> = ({ page, className = '' }) =>
           </React.Fragment>
         ))}
       </dl>
+      <WhereThingsLive />
     </div>
   );
 };

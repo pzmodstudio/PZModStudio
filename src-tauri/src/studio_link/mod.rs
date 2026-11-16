@@ -1234,6 +1234,8 @@ mod tests {
             notes: Vec::new(),
             notes_error: None,
             risks: Vec::new(),
+            renamed_in_list: Vec::new(),
+            renamed_copy: false,
             changelog: Vec::new(),
             changelog_file: None,
             support: Vec::new(),

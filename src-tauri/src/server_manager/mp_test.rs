@@ -74,6 +74,18 @@ pub struct PrepareReport {
     pub missing: Vec<String>,
 }
 
+/// Where getting player 2 ready is: `done` mods of `total` copied or linked, `name` the one being
+/// copied now (empty once all are done).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct PrepareProgress {
+    pub done: usize,
+    pub total: usize,
+    pub name: String,
+}
+
+/// The event the app hears while player 2 is got ready.
+pub const PREPARE_PROGRESS_EVENT: &str = "mp-test-prepare-progress";
+
 /// `<home>/Zomboid2` beside the player's Zomboid folder.
 pub fn second_dir(primary: &Path) -> PathBuf {
     let name = primary.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "Zomboid".into());
@@ -124,6 +136,20 @@ fn make_link(link: &Path, target: &Path) -> Result<(), String> {
 /// when the mod is a link to a mod in development. A folder there without the Studio's marker is kept
 /// while it still holds what the server runs, and copied again once it differs.
 pub fn prepare_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Result<PrepareReport, String> {
+    prepare_second_with(catalog, primary, server, &mut |_| {})
+}
+
+/// `prepare_second`, saying before each mod it copies or links where it is, and once more at the end.
+/// The total is what the check counts (missing and outdated), the same number the button shows.
+pub fn prepare_second_with(catalog: &ModCatalog, primary: &Path, server: &str, progress: &mut dyn FnMut(PrepareProgress)) -> Result<PrepareReport, String> {
+    let before = check_second(catalog, primary, server);
+    let mut total = before.missing.len() + before.outdated.len();
+    let mut done = 0usize;
+    let mut step = |id: &str, done: usize, total: &mut usize| {
+        *total = (*total).max(done + 1);
+        let name = catalog.mods.iter().find(|m| m.id == id).map(|m| m.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| id.to_string());
+        progress(PrepareProgress { done, total: *total, name });
+    };
     let ini = primary.join("Server").join(format!("{}.ini", server));
     let content = std::fs::read_to_string(&ini).map_err(|e| format!("Cannot read {}: {}", ini.display(), e))?;
     let second = second_dir(primary);
@@ -170,9 +196,11 @@ pub fn prepare_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Res
                 report.kept.push(id);
                 continue;
             }
+            step(&id, done, &mut total);
             let target = std::fs::canonicalize(&source).map_err(|e| format!("Cannot follow the link {}: {}", source.display(), e))?;
             make_link(&dest, &target).map_err(|e| format!("Could not link {}: {}", dest.display(), e))?;
             report.linked.push(id);
+            done += 1;
             continue;
         }
         // A copy: missing, or the Studio's own copy outgrown by its source.
@@ -190,6 +218,7 @@ pub fn prepare_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Res
             report.kept.push(id);
             continue;
         };
+        step(&id, done, &mut total);
         let real_source = std::fs::canonicalize(&source).unwrap_or(source.clone());
         let copy = WorkshopCopy {
             id: id.clone(),
@@ -202,7 +231,10 @@ pub fn prepare_second(catalog: &ModCatalog, primary: &Path, server: &str) -> Res
         };
         java_mods::copy_into_mods(&second, &[copy])?;
         report.copied.push(id);
+        done += 1;
     }
+    drop(step);
+    progress(PrepareProgress { done, total: total.max(done), name: String::new() });
     Ok(report)
 }
 
@@ -341,7 +373,7 @@ fn split_args(cmd: &str) -> Vec<String> {
 }
 
 /// `-Xmx6144m` / `-Xmx4g` in megabytes.
-fn xmx_mb(text: &str) -> Option<u64> {
+pub(crate) fn xmx_mb(text: &str) -> Option<u64> {
     let start = text.find("-Xmx")? + 4;
     let rest: String = text[start..].chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
     let (num, unit) = rest.split_at(rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len()));
@@ -393,6 +425,25 @@ fn set_phase(primary: &Path, phase: &str) {
 fn read_phase(primary: &Path) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(phase_file(primary)).ok()?).ok()?;
     v.get("phase").and_then(|p| p.as_str()).map(str::to_string)
+}
+
+/// What each of these processes is to the Studio, read the way `status` reads them: a Project
+/// Zomboid server ("server", its name) or the game ("game", "2" when it plays from another folder,
+/// as player 2 of the test does). Processes that are neither are left out.
+pub(crate) fn roles_of(pids: &[u32]) -> std::collections::HashMap<u32, (String, String)> {
+    let mut out = std::collections::HashMap::new();
+    if pids.is_empty() {
+        return out;
+    }
+    for p in snapshot().procs.iter().filter(|p| pids.contains(&p.id)) {
+        let cmd = p.cmd.clone().unwrap_or_default();
+        if p.name.eq_ignore_ascii_case("java.exe") && (cmd.contains("-servername") || cmd.contains("GameServer")) {
+            out.insert(p.id, ("server".to_string(), arg_value(&cmd, "-servername").unwrap_or_default()));
+        } else if p.name.eq_ignore_ascii_case("ProjectZomboid64.exe") {
+            out.insert(p.id, ("game".to_string(), if arg_value(&cmd, "-cachedir").is_some() { "2".to_string() } else { String::new() }));
+        }
+    }
+    out
 }
 
 /// The test as it is now: the server and every game on this PC, with memory, CPU, folder, log,
@@ -891,16 +942,22 @@ mod tests {
         std::fs::write(primary.join("options.ini"), "fullscreen=false\n").unwrap();
         let catalog = crate::catalog::build_catalog(&workshop.to_string_lossy(), &primary.to_string_lossy(), None);
 
-        let r = prepare_second(&catalog, &primary, "t").unwrap();
+        let mut steps = Vec::new();
+        let r = prepare_second_with(&catalog, &primary, "t", &mut |p| steps.push(p)).unwrap();
         assert_eq!(r.copied, vec!["Wsh".to_string(), "Loc".to_string()]);
+        // One step before each copy, then the end: 0/2 Wsh, 1/2 Loc, 2/2.
+        let seen: Vec<(usize, usize, &str)> = steps.iter().map(|p| (p.done, p.total, p.name.as_str())).collect();
+        assert_eq!(seen, vec![(0, 2, "Wsh"), (1, 2, "Loc"), (2, 2, "")]);
         assert_eq!(r.missing, vec!["Nowhere".to_string()]);
         let second = base.join("Zomboid2");
         assert!(second.join("mods").join("Wsh").join("42").join("mod.info").is_file());
         assert!(second.join("mods").join("Loc").join(java_mods::COPY_MARKER).is_file());
         assert!(second.join("options.ini").is_file());
         // Again: nothing to do.
-        let again = prepare_second(&catalog, &primary, "t").unwrap();
+        let mut again_steps = Vec::new();
+        let again = prepare_second_with(&catalog, &primary, "t", &mut |p| again_steps.push(p)).unwrap();
         assert!(again.copied.is_empty() && again.kept.len() == 2, "{:?}", again);
+        assert_eq!(again_steps, vec![PrepareProgress { done: 0, total: 0, name: String::new() }]);
         let _ = std::fs::remove_dir_all(&base);
     }
 }

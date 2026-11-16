@@ -61,6 +61,13 @@ pub struct TranslatedErrorPayload {
     /// The mod of the Lua frame `source_file` and `line_number` came from.
     #[serde(skip)]
     pub frame_mod: Option<String>,
+    /// Which log the card came from: None is the game's own console.txt; "server" the Studio's
+    /// dedicated server (server-console.txt), "player2" the second game of a multiplayer test.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log: Option<String>,
+    /// The server's name, for a card from its log.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_name: Option<String>,
 }
 
 /// What the game itself said about the line a card came from.
@@ -404,6 +411,106 @@ pub fn watch_console_log<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
             thread::sleep(Duration::from_millis(250));
         }
     });
+}
+
+static OTHER_LOGS_WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// One log besides the game's that cards are made from, as it is followed.
+struct OtherLog {
+    /// "server" or "player2": what `TranslatedErrorPayload::log` says.
+    kind: &'static str,
+    offset: Option<u64>,
+    cards: CardMaker,
+}
+
+/// The cards of the other logs the Studio runs: its dedicated server's `server-console.txt` and,
+/// in a multiplayer test, player 2's `console.txt`. The same card maker as the game's, each card
+/// marked with its log (and the server's name), so the Monitor shows a log's own cards beside it
+/// and a fix says which list it reaches. The lines themselves are read by the Monitor's tabs; only
+/// cards come from here. A log rewritten from the top (a new server start) starts its cards over
+/// and says so with `sandbox-log-session-started` (its kind), so only that log's cards are cleared.
+pub fn watch_other_logs<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    if OTHER_LOGS_WATCHER_STARTED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    thread::spawn(move || {
+        let mut logs = [
+            OtherLog { kind: "server", offset: None, cards: CardMaker::new() },
+            OtherLog { kind: "player2", offset: None, cards: CardMaker::new() },
+        ];
+        loop {
+            // The Zomboid folder the Studio is set to (Settings), else the one it finds.
+            let saved = crate::vfs::studio_paths().user_zomboid_dir;
+            let Some(primary) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&saved).into_iter().next() else {
+                thread::sleep(Duration::from_millis(2000));
+                continue;
+            };
+            for log in logs.iter_mut() {
+                let path = match log.kind {
+                    "server" => primary.join("server-console.txt"),
+                    _ => crate::server_manager::mp_test::second_dir(&primary).join("console.txt"),
+                };
+                let kind = log.kind;
+                let name = || match kind {
+                    "server" => crate::server_manager::get_dedicated_server_status(primary.to_string_lossy().into_owned()).ok().and_then(|s| s.server_name),
+                    _ => None,
+                };
+                let (cards, restarted) = follow_other_log(log, &path);
+                if restarted {
+                    let _ = app.emit("sandbox-log-session-started", kind);
+                }
+                for mut card in cards {
+                    // Each log numbers its own cards: the kind keeps them apart from the game's.
+                    card.id = format!("{}-{}", kind, card.id);
+                    card.log = Some(kind.to_string());
+                    card.log_name = name();
+                    mark_own_mod_installed(&mut card);
+                    let _ = app.emit("sandbox-error-card", card);
+                }
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+    });
+}
+
+/// What one other log added since the last look, as cards, and whether the log started over (a
+/// new server start rewrote it). Starts at the end of the file the first time (what is new from
+/// now on, as the game's watcher does).
+fn follow_other_log(log: &mut OtherLog, path: &std::path::Path) -> (Vec<TranslatedErrorPayload>, bool) {
+    let Ok(file) = File::open(path) else { return (Vec::new(), false) };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let Some(mut offset) = log.offset else {
+        log.offset = Some(len);
+        return (Vec::new(), false);
+    };
+    let restarted = len < offset;
+    if restarted {
+        offset = 0;
+        log.cards.new_session();
+    }
+    let mut out = Vec::new();
+    let mut reader = BufReader::new(file);
+    if reader.seek(SeekFrom::Start(offset)).is_err() {
+        return (out, restarted);
+    }
+    let mut buf: Vec<u8> = Vec::new();
+    let mut read_any = false;
+    let mut at = offset;
+    while reader.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+        // A line still being written (no newline yet) is read again whole next time.
+        if !buf.ends_with(b"\n") {
+            break;
+        }
+        read_any = true;
+        at += buf.len() as u64;
+        out.extend(log.cards.line(String::from_utf8_lossy(&buf).trim_end()));
+        buf.clear();
+    }
+    if !read_any {
+        out.extend(log.cards.flush());
+    }
+    log.offset = Some(at);
+    (out, restarted)
 }
 
 /// A line the game wrote at a level of its own (`ERROR: ...`, `LOG  : ...`); the lines in between
@@ -1145,6 +1252,8 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
             own_mod: false,
             own_file: None,
             frame_mod: None,
+            log: None,
+            log_name: None,
         };
     }
     TranslatedErrorPayload {
@@ -1181,6 +1290,8 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
         own_mod: false,
         own_file: None,
         frame_mod: None,
+        log: None,
+        log_name: None,
     }
 }
 
@@ -1273,6 +1384,8 @@ fn rule_card(counter: usize, line: &str, code: &str, params: BTreeMap<String, St
         own_mod: false,
         own_file: None,
         frame_mod: None,
+        log: None,
+        log_name: None,
     }
 }
 
@@ -1763,6 +1876,20 @@ pub fn list_available_log_files(user_zomboid_dir: &str) -> Vec<LogFileInfo> {
                 size_bytes: size,
                 modified_timestamp: mod_time,
                 is_active_console: true,
+            });
+        }
+
+        // The Studio's dedicated server writes its own log beside it: a server that did not start
+        // is read there ("Open the last session" takes whichever of the two is newer).
+        let server_p = u_dir.join("server-console.txt");
+        if server_p.exists() && seen.insert(server_p.clone()) {
+            let meta = std::fs::metadata(&server_p).ok();
+            files.push(LogFileInfo {
+                file_name: "server-console.txt".to_string(),
+                absolute_path: server_p.to_string_lossy().to_string(),
+                size_bytes: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+                modified_timestamp: meta.and_then(|m| m.modified().ok()).and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0),
+                is_active_console: false,
             });
         }
 
@@ -2636,5 +2763,45 @@ mod grouped_and_own_tests {
         assert_eq!(json["own_mod"], true);
         assert!(json["own_file"].as_str().is_some_and(|f| f.ends_with("RemoteSpawn.lua")));
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod other_log_tests {
+    use super::*;
+
+    #[test]
+    fn a_servers_log_makes_cards_from_what_is_new_and_starts_over_when_rewritten() {
+        let dir = std::env::temp_dir().join(format!("pzms-other-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("server-console.txt");
+        let error = "	Lua((MOD:Fancy Handwork B42.20)).FHhandleKeybinds(aFancyHandwork.lua:126)
+ERROR: General      f:241> 20)).FHhandleKeybinds> Exception thrown
+	java.lang.NullPointerException: Cannot invoke \"zombie.input.KeybindId.getId()\"
+	at zombie.core.Core.getKey(Core.java:3023)
+LOG  : General      f:242> something else
+";
+        // What was there before the Studio looked is not reported.
+        std::fs::write(&path, format!("LOG  : General  old line
+{}", error)).unwrap();
+        let mut log = OtherLog { kind: "server", offset: None, cards: CardMaker::new() };
+        assert!(follow_other_log(&mut log, &path).0.is_empty(), "the first look only learns where the log ends");
+
+        // New lines: an error, then nothing more (the card held for its exception goes out).
+        let mut f = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+        std::io::Write::write_all(&mut f, error.as_bytes()).unwrap();
+        drop(f);
+        let (mut cards, restarted) = follow_other_log(&mut log, &path);
+        cards.extend(follow_other_log(&mut log, &path).0);
+        assert!(!restarted);
+        assert_eq!(cards.len(), 1, "one card for the new error: {:?}", cards.iter().map(|c| &c.title).collect::<Vec<_>>());
+
+        // A new server start rewrites the log from the top.
+        std::fs::write(&path, "LOG  : General  started
+").unwrap();
+        let (cards, restarted) = follow_other_log(&mut log, &path);
+        assert!(restarted && cards.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

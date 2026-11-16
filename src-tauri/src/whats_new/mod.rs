@@ -74,6 +74,13 @@ pub struct UpdatedItem {
     /// limiting requests), or what went wrong.
     pub notes_error: Option<String>,
     pub risks: Vec<Risk>,
+    /// Ids your list still names that this item no longer has: its author renamed them in an
+    /// update (the game will not find them until the list says the new id).
+    #[serde(default)]
+    pub renamed_in_list: Vec<String>,
+    /// The old id still loads, from a copy in Zomboid/mods (the version from before the rename).
+    #[serde(default)]
+    pub renamed_copy: bool,
     /// The entries of the mod's own changelog not read yet, newest first.
     pub changelog: Vec<crate::mod_changelog::LogEntry>,
     /// That file, from the mod's folder.
@@ -302,7 +309,8 @@ fn item_mods(item_dir: &Path) -> Vec<(String, String, bool)> {
     let mut out = Vec::new();
     for m in std::fs::read_dir(item_dir.join("mods")).into_iter().flatten().flatten() {
         let root = m.path();
-        let info = [root.join("42").join("mod.info"), root.join("mod.info")].into_iter().find(|p| p.is_file());
+        // B42 items may keep mod.info only in common/ (Viewpoint does): read it there too.
+        let info = [root.join("42").join("mod.info"), root.join("common").join("mod.info"), root.join("mod.info")].into_iter().find(|p| p.is_file());
         let Some(info) = info else { continue };
         let Ok(text) = std::fs::read_to_string(&info) else { continue };
         let field = |k: &str| text.lines().find_map(|l| l.trim().strip_prefix(k).map(|v| v.trim().to_string()));
@@ -345,6 +353,9 @@ pub fn whats_new(user_zomboid_dir: &Path, workshop_dir: &str, with_notes: bool, 
         profiles.iter().filter(|(_, _, on)| ids.iter().any(|i| on.contains(i))).map(|(n, current, _)| ProfileOn { name: n.clone(), current: *current }).collect()
     };
 
+    // An id the author renamed in an update is no longer in the item, but the list (and the
+    // profiles) still name it: the item is still the one they have on.
+    let known = crate::catalog::known_workshop_ids(user_zomboid_dir);
     let mut items: Vec<UpdatedItem> = Vec::new();
     for (wid, s) in &state.items {
         let since_last_play = matches!((s.installed_time, since), (Some(i), Some(p)) if i > p);
@@ -359,8 +370,8 @@ pub fn whats_new(user_zomboid_dir: &Path, workshop_dir: &str, with_notes: bool, 
             workshop_id: wid.clone(),
             title: mods[0].1.clone(),
             mod_ids: mods.iter().map(|m| m.0.clone()).collect(),
-            active: mods.iter().any(|m| active.contains(&m.0)),
-            profiles: profiles_with(&mods.iter().map(|m| m.0.clone()).collect::<Vec<_>>()),
+            active: mods.iter().any(|m| active.contains(&m.0)) || active.iter().any(|a| known.get(a) == Some(wid) && !mods.iter().any(|m| &m.0 == a)),
+            profiles: profiles_with(&mods.iter().map(|m| m.0.clone()).chain(known.iter().filter(|(id, w)| *w == wid && !mods.iter().any(|m| &m.0 == *id)).map(|(id, _)| id.clone())).collect::<Vec<_>>()),
             installed_time: s.installed_time,
             latest_time: s.latest_time,
             pending: s.update_pending,
@@ -369,6 +380,8 @@ pub fn whats_new(user_zomboid_dir: &Path, workshop_dir: &str, with_notes: bool, 
             notes: Vec::new(),
             notes_error: None,
             risks: Vec::new(),
+            renamed_in_list: active.iter().filter(|a| known.get(*a) == Some(wid) && !mods.iter().any(|m| &m.0 == *a)).cloned().collect(),
+            renamed_copy: false,
             changelog: Vec::new(),
             changelog_file: None,
             support: Vec::new(),
@@ -424,6 +437,8 @@ pub fn whats_new(user_zomboid_dir: &Path, workshop_dir: &str, with_notes: bool, 
             notes: Vec::new(),
             notes_error: None,
             risks: Vec::new(),
+            renamed_in_list: Vec::new(),
+            renamed_copy: false,
             changelog: log.entries[..cut].to_vec(),
             changelog_file: Some(log.file),
             support: log.links,
@@ -436,6 +451,14 @@ pub fn whats_new(user_zomboid_dir: &Path, workshop_dir: &str, with_notes: bool, 
     }
 
     // Mods that are on first, then the newest.
+    // An old id that still loads from a copy in Zomboid/mods is not "will not load": the game
+    // takes the copy, the version from before the rename. Read the catalog only when needed.
+    if items.iter().any(|i| !i.renamed_in_list.is_empty()) {
+        let catalog = crate::catalog::build_catalog(workshop_dir, &user_zomboid_dir.to_string_lossy(), None);
+        for item in items.iter_mut().filter(|i| !i.renamed_in_list.is_empty()) {
+            item.renamed_copy = item.renamed_in_list.iter().any(|id| catalog.resolve(id).is_some());
+        }
+    }
     items.sort_by(|a, b| b.active.cmp(&a.active).then(b.latest_time.cmp(&a.latest_time)));
 
     if with_notes {

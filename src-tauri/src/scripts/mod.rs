@@ -527,6 +527,72 @@ fn is_additive(rel_path: &str) -> bool {
 
 /// Things declared by two or more active mods with different bodies, in load order. Identical
 /// declarations are left out: there is nothing to decide about them.
+/// One declaration in one of a mod's script files, as read from disk.
+#[derive(Serialize, Deserialize)]
+struct ModDeclaration {
+    name: String,
+    rel: String,
+    body: String,
+    props: BTreeMap<String, String>,
+    abs: String,
+}
+
+type DeclarationKey = (String, u64, Option<u64>, Option<u32>);
+/// A Workshop mod's declarations, by its folder, install time, size and the game build: read
+/// once, then again only when Steam updates the mod. Every check used to read and parse every
+/// script file of every mod again (12,000 files for a 390-mod list), from disk when Windows had
+/// dropped them from its cache. Mods in Zomboid/mods (the player's, copies) are always read.
+static DECLARATIONS: std::sync::Mutex<Option<HashMap<DeclarationKey, std::sync::Arc<Vec<ModDeclaration>>>>> = std::sync::Mutex::new(None);
+
+fn mod_declarations(m: &crate::catalog::CatalogMod, game: Option<u32>) -> std::sync::Arc<Vec<ModDeclaration>> {
+    let key = m.workshop_state.as_ref().and_then(|s| s.installed_time.map(|t| (m.root_dir.clone(), t, s.size, game)));
+    if let Some(key) = &key {
+        if let Some(found) = DECLARATIONS.lock().unwrap_or_else(|p| p.into_inner()).as_ref().and_then(|c| c.get(key)) {
+            return found.clone();
+        }
+    }
+    // Kept on disk from an earlier start (mod_cache), until Steam updates the mod.
+    let disk_key = crate::mod_cache::workshop_key(m, &format!("scripts {:?}", game));
+    if let Some(found) = disk_key.as_deref().and_then(|k| crate::mod_cache::load::<Vec<ModDeclaration>>("scripts", k)) {
+        let found = std::sync::Arc::new(found);
+        if let Some(key) = key {
+            DECLARATIONS.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(HashMap::new).insert(key, found.clone());
+        }
+        return found;
+    }
+    // The version folder's copy of a file replaces the mod's own `common/` copy, like the game.
+    let mut files: std::collections::BTreeMap<String, std::path::PathBuf> = Default::default();
+    for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
+        let scripts = layer.join("media").join("scripts");
+        for e in WalkDir::new(&scripts).into_iter().filter_map(|e| e.ok()) {
+            if !e.file_type().is_file() || !e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("txt")) {
+                continue;
+            }
+            let Ok(rel) = e.path().strip_prefix(layer.join("media")) else { continue };
+            files.insert(format!("media/{}", rel.to_string_lossy().replace('\\', "/")), e.path().to_path_buf());
+        }
+    }
+    let mut out = Vec::new();
+    for (rel, abs) in files {
+        if is_additive(&rel) {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&abs) else { continue };
+        for def in parse_script_defs(&text) {
+            let props = top_level_props(&def.body);
+            out.push(ModDeclaration { name: def.full_name(), rel: rel.clone(), body: def.body, props, abs: abs.to_string_lossy().to_string() });
+        }
+    }
+    if let Some(k) = disk_key.as_deref() {
+        crate::mod_cache::save("scripts", k, &out);
+    }
+    let out = std::sync::Arc::new(out);
+    if let Some(key) = key {
+        DECLARATIONS.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(HashMap::new).insert(key, out.clone());
+    }
+    out
+}
+
 pub fn script_definition_conflicts(
     catalog: &crate::catalog::ModCatalog,
     active: &[String],
@@ -546,39 +612,8 @@ pub fn script_definition_conflicts(
             continue;
         }
 
-        // The version folder's copy of a file replaces the mod's own `common/` copy, like the game.
-        let mut files: std::collections::BTreeMap<String, std::path::PathBuf> = Default::default();
-        for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
-            let scripts = layer.join("media").join("scripts");
-            for e in WalkDir::new(&scripts).into_iter().filter_map(|e| e.ok()) {
-                if !e.file_type().is_file() || !e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("txt")) {
-                    continue;
-                }
-                let Ok(rel) = e.path().strip_prefix(layer.join("media")) else { continue };
-                files.insert(
-                    format!("media/{}", rel.to_string_lossy().replace('\\', "/")),
-                    e.path().to_path_buf(),
-                );
-            }
-        }
-
-        for (rel, abs) in files {
-            if is_additive(&rel) {
-                continue;
-            }
-            let Ok(text) = std::fs::read_to_string(&abs) else { continue };
-            for def in parse_script_defs(&text) {
-                let props = top_level_props(&def.body);
-                by_def.entry(def.full_name()).or_default().push((
-                    position,
-                    m.id.clone(),
-                    m.name.clone(),
-                    rel.clone(),
-                    def.body,
-                    props,
-                    abs.to_string_lossy().to_string(),
-                ));
-            }
+        for d in mod_declarations(m, game).iter() {
+            by_def.entry(d.name.clone()).or_default().push((position, m.id.clone(), m.name.clone(), d.rel.clone(), d.body.clone(), d.props.clone(), d.abs.clone()));
         }
     }
 

@@ -382,6 +382,9 @@ pub struct ModCopy {
     pub workshop_id: String,
     /// None: no marker (made by hand). Some(true): the Studio's copy, the Workshop item updated since.
     pub stale: Option<bool>,
+    /// The id the Workshop item has now, when its author renamed the one this copy has: the copy
+    /// keeps loading the version from before (name, version).
+    pub renamed: Option<(String, String)>,
 }
 
 /// The copies of Workshop mods among `mods` (the active list) in `Zomboid/mods`. Links (to the
@@ -403,10 +406,20 @@ pub fn mod_copies(catalog: &ModCatalog, mods: &[String]) -> Vec<ModCopy> {
         if is_link(root) {
             continue;
         }
-        let Some((ws, workshop_id)) = catalog.mods.iter().find_map(|c| match &c.source {
+        let same_id = catalog.mods.iter().find_map(|c| match &c.source {
             ModSource::Workshop { workshop_id } if c.id == m.id => Some((c, workshop_id.clone())),
             _ => None,
-        }) else {
+        });
+        // No Workshop mod has this id any more: the item it came from may have renamed it.
+        let renamed_in_item = || {
+            let item = catalog.known_workshop.get(&m.id)?;
+            catalog.mods.iter().find_map(|c| match &c.source {
+                ModSource::Workshop { workshop_id } if workshop_id == item && c.id != m.id && c.shadowed_by.is_none() => Some((c, workshop_id.clone())),
+                _ => None,
+            })
+        };
+        let renamed = same_id.is_none();
+        let Some((ws, workshop_id)) = same_id.or_else(renamed_in_item) else {
             continue;
         };
         let stale = read_marker(root).map(|marker| newest_mtime(Path::new(&ws.root_dir)) > marker.source_newest);
@@ -418,6 +431,7 @@ pub fn mod_copies(catalog: &ModCatalog, mods: &[String]) -> Vec<ModCopy> {
             workshop_root: PathBuf::from(&ws.root_dir),
             workshop_id,
             stale,
+            renamed: renamed.then(|| (ws.id.clone(), ws.info.mod_version.clone().unwrap_or_default())),
         });
     }
     out
@@ -432,8 +446,17 @@ pub fn mod_copy_issues(copies: &[ModCopy], servers: &std::collections::BTreeMap<
         .map(|c| {
             let listed = servers.get(&c.id).map(|s| s.join(", ")).unwrap_or_default();
             let on_server = if listed.is_empty() { String::new() } else { format!(" The server {} lists it.", listed) };
-            let (severity, code, message, fixes) = match c.stale {
-                None => (
+            let (severity, code, message, fixes) = match (&c.renamed, c.stale) {
+                (Some((new_id, version)), _) => (
+                    Severity::Warning,
+                    "workshop_copy_renamed",
+                    format!(
+                        "{} runs from a copy in Zomboid/mods ({}) of the version from before its author renamed it: Workshop item {} now has {}{}. Your games keep loading the old copy.{} Use the new one: the list then names it, and the old copy can go.",
+                        c.name, c.folder, c.workshop_id, new_id, if version.is_empty() { String::new() } else { format!(" ({})", version) }, on_server
+                    ),
+                    vec![crate::catalog::SuggestedFix::ReplaceInList { entry: c.id.clone(), mod_id: new_id.clone() }],
+                ),
+                (None, None) => (
                     Severity::Warning,
                     "workshop_copy_by_hand",
                     format!(
@@ -442,7 +465,7 @@ pub fn mod_copy_issues(copies: &[ModCopy], servers: &std::collections::BTreeMap<
                     ),
                     vec![crate::catalog::SuggestedFix::AdoptWorkshopCopy { folder: c.folder.clone() }],
                 ),
-                Some(true) => (
+                (None, Some(true)) => (
                     Severity::Warning,
                     "workshop_copy_stale",
                     format!(
@@ -451,7 +474,7 @@ pub fn mod_copy_issues(copies: &[ModCopy], servers: &std::collections::BTreeMap<
                     ),
                     vec![crate::catalog::SuggestedFix::RecopyWorkshop { mod_id: c.id.clone() }],
                 ),
-                Some(false) => (
+                (None, Some(false)) => (
                     Severity::Info,
                     "workshop_copy_kept",
                     format!(
@@ -461,7 +484,8 @@ pub fn mod_copy_issues(copies: &[ModCopy], servers: &std::collections::BTreeMap<
                     vec![],
                 ),
             };
-            let mut issue = issue(severity, code, message, &[("mod", c.name.as_str()), ("folder", c.folder.as_str()), ("item", c.workshop_id.as_str()), ("servers", listed.as_str())], &c.id);
+            let (new_id, new_version) = c.renamed.clone().unwrap_or_default();
+            let mut issue = issue(severity, code, message, &[("mod", c.name.as_str()), ("folder", c.folder.as_str()), ("item", c.workshop_id.as_str()), ("servers", listed.as_str()), ("renamed", new_id.as_str()), ("version", new_version.as_str())], &c.id);
             if !listed.is_empty() {
                 issue.params.insert("variant".to_string(), "server".to_string());
             }

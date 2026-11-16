@@ -3,10 +3,11 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
 import i18next from 'i18next';
-import { Archive, ExternalLink, Loader2, Newspaper, RefreshCw } from 'lucide-react';
+import { Archive, Check, ExternalLink, Loader2, Newspaper, RefreshCw } from 'lucide-react';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { AuthorLink, UpdatedItem, WhatsNew } from '../../types';
+import { SEEN_EVENT, markSeen, readSeen, unmarkSeen, updateKey } from '../../utils/seenUpdates';
 
 interface WhatsNewModuleProps {
   paths: StudioPathsUI;
@@ -78,7 +79,19 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
     };
   }, [workshopIds]);
 
-  const items = (data?.items ?? []).filter((i) => !onlyActive || i.active);
+  /** Updates marked as seen: shown dimmed, out of the sidebar's count, unseen ones first. */
+  const [seen, setSeen] = useState<Set<string>>(() => readSeen());
+  useEffect(() => {
+    const again = () => setSeen(readSeen());
+    window.addEventListener(SEEN_EVENT, again);
+    return () => window.removeEventListener(SEEN_EVENT, again);
+  }, []);
+  const isSeen = (i: UpdatedItem) => seen.has(updateKey(i));
+  // Seen ones go after the new ones, but only as the page loads: re-sorting on each mark moved the
+  // next card under the pointer, and a second click marked it too.
+  const seenAtLoad = useMemo(() => readSeen(), [data]);
+  const items = (data?.items ?? []).filter((i) => !onlyActive || i.active).map((item, n) => ({ item, n })).sort((a, b) => Number(seenAtLoad.has(updateKey(a.item))) - Number(seenAtLoad.has(updateKey(b.item))) || a.n - b.n).map((x) => x.item);
+  const unseen = items.filter((i) => !isSeen(i));
   const unread = items.filter((i) => i.notes_error === 'later' || i.notes_error === 'busy').length;
 
   /** A local mod's changelog entries are read: it leaves the list until a new one comes. */
@@ -129,6 +142,11 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
           {t('whatsNew.onlyActive')}
         </label>
         <span className="text-slate-500">{t('whatsNew.count', { count: items.length })}</span>
+        {unseen.length > 0 && (
+          <button onClick={() => markSeen(unseen.map(updateKey))} className="px-2 py-1 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer" title={t('whatsNew.seen.allTitle')}>
+            {t('whatsNew.seen.all', { count: unseen.length })}
+          </button>
+        )}
         {reading && <span className="flex items-center gap-1 text-sky-300"><Loader2 className="w-3.5 h-3.5 animate-spin" />{t('whatsNew.readingNotes')}</span>}
         {!reading && unread > 0 && (
           <button onClick={() => void load()} className="px-2 py-1 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer">{t('whatsNew.readMore', { count: unread })}</button>
@@ -151,7 +169,7 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
       <div className="space-y-3">
         {items.map((item) => {
           return (
-            <div key={item.workshop_id} className="rounded-lg border bg-slate-900/70 p-4 border-slate-800">
+            <div key={item.workshop_id} className={`rounded-lg border bg-slate-900/70 p-4 border-slate-800 ${isSeen(item) ? 'opacity-60' : ''}`}>
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-slate-100">{item.title}</div>
@@ -173,6 +191,17 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {isSeen(item) ? (
+                    <button onClick={() => unmarkSeen(updateKey(item))} title={t('whatsNew.seen.undoTitle')}
+                      className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-800/60 text-[11px] text-emerald-300 hover:bg-slate-800 cursor-pointer">
+                      <Check className="w-3 h-3" />{t('whatsNew.seen.done')}
+                    </button>
+                  ) : (
+                    <button onClick={() => markSeen([updateKey(item)])} title={t('whatsNew.seen.oneTitle')}
+                      className="flex items-center gap-1 px-2 py-1 rounded border border-slate-700 text-[11px] text-slate-300 hover:bg-slate-800 cursor-pointer">
+                      <Check className="w-3 h-3" />{t('whatsNew.seen.one')}
+                    </button>
+                  )}
                   {item.local ? (
                     <button onClick={() => void markRead(item)}
                       className="flex items-center gap-1 px-2 py-1 rounded border border-slate-700 text-[11px] text-slate-300 hover:bg-slate-800 cursor-pointer">
@@ -192,6 +221,11 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
                   )}
                 </div>
               </div>
+              {(item.renamed_in_list ?? []).length > 0 && (
+                <div className="mt-3 rounded border border-red-800/60 bg-red-950/30 px-3 py-2 text-xs text-red-200">
+                  {t(item.renamed_copy ? 'whatsNew.renamedCopy' : 'whatsNew.renamed', { old: item.renamed_in_list!.join(', '), now: item.mod_ids.join(', ') })}
+                </div>
+              )}
               <div className="mt-3 space-y-2">
                 {item.notes.map((n) => (
                   <div key={n.at} className="border-l-2 border-slate-700 pl-3">

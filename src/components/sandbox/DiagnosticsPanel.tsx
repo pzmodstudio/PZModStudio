@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TranslatedErrorCard, ModInfo, RequireAnswer, PackageFileState, ErrorHistoryView, KeyHistory } from '../../types';
+import { TranslatedErrorCard, ModInfo, RequireAnswer, PackageFileState, ErrorHistoryView, KeyHistory, PZServerConfig } from '../../types';
+import { fixReach, reachLines, ServerList } from '../../utils/fixReach';
 import i18next from 'i18next';
 import { BisectPanel } from './BisectPanel';
 import { StudioPathsUI } from '../settings/SettingsModule';
@@ -38,6 +39,12 @@ interface DiagnosticsPanelProps {
   onInspect: (term: string) => void;
   /** A short note for the console's status badge ("Saved to ..."). */
   onStatus: (message: string) => void;
+  /** The active profile's name: the list a fix reaches in single player. */
+  profileName?: string | null;
+  /** The title of the log in front when it is not the game's own (the server's, player 2's): the cards are still the game's. */
+  viewingOther?: string | null;
+  /** The cards are a server's or player 2's (that log's tab title): its list is not the profile's. */
+  cardsFrom?: string | null;
 }
 
 /**
@@ -50,7 +57,6 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
   paths,
   mods,
   errorCards,
-  logLines,
   reportLines,
   onRefreshMods,
   onOpenMerger,
@@ -60,6 +66,9 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
   onDismissErrorCard,
   onInspect,
   onStatus,
+  profileName = null,
+  viewingOther = null,
+  cardsFrom = null,
 }) => {
   const { t } = useTranslation();
   const [copiedCardId, setCopiedCardId] = useState<string | null>(null);
@@ -144,14 +153,14 @@ ${report}`);
   const errorCounts = useMemo(() => {
     const counts = new Map<string, number>();
     let total = 0;
-    for (const line of logLines) {
+    for (const line of reportLines) {
       if (!line.startsWith('ERROR')) continue;
       total += 1;
       const shape = errorShape(line);
       counts.set(shape, (counts.get(shape) ?? 0) + 1);
     }
     return { counts, total, distinct: counts.size };
-  }, [logLines]);
+  }, [reportLines]);
 
   const timesSeen = (card: TranslatedErrorCard) => errorCounts.counts.get(errorShape(card.raw_error)) ?? 0;
 
@@ -264,6 +273,15 @@ ${report}`);
       window.clearInterval(timer);
     };
   }, [anyRequireCard]);
+  /** Every server's Mods=, read when a fix needs to say who it reaches. */
+  const serverLists = async (): Promise<ServerList[]> =>
+    ((await TauriService.listServerConfigs(paths.user_zomboid_dir || '').catch(() => [])) as PZServerConfig[]).map((s) => ({ name: s.name, mods: s.mods }));
+  /** "Fixed" plus where: the package in Zomboid/mods, the profile, the servers that load it and those that do not. */
+  const withReach = async (said: string, packageFolder: string) => {
+    const reach = fixReach('package', packageFolder, profileName, await serverLists());
+    return [said, ...reachLines(reach).map((l) => t(l.key, l.values))].join('\n');
+  };
+
   const handleFixPath = async (card: TranslatedErrorCard, fix: { from: string; to: string }) => {
     // Asked again at the press: the game may have started since the last look.
     if ((await TauriService.gameStatus()) !== null) {
@@ -302,11 +320,14 @@ ${report}`);
       }
       // Done: the card goes, and one line above the list says what happened and what is left.
       setFixedBanner(
-        t(done.length === 1 ? 'monitor.fixes.pathFixedOne' : 'monitor.fixes.pathFixedMany', {
-          files: done.join(', '),
-          to: fix.to,
-          package: display,
-        })
+        await withReach(
+          t(done.length === 1 ? 'monitor.fixes.pathFixedOne' : 'monitor.fixes.pathFixedMany', {
+            files: done.join(', '),
+            to: fix.to,
+            package: display,
+          }),
+          folder
+        )
       );
       onDismissErrorCard?.(card.id);
       onRefreshMods();
@@ -335,7 +356,7 @@ ${report}`);
       const packages = await TauriService.listMergedPackages(paths.user_zomboid_dir || '', paths.mod_list_ini_path || '');
       const folder = packages.find((p) => p.display_name === display)?.folder_name ?? `Z_PZModStudio_${display.replace(/ /g, '_')}`;
       const result = await TauriService.removeFileFromPackage(paths, folder, file);
-      setFixedBanner(t('monitor.fixes.copyRemoved', { file, package: display, count: result.files_written }));
+      setFixedBanner(await withReach(t('monitor.fixes.copyRemoved', { file, package: display, count: result.files_written }), folder));
       onDismissErrorCard?.(card.id);
       onRefreshMods();
     } catch (err) {
@@ -376,8 +397,8 @@ ${report}`);
   const fileFailedLater = (card: TranslatedErrorCard): boolean => {
     const file = fileNamed(card);
     if (!file) return false;
-    const at = logLines.findIndex((l) => l.includes(card.raw_error.trim()));
-    return logLines.slice(at + 1).some((l) => l.includes(file) && !l.includes('require(') && /ERROR|Exception|attempted|non-table|nil value/.test(l));
+    const at = reportLines.findIndex((l) => l.includes(card.raw_error.trim()));
+    return reportLines.slice(at + 1).some((l) => l.includes(file) && !l.includes('require(') && /ERROR|Exception|attempted|non-table|nil value/.test(l));
   };
 
   /** The mod a card is about, as the Mod List has it. */
@@ -404,7 +425,7 @@ ${report}`);
       picked: pickedFor(card),
       carriedOn: isWarning(card),
       // "No error from that file follows" is only said of a file the line names, in the log in front.
-      fileInLog: !!fileNamed(card) && logLines.some((l) => l.includes(card.raw_error.trim())),
+      fileInLog: !!fileNamed(card) && reportLines.some((l) => l.includes(card.raw_error.trim())),
       fileFailedLater: fileFailedLater(card),
     });
   };
@@ -479,9 +500,9 @@ ${report}`);
     // A mod's translated text, or a line in one of the game's own files, says whose it is (or
     // that it is nobody's): a mod named on a line nearby is someone else.
     if (card.code === 'translator_text' || card.code === 'save_item_missing' || card.code === 'connection_lost' || card.code === 'windows_low_memory' || card.raw_error.includes('Lua(Vanilla)')) return null;
-    const at = logLines.findIndex((l) => l.includes(card.raw_error.trim()));
+    const at = reportLines.findIndex((l) => l.includes(card.raw_error.trim()));
     if (at < 0) return null;
-    for (const line of logLines.slice(at, at + 30)) {
+    for (const line of reportLines.slice(at, at + 30)) {
       const found = line.match(/Lua\(\(MOD:(.+?)\)\)/);
       if (found) return found[1];
     }
@@ -561,10 +582,21 @@ ${report}`);
         )}
       </div>
 
+      {cardsFrom && (
+        <div className="px-3 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 shrink-0">
+          {t('monitor.cards.fromOtherLog', { log: cardsFrom })}
+        </div>
+      )}
+      {viewingOther && errorCards.length > 0 && (
+        <div className="px-3 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 shrink-0">
+          {t('monitor.cards.fromGameLog', { log: viewingOther })}
+        </div>
+      )}
+
       {fixedBanner && (
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-emerald-950/50 border border-emerald-700/60 text-[11px] text-emerald-200 leading-relaxed shrink-0">
           <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
-          <span className="flex-1">{fixedBanner}</span>
+          <span className="flex-1 whitespace-pre-line">{fixedBanner}</span>
           <button
             type="button"
             onClick={() => setFixedBanner(null)}
@@ -774,7 +806,11 @@ ${report}`);
                         </div>
                       )}
                       {/* Not for the player's own mod, nor for a require that came to nothing: there is nothing to switch off for. */}
-                      {onSwitchOffMod && !card.own_mod && !requireOptional(card) && !(card.mod_name ?? '').startsWith(STUDIO_PACKAGE_PREFIX) && card.code !== 'ui_draw_reload' && (
+                      {/* A server's mod goes off in its own list, in Servers: not in the profile. */}
+                      {card.log && !card.own_mod && !requireOptional(card) && !(card.mod_name ?? '').startsWith(STUDIO_PACKAGE_PREFIX) && (
+                        <span className="text-[10px] text-slate-400">{t('monitor.fixes.serverListElsewhere', { server: card.log_name ?? cardsFrom ?? '-' })}</span>
+                      )}
+                      {onSwitchOffMod && !card.log && !card.own_mod && !requireOptional(card) && !(card.mod_name ?? '').startsWith(STUDIO_PACKAGE_PREFIX) && card.code !== 'ui_draw_reload' && (
                         <button
                           type="button"
                           onClick={() => onSwitchOffMod((card.mod_name ?? modFromStack(card))!)}

@@ -37,7 +37,7 @@ interface ModDetailProps {
   installedByNexusId: Map<number, string[]>;
   onNexusDownload: (m: NexusMod) => void;
   /** Makes a profile holding the mods installed from a collection's items. */
-  onMakeProfile?: (name: string, workshopIds: string[]) => void;
+  onMakeProfile?: (name: string, workshopIds: string[], collectionId?: string) => void;
   /** The game build installed, so the index's lines read as "reported on 42.19" when it differs. */
   installedBuild?: string | null;
   /** Favorite, lists, profiles: the star in the header. */
@@ -641,7 +641,7 @@ const CollectionDetail: React.FC<ModDetailProps & { target: { kind: 'collection'
           )}
           {onMakeProfile && items.length > 0 && (
             <ActionButton
-              onClick={() => onMakeProfile(info?.title ?? i18next.t('browse.detail.collection', { id: target.id }), items.map((i) => i.workshop_id))}
+              onClick={() => onMakeProfile(info?.title ?? i18next.t('browse.detail.collection', { id: target.id }), items.map((i) => i.workshop_id), target.id)}
               className="bg-violet-800 hover:bg-violet-700 text-white"
               title={i18next.t('browse.detail.makeProfileTitle')}
             >

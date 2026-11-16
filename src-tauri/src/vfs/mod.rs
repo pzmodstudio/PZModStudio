@@ -526,16 +526,10 @@ fn mod_text_files(m: &crate::catalog::CatalogMod, game: Option<u32>) -> std::col
     let mut files: std::collections::BTreeMap<String, PathBuf> = std::collections::BTreeMap::new();
     for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
         let media = layer.join("media");
-        for e in WalkDir::new(&media).into_iter().filter_map(|e| e.ok()) {
-            if !e.file_type().is_file() {
-                continue;
-            }
-            let is_text = e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("lua") || x.eq_ignore_ascii_case("txt"));
-            let Ok(rel) = e.path().strip_prefix(&media) else { continue };
-            if is_text {
-                // A later layer (the version folder) replaces the same file from common/.
-                files.insert(format!("media/{}", rel.to_string_lossy().replace('\\', "/")), e.path().to_path_buf());
-            }
+        for path in media_text_files(&media) {
+            let Ok(rel) = path.strip_prefix(&media) else { continue };
+            // A later layer (the version folder) replaces the same file from common/.
+            files.insert(format!("media/{}", rel.to_string_lossy().replace('\\', "/")), path);
         }
     }
     if let Some(key) = key {
@@ -543,6 +537,56 @@ fn mod_text_files(m: &crate::catalog::CatalogMod, game: Option<u32>) -> std::col
         cache.get_or_insert_with(HashMap::new).insert(key, files.clone());
     }
     files
+}
+
+/// The `.lua` and `.txt` files under a mod's `media` folder that two mods can collide on: all of
+/// `lua/` and `scripts/`, the files right in `media/` (sandbox-options.txt) and those right in each
+/// map folder (objects.lua, spawnpoints.lua). Textures, models, sounds, animations and map cells
+/// hold none, and walking them was most of a first check: 108,000 files for a 390-mod collection,
+/// 27,000 of them text, two minutes on a cold disk.
+fn media_text_files(media: &Path) -> Vec<PathBuf> {
+    let is_text = |p: &Path| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("lua") || x.eq_ignore_ascii_case("txt"));
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(media) else { return out };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else { continue };
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        if kind.is_file() {
+            if is_text(&path) {
+                out.push(path);
+            }
+        } else if kind.is_dir() {
+            let depth = match name.as_str() {
+                "lua" | "scripts" => usize::MAX,
+                "maps" => 2,
+                _ => continue,
+            };
+            out.extend(
+                WalkDir::new(&path)
+                    .max_depth(depth)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.file_type().is_file() && is_text(e.path()))
+                    .map(|e| e.into_path()),
+            );
+        }
+    }
+    out
+}
+
+/// With PZMS_HEALTH_TIMING set, how long each part of the conflict scan took (stderr).
+struct Lap(Option<std::cell::Cell<std::time::Instant>>);
+impl Lap {
+    fn new() -> Self {
+        Lap(std::env::var_os("PZMS_HEALTH_TIMING").map(|_| std::cell::Cell::new(std::time::Instant::now())))
+    }
+    fn at(&self, what: &str) {
+        if let Some(t) = &self.0 {
+            eprintln!("health {:6} ms  {}", t.get().elapsed().as_millis(), what);
+            t.set(std::time::Instant::now());
+        }
+    }
 }
 
 /// `scan_conflicts` for a given catalog and active list (mod ids in load order).
@@ -568,6 +612,7 @@ pub fn scan_conflicts_for_package(
         .cloned()
         .collect();
     let game = catalog.game_version_int();
+    let lap = Lap::new();
 
     // "media/..." path -> (load position, mod id, mod name, file on disk), in load order.
     let mut by_path: HashMap<String, Vec<(usize, String, String, PathBuf)>> = HashMap::new();
@@ -611,6 +656,7 @@ pub fn scan_conflicts_for_package(
         file_map.push((rel, files));
     }
     file_map.sort_by(|a, b| a.0.cmp(&b.0));
+    lap.at("vfs: walk + read colliding files");
 
     let pz_base_dir = Path::new(&paths.pz_install_dir);
 
@@ -710,15 +756,18 @@ pub fn scan_conflicts_for_package(
 
     // Two mods changing the same item in differently named files never collide on disk, so the
     // walk above cannot see them. They are the same question, so they are listed here too.
+    lap.at("vfs: merges of colliding files");
     let definitions = crate::scripts::script_definition_conflicts(catalog, &active);
     conflicts.extend(crate::scripts::as_merger_conflicts(&definitions, &draft_map));
     // Likewise a thing two mods name differently in the same language: the game reads every
     // mod's translations, so the files never collide, but the words do.
     // Only the language the game shows: forty rows of Chinese and Czech the player never sees
     // would bury the rest.
+    lap.at("vfs: script definitions");
     let language = crate::translations::game_language(&paths.user_zomboid_dir);
-    let translations: Vec<_> = crate::translations::translation_conflicts(catalog, &active).into_iter().filter(|c| c.lang == language).collect();
+    let translations: Vec<_> = crate::translations::translation_conflicts(catalog, &active, Some(&language)).into_iter().filter(|c| c.lang == language).collect();
     conflicts.extend(crate::translations::as_merger_conflicts(&translations, &draft_map));
+    lap.at("vfs: translations");
 
     // A file only one mod ships is no conflict, so the walk drops it -- including one the user
     // opened to patch a bug of that mod's own. Once the package holds a decision for it, it
@@ -762,6 +811,44 @@ fn find_first_differing_line(base: &str, files: &[CompetingModFileRaw]) -> usize
     }
 
     1
+}
+
+#[cfg(test)]
+mod text_file_tests {
+    use super::*;
+
+    #[test]
+    fn only_folders_that_hold_text_mods_can_collide_on_are_walked() {
+        let media = std::env::temp_dir().join(format!("pzms-media-walk-{}", std::process::id())).join("media");
+        let _ = fs::remove_dir_all(media.parent().unwrap());
+        for rel in [
+            "sandbox-options.txt",
+            "lua/client/A.lua",
+            "lua/shared/Translate/EN/UI_EN.txt",
+            "scripts/items/x.txt",
+            "Scripts/vehicles/y.txt",
+            "maps/MyMap/objects.lua",
+            "maps/MyMap/deep/notes.txt",
+            "textures/readme.txt",
+            "models_X/thing.txt",
+            "lua/client/icon.png",
+        ] {
+            let p = media.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, "x").unwrap();
+        }
+        let mut got: Vec<String> = media_text_files(&media)
+            .into_iter()
+            .map(|p| p.strip_prefix(&media).unwrap().to_string_lossy().replace('\\', "/"))
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            // (Windows: Scripts/ and scripts/ are one folder.)
+            ["lua/client/A.lua", "lua/shared/Translate/EN/UI_EN.txt", "maps/MyMap/objects.lua", "sandbox-options.txt", "scripts/items/x.txt", "scripts/vehicles/y.txt"]
+        );
+        let _ = fs::remove_dir_all(media.parent().unwrap());
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Shield, Play, Activity, ChevronDown, Layout, Zap, Check, Layers, Crosshair, Home } from 'lucide-react';
+import { ResourceMeter } from '../common/ResourceMeter';
+import { Shield, Play, Activity, ChevronDown, Layout, Zap, Check, Layers, Crosshair, Home, Stethoscope } from 'lucide-react';
 import { GameLaunchMode, GameInstall, LaunchTarget } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { CustomLaunchDialog } from './CustomLaunchDialog';
@@ -25,6 +26,10 @@ interface StudioHeaderProps {
   /** For the Custom launch's lists of saves and servers. */
   paths?: StudioPathsUI;
   activeProfileId?: string | null;
+  /** The resource meter's click: Mod Health's Performance tab. */
+  onOpenPerformance?: () => void;
+  /** Opens the Doctor: a guided way through a problem. */
+  onOpenDoctor?: () => void;
 }
 
 /** The modes; their words live in the locale files under header.modes.<id>. */
@@ -48,6 +53,8 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   onRunSandbox,
   paths,
   activeProfileId = null,
+  onOpenPerformance,
+  onOpenDoctor,
 }) => {
   const { t } = useTranslation();
   const modeText = (id: GameLaunchMode) => ({
@@ -196,6 +203,19 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <span className={`font-bold font-mono ${conflictCount > 0 ? 'text-amber-400' : 'text-emerald-300'}`}>{t('header.pending', { count: conflictCount })}</span>
           {resolvedConflictCount > 0 && <span className="font-mono text-slate-500">{t('header.resolved', { count: resolvedConflictCount })}</span>}
         </button>
+
+        {paths && <ResourceMeter paths={paths} compact onOpen={onOpenPerformance} />}
+
+        {onOpenDoctor && (
+          <button
+            type="button"
+            onClick={onOpenDoctor}
+            title={t('doctor.buttonTitle')}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950 border border-sky-800/70 hover:border-sky-500 text-sky-200 font-bold cursor-pointer"
+          >
+            <Stethoscope className="w-3.5 h-3.5" aria-hidden="true" /> {t('doctor.button')}
+          </button>
+        )}
 
       </div>
 

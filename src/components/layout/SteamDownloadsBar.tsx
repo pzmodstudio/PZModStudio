@@ -16,7 +16,10 @@ const mb = (bytes: number) => (bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1
  * downloads, how much of it is on disk. When a job ends the mods are read again (so the Mod List
  * shows what arrived) and the bar says so for a few seconds. Nothing shows while Steam is idle.
  */
-export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI }> = ({ paths }) => {
+/** A collection being downloaded into a profile of its own: how many of its items arrived. */
+export type DownloadBatch = { profileId: string; name: string; total: number; left: number };
+
+export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI; batches?: DownloadBatch[]; onStopWaiting?: (profileId: string) => void }> = ({ paths, batches = [], onStopWaiting }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<SteamDownloads | null>(null);
   const [done, setDone] = useState<SteamDownloads['finished']>(null);
@@ -66,7 +69,7 @@ export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI }> = ({ paths })
   };
 
   const active = state && state.phase !== 'idle' ? state : null;
-  const shown = !!(active || done);
+  const shown = !!(active || done || batches.length > 0);
 
   // While the bar shows, the screens end above it (App's <main> pads by --downloads-bar-h), so it
   // never covers the bottom of a page, such as Explore's page buttons.
@@ -88,7 +91,44 @@ export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI }> = ({ paths })
     };
   }, [shown, !!active]);
 
-  if (!active && !done) return null;
+  // Each collection's own line: the whole of it, while Steam shows one item at a time.
+  const batchLines = batches.map((b) => {
+    const arrived = Math.max(0, b.total - b.left);
+    const pct = b.total > 0 ? Math.round((arrived / b.total) * 100) : 0;
+    return (
+      <div key={b.profileId} className="mt-1.5">
+        <div className="flex items-center gap-2 text-[10.5px] text-slate-300">
+          <span className="flex-1 min-w-0 truncate">{t('steamDownloads.batch', { name: b.name, arrived, total: b.total })}</span>
+          <span className="font-mono text-emerald-200 shrink-0">{pct}%</span>
+          {onStopWaiting && (
+            <button type="button" onClick={() => onStopWaiting(b.profileId)} className="text-slate-400 hover:text-slate-200 cursor-pointer" title={t('steamDownloads.stopWaiting')} aria-label={t('steamDownloads.stopWaiting')}>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <div className="mt-1 h-1 rounded bg-slate-800 overflow-hidden">
+          <div className="h-full bg-emerald-500 transition-[width] duration-700" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  });
+
+  if (!active && !done && batches.length === 0) return null;
+
+  if (!active && !done) {
+    // Steam between items, or paused: the collections still say where they stand.
+    return (
+      <div ref={bar} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] w-[26rem] max-w-[calc(100vw-2rem)]" role="status" aria-live="polite">
+        <div className="px-3 py-2 rounded-lg border border-sky-700/50 bg-slate-900/95 shadow-lg text-slate-100">
+          <div className="flex items-center gap-2 text-[11px]">
+            <Download className="w-4 h-4 shrink-0 text-sky-400" />
+            <span className="text-slate-300">{t('steamDownloads.batchWaiting')}</span>
+          </div>
+          {batchLines}
+        </div>
+      </div>
+    );
+  }
 
   if (!active && done) {
     return (
@@ -132,6 +172,7 @@ export const SteamDownloadsBar: React.FC<{ paths: StudioPathsUI }> = ({ paths })
             {s.rate_mbps ? ` · ${s.rate_mbps.toFixed(0)} Mbps` : ''}
           </div>
         )}
+        {batchLines}
       </div>
     </div>
   );

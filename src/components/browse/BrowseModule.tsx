@@ -35,11 +35,15 @@ interface BrowseModuleProps {
   /** Called after mods were installed, so the mod list is rescanned. */
   onInstalled: () => void;
   /** Workshop items Steam accepted a subscription to: they land later, when Steam has downloaded them. */
-  onSubscribed?: (workshopIds: string[]) => void;
+  onSubscribed?: (workshopIds: string[], target?: SubscribeTarget) => void;
   /** Unsubscribed here: the mods of those items, to take out of the list (Steam deletes their files). */
   onUnsubscribed?: (modIds: string[]) => void;
   /** Makes a profile from a collection: the Studio's mod list and profiles live above here. */
   onMakeProfile?: (name: string, workshopIds: string[]) => void;
+  /** Makes a collection a profile of its own at once (asks its name); returns its id, or null. */
+  onCollectionProfile?: (name: string, workshopIds: string[], collectionId?: string) => Promise<string | null>;
+  /** The profile on now: what a subscription from here joins, unless it goes to a profile of its own. */
+  activeProfileName?: string | null;
   /** The player's profiles, for "Add to a profile…", and what to call after one changed. */
   profiles?: AppInstance[];
   onProfilesChanged?: () => void;
@@ -303,6 +307,9 @@ const toBrowseQuery = (q: WorkshopQuery, page: number) => ({
   page,
 });
 
+/** Where what a subscription brings goes: a profile named here, switched on (a collection's own). */
+export type SubscribeTarget = { profileId: string; enable: boolean };
+
 const WorkshopTab: React.FC<{
   installedByItem: Map<string, string[]>;
   stateByItem: Map<string, WorkshopInstallState>;
@@ -312,7 +319,9 @@ const WorkshopTab: React.FC<{
   keep: KeepActions;
   searchFor?: string | null;
   onSearchHandled?: () => void;
-}> = ({ installedByItem, stateByItem, onOpen, steamReady, onSubscribe, keep, searchFor, onSearchHandled }) => {
+  /** A collection as a profile of its own, what is missing subscribed into it. */
+  onCollectionToProfile?: (name: string, workshopIds: string[], collectionId?: string) => void;
+}> = ({ installedByItem, stateByItem, onOpen, steamReady, onSubscribe, keep, searchFor, onSearchHandled, onCollectionToProfile }) => {
   const showContextMenu = useContextMenu();
   const [text, setText] = useState('');
   const [query, setQuery] = useState<WorkshopQuery>({ text: '', sort: 'trending', build: '42', category: '', days: 7, collections: false });
@@ -398,13 +407,18 @@ const WorkshopTab: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const submit = async () => {
-    const t = text.trim();
+  const submit = async (value?: string) => {
+    const t = (value ?? text).trim();
     if (t && looksLikeWorkshopLinks(t)) {
       setSearching(true);
       try {
-        setLookup(await TauriService.workshopLookup(t));
+        const found = await TauriService.workshopLookup(t);
+        setLookup(found);
         setLookupPage(1);
+        // A collection's link opens its page (with "New profile with this collection"); one mod's
+        // link, that mod's. The grid of what was found stays behind it.
+        if (found.collection) onOpen({ kind: 'collection', id: found.collection.workshop_id, preview: found.collection });
+        else if (found.items.length === 1) onOpen({ kind: 'workshop', id: found.items[0].workshop_id, preview: found.items[0] });
       } catch (err) {
         reportBackendError('Looking up the Workshop link', err);
       } finally {
@@ -443,6 +457,15 @@ const WorkshopTab: React.FC<{
         disabled: !steamReady || missingIds.length === 0,
         disabledReason: missingIds.length === 0 ? i18next.t('browse.card.allInstalled') : i18next.t('browse.workshop.steamNotRunning'),
       },
+      ...(onCollectionToProfile
+        ? [{
+            label: missingIds.length > 0 ? i18next.t('browse.workshop.collectionToProfileMissing', { count: missingIds.length }) : i18next.t('browse.workshop.collectionToProfile'),
+            icon: Layers,
+            onSelect: () => onCollectionToProfile(item.title, item.children, item.workshop_id),
+            disabled: missingIds.length > 0 && !steamReady,
+            disabledReason: i18next.t('browse.workshop.steamNotRunning'),
+          }]
+        : []),
       { label: i18next.t('browse.workshop.showCollection'), icon: Layers, separatorBefore: true,
         onSelect: () => onOpen({ kind: 'collection', id: item.workshop_id, preview: item }) },
       { label: i18next.t('browse.workshop.openPage'), icon: ExternalLink,
@@ -460,6 +483,15 @@ const WorkshopTab: React.FC<{
         <div className="flex items-center gap-2 flex-1 min-w-[240px] px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 focus-within:border-sky-700">
           <Search className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
           <input value={text} onChange={(e) => setText(e.target.value)} aria-label={i18next.t('browse.workshop.searchLabel')}
+            onPaste={(e) => {
+              // A pasted Workshop link opens at once: no need to press Search too.
+              const pasted = e.clipboardData.getData('text');
+              if (looksLikeWorkshopLinks(pasted.trim())) {
+                e.preventDefault();
+                setText(pasted.trim());
+                void submit(pasted);
+              }
+            }}
             placeholder={i18next.t('browse.workshop.searchPlaceholder')}
             className="flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-600" />
           {(text || lookup) && (
@@ -537,7 +569,7 @@ const WorkshopTab: React.FC<{
                 <Library className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
                 <span dangerouslySetInnerHTML={{ __html: tHtml('browse.workshop.collectionLine', { title: lookup.collection.title, count: lookup.items.length }) }} />
                 <span className={lookupMissing ? 'text-amber-300' : 'text-emerald-300'}>{i18next.t('browse.workshop.notInstalled', { count: lookupMissing })}</span>
-                <button type="button" onClick={() => TauriService.openExternalUrl(lookup.collection!.page_url)}
+                <button type="button" onClick={() => onOpen({ kind: 'collection', id: lookup.collection!.workshop_id, preview: lookup.collection! })}
                   className="px-2 py-0.5 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer" title={i18next.t('browse.workshop.openCollectionTitle')}>
                   {i18next.t('browse.workshop.openCollection')}
                 </button>
@@ -885,7 +917,7 @@ const TABS: { id: SourceTab; active: string }[] = [
   { id: 'lists', active: 'bg-amber-950/80 text-amber-200 border-amber-700' },
 ];
 
-export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onInstalled, onSubscribed, onUnsubscribed, focusWorkshopId, onFocusHandled, focusSearch, onSearchHandled, onMakeProfile, installedBuild = null, profiles = [], onProfilesChanged }) => {
+export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onInstalled, onSubscribed, onUnsubscribed, focusWorkshopId, onFocusHandled, focusSearch, onSearchHandled, onMakeProfile, onCollectionProfile, activeProfileName = null, installedBuild = null, profiles = [], onProfilesChanged }) => {
   const { t } = useTranslation();
   const keep = useKeepActions(paths, profiles, onProfilesChanged);
   const [tab, setTab] = useState<SourceTab>('workshop');
@@ -957,11 +989,17 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
   );
 
   const handleSubscribe = useCallback(
-    async (ids: string[], subscribe: boolean) => {
+    async (ids: string[], subscribe: boolean, target?: SubscribeTarget) => {
       try {
+        // Many at once into the profile that is on is rarely what is meant: say where they go.
+        if (subscribe && !target && ids.length >= 5 && activeProfileName && !confirm(i18next.t('browse.subscribeIntoActive', { count: ids.length, profile: activeProfileName }))) {
+          throw new Error('cancelled');
+        }
         // What it needs comes in the same subscription, if the player says so.
         let extra: string[] = [];
-        if (subscribe) {
+        // A collection going into a profile of its own brings its requirements itself (its author
+        // put them in), and reading hundreds of pages only gets Steam to refuse most of them.
+        if (subscribe && !target) {
           const answer = await askRequirements(ids);
           if (answer === null) throw new Error('cancelled');
           extra = answer.filter((id) => !ids.includes(id));
@@ -976,7 +1014,7 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
         }
         // Steam downloads in the background; pick up whatever has landed, and watch for the rest.
         onInstalled();
-        if (subscribe && outcome.done.length > 0) onSubscribed?.(outcome.done);
+        if (subscribe && outcome.done.length > 0) onSubscribed?.(outcome.done, target);
         if (!subscribe && outcome.done.length > 0) onUnsubscribed?.(outcome.done.flatMap((id) => installedByItem.get(id) ?? []));
         // Nothing went through: the button must not say it did.
         if (outcome.done.length === 0) throw new Error('none subscribed');
@@ -987,7 +1025,31 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
         throw err;
       }
     },
-    [paths, onInstalled, onSubscribed, onUnsubscribed, installedByItem, askRequirements]
+    [paths, onInstalled, onSubscribed, onUnsubscribed, installedByItem, askRequirements, activeProfileName]
+  );
+
+  /**
+   * A collection as a profile of its own: made now with what is installed, switched on; what is
+   * missing is subscribed to and joins it, switched on, as Steam downloads it. The profile on stays on.
+   */
+  const collectionToProfile = useCallback(
+    async (name: string, workshopIds: string[], collectionId?: string) => {
+      if (!onCollectionProfile) return;
+      const profileId = await onCollectionProfile(name, workshopIds, collectionId);
+      if (!profileId) return;
+      let missing = workshopIds.filter((id) => !installedByItem.has(id));
+      // A collection can list other collections, and items Steam no longer has: neither ever lands
+      // as a mod, so waiting for them would keep the downloads bar at "148 of 149" for hours.
+      const details = await TauriService.workshopDetails(missing).catch(() => [] as WorkshopItem[]);
+      const notMods = new Set(details.filter((d) => d.is_collection || !d.found || d.banned).map((d) => d.workshop_id));
+      missing = missing.filter((id) => !notMods.has(id));
+      if (missing.length === 0) return;
+      await handleSubscribe(missing, true, { profileId, enable: true }).catch((err) => {
+        // Closed the dialog of what they also need: nothing was subscribed, and it can be taken up again.
+        if (err instanceof Error && err.message === 'cancelled') alert(i18next.t('browse.collectionNotSubscribed'));
+      });
+    },
+    [onCollectionProfile, installedByItem, handleSubscribe]
   );
 
   // The Mod List asked for one item: show it on its own, not stacked on whatever was open.
@@ -1022,8 +1084,20 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
             setRequirements(null);
           }}
           onRetry={async () => {
-            const again = await TauriService.workshopRequirements(requirements.ids);
-            if (again) setRequirements({ ...requirements, chain: again });
+            // Only the pages that could not be read, added to what was.
+            const unread = requirements.chain.unread;
+            const again = await TauriService.workshopRequirements(unread);
+            if (!again) return;
+            const known = new Set(requirements.chain.items.map((n) => n.workshop_id));
+            setRequirements({
+              ...requirements,
+              chain: {
+                ...requirements.chain,
+                items: [...requirements.chain.items, ...again.items.filter((n) => !known.has(n.workshop_id))],
+                unread: again.unread,
+                cut_short: requirements.chain.cut_short || again.cut_short,
+              },
+            });
           }}
           onCancel={() => {
             requirements.resolve(null);
@@ -1097,6 +1171,7 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
               keep={keep}
               searchFor={focusSearch}
               onSearchHandled={onSearchHandled}
+              onCollectionToProfile={onCollectionProfile ? (n, ids, c) => void collectionToProfile(n, ids, c) : undefined}
             />
           )}
         </div>
@@ -1147,7 +1222,7 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
           stateByItem={stateByItem}
           installedByNexusId={installedByNexusId}
           onNexusDownload={handleNexusDownload}
-          onMakeProfile={onMakeProfile}
+          onMakeProfile={onCollectionProfile ? (n, ids, c) => void collectionToProfile(n, ids, c) : onMakeProfile}
           installedBuild={installedBuild}
           keep={keep}
         />

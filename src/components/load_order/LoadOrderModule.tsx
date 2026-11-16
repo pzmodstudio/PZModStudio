@@ -152,6 +152,9 @@ function rowFrame(row: {
 }
 
 /** How the list is shown (only the view: the load order stays as it is). */
+/** Findings about the order: stale from the moment the order changes until the check is back. */
+const ORDER_CODES = new Set(['dependency_after', 'load_after_order', 'load_before_order']);
+
 type SortBy = 'order' | 'name' | 'newest' | 'oldest';
 const SORTS: SortBy[] = ['order', 'name', 'newest', 'oldest'];
 
@@ -266,8 +269,23 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     }
   };
 
+  /**
+   * The order of the mods that are on changed and Mod Health has not answered yet (it takes a few
+   * seconds on a long list): what it said about the order is about the old one, so it is not shown.
+   */
+  const [orderPending, setOrderPending] = useState(false);
+  useEffect(() => setOrderPending(false), [healthIssues]);
+  useEffect(() => {
+    if (!orderPending) return;
+    // Never stuck: the check may have nothing new to say.
+    const id = window.setTimeout(() => setOrderPending(false), 20000);
+    return () => window.clearTimeout(id);
+  }, [orderPending]);
+
   const triggerReorder = (newOrder: ModInfo[]) => {
     remember();
+    const onOrder = (list: ModInfo[]) => list.filter((m) => m.enabled).map((m) => m.mod_id).join('\n');
+    if (onOrder(newOrder) !== onOrder(mods)) setOrderPending(true);
     onReorder(newOrder);
   };
 
@@ -320,7 +338,10 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   const modIndexById = useMemo(() => new Map(mods.map((m, idx) => [m.mod_id, idx])), [mods]);
 
   /** The health check's issues by mod, for the row chips; an incompatible pair is on both rows. */
-  const issuesByMod = useMemo(() => issuesByModOf(healthIssues), [healthIssues]);
+  const issuesByMod = useMemo(
+    () => issuesByModOf(orderPending ? (healthIssues ?? []).filter((i) => !ORDER_CODES.has(i.code)) : healthIssues),
+    [healthIssues, orderPending]
+  );
 
   const {
     activeConflictsMap,
@@ -344,6 +365,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     for (const issue of healthIssues ?? []) {
       const modId = issue.mod_id;
       if (!modId) continue;
+      if (orderPending && ORDER_CODES.has(issue.code)) continue;
       switch (issue.code) {
         case 'incompatible':
           for (const other of issue.related) {
@@ -373,7 +395,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       missingUninstalledDependenciesMap: uninstalledDeps,
       loadOrderViolationsMap: violations,
     };
-  }, [healthIssues, mods]);
+  }, [healthIssues, mods, orderPending]);
 
   const [orderViolationCycleIdx, setOrderViolationCycleIdx] = useState(0);
   const [conflictCycleIdx, setConflictCycleIdx] = useState(0);
@@ -414,21 +436,30 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   };
 
   const handleFixLoadOrderViolation = (modId: string, requiredModId: string) => {
-    const currentIdx = mods.findIndex((m) => m.mod_id === modId);
-    const reqMod = findInstalledDependencyInMods(requiredModId, mods);
-    if (currentIdx === -1 || !reqMod) return;
-
-    const requiredIdx = mods.findIndex((m) => m.mod_id === reqMod.mod_id);
-    if (requiredIdx === -1) return;
-
-    // Move requiredModId (library/framework) BEFORE modId so it loads first!
-    const newOrder = [...mods];
-    const [movedReq] = newOrder.splice(requiredIdx, 1);
-    const newCurrentIdx = newOrder.findIndex((m) => m.mod_id === modId);
-    newOrder.splice(newCurrentIdx, 0, movedReq);
+    const at = mods.findIndex((m) => m.mod_id === modId);
+    if (at === -1) return;
+    // All that the check said must load before it, not only the one shown: a mod can name a dozen
+    // (one at a time looked like the button did nothing, the next one taking its place).
+    const wanted = [requiredModId, ...(loadOrderViolationsMap[modId] ?? []).map((v) => v.requiredModId)];
+    const ids = new Set(
+      wanted.map((id) => findInstalledDependencyInMods(id, mods)?.mod_id).filter((id): id is string => !!id && id !== modId)
+    );
+    const late = mods.filter((m, i) => ids.has(m.mod_id) && i > at);
+    if (late.length === 0) return;
+    // They go right before it, keeping their own order among themselves.
+    const rest = mods.filter((m) => !late.includes(m));
+    const newAt = rest.findIndex((m) => m.mod_id === modId);
+    const newOrder = [...rest.slice(0, newAt), ...late, ...rest.slice(newAt)];
 
     triggerReorder(newOrder);
     handleJumpToMod(modId);
+    const name = mods[at].name || modId;
+    showToast(
+      late.length === 1
+        ? t('inspector.movedOne', { name, other: late[0].name || late[0].mod_id })
+        : t('inspector.movedMany', { name, count: late.length }),
+      4000
+    );
   };
 
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -622,7 +653,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     try { localStorage.setItem('pzms_group_by', v); } catch { /* per-viewer convenience */ }
   };
   const [groupNoteOf, setGroupNoteOf] = useState<{ name: string; note: string } | null>(null);
-  const [metaOf, setMetaOf] = useState<{ mod: ModInfo; tab: 'note' | 'groups' } | null>(null);
+  const [metaOf, setMetaOf] = useState<{ mods: ModInfo[]; tab: 'note' | 'groups' } | null>(null);
   useEffect(() => {
     if (!paths.user_zomboid_dir) return;
     // Groups are each profile's own: another profile, its groups.
@@ -863,12 +894,12 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       label: meta.notes[mod.mod_id] ? t('modList.menu.editNote') : t('modList.menu.addNote'),
       icon: StickyNote,
       separatorBefore: true,
-      onSelect: () => setMetaOf({ mod, tab: 'note' }),
+      onSelect: () => setMetaOf({ mods: [mod], tab: 'note' }),
     },
     {
       label: t('modList.menu.groups'),
       icon: Tags,
-      onSelect: () => setMetaOf({ mod, tab: 'groups' }),
+      onSelect: () => setMetaOf({ mods: [mod], tab: 'groups' }),
     },
     {
       label: t('modList.menu.rules'),
@@ -1093,6 +1124,12 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
         });
       }
     }
+    out.push({
+      label: t('modList.picked.groups', { count: list.length }),
+      icon: Tags,
+      separatorBefore: true,
+      onSelect: () => setMetaOf({ mods: list, tab: 'groups' }),
+    });
     out.push({
       label: t('modList.picked.unsubscribe', { count: items.length }),
       icon: Trash2,

@@ -106,6 +106,19 @@ pub struct Successor {
     pub note: Option<String>,
 }
 
+/// What makes a mod no longer needed: the game itself since a build, or another mod that now does
+/// the same (a Viewpoint fix Viewpoint took in). Verified entries only; said in Mod Health.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Unneeded {
+    /// The build it is unneeded from (`42.22`): earlier builds still need it.
+    pub since: String,
+    /// The mod id that now does it; None: the game does.
+    #[serde(default)]
+    pub by: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
 /// One mod's registry: `community/index/<id>.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Registry {
@@ -128,6 +141,8 @@ pub struct Registry {
     pub load_after: Vec<Relation>,
     #[serde(default)]
     pub successor: Option<Successor>,
+    #[serde(default)]
+    pub unneeded: Option<Unneeded>,
     #[serde(default)]
     pub issues: Vec<KnownIssue>,
 }

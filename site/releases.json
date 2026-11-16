@@ -1,8 +1,26 @@
 {
- "latest": "1.8.5",
- "count": 31,
- "built": "2026-11-13",
+ "latest": "1.8.6",
+ "count": 32,
+ "built": "2026-11-16",
  "releases": [
+  {
+   "version": "1.8.6",
+   "date": "2026-11-16",
+   "notes": [
+    "Mod Health: names a Java mod left out at boot and the mods it took down",
+    "Mod Health: one line verdict and the one thing to do first",
+    "Mod Health: an Audit tab sorting every mod (broken, choose, unneeded, keep)",
+    "Mod Health: mods that cancel another mod's change to the game",
+    "Mod Health: mods whose author changed their id, with the one to switch to",
+    "Mod Health: opens without checking again; says what changed since",
+    "Doctor: answers 'what is wrong' step by step",
+    "Merger: asks which version to keep; publishes only what you decided",
+    "Profiles: photos to compare a profile before and after",
+    "Collections: a profile per collection, with download progress",
+    "What's New: mark updates as seen; finds every updated mod",
+    "Faster first check on long lists"
+   ]
+  },
   {
    "version": "1.8.5",
    "date": "2026-11-13",
@@ -118,13 +136,6 @@
     "Explore Mods: the requirements dialog shows above the mod detail window",
     "Mod List: the unsubscribe confirm names the mods that need what is going",
     "Mod List: unsubscribe from a mod's Workshop item from its right-click menu"
-   ]
-  },
-  {
-   "version": "1.7.10",
-   "date": "2026-10-28",
-   "notes": [
-    "Explore Mods: a copy the game ignores still counts as a subscribed item"
    ]
   }
  ]

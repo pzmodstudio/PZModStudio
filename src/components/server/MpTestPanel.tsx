@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Cpu, FileText, FolderOpen, Loader2, MemoryStick, Play, RotateCcw, Server, Square, User, Users, Wand2 } from 'lucide-react';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
-import { MpAutomation, MpSecondCheck, MpTestPrepareReport, MpTestProcess, MpTestStatus } from '../../types';
+import { WhereThingsLive } from '../common/WhereThingsLive';
+import { ExcludedMod, MpAutomation, MpSecondCheck, MpTestPrepareProgress, MpTestPrepareReport, MpTestProcess, MpTestStatus } from '../../types';
 
 const AUTO_KEY = 'pz_mp_test_automation';
 const loadAutomation = (): MpAutomation => {
@@ -46,12 +47,16 @@ const since = (s: number) => {
  * its files are and how far it got.
  */
 export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
+  /** Java mods ZombieBuddy left out of the server's last start, read when the test says it did not start. */
+  const [excluded, setExcluded] = useState<ExcludedMod[]>([]);
   const { t } = useTranslation();
   const [status, setStatus] = useState<MpTestStatus | null>(null);
   const [players, setPlayers] = useState(2);
   const [memoryGb, setMemoryGb] = useState(4);
   const [busy, setBusy] = useState<'prepare' | 'start' | 'stop' | null>(null);
   const [prepared, setPrepared] = useState<MpTestPrepareReport | null>(null);
+  /** Where "Get player 2 ready" is while it copies; gone when it ends or fails. */
+  const [prepareProgress, setPrepareProgress] = useState<MpTestPrepareProgress | null>(null);
   /** Whether player 2's folder is up to date for this server (checked on opening and after getting it ready). */
   const [secondCheck, setSecondCheck] = useState<MpSecondCheck | null>(null);
   const [restarting, setRestarting] = useState<number | null>(null);
@@ -103,6 +108,8 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
 
   const prepare = async () => {
     setBusy('prepare');
+    setPrepareProgress(null);
+    const unlisten = await TauriService.listenMpTestPrepareProgress(setPrepareProgress).catch(() => null);
     try {
       setPrepared(await TauriService.mpTestPrepare(paths, server));
       void refresh();
@@ -110,6 +117,8 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
     } catch (err) {
       reportBackendError('Getting player 2 ready', err);
     } finally {
+      unlisten?.();
+      setPrepareProgress(null);
       setBusy(null);
     }
   };
@@ -214,6 +223,15 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
     );
   };
 
+  const failedPhase = status?.phase?.startsWith('server_did_not_start') ?? false;
+  useEffect(() => {
+    if (!failedPhase || !paths.user_zomboid_dir) {
+      setExcluded([]);
+      return;
+    }
+    void TauriService.zbExclusions(paths.user_zomboid_dir, 'server').then(setExcluded);
+  }, [failedPhase, paths.user_zomboid_dir]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-sky-800/60 bg-sky-950/20 p-3 text-xs text-slate-300 leading-relaxed flex flex-col gap-1">
@@ -222,6 +240,17 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
         </div>
         <div>{t('servers.mpTest.what')}</div>
         <div className="text-slate-400">{t('servers.mpTest.touches', { dir: status?.second_dir ?? 'Zomboid2' })}</div>
+        <div className="text-slate-400">{t('servers.mpTest.player2List')}</div>
+        <div>
+          <button
+            type="button"
+            onClick={() => void TauriService.mpTestOpenSecondDir(paths)}
+            className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+          >
+            <FolderOpen className="w-3 h-3" aria-hidden="true" /> {t('servers.mpTest.openSecondDir')}
+          </button>
+        </div>
+        <WhereThingsLive className="mt-1" />
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 flex flex-col gap-2 text-xs text-slate-300">
@@ -296,6 +325,19 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
         )}
       </div>
 
+      {busy === 'prepare' && prepareProgress && prepareProgress.total > 0 && (
+        <div className="flex flex-col gap-1" role="progressbar" aria-valuemin={0} aria-valuemax={prepareProgress.total} aria-valuenow={prepareProgress.done}>
+          <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-full bg-emerald-500 transition-[width] duration-300" style={{ width: `${Math.min(100, (prepareProgress.done / prepareProgress.total) * 100)}%` }} />
+          </div>
+          <div className="text-[11px] text-slate-400 truncate">
+            {prepareProgress.name
+              ? t('servers.mpTest.prepareProgress', { done: prepareProgress.done, total: prepareProgress.total, name: prepareProgress.name })
+              : t('servers.mpTest.prepareProgressEnd', { done: prepareProgress.done, total: prepareProgress.total })}
+          </div>
+        </div>
+      )}
+
       {status && (
         <div className={`text-[11px] ${short ? 'text-red-300' : 'text-slate-400'}`}>
           {t('servers.mpTest.pcMemory', { free: gb(status.pc_free_mb), total: gb(status.pc_total_mb) })}
@@ -313,6 +355,14 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
       {status?.phase && status.phase !== 'stopped' && (
         <div className="text-[11px] text-sky-200">{t(`servers.mpTest.phase.${status.phase.split(':')[0]}`, { defaultValue: status.phase })}</div>
       )}
+      {/* Why it did not start, when the log says: a Java mod ZombieBuddy left out and its addons taking the boot down. */}
+      {excluded.map((x) => (
+        <div key={x.mod_id} className="rounded-lg border border-red-800/70 bg-red-950/30 p-3 text-[11px] text-red-100 leading-relaxed">
+          {t(x.kind === 'signature' ? 'servers.mpTest.zbExcluded.signature' : 'servers.mpTest.zbExcluded.other', { mod: x.mod_id })}{' '}
+          {x.addons.length > 0 && t(x.fatal ? 'servers.mpTest.zbExcluded.fatal' : 'servers.mpTest.zbExcluded.addons', { addons: x.addons.join(', ') })}{' '}
+          {t('servers.mpTest.zbExcluded.what')}
+        </div>
+      ))}
 
       {running ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{status!.processes.map(card)}</div>

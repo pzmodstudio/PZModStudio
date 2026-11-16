@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-30",
+  "updated": "2026-11-16",
   "mods": {
     "2858201402/dailystatisticsandgains": {
       "id": "2858201402/dailystatisticsandgains",
@@ -419,6 +419,41 @@
       "name": "Stealth Attack",
       "requires": [],
       "workshop_id": "3786073264"
+    },
+    "Viewpoint": {
+      "id": "Viewpoint",
+      "name": "Project Viewpoint",
+      "workshop_id": "3809306528",
+      "builds": [
+        "42"
+      ],
+      "requires": [],
+      "incompatible": [],
+      "load_after": [],
+      "issues": [
+        {
+          "title": "0.1.7: ZombieBuddy rejects its signature, and its addons take the game or server down without it",
+          "note": "The 0.1.7 jar (Workshop update of 2026-11-15) is signed with a key its author's Steam profile does not show, so ZombieBuddy leaves Viewpoint out ('invalid ZBS'). Addons built on it then fail at boot with NoClassDefFoundError viewpoint/...: an addon exposed to Lua stops the game or the server before it starts. It is the author's to fix. Until then: switch Viewpoint off along with the mods that use it (Mod Health offers it when your last session shows it), or wait for the author's update. Other players report it loads again after closing the game and removing every \"Viewpoint\" entry from ZombieBuddy's approvals file (%USERPROFILE%\\.zombie_buddy\\mod_approvals.json; older versions of the jar stay approved there), then approving it again when ZombieBuddy asks. Some delete Viewpoint.jar.zbs from the Workshop folder; that skips ZombieBuddy's signature check for the mod and results are mixed: the Studio does not do it for you.",
+          "fix": {
+            "kind": "none"
+          },
+          "build": "42.22",
+          "date": "2026-11-16",
+          "source": "PZ Mod Studio, seen in a server's server-console.txt on 42.22 (2026-11-16)",
+          "status": "verified"
+        },
+        {
+          "title": "0.1.7: crashes while preparing or building the scene with old addons carried along",
+          "note": "Players report Viewpoint 0.1.7 crashing ('Crashed while: preparing' or 'building the scene'). The advice shared by its players: switch off the old addons it carries along, in Viewpoint's own settings, the lines addons.legacyCarried.legacy_... set to 1 (legacy_dry_cure, legacy_fletcherarcheryfixes, legacy_pzvoxelstudioviewpoint, legacy_viewpointfences3d, legacy_viewpointvisibleloot): set them to 0. A 'Failed to compile shader: version 130 is not supported' line is the graphics driver, not the mod list.",
+          "fix": {
+            "kind": "none"
+          },
+          "build": "42.22",
+          "date": "2026-11-16",
+          "source": "Reported by players of the mod, 2026-11-16",
+          "status": "reported"
+        }
+      ]
     },
     "VisibleVehicleCouplingB42": {
       "authors": [

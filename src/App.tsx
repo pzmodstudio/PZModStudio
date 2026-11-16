@@ -1,6 +1,13 @@
 import { HelpButton } from './components/common/HelpPanel';
-import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { ActiveTab, VfsConflict, ModInfo, TranslatedErrorCard, GameLaunchMode, LaunchTarget, AppProfile, ModErrorStat, HealthIssue, AuthorLink, profileBuildMajor, profileMembers, STUDIO_LINK_MOD_ID } from './types';
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
+import { ActiveTab, VfsConflict, ModInfo, TranslatedErrorCard, GameLaunchMode, LaunchTarget, AppProfile, ModErrorStat, HealthIssue, AuthorLink, profileBuildMajor, profileMembers, STUDIO_LINK_MOD_ID, PZServerConfig } from './types';
+import { fixReach, reachLines } from './utils/fixReach';
+import { pickCollectionMods } from './utils/collectionPick';
+import { publishPlan } from './utils/publishPlan';
+import { Doctor } from './components/doctor/Doctor';
+
+/** Mod Health's ways of saying the active patch package no longer matches the mods or the list. */
+const PATCH_STALE_CODES = new Set(['file_conflict_stale', 'package_file_stale', 'translation_stale', 'script_definition_stale', 'package_built_for_other_list']);
 import { DeveloperModule } from './components/dev/DeveloperModule';
 import { StudioHeader } from './components/layout/StudioHeader';
 import { UpdateNotice } from './components/layout/UpdateNotice';
@@ -18,6 +25,7 @@ import { InstanceModule } from './components/instances/InstanceModule';
 import { ChangeScope, onChange } from './services/changes';
 import { SavesModule } from './components/saves/SavesModule';
 import { WhatsNewModule } from './components/whatsnew/WhatsNewModule';
+import { SEEN_EVENT, readSeen, updateKey } from './utils/seenUpdates';
 import { MapsModule } from './components/maps/MapsModule';
 import { ChangePreview } from './components/common/ChangePreview';
 import { TogglePlan, applyPlan, enableWithRequirements, planIsSimple, planToggle } from './utils/planner';
@@ -98,14 +106,20 @@ export const App: React.FC = () => {
     const bump = () => setWhatsNewTick((n) => n + 1);
     const off = TauriService.listenLinkGameState(bump);
     window.addEventListener('focus', bump);
+    window.addEventListener(SEEN_EVENT, bump);
     return () => {
       window.removeEventListener('focus', bump);
+      window.removeEventListener(SEEN_EVENT, bump);
       void off.then((u) => u());
     };
   }, []);
   useEffect(() => {
     if (!paths.is_valid || !paths.user_zomboid_dir) return;
-    void TauriService.whatsNew(paths, false, null).then((w) => setWhatsNewCount(w ? w.items.filter((i) => i.active).length : 0));
+    // Updates marked as seen on the page stay there but leave the count.
+    void TauriService.whatsNew(paths, false, null).then((w) => {
+      const seen = readSeen();
+      setWhatsNewCount(w ? w.items.filter((i) => i.active && !seen.has(updateKey(i))).length : 0);
+    });
   }, [paths, mods, whatsNewTick, activeTab]);
 
   // ZombieBuddy's list of Java mods over the game's menu: hidden unless the player asked to see it
@@ -228,14 +242,16 @@ export const App: React.FC = () => {
     void loadErrorStats();
   }, [loadErrorStats]);
 
-  // Mod Health checks again every time it is opened, besides its own button: what the list looks
-  // like now, not when the tab was last looked at.
+  // Opening Mod Health does not check again by itself (a full check reads every file of every mod:
+  // seconds on a long list, minutes on a PC short of memory). It says when it last checked and what
+  // changed since (a mod updated, the game updated, a session played), read without opening files.
   useEffect(() => {
-    if (activeTab === 'HEALTH') void health.recheck();
+    if (activeTab === 'HEALTH') void health.lookForChanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
   /** The issue a row's chip sent the player to: Mod Health scrolls to it and lights it up. */
   const [healthFocus, setHealthFocus] = useState<HealthIssue | null>(null);
+  const [doctorOpen, setDoctorOpen] = useState(false);
 
   /** Whether the profiles were read once (until then "none active" is not known yet). */
   const [profilesRead, setProfilesRead] = useState(false);
@@ -348,8 +364,8 @@ export const App: React.FC = () => {
         const shape = errorShape(card.raw_error);
         const isDuplicate = prev.some(
           (c) =>
-            (c.title === card.title && errorShape(c.raw_error) === shape && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
-            (c.polyfill_rule_id_suggestion && c.polyfill_rule_id_suggestion === card.polyfill_rule_id_suggestion)
+            ((c.log ?? '') === (card.log ?? '') && c.title === card.title && errorShape(c.raw_error) === shape && (c.mod_name ?? '') === (card.mod_name ?? '')) ||
+            ((c.log ?? '') === (card.log ?? '') && c.polyfill_rule_id_suggestion && c.polyfill_rule_id_suggestion === card.polyfill_rule_id_suggestion)
         );
         if (isDuplicate) return prev;
 
@@ -362,15 +378,21 @@ export const App: React.FC = () => {
     // A relaunch writes a fresh console.txt: the cards are this session's, so the last one's go.
     let unlistenSession: (() => void) | undefined;
     TauriService.listenSandboxSessionStarted(() => {
-      setErrorCards([]);
+      // The game's log started over: its cards go, the server's and player 2's stay.
+      setErrorCards((prev) => prev.filter((c) => c.log));
       void loadErrorStats();
     }).then((unlisten) => {
       unlistenSession = unlisten;
+    });
+    let unlistenOtherSession: (() => void) | undefined;
+    TauriService.listenLogSessionStarted((log) => setErrorCards((prev) => prev.filter((c) => c.log !== log))).then((unlisten) => {
+      unlistenOtherSession = unlisten;
     });
 
     return () => {
       if (unlistenErrorCards) unlistenErrorCards();
       if (unlistenSession) unlistenSession();
+      if (unlistenOtherSession) unlistenOtherSession();
     };
   }, []);
 
@@ -466,13 +488,74 @@ export const App: React.FC = () => {
    * seconds until each item lands; its mods then join that profile, switched off (an item can
    * hold several mods, and which to switch on is the player's call). After 20 minutes the Studio
    * stops waiting; anything that lands later is in "Showing everything".
+   *
+   * A collection turned into a profile of its own names that profile instead (`enable`: what lands
+   * goes in switched on, the profile on or not), and waits longer: hundreds of items take Steam hours.
    */
-  const [awaitedItems, setAwaitedItems] = useState<Map<string, { profileId: string | null; since: number }>>(new Map());
+  // Kept across a restart: Steam goes on downloading with the Studio closed, and what landed
+  // meanwhile still joins its profile on the next start (the first scan finds it).
+  const [awaitedItems, setAwaitedItems] = useState<Map<string, { profileId: string | null; since: number; enable?: boolean; patienceMs?: number }>>(() => {
+    try {
+      return new Map(JSON.parse(localStorage.getItem('pz_awaited_workshop_items') ?? '[]'));
+    } catch {
+      return new Map();
+    }
+  });
+  useEffect(() => {
+    if (awaitedItems.size === 0) localStorage.removeItem('pz_awaited_workshop_items');
+    else localStorage.setItem('pz_awaited_workshop_items', JSON.stringify([...awaitedItems]));
+  }, [awaitedItems]);
+  /** How many items each profile of its own was waiting for in all: "120 of 286 arrived" at the bottom. */
+  const [batchTotals, setBatchTotals] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pz_awaited_batches') ?? '{}');
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    // A batch with nothing left to wait for is over.
+    const waiting = new Set([...awaitedItems.values()].map((w) => w.profileId));
+    const kept = Object.fromEntries(Object.entries(batchTotals).filter(([pid]) => waiting.has(pid)));
+    if (Object.keys(kept).length !== Object.keys(batchTotals).length) setBatchTotals(kept);
+    localStorage.setItem('pz_awaited_batches', JSON.stringify(kept));
+  }, [awaitedItems, batchTotals]);
+  const downloadBatches = useMemo(
+    () =>
+      Object.entries(batchTotals).map(([pid, total]) => ({
+        profileId: pid,
+        name: profiles.find((p) => p.id === pid)?.name ?? pid,
+        total,
+        left: [...awaitedItems.values()].filter((w) => w.profileId === pid).length,
+      })),
+    [batchTotals, awaitedItems, profiles]
+  );
+  /** Stops waiting for what a profile still waits on (the player's call, from the downloads bar). */
+  const stopWaiting = useCallback((profileId: string) => {
+    setAwaitedItems((prev) => new Map([...prev].filter(([, w]) => w.profileId !== profileId)));
+  }, []);
+  // Waited for since before the Studio skipped them: a collection inside a collection, an item
+  // Steam no longer has. Neither lands as a mod, so they are let go once, at start.
+  const checkedAwaited = useRef(false);
+  useEffect(() => {
+    if (checkedAwaited.current || awaitedItems.size === 0) return;
+    checkedAwaited.current = true;
+    TauriService.workshopDetails([...awaitedItems.keys()])
+      .then((details) => {
+        const never = new Set(details.filter((d) => d.is_collection || !d.found || d.banned).map((d) => d.workshop_id));
+        if (never.size > 0) setAwaitedItems((prev) => new Map([...prev].filter(([id]) => !never.has(id))));
+      })
+      .catch(() => undefined);
+  }, [awaitedItems]);
   const handleSubscribed = useCallback(
-    (workshopIds: string[]) => {
+    (workshopIds: string[], target?: { profileId: string; enable: boolean }) => {
+      if (target) setBatchTotals((prev) => ({ ...prev, [target.profileId]: (prev[target.profileId] ?? 0) + workshopIds.length }));
       setAwaitedItems((prev) => {
         const next = new Map(prev);
-        for (const id of workshopIds) next.set(id, { profileId: activeProfile?.id ?? null, since: Date.now() });
+        for (const id of workshopIds)
+          next.set(id, target
+            ? { profileId: target.profileId, since: Date.now(), enable: target.enable, patienceMs: 6 * 60 * 60 * 1000 }
+            : { profileId: activeProfile?.id ?? null, since: Date.now() });
         return next;
       });
     },
@@ -485,13 +568,20 @@ export const App: React.FC = () => {
       const scanned = await TauriService.scanAllInstalledMods(paths).catch(() => null);
       if (cancelled || !scanned) return;
       const landed = new Map<string, string[]>(); // profile id -> mod ids that arrived
+      const switchOn = new Set<string>(); // profiles whose arrivals go in switched on
+      // Of an item's mods that rule each other out (alternatives), only one goes on (collectionPick).
+      const leftOff = new Set<string>();
       const done: string[] = [];
       for (const [itemId, wait] of awaitedItems) {
         const arrived = scanned.filter((m) => m.workshop_id === itemId).map((m) => m.mod_id);
         if (arrived.length > 0) {
           done.push(itemId);
           if (wait.profileId) landed.set(wait.profileId, [...(landed.get(wait.profileId) ?? []), ...arrived]);
-        } else if (Date.now() - wait.since > 20 * 60 * 1000) {
+          if (wait.profileId && wait.enable) {
+            switchOn.add(wait.profileId);
+            pickCollectionMods([itemId], scanned).off.forEach((id) => leftOff.add(id));
+          }
+        } else if (Date.now() - wait.since > (wait.patienceMs ?? 20 * 60 * 1000)) {
           done.push(itemId);
         }
       }
@@ -503,12 +593,26 @@ export const App: React.FC = () => {
         if (!profile) continue;
         const members = profileMembers(profile);
         const added = modIds.filter((id) => !members.includes(id));
+        if (switchOn.has(profileId) && !profile.is_active) {
+          // A collection's own profile: what arrives is part of it, switched on, at the end of its order.
+          const on = modIds.filter((id) => !profile.active_mod_ids.includes(id) && !leftOff.has(id));
+          if (on.length > 0 || added.length > 0) {
+            await TauriService.updateInstance(paths.user_zomboid_dir, {
+              ...profile,
+              // Every mod that arrived belongs to the profile; the alternatives left off stay in it, off.
+              members: [...members, ...added],
+              active_mod_ids: [...profile.active_mod_ids, ...on],
+              load_order: [...profile.load_order, ...modIds.filter((id) => !profile.load_order.includes(id))],
+            }).catch(() => null);
+          }
+          continue;
+        }
         if (added.length > 0) {
           await TauriService.setProfileMembers(paths.user_zomboid_dir, profileId, [...members, ...added]).catch(() => null);
         }
         // In the profile that is on, what arrived goes on too, with what it needs before it.
         if (profile.is_active) {
-          const updated = enableWithRequirements(scanned, modIds);
+          const updated = enableWithRequirements(scanned, modIds.filter((id) => !leftOff.has(id)));
           if (updated.some((m, i) => m.enabled !== scanned[i]?.enabled || m.mod_id !== scanned[i]?.mod_id)) {
             setMods(updated);
             autoPersistProfileChanges(updated);
@@ -521,7 +625,8 @@ export const App: React.FC = () => {
         for (const id of done) next.delete(id);
         return next;
       });
-    }, 6000);
+      // Reading every installed mod is not free: with hundreds on the way, less often.
+    }, awaitedItems.size > 50 ? 15000 : 6000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -565,6 +670,62 @@ export const App: React.FC = () => {
     }
   };
 
+/**
+   * A Workshop collection as a profile of its own, made now: the mods already installed from its
+   * items go in switched on, in the collection's order; the profile on stays on. Returns the new
+   * profile's id (Browse then subscribes to what is missing, which lands in it), or null.
+   */
+  const handleCollectionProfile = async (name: string, workshopIds: string[], collectionId?: string): Promise<string | null> => {
+    const byItem = new Map<string, string[]>();
+    for (const m of mods) if (m.workshop_id) byItem.set(m.workshop_id, [...(byItem.get(m.workshop_id) ?? []), m.mod_id]);
+    // On: every mod of the items, but one of each group of alternatives (collectionPick).
+    const pick = pickCollectionMods(workshopIds, mods);
+    const ids = pick.on;
+    const missing = workshopIds.filter((w) => !byItem.has(w)).length;
+    // A profile made from this collection before (its description names it): taken up again, not made twice.
+    const before = collectionId ? profiles.find((p) => (p.description ?? '').includes(collectionId)) : undefined;
+    if (before) {
+      if (missing === 0) {
+        alert(i18next.t('app.collection.allThere', { name: before.name }));
+        return null;
+      }
+      return confirm(i18next.t('app.collection.resume', { name: before.name, count: missing })) ? before.id : null;
+    }
+    const wanted = prompt(
+      i18next.t('app.collection.confirmNew', {
+        installed: ids.length,
+        missing: missing > 0 ? i18next.t('app.collection.missingNew', { count: missing }) : '',
+        active: activeProfile?.name ?? '-',
+      }),
+      name
+    );
+    if (wanted === null || !wanted.trim()) return null;
+    try {
+      const made = await TauriService.createInstance(
+        paths.user_zomboid_dir,
+        wanted.trim(),
+        collectionId ? `${i18next.t('app.collection.description')} · ${collectionId}` : i18next.t('app.collection.description'),
+        ids,
+        [...ids, ...pick.off]
+      );
+      if (made?.id && pick.off.length > 0) {
+        // The alternatives left off belong to the profile too, switched off, for the player to swap.
+        await TauriService.setProfileMembers(paths.user_zomboid_dir, made.id, [...ids, ...pick.off]).catch(() => null);
+        alert(
+          i18next.t('app.collection.alternatives', {
+            count: pick.choices.length,
+            list: pick.choices.map((c) => i18next.t('app.collection.alternativeLine', { picked: c.picked, left: c.left.join(', ') })).join('\n'),
+          })
+        );
+      }
+      await refreshActiveProfile();
+      return made?.id ?? null;
+    } catch (err) {
+      reportBackendError('Making the profile', err);
+      return null;
+    }
+  };
+
   const handleMakeProfileFromCollection = async (name: string, workshopIds: string[]) => {
     const wanted = new Set(workshopIds);
     const included = mods.filter((m) => m.workshop_id && wanted.has(m.workshop_id));
@@ -605,6 +766,46 @@ export const App: React.FC = () => {
 
   // Auto-Merge All conflicts into the selected package (or the default one) on disk.
   // Returns whether the package was written, so callers only report success when it was.
+  /** After a publish: the files left out because two mods change the same lines and nobody chose yet. */
+  const tellWaiting = (waiting: VfsConflict[]) => {
+    if (waiting.length === 0) return;
+    const names = waiting.slice(0, 12).map((c) => `• ${c.relative_path} (${c.competing_mods.map((m) => m.mod_name).join(' / ')})`).join('\n');
+    alert(i18next.t('merger.waiting', { count: waiting.length, list: names + (waiting.length > 12 ? '\n…' : '') }));
+  };
+
+/**
+   * The patch made new again for the list as it is now: its conflicts read afresh (the decisions
+   * kept with the package come back as they were), then published with what is decided or merges
+   * by itself; what now needs a choice is said, and left out.
+   */
+  const handleUpdatePatch = async (packageFolderName: string): Promise<boolean> => {
+    if (!paths.is_valid) return false;
+    try {
+      const fresh = await TauriService.scanConflicts(paths, packageFolderName);
+      setConflicts(fresh);
+      // A decided file a mod changed since (Mod Health's file_conflict_stale) is asked again.
+      const stalePaths = new Set((health.report?.issues ?? []).filter((i) => i.code === 'file_conflict_stale').map((i) => i.params?.path ?? '').filter(Boolean));
+      const plan = publishPlan(fresh, { stalePaths });
+      const result = await TauriService.generateMasterPatch({
+        workshop_dir: paths.workshop_dir,
+        pz_install_dir: paths.pz_install_dir,
+        user_zomboid_dir: paths.user_zomboid_dir,
+        mod_list_ini_path: paths.mod_list_ini_path,
+        merged_files: plan.ship,
+        package_folder_name: packageFolderName,
+      });
+      if (!result.success) return false;
+      const waitingIds = new Set(plan.waiting.map((c) => c.id));
+      setConflicts(fresh.map((c) => (waitingIds.has(c.id) ? c : { ...c, status: 'RESOLVED' as const })));
+      tellWaiting(plan.waiting);
+      await handleRefreshMods();
+      void health.recheck();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleAutoMergeAll = async (packageFolderName?: string): Promise<boolean> => {
     if (!paths.is_valid) {
       alert(i18next.t('app.pathsFirst'));
@@ -613,10 +814,9 @@ export const App: React.FC = () => {
 
     try {
 
-      const mergedFiles = conflicts.map((c) => ({
-        relative_path: c.relative_path,
-        content: c.merged_output || c.base_content,
-      }));
+      // Only what was decided or merges without a decision (publishPlan): the rest waits for a choice.
+      const plan = publishPlan(conflicts);
+      const mergedFiles = plan.ship;
 
       const result = await TauriService.generateMasterPatch({
         workshop_dir: paths.workshop_dir,
@@ -627,6 +827,7 @@ export const App: React.FC = () => {
         package_folder_name: packageFolderName || 'Z_PZModStudio_MergedPatch',
       });
       if (!result.success) return false;
+      tellWaiting(plan.waiting);
 
       setAutoMergeResultModal({
         patch_mod_dir: result.patch_mod_dir,
@@ -649,10 +850,9 @@ export const App: React.FC = () => {
 
     // Call Rust to generate synthetic Master Patch mod on disk
     if (paths.is_valid && paths.user_zomboid_dir) {
-      const mergedFilesPayload = conflicts.map((c) => ({
-        relative_path: c.relative_path,
-        content: c.merged_output || c.base_content,
-      }));
+      // Only what was decided or merges without a decision (publishPlan): the rest waits for a choice.
+      const plan = publishPlan(conflicts);
+      const mergedFilesPayload = plan.ship;
 
 
       let result;
@@ -670,13 +870,10 @@ export const App: React.FC = () => {
       }
       if (!result.success) return false;
 
-      // Mark all conflicts as resolved
-      setConflicts((prev) =>
-        prev.map((c) => ({
-          ...c,
-          status: 'RESOLVED' as const,
-        }))
-      );
+      // What went in is settled; what waits for a choice stays as it was.
+      const waitingIds = new Set(plan.waiting.map((c) => c.id));
+      setConflicts((prev) => prev.map((c) => (waitingIds.has(c.id) ? c : { ...c, status: 'RESOLVED' as const })));
+      tellWaiting(plan.waiting);
 
       // Refresh installed mods so the newly published package appears in the Mod List tab immediately
       const allSubscribedMods = await TauriService.scanAllInstalledMods(paths);
@@ -1071,6 +1268,12 @@ export const App: React.FC = () => {
         onRunSandbox={handleRunSandbox}
         paths={paths}
         activeProfileId={activeProfile?.id ?? null}
+        onOpenDoctor={() => setDoctorOpen(true)}
+        onOpenPerformance={() => {
+          // Mod Health opens on the tab it last showed: this one.
+          localStorage.setItem('pz_health_tab', 'performance');
+          setActiveTab('HEALTH');
+        }}
       />
       {/* A newer PZ Mod Studio on GitHub (once a day; Settings can switch it off). */}
       {!isInitializing && <UpdateNotice userZomboidDir={paths.user_zomboid_dir} />}
@@ -1136,10 +1339,13 @@ export const App: React.FC = () => {
                 setModListFocus(modId);
                 setActiveTab('MOD_LIST');
               }}
-              onTurnOff={(modId) => {
+              onTurnOff={async (modId) => {
                 const target = mods.find((m) => m.mod_id === modId);
                 if (!target || !target.enabled) return;
-                if (!confirm(i18next.t('app.switchOff.confirm', { name: target.name }))) return;
+                // Where it goes off: this profile only; a server that lists the mod still loads it.
+                const servers = ((await TauriService.listServerConfigs(paths.user_zomboid_dir || '').catch(() => [])) as PZServerConfig[]).map((s) => ({ name: s.name, mods: s.mods }));
+                const reach = reachLines(fixReach('switch_off', target.mod_id, activeProfile?.name ?? null, servers)).map((l) => i18next.t(l.key, l.values));
+                if (!confirm([i18next.t('app.switchOff.confirm', { name: target.name }), '', ...reach].join('\n'))) return;
                 handleToggleMod(target.mod_id);
               }}
             />
@@ -1212,6 +1418,8 @@ export const App: React.FC = () => {
               focusSearch={browseFocusSearch}
               onSearchHandled={() => setBrowseFocusSearch(null)}
               onMakeProfile={handleMakeProfileFromCollection}
+              onCollectionProfile={handleCollectionProfile}
+              activeProfileName={activeProfile?.name ?? null}
               installedBuild={health.report?.game_version ?? null}
               profiles={profiles}
               onProfilesChanged={() => void refreshActiveProfile()}
@@ -1221,10 +1429,16 @@ export const App: React.FC = () => {
           {activeTab === 'HEALTH' && (
             <HealthModule
               paths={paths}
+              profileName={activeProfile?.name ?? null}
+              profileId={activeProfile?.id ?? null}
+              catalog={health.catalog}
               mods={mods}
               report={health.report}
               checking={health.checking}
+              checkStage={health.stage}
               onRecheck={health.recheck}
+              checkedAt={health.checkedAt}
+              changes={health.changes}
               focusIssue={healthFocus}
               onFocusHandled={() => setHealthFocus(null)}
               onApplyModList={handleReorderMods}
@@ -1233,6 +1447,7 @@ export const App: React.FC = () => {
                 setMergerFocusPath(relativePath);
                 setActiveTab('MERGER');
               }}
+              onUpdatePatch={handleUpdatePatch}
               onOpenInBrowser={openInBrowser}
               onSearchInBrowser={searchInBrowser}
             />
@@ -1247,6 +1462,8 @@ export const App: React.FC = () => {
               onResolveConflict={handleResolveConflict}
               onAutoMergeAll={handleAutoMergeAll}
               onOptimizeAndResolve={handleOptimizeAndResolve}
+              onUpdatePatch={handleUpdatePatch}
+              patchOutOfDate={(health.report?.issues ?? []).filter((i) => PATCH_STALE_CODES.has(i.code)).length}
               onGoToSettings={() => setActiveTab('SETTINGS')}
               onRescan={handleRescan}
               onClearConflicts={() => setConflicts([])}
@@ -1269,6 +1486,7 @@ export const App: React.FC = () => {
           {activeTab === 'MONITOR' && (
             <SandboxModule
               paths={paths}
+              profileName={activeProfile?.name ?? null}
               mods={mods}
               onRefreshMods={handleRefreshMods}
               errorCards={errorCards}
@@ -1277,7 +1495,7 @@ export const App: React.FC = () => {
                 setMergerPatchFocus({ modId, fileHint: fileHint ?? null, fix: fix ?? null });
                 setActiveTab('MERGER');
               }}
-              onSwitchOffMod={(modName) => {
+              onSwitchOffMod={async (modName) => {
                 // The log gives a display name, which is what the Mod List shows too.
                 const target = mods.find((m) => m.name === modName || m.mod_id === modName);
                 if (!target) {
@@ -1288,7 +1506,10 @@ export const App: React.FC = () => {
                   alert(i18next.t('app.switchOff.already', { name: target.name }));
                   return;
                 }
-                if (!confirm(i18next.t('app.switchOff.confirm', { name: target.name }))) return;
+                // Where it goes off: this profile only; a server that lists the mod still loads it.
+                const servers = ((await TauriService.listServerConfigs(paths.user_zomboid_dir || '').catch(() => [])) as PZServerConfig[]).map((s) => ({ name: s.name, mods: s.mods }));
+                const reach = reachLines(fixReach('switch_off', target.mod_id, activeProfile?.name ?? null, servers)).map((l) => i18next.t(l.key, l.values));
+                if (!confirm([i18next.t('app.switchOff.confirm', { name: target.name }), '', ...reach].join('\n'))) return;
                 handleToggleMod(target.mod_id);
                 setActiveTab('MOD_LIST');
               }}
@@ -1522,7 +1743,38 @@ export const App: React.FC = () => {
         onClose={() => setPendingPlan(null)}
       />
     )}
-    <SteamDownloadsBar paths={paths} />
+    <SteamDownloadsBar paths={paths} batches={downloadBatches} onStopWaiting={stopWaiting} />
+    {doctorOpen && (
+      <Doctor
+        paths={paths}
+        issues={health.report?.issues ?? []}
+        cards={errorCards}
+        nameOf={(id) => mods.find((m) => m.mod_id === id)?.name ?? id}
+        onClose={() => setDoctorOpen(false)}
+        onGoIssue={(issue) => {
+          setHealthFocus(issue);
+          setActiveTab('HEALTH');
+        }}
+        onSwitchOffMod={(modName) => {
+          const target = mods.find((m) => m.name === modName || m.mod_id === modName);
+          if (!target || !target.enabled) {
+            alert(i18next.t('app.switchOff.gone', { name: modName }));
+            return;
+          }
+          if (confirm(i18next.t('app.switchOff.confirm', { name: target.name }))) handleToggleMod(target.mod_id);
+        }}
+        onGoMonitor={() => setActiveTab('MONITOR')}
+        onGoPerformance={() => {
+          localStorage.setItem('pz_health_tab', 'performance');
+          setActiveTab('HEALTH');
+        }}
+        onGoAudit={() => {
+          localStorage.setItem('pz_health_tab', 'audit');
+          setActiveTab('HEALTH');
+        }}
+        onRecheck={() => void health.recheck()}
+      />
+    )}
     <BackendErrorToasts />
     </ContextMenuProvider>
   );

@@ -1,12 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PageGuide } from '../common/PageGuide';
-import { ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, ListChecks, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, X } from 'lucide-react';
-import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, IssueState, ModInfo } from '../../types';
+import { ArrowRight, ClipboardList, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, ListChecks, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, X } from 'lucide-react';
+import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, IssueState, ModInfo, CatalogModSummary } from '../../types';
 import { STATE_ORDER, STATE_STYLE, UNDO_ACTIONS, issueStateOf, scopeOfIssue, SCOPE_CHIP } from '../../utils/issueState';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { loadCommunityIndex } from '../../services/communityIndex';
 import { applyFix } from '../../utils/healthFix';
+import { healthVerdict, inDoFirstOrder } from '../../utils/healthVerdict';
+import type { HealthChanges } from '../../utils/healthChanges';
+import { HealthListTarget, fixActsOn, listDifference, serverListIds } from '../../utils/healthList';
+import { useListHealth } from '../../hooks/useListHealth';
+import { ResourceMeter } from '../common/ResourceMeter';
+import { ProfilePhotos } from './ProfilePhotos';
+import { AuditPanel } from './AuditPanel';
+import { pickCollectionMods } from '../../utils/collectionPick';
+import { certaintyOf } from '../../utils/certainty';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { issueText } from '../../i18n/backendText';
@@ -25,25 +34,38 @@ interface HealthModuleProps {
   /** Latest report from useModHealth (shared with the Mod List and the sidebar badge). */
   report: HealthReport | null;
   checking: boolean;
+  /** The step of the check under way (useModHealth): said in words above the page. */
+  checkStage?: 'quick' | 'full' | 'scripts' | null;
   onRecheck: () => void;
+  /** When the profile's last full check ended (ms), and what changed since (null: nothing known). */
+  checkedAt?: number | null;
+  changes?: HealthChanges | null;
   /** Replaces the whole list (order + enabled flags) and persists it. */
   onApplyModList: (mods: ModInfo[]) => void;
   /** Mods were added/removed on disk (compatible copies, patch packages): rescan the list. */
   onModsChanged: () => void;
   /** Opens the Mod Merger on this conflicting file. */
   onOpenMerger: (relativePath: string) => void;
+  /** Rebuild a patch package for the list as it is now (the Merger's Update patch). */
+  onUpdatePatch?: (packageFolderName: string) => Promise<boolean>;
   /** Opens a Workshop item / a Workshop search in Explore Mods. */
   onOpenInBrowser?: (workshopId: string) => void;
   onSearchInBrowser?: (text: string) => void;
   /** The issue a Mod List chip pointed at: scrolled to and lit up once. */
   focusIssue?: HealthIssue | null;
   onFocusHandled?: () => void;
+  /** The active profile's name, for the list selector. */
+  profileName?: string | null;
+  /** The active profile's id, for its photos. */
+  profileId?: string | null;
+  /** The installed mods as the game sees them (when Steam last updated each), for the photos. */
+  catalog?: CatalogModSummary[];
 }
 
 /** Fixes handled here (not by rewriting the mod list). */
 const ACTION_FIXES = new Set<HealthFix['action']>([
   'subscribe_workshop', 'open_workshop_page', 'make_compatible_copy', 'keep_version', 'remove_compatible_copy', 'merge_files', 'open_in_merger',
-  'enable_shim_patch', 'remove_from_package', 'dismiss_known_issue', 'adopt_workshop_copy', 'recopy_workshop',
+  'enable_shim_patch', 'remove_from_package', 'dismiss_known_issue', 'adopt_workshop_copy', 'recopy_workshop', 'update_package',
 ]);
 
 /** Fixes the "fix all" button may apply without asking: they only enable or reorder. */
@@ -64,9 +86,11 @@ const YOUR_CALL_CODES = new Set(['script_definition_conflict', 'script_definitio
  * row on every tab says one of those four states (`issueStateOf`), the same words the Mod List
  * uses. Conflicts (which mod's file or item wins) and Security keep tabs of their own.
  */
-type HealthTab = 'problems' | 'conflicts' | 'security' | 'performance' | 'disk';
-const TABS: HealthTab[] = ['problems', 'conflicts', 'security', 'performance', 'disk'];
-const TAB_ICON: Record<HealthTab, React.ElementType> = { problems: ListChecks, conflicts: GitMerge, security: ShieldCheck, performance: Gauge, disk: HardDrive };
+type HealthTab = 'problems' | 'conflicts' | 'security' | 'audit' | 'performance' | 'disk';
+/** Tabs that are no list of findings of their own. */
+type PanelTab = 'audit' | 'performance' | 'disk';
+const TABS: HealthTab[] = ['problems', 'conflicts', 'security', 'audit', 'performance', 'disk'];
+const TAB_ICON: Record<HealthTab, React.ElementType> = { problems: ListChecks, conflicts: GitMerge, security: ShieldCheck, audit: ClipboardList, performance: Gauge, disk: HardDrive };
 /** Rows of one code that are the same thing for several mods: one card with one button. */
 const GROUP_CODES = new Set(['compatible_copy_unneeded', 'compatible_copy', 'workshop_copy_by_hand', 'workshop_copy_stale', 'workshop_copy_kept']);
 /** What a button changes, said before it is pressed: the key under health.effect. */
@@ -118,6 +142,8 @@ const fixLabel = (fix: HealthFix): string => {
       return t('health.fix.adoptCopy');
     case 'recopy_workshop':
       return t('health.fix.recopy');
+    case 'update_package':
+      return t('health.fix.updatePackage');
   }
 };
 
@@ -153,47 +179,149 @@ const groupItems = (issues: HealthIssue[]): SectionItem[] => {
   return out;
 };
 
-export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report, checking, onRecheck, onApplyModList, onModsChanged, onOpenMerger, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled }) => {
+export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report: profileReport, checking: profileChecking, checkStage: profileStage = null, onRecheck: profileRecheck, checkedAt: profileCheckedAt = null, changes: profileChanges = null, onApplyModList, onModsChanged, onOpenMerger, onUpdatePatch, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled, profileName = null, profileId = null, catalog = [] }) => {
   const { t } = useTranslation();
+  // Which list is checked: the profile's (the app's own check, shared with the Mod List), or a
+  // server's Mods= (checked here, on its own). Everything below reads report / checking.
+  const [servers, setServers] = useState<{ name: string; mods: string[]; file_path: string }[]>([]);
+  const loadServers = () => {
+    if (!paths.user_zomboid_dir) return;
+    TauriService.listServerConfigs(paths.user_zomboid_dir)
+      .then((list) => setServers((list as { name: string; mods: string[]; file_path: string }[]).map((s) => ({ name: s.name, mods: s.mods, file_path: s.file_path }))))
+      .catch(() => setServers([]));
+  };
+  useEffect(loadServers, [paths.user_zomboid_dir]);
+  const [listTarget, setListTarget] = useState<HealthListTarget>({ kind: 'profile' });
+  const serverIds = useMemo(() => {
+    if (listTarget.kind !== 'server') return null;
+    const server = servers.find((s) => s.name === listTarget.name);
+    return server ? serverListIds(server.mods) : null;
+  }, [listTarget, servers]);
+  const serverHealth = useListHealth(paths, serverIds);
+  const onServer = listTarget.kind === 'server';
+  const report = onServer ? serverHealth.report : profileReport;
+  const checking = onServer ? serverHealth.checking : profileChecking;
+  const checkStage = onServer ? (serverHealth.checking ? 'full' : null) : profileStage;
+  const onRecheck = onServer ? () => void serverHealth.recheck() : profileRecheck;
+  /** On a server: how its list differs from the profile's switched-on mods. */
+  const profileOn = useMemo(() => mods.filter((m) => m.enabled).map((m) => m.mod_id), [mods]);
+  const serverDiff = useMemo(() => (serverIds ? listDifference(profileOn, serverIds) : null), [profileOn, serverIds]);
+  const [serverBusy, setServerBusy] = useState(false);
+  /**
+   * Writes a list into the server's .ini (Mods=, and its WorkshopItems= and Map= from the installed
+   * mods), as Servers' own button does; the .ini is backed up first. Then the server's list is read
+   * again, and the check follows it.
+   */
+  const writeServerList = async (ids: string[], said: string) => {
+    const server = listTarget.kind === 'server' ? servers.find((x) => x.name === listTarget.name) : undefined;
+    if (!server) return;
+    setServerBusy(true);
+    try {
+      const written = await TauriService.syncClientToServer(paths, server.file_path, ids);
+      say(`${said} ${t('health.list.written', { name: server.name, count: written.mods.length })}`);
+      loadServers();
+    } catch (err) {
+      reportBackendError("Writing the server's list", err);
+    } finally {
+      setServerBusy(false);
+    }
+  };
+  const writeProfileToServer = () => {
+    if (!serverDiff || listTarget.kind !== 'server') return;
+    if (!confirm(t('health.list.writeConfirm', { name: listTarget.name, server: serverIds?.length ?? 0, profile: profileOn.length, profileName: profileName ?? '-' }))) return;
+    void writeServerList(profileOn, '');
+  };
+  const takeOffServer = (modId: string) => {
+    if (!serverIds || listTarget.kind !== 'server') return;
+    if (!confirm(t('health.list.takeOffConfirm', { mod: nameOf(modId), name: listTarget.name }))) return;
+    void writeServerList(serverIds.filter((id) => id !== modId), t('health.list.takenOff', { mod: nameOf(modId) }));
+  };
+
+  /**
+   * Alternatives of one Workshop item switched on together (a profile made from a collection
+   * before the Studio picked one of each): the ones to switch off, keeping one per group as a
+   * new collection profile would (utils/collectionPick).
+   */
+  const variantsOn = useMemo(() => {
+    const on = mods.filter((m) => m.enabled && m.workshop_id);
+    const items = [...new Set(on.map((m) => m.workshop_id as string))];
+    return pickCollectionMods(items, on);
+  }, [mods]);
+  const keepOneVariant = () => {
+    if (!confirm(t('health.variants.confirm', { count: variantsOn.off.length, list: variantsOn.choices.map((c) => t('app.collection.alternativeLine', { picked: c.picked, left: c.left.join(', ') })).join('\n') }))) return;
+    const off = new Set(variantsOn.off);
+    onApplyModList(mods.map((m) => (off.has(m.mod_id) ? { ...m, enabled: false } : m)));
+    say(t('health.variants.done', { count: off.size }));
+  };
+
+  // A Mod List chip points at the profile's issue: its list comes back in front.
+  useEffect(() => {
+    if (focusIssue) setListTarget({ kind: 'profile' });
+  }, [focusIssue]);
   const [litKey, setLitKey] = useState<string | null>(null);
   const issueKey = (i: HealthIssue) => `${i.code}|${i.mod_id ?? ''}|${i.message}`;
-  // Opening this screen checks again, and the check lands in two steps (the rules, then the
-  // script conflicts), each moving the issues around. Scrolling on every step made the page jump;
-  // so it waits until the check is done and the page has kept still a moment, then scrolls once.
+  // Opening this screen checks again, and the check lands in steps (the quick one, the full one,
+  // the script conflicts), each moving the issues around. Scrolling on every step made the page
+  // jump, and waiting for the last one took seconds: it scrolls once, as soon as the issue is on
+  // the page (the report shown already has it), and waits for the check only when it is not there yet.
   const scrolledFor = useRef<HealthIssue | null>(null);
+  /** The verdict's "Go": the same way to an issue as a Mod List chip. */
+  const [ownFocus, setOwnFocus] = useState<HealthIssue | null>(null);
+  const target = focusIssue ?? ownFocus;
+  const focusDone = () => {
+    setOwnFocus(null);
+    onFocusHandled?.();
+  };
   const unlight = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(unlight.current), []);
   useEffect(() => {
-    if (!focusIssue) {
+    if (!target) {
       scrolledFor.current = null;
       return;
     }
-    if (!report || checking || scrolledFor.current === focusIssue) return;
+    if (!report || scrolledFor.current === target) return;
     const settle = window.setTimeout(() => {
-      const key = issueKey(focusIssue);
+      const key = issueKey(target);
       const el =
         document.querySelector<HTMLElement>(`[data-issue-key="${CSS.escape(key)}"]`) ??
-        document.querySelector<HTMLElement>(`[data-issue-code="${CSS.escape(`${focusIssue.code}|${focusIssue.mod_id ?? ''}`)}"]`);
-      scrolledFor.current = focusIssue;
+        document.querySelector<HTMLElement>(`[data-issue-code="${CSS.escape(`${target.code}|${target.mod_id ?? ''}`)}"]`);
       if (!el) {
-        onFocusHandled?.();
+        // Not on the page yet: the check under way may bring it. Gone once it is done.
+        if (checking) return;
+        scrolledFor.current = target;
+        focusDone();
         return;
       }
+      scrolledFor.current = target;
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       setLitKey(el.dataset.issueKey ?? key);
       window.clearTimeout(unlight.current);
       unlight.current = window.setTimeout(() => {
         setLitKey(null);
-        onFocusHandled?.();
+        focusDone();
       }, 4000);
     }, 250);
     return () => window.clearTimeout(settle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusIssue, report, checking]);
+  }, [target, report, checking]);
   const [compatBusy, setCompatBusy] = useState(false);
   const [compatResult, setCompatResult] = useState<CompatResult | null>(null);
   const [mergeBusy, setMergeBusy] = useState(false);
   const [mergeResult, setMergeResult] = useState<AutoMergeResult | null>(null);
+  // A fix that started no check (cancelled, failed) lets its row go after a while.
+  const pendingCount = useRef(0);
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      if (pendingCount.current === 0) return;
+      const now = Date.now();
+      setPending((prev) => {
+        const next = new Map(Array.from(prev).filter(([, v]) => (v.saw ? now - v.at < 60000 : now - v.at < 8000 || compatBusy || mergeBusy)));
+        return next.size === prev.size ? prev : next;
+      });
+    }, 1000);
+    return () => window.clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compatBusy, mergeBusy]);
 
   const mergeFiles = async (relativePaths: string[]) => {
     if (relativePaths.length === 0) return;
@@ -326,6 +454,64 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
   const [done, setDone] = useState<string | null>(null);
   const say = (what: string) => setDone(what);
   /**
+   * The rows whose fix was just pressed: the button gives way to "Done, checking..." until the
+   * check that follows brings the new report, so it is not pressed again while the page catches up
+   * (the full check takes seconds on a long list). `saw`: a check has started since.
+   */
+  const [pending, setPending] = useState<Map<string, { saw: boolean; at: number }>>(new Map());
+  const markPending = (issues: HealthIssue[]) =>
+    setPending((prev) => {
+      const next = new Map(prev);
+      issues.forEach((i) => next.set(issueKey(i), { saw: checking, at: Date.now() }));
+      return next;
+    });
+  const isPending = (i: HealthIssue) => pending.has(issueKey(i));
+  pendingCount.current = pending.size;
+  useEffect(() => {
+    if (!checking || pending.size === 0) return;
+    setPending((prev) => new Map(Array.from(prev, ([k, v]) => [k, { ...v, saw: true }] as const)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checking]);
+  useEffect(() => {
+    // The first full report after a check started answers for them: fixed (gone), or still there.
+    // A quick one borrows the slow findings of before, the one just fixed among them.
+    if (pending.size === 0 || report?.partial) return;
+    setPending((prev) => new Map(Array.from(prev).filter(([, v]) => !v.saw)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report]);
+  /**
+   * "Is this up to date?": when the last full check ended, and what changed since that a new one
+   * would read (opening Mod Health does not check by itself: a full check reads every mod's files).
+   */
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const lastAt = onServer ? null : profileCheckedAt;
+  const checkedWhen = lastAt
+    ? `${new Date(lastAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${
+        nowTick - lastAt < 60000 ? t('health.lastCheck.justNow') : t('health.lastCheck.minutesAgo', { count: Math.round((nowTick - lastAt) / 60000) })
+      })`
+    : '';
+  const changes = onServer ? null : profileChanges;
+  const changesSaid = changes
+    ? [
+        changes.list && t('health.lastCheck.list'),
+        changes.updated.length > 0 && t('health.lastCheck.updated', { count: changes.updated.length }),
+        changes.build && t('health.lastCheck.build'),
+        changes.played && t('health.lastCheck.played'),
+      ]
+        .filter(Boolean)
+        .join(', ')
+    : '';
+  const pendingChip = (
+    <span className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-bold text-sky-200 border border-sky-800 bg-sky-950/60 shrink-0">
+      <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+      {t('health.pendingFix')}
+    </span>
+  );
+  /**
    * Whose problem it is, as a small chip: the mod's (same for everyone), this list's, this PC's,
    * or the player's own mod (one they are making).
    */
@@ -336,6 +522,16 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         {t(`health.scope.${scope}.word`)}
       </span>
     ) : null;
+  };
+  /** How sure the finding is (seen in the log / the game's rule / a suspicion), as a small chip. */
+  const certaintyChip = (issue: HealthIssue) => {
+    const c = certaintyOf(issue);
+    const tone = c === 'seen' ? 'border-red-700/70 text-red-300' : c === 'rule' ? 'border-slate-600 text-slate-300' : 'border-violet-700/60 text-violet-300';
+    return (
+      <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded border ${tone}`} title={t(`health.certainty.${c}.title`)}>
+        {t(`health.certainty.${c}.word`)}
+      </span>
+    );
   };
   /** Copies the note for a mod's author: what works on this build, as a suggestion with the example. */
   const copyAuthorSuggestion = async (modId: string) => {
@@ -348,6 +544,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
   };
 
   const handleFix = (fix: HealthFix, issue?: HealthIssue) => {
+    // What changes something gets its row marked; opening a page or the Merger does not.
+    const opensOnly = fix.action === 'open_in_merger' || fix.action === 'open_workshop_page' || fix.action === 'subscribe_workshop' || fix.action === 'keep_version';
+    if (!opensOnly && fix.action !== 'disable_mod' && issue) markPending([issue]);
     if (fix.action === 'merge_files') {
       mergeFiles(fix.relative_paths);
       return;
@@ -374,6 +573,16 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     }
     if (fix.action === 'recopy_workshop') {
       void recopyAll([fix.mod_id]);
+      return;
+    }
+    if (fix.action === 'update_package') {
+      // The Merger's Update patch: rescan for the list as it is now and publish (what waits for a
+      // choice stays out, and the Merger says which).
+      void (async () => {
+        const ok = onUpdatePatch ? await onUpdatePatch(fix.package) : false;
+        say(ok ? t('health.packageUpdated', { name: nameOf(fix.package) }) : t('health.packageUpdateFailed'));
+        onRecheck();
+      })();
       return;
     }
     if (fix.action === 'dismiss_known_issue') {
@@ -431,6 +640,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     if (fix.action === 'disable_mod') {
       const name = mods.find((m) => m.mod_id === fix.mod_id)?.name ?? fix.mod_id;
       if (!confirm(t('health.confirmDisable', { name }))) return;
+      if (issue) markPending([issue]);
     }
     const next = applyFix(mods, fix);
     if (!next) return;
@@ -450,7 +660,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     }
   };
 
-  const handleFixes = (list: HealthFix[]) => {
+  const handleFixes = (list: HealthFix[], issues: HealthIssue[] = []) => {
+    markPending(issues);
     let next = mods;
     let applied = 0;
     for (const fix of list) {
@@ -511,7 +722,10 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     const moving = safeFixes.filter((f) => f.action === 'move_before').length;
     const parts = [enabling > 0 && t('health.willEnable', { count: enabling }), moving > 0 && t('health.willMove', { count: moving })].filter(Boolean);
     if (!confirm(t('health.confirmFixAll', { what: parts.join(t('health.and')) }))) return;
-    handleFixes(safeFixes);
+    handleFixes(
+      safeFixes,
+      report ? report.issues.filter((i) => !YOUR_CALL_CODES.has(i.code) && i.fixes.some((f) => SAFE_FIX_ACTIONS.has(f.action))) : []
+    );
   };
 
   // Kept apart from the list fixes: merging rewrites the mod list on its own (enables the package).
@@ -525,10 +739,10 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       (i) => !YOUR_CALL_CODES.has(i.code) && i.fixes.some((f) => SAFE_FIX_ACTIONS.has(f.action))
     ).length ?? 0;
 
-  const tabOf = (i: HealthIssue): Exclude<HealthTab, 'performance' | 'disk'> =>
+  const tabOf = (i: HealthIssue): Exclude<HealthTab, PanelTab> =>
     i.code.startsWith('security_') ? 'security' : CONFLICT_CODE.test(i.code) || YOUR_CALL_CODES.has(i.code) ? 'conflicts' : 'problems';
   const byTab = useMemo(() => {
-    const out: Record<Exclude<HealthTab, 'performance' | 'disk'>, HealthIssue[]> = { problems: [], conflicts: [], security: [] };
+    const out: Record<Exclude<HealthTab, PanelTab>, HealthIssue[]> = { problems: [], conflicts: [], security: [] };
     report?.issues.forEach((i) => out[tabOf(i)].push(i));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -589,12 +803,14 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
   // A Mod List chip points at one issue: its tab first, and its section open, so the row is there
   // to scroll to (not saved: the player's own folding stays as it was).
   useEffect(() => {
-    if (!focusIssue) return;
-    const focusTab = tabOf(focusIssue);
+    if (!target) return;
+    const focusTab = tabOf(target);
     setTab(focusTab);
-    setCollapsed((prev) => ({ ...prev, [`${focusTab}:${issueStateOf(focusIssue)}`]: false }));
+    setCollapsed((prev) => ({ ...prev, [`${focusTab}:${issueStateOf(target)}`]: false }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusIssue]);
+  }, [target]);
+  /** The whole list in one line, and the one thing to do now. */
+  const verdict = useMemo(() => (report ? healthVerdict(report.issues) : null), [report]);
   /** What wants something done on a tab: the rows that act or are worth acting on. */
   const toDo = (issues: HealthIssue[]) => issues.filter((i) => ['act', 'recommended'].includes(issueStateOf(i)));
   const actCount = (issues: HealthIssue[]) => issues.filter((i) => issueStateOf(i) === 'act').length;
@@ -602,6 +818,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     problems: toDo(byTab.problems).length,
     conflicts: toDo(byTab.conflicts).length,
     security: toDo(byTab.security).length,
+    audit: null,
     performance: null,
     disk: null,
   };
@@ -611,22 +828,31 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
    * worth knowing, already fixed by the Studio. The same four on every tab.
    */
   const sections = useMemo(() => {
-    if (tab === 'performance' || tab === 'disk') return [];
+    if (tab === 'audit' || tab === 'performance' || tab === 'disk') return [];
     const by: Record<IssueState, HealthIssue[]> = { act: [], recommended: [], info: [], handled: [] };
     byTab[tab].forEach((i) => by[issueStateOf(i)].push(i));
-    return STATE_ORDER.map((state) => ({ key: state, state, issues: by[state], items: groupItems(by[state]) }));
+    // Inside a section, what can be done with a button and is sure first; a suspicion with nothing to press last.
+    return STATE_ORDER.map((state) => {
+      const issues = inDoFirstOrder(by[state]);
+      return { key: state, state, issues, items: groupItems(issues) };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byTab, tab, i18next.language]);
 
   /** The fixes a row offers, as buttons; "Enable X" + "Move X before Y" are one button doing both. */
   const fixesOf = (issue: HealthIssue) => {
-    const applicable = issue.fixes.filter((f) => ACTION_FIXES.has(f.action) || applyFix(mods, f) !== null);
-    const enableThenMove = applicable.length === 2 && applicable[0].action === 'enable_mod' && applicable[1].action === 'move_before';
+    // On a server's list, only what acts on files: its Mods= is changed in Servers.
+    const applicable = issue.fixes.filter((f) => fixActsOn(f.action, listTarget) && (ACTION_FIXES.has(f.action) || applyFix(mods, f) !== null));
+    // A Java mod ZombieBuddy left out goes off with the mods that require it: one button for all.
+    const offWithUsers = issue.code === 'zb_excluded' && applicable.length > 1 && applicable.every((f) => f.action === 'disable_mod');
+    const enableThenMove = offWithUsers || (applicable.length === 2 && applicable[0].action === 'enable_mod' && applicable[1].action === 'move_before');
     return { applicable, enableThenMove, fixes: enableThenMove ? [applicable[0]] : applicable };
   };
   const labelOf = (issue: HealthIssue, fix: HealthFix) =>
     YOUR_CALL_CODES.has(issue.code) && fix.action === 'move_before' ? t('health.useVersionInstead', { name: nameOf(fix.before) })
       : issue.code === 'two_mod_managers' && fix.action === 'disable_mod' ? t('health.fix.useStudioScreen')
+      : fix.action === 'replace_in_list' && nameOf(fix.mod_id) !== fix.mod_id ? t('health.fix.replaceNamed', { name: nameOf(fix.mod_id) })
+      : issue.code === 'zb_excluded' && fix.action === 'disable_mod' && issue.fixes.length > 1 ? t('health.fix.offWithUsers', { name: nameOf(fix.mod_id), count: issue.fixes.length - 1 })
       : fixLabel(fix);
 
   /**
@@ -646,13 +872,14 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         key={key}
         data-issue-key={issueKey(issue)}
         data-issue-code={`${issue.code}|${issue.mod_id ?? ''}`}
-        className={`flex items-start gap-3 p-3 rounded-lg border ${style.card} ${litKey === issueKey(issue) ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-900/50' : ''}`}
+        className={`flex items-start gap-3 p-3 rounded-lg border ${style.card} ${litKey === issueKey(issue) ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-900/50' : ''} ${isPending(issue) ? 'opacity-60' : ''}`}
       >
         <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.iconColor}`} aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
             {scopeChip(issue.code, issue.own_mod)}
+            {certaintyChip(issue)}
             {issue.mod_id && (
               <span className="text-[12.5px] font-bold text-slate-100 truncate">
                 {nameOf(issue.mod_id)}
@@ -712,7 +939,19 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
             </details>
           )}
         </div>
-        {fixes.length > 0 && (
+        {onServer && issue.code === 'missing_mod' && issue.mod_id && (
+          <button
+            type="button"
+            onClick={() => takeOffServer(issue.mod_id!)}
+            disabled={serverBusy}
+            className="shrink-0 px-2 py-1 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white border border-sky-600 cursor-pointer disabled:opacity-60"
+          >
+            {t('health.list.takeOff')}
+          </button>
+        )}
+        {isPending(issue) ? (
+          pendingChip
+        ) : fixes.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[45%]">
             {fixes.map((fix, i) => {
               const quiet = undoOnly && UNDO_ACTIONS.has(fix.action);
@@ -720,7 +959,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                 <button
                   key={i}
                   type="button"
-                  onClick={() => (enableThenMove ? handleFixes(applicable) : handleFix(fix, issue))}
+                  onClick={() => (enableThenMove ? handleFixes(applicable, [issue]) : handleFix(fix, issue))}
                   disabled={fix.action === 'merge_files' && mergeBusy}
                   title={t(effectKey(fix))}
                   className={
@@ -778,7 +1017,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                 return (
                   <li key={n} data-issue-key={issueKey(i)} data-issue-code={`${i.code}|${i.mod_id ?? ''}`} className="flex items-start justify-between gap-2 rounded border border-slate-800/80 bg-slate-950/40 px-2 py-1">
                     <RichText text={issueText(i)} mods={modWords} foldAt={200} className="text-[11px] text-slate-300 leading-relaxed min-w-0" />
-                    {dismiss && (
+                    {isPending(i) ? (
+                      pendingChip
+                    ) : dismiss && (
                       <button
                         type="button"
                         onClick={() => handleFix(dismiss, i)}
@@ -799,7 +1040,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
               </div>
             )}
           </div>
-          {shared.length > 0 && (
+          {issues.some(isPending) ? (
+            pendingChip
+          ) : shared.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[45%]">
               {shared.map((fix, n) => (
                 <button
@@ -861,6 +1104,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
     const bulkFixes = bulkAction ? issues.flatMap((i) => i.fixes.filter((f) => f.action === bulkAction)) : [];
     const folders = bulkFixes.flatMap((f) => (f.action === 'remove_compatible_copy' || f.action === 'adopt_workshop_copy' ? [f.folder] : []));
     const runBulk = () => {
+      markPending(issues);
       if (bulkAction === 'remove_compatible_copy') void removeCompatibleCopies(folders);
       else if (bulkAction === 'adopt_workshop_copy') void adoptCopies(folders);
       else if (bulkAction === 'recopy_workshop') void recopyAll(bulkFixes.flatMap((f) => (f.action === 'recopy_workshop' ? [f.mod_id] : [])));
@@ -911,7 +1155,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
                         {t('health.authorNote.button')}
                       </button>
                     )}
-                    {fix && (
+                    {isPending(i) ? (
+                      pendingChip
+                    ) : fix && (
                       <button
                         type="button"
                         onClick={() => handleFix(fix, i)}
@@ -957,63 +1203,199 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 gap-4 font-sans">
-      <div className="flex items-start justify-between gap-4 p-5 rounded-xl border border-slate-800 bg-slate-900/60">
-        <div className="flex items-start gap-3">
-          <HeartPulse className="w-6 h-6 text-emerald-400 mt-0.5" aria-hidden="true" />
-          <div>
-            <h1 className="text-lg font-bold text-slate-100">{t('health.title')}</h1>
-            <p className="text-xs text-slate-400 max-w-2xl">
-              {t('health.blurb')}
-            </p>
-            {report && (
-              <div className="flex flex-wrap gap-2 mt-3 text-[11px] font-mono">
-                <span className="px-2 py-0.5 rounded border border-slate-700 text-slate-300">
-                  {t('health.gameBuild', { build: report.game_version ?? t('health.unknown') })}
-                </span>
-                <span className="px-2 py-0.5 rounded border border-slate-700 text-slate-300">{t('health.activeCount', { count: report.active_count })}</span>
-                {report.community && (
-                  <span
-                    className="px-2 py-0.5 rounded border border-slate-700 text-slate-300"
-                    title={t('health.communityTitle', { rules: report.community.rules, pairs: report.community.pairs, mods: report.community.mods, updated: report.community.index_updated ? t('health.indexUpdated', { date: report.community.index_updated }) : '' })}
-                  >
-                    {t('health.community', { rules: report.community.rules + report.community.pairs, mods: report.community.mods })}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
+          <HeartPulse className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
+          <h1 className="text-base font-bold text-slate-100" title={t('health.blurb')}>{t('health.title')}</h1>
+              {report && (
+                <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
+                  <span className="px-2 py-0.5 rounded border border-slate-700 text-slate-300">
+                    {t('health.gameBuild', { build: report.game_version ?? t('health.unknown') })}
                   </span>
-                )}
-                {!!report.community?.dismissed && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void (async () => {
-                        try {
-                          const n = await TauriService.restoreIndexIssues(paths);
-                          void loadCommunityIndex(paths, true);
-                          say(t('health.dismissedRestored', { count: n }));
-                          onRecheck();
-                        } catch {
-                          // Already shown by TauriService.
-                        }
-                      })();
-                    }}
-                    title={t('health.dismissedTitle')}
-                    className="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer"
-                  >
-                    {t('health.dismissedCount', { count: report.community.dismissed })}
-                  </button>
-                )}
-              </div>
-            )}
+                  <span className="px-2 py-0.5 rounded border border-slate-700 text-slate-300">{t('health.activeCount', { count: report.active_count })}</span>
+                  {report.community && report.community.mods > 0 && (
+                    <span
+                      className="px-2 py-0.5 rounded border border-slate-700 text-slate-300"
+                      title={t('health.communityTitle', { rules: report.community.rules, pairs: report.community.pairs, mods: report.community.mods, updated: report.community.index_updated ? t('health.indexUpdated', { date: report.community.index_updated }) : '' })}
+                    >
+                      {t('health.community', { rules: report.community.rules + report.community.pairs, mods: report.community.mods })}
+                    </span>
+                  )}
+                  {!!report.community?.dismissed && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const n = await TauriService.restoreIndexIssues(paths);
+                            void loadCommunityIndex(paths, true);
+                            say(t('health.dismissedRestored', { count: n }));
+                            onRecheck();
+                          } catch {
+                            // Already shown by TauriService.
+                          }
+                        })();
+                      }}
+                      title={t('health.dismissedTitle')}
+                      className="px-2 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer"
+                    >
+                      {t('health.dismissedCount', { count: report.community.dismissed })}
+                    </button>
+                  )}
+                </div>
+              )}
+
+          <div className="ml-auto flex items-center gap-2 min-w-0">
+            <span role="status" className={`text-[11px] truncate ${checking ? 'text-sky-200' : changesSaid ? 'text-amber-200' : 'text-slate-400'}`} title={checking ? t(`health.checking.${checkStage ?? 'full'}`) : undefined}>
+              {checking
+                ? t(`health.checking.short.${checkStage ?? 'full'}`)
+                : changesSaid
+                  ? t('health.lastCheck.changed', { when: checkedWhen, what: changesSaid })
+                  : checkedWhen
+                    ? t('health.lastCheck.same', { when: checkedWhen })
+                    : null}
+            </span>
+            <button
+              type="button"
+              onClick={onRecheck}
+              disabled={checking}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-60 shrink-0 ${
+                changesSaid && !checking ? 'bg-sky-700 hover:bg-sky-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+              }`}
+            >
+              {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+              {checking ? t('health.checking.button') : t('health.checkAgain')}
+            </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onRecheck}
-          disabled={checking}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer disabled:opacity-60 shrink-0"
-        >
-          {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
-          {t('health.checkAgain')}
-        </button>
+        <div className="h-0.5 bg-transparent overflow-hidden" aria-hidden="true">
+          {checking && <div className="h-full w-1/3 rounded-full bg-sky-400 animate-indeterminate" />}
+        </div>
       </div>
+
+      {servers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-slate-400 mr-1">{t('health.list.checking')}</span>
+          {[{ kind: 'profile' } as HealthListTarget, ...servers.map((s) => ({ kind: 'server', name: s.name }) as HealthListTarget)].map((target) => {
+            const on = target.kind === listTarget.kind && (target.kind === 'profile' || (listTarget.kind === 'server' && listTarget.name === target.name));
+            return (
+              <button
+                key={target.kind === 'profile' ? '-profile' : target.name}
+                type="button"
+                onClick={() => setListTarget(target)}
+                className={`px-2.5 py-1 rounded-full border cursor-pointer ${on ? 'bg-sky-800 border-sky-600 text-white font-bold' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+              >
+                {target.kind === 'profile' ? t('health.list.profile', { name: profileName ?? '-' }) : t('health.list.server', { name: target.name })}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {onServer && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300 leading-relaxed">
+          {t('health.list.serverNote', { name: listTarget.name, count: serverIds?.length ?? 0 })}
+          {serverDiff && (
+            <div className="mt-2 flex flex-wrap items-start gap-2">
+              <div className="flex-1 min-w-[240px]">
+                {serverDiff.onlyProfile.length === 0 && serverDiff.onlyServer.length === 0 ? (
+                  <span className="text-emerald-300">{t('health.list.same', { profileName: profileName ?? '-' })}</span>
+                ) : (
+                  <>
+                    <div className="text-amber-200">{t('health.list.differs', { profileName: profileName ?? '-', onlyProfile: serverDiff.onlyProfile.length, onlyServer: serverDiff.onlyServer.length })}</div>
+                    {serverDiff.onlyServer.length > 0 && (
+                      <div className="text-slate-400 mt-0.5">{t('health.list.onlyServer', { names: serverDiff.onlyServer.slice(0, 10).map(nameOf).join(', ') + (serverDiff.onlyServer.length > 10 ? '…' : '') })}</div>
+                    )}
+                    {serverDiff.onlyProfile.length > 0 && (
+                      <div className="text-slate-400 mt-0.5">{t('health.list.onlyProfile', { names: serverDiff.onlyProfile.slice(0, 10).map(nameOf).join(', ') + (serverDiff.onlyProfile.length > 10 ? '…' : '') })}</div>
+                    )}
+                  </>
+                )}
+              </div>
+              {(serverDiff.onlyProfile.length > 0 || serverDiff.onlyServer.length > 0) && (
+                <button
+                  type="button"
+                  onClick={writeProfileToServer}
+                  disabled={serverBusy}
+                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer disabled:opacity-60"
+                >
+                  {serverBusy && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+                  {t('health.list.writeProfile', { profileName: profileName ?? '-' })}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+
+      {verdict && (
+        <div
+          role="status"
+          className={`rounded-lg border px-4 py-2 ${
+            verdict.level === 'act' ? STATE_STYLE.act.card : verdict.level === 'recommended' ? STATE_STYLE.recommended.card : STATE_STYLE.handled.card
+          }`}
+        >
+          {(() => {
+            const Icon = verdict.level === 'ok' ? CheckCircle2 : STATE_STYLE[verdict.level].icon;
+            const color = verdict.level === 'ok' ? STATE_STYLE.handled.iconColor : STATE_STYLE[verdict.level].iconColor;
+            const { act, recommended, info, handled } = verdict.counts;
+            return (
+              <>
+                <div className="flex items-center gap-2">
+                  <Icon className={`w-5 h-5 shrink-0 ${color}`} aria-hidden="true" />
+                  <span className="text-sm font-bold text-slate-100">{t(`health.verdict.${verdict.level}`, { count: verdict.level === 'act' ? act : recommended })}</span>
+                </div>
+                <div className="mt-0.5 ml-7 text-[11px] text-slate-400">
+                  {[
+                    act > 0 && t('health.verdict.countAct', { count: act }),
+                    recommended > 0 && t('health.verdict.countRecommended', { count: recommended }),
+                    info > 0 && t('health.verdict.countInfo', { count: info }),
+                    handled > 0 && t('health.verdict.countHandled', { count: handled }),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || t('health.verdict.nothingFound')}
+                </div>
+                {(report?.incomplete ?? []).length > 0 && (
+                  <div className="mt-1 ml-7 flex items-center gap-1.5 text-[11px] text-sky-200">
+                    <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                    {t('health.verdict.incomplete')}
+                  </div>
+                )}
+                {verdict.next && (
+                  <div className="mt-2 ml-7 flex items-start gap-2">
+                    <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-300" aria-hidden="true" />
+                    <div className="flex-1 min-w-0 text-xs text-slate-200">
+                      <span className="font-bold">{t('health.verdict.next')}</span>{' '}
+                      {verdict.next.mod_id && <b className="text-slate-100">{nameOf(verdict.next.mod_id)}: </b>}
+                      <span className="text-slate-300 line-clamp-1" title={issueText(verdict.next)}>{issueText(verdict.next)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOwnFocus(verdict.next)}
+                      className="shrink-0 px-2.5 py-1 rounded text-[11px] font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer"
+                    >
+                      {t('health.verdict.go')}
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {!onServer && variantsOn.off.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100">
+          <span className="flex-1 min-w-[240px]">{t('health.variants.line', { count: variantsOn.off.length, items: variantsOn.choices.length })}</span>
+          <button type="button" onClick={keepOneVariant} className="px-2.5 py-1 rounded font-bold bg-amber-700 hover:bg-amber-600 text-white cursor-pointer">
+            {t('health.variants.button')}
+          </button>
+        </div>
+      )}
+
+      {!onServer && profileId && (
+        <ProfilePhotos paths={paths} profile={{ id: profileId, name: profileName ?? profileId }} mods={mods} catalog={catalog} report={report} nameOf={nameOf} />
+      )}
 
       <PageGuide page="health" />
 
@@ -1043,10 +1425,10 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         })}
       </div>
 
-      {tab !== 'performance' && tab !== 'disk' && (
+      {tab !== 'audit' && tab !== 'performance' && tab !== 'disk' && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-slate-400 max-w-3xl">{t(`health.tabs.${tab}Intro`)}</p>
-          {tab === 'problems' && safeFixes.length > 0 && (
+          {tab === 'problems' && !onServer && safeFixes.length > 0 && (
             <button
               type="button"
               onClick={handleFixAllSafe}
@@ -1153,7 +1535,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
         </div>
       )}
 
-      {report && tab !== 'performance' && tab !== 'disk' && toDo(byTab[tab]).length === 0 && (
+      {/* On the first tab, an "in order" verdict above already says it: the same green line twice reads as noise. */}
+      {report && tab !== 'audit' && tab !== 'performance' && tab !== 'disk' && toDo(byTab[tab]).length === 0 && !(tab === 'problems' && verdict?.level === 'ok') && (
         <div className="flex items-center gap-3 p-5 rounded-xl border border-emerald-800/60 bg-emerald-950/30 text-emerald-200 text-sm">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-hidden="true" />
           {tab === 'problems' ? t('health.noProblems', { count: report.active_count }) : t(`health.tabs.${tab}Empty`)}
@@ -1194,6 +1577,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
           </section>
         );
       })}
+      {tab === 'performance' && <ResourceMeter paths={paths} />}
       {tab === 'performance' && (
         <div role="tablist" className="flex flex-wrap items-center gap-1">
           {PERF_TABS.map((id) => (
@@ -1216,6 +1600,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report,
       {tab === 'performance' && perfTab === 'boot' && <BootTimePanel paths={paths} />}
       {tab === 'performance' && perfTab === 'time' && <GameTimePanel paths={paths} mods={mods} onModsChanged={onModsChanged} />}
       {tab === 'performance' && perfTab === 'frames' && <FramesPanel paths={paths} mods={mods} />}
+      {tab === 'audit' && report && <AuditPanel mods={mods} issues={report.issues} nameOf={nameOf} onGo={(issue) => setOwnFocus(issue)} />}
       {tab === 'disk' && <DiskPanel paths={paths} onModsChanged={onModsChanged} onOpenInBrowser={onOpenInBrowser} />}
     </div>
   );
