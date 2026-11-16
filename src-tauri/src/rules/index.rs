@@ -90,6 +90,15 @@ pub struct KnownIssue {
     pub source: Option<String>,
     #[serde(default)]
     pub status: Status,
+    /// The mod's versions (modversion= of its mod.info) the issue is about. Empty: every version.
+    /// With versions, an update of the mod ends the note by itself (Viewpoint 0.1.7's signature).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mod_versions: Vec<String>,
+}
+
+/// Whether a known issue is about the installed version of its mod (no versions named: always).
+pub fn issue_applies_to_version(issue: &KnownIssue, installed: Option<&str>) -> bool {
+    issue.mod_versions.is_empty() || installed.is_some_and(|v| issue.mod_versions.iter().any(|w| w.trim() == v.trim()))
 }
 
 fn no_fix() -> IssueFix {
@@ -361,5 +370,20 @@ mod tests {
         assert!(!log_issue_outdated(&issue, day("2026-10-25"), still), "updated, but the line is still there");
         assert!(!log_issue_outdated(&issue, day("2026-10-10"), clean), "not updated since: no session proves anything");
         assert!(!log_issue_outdated(&issue, day("2026-10-25"), None), "no session log at hand");
+    }
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn a_note_about_one_version_ends_when_the_mod_is_updated() {
+        let mut issue: KnownIssue = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
+        assert!(issue_applies_to_version(&issue, Some("2.0")), "no versions: every version");
+        issue.mod_versions = vec!["0.1.7".into()];
+        assert!(issue_applies_to_version(&issue, Some("0.1.7")));
+        assert!(!issue_applies_to_version(&issue, Some("0.1.8")));
+        assert!(!issue_applies_to_version(&issue, None), "a mod that says no version is not that version");
     }
 }

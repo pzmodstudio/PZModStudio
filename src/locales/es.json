@@ -2321,6 +2321,7 @@
       "settingsSaved": "💾 Configuración guardada en '{{name}}.ini'.",
       "errorSaving": "Error al guardar la configuración: {{error}}",
       "error": "Error: {{error}}",
+      "closedAlone": "El servidor se cerró solo. Su log es server-console.txt: el Centro de monitoreo lo abre con «Abrir la última sesión».",
       "close": "Cerrar"
     },
     "list": {
@@ -2470,6 +2471,7 @@
         "signature": "ZombieBuddy dejó afuera {{mod}}: su firma (.zbs) no coincide con la clave que su autor muestra en Steam, así que su Java no cargó. Es un error del autor.",
         "other": "ZombieBuddy dejó afuera {{mod}}: su Java no cargó.",
         "fatal": "Sin él, {{addons}} tiraron el servidor al arrancar.",
+        "fatalGame": "Sin él, {{addons}} tiraron el juego al arrancar.",
         "addons": "Sin él, {{addons}} dejaron de andar.",
         "what": "Salud de mods lo muestra con un botón para apagarlo junto con los mods que lo usan, hasta que el autor lo arregle."
       },

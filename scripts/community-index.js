@@ -92,6 +92,7 @@ function problemsOf(registry, fileName, patches, reportDir) {
     const what = `issues[${i}]`;
     if (!str(issue.title)) p.push(`${what}: title is missing`);
     if (issue.line !== undefined && !Number.isInteger(issue.line)) p.push(`${what}: line must be a number`);
+    if (issue.mod_versions !== undefined && !(Array.isArray(issue.mod_versions) && issue.mod_versions.length > 0 && issue.mod_versions.every(str))) p.push(`${what}: mod_versions is a list of the mod's modversion= values it is about`);
     if (issue.file !== undefined && (!str(issue.file) || issue.file.startsWith('/') || issue.file.includes('..'))) p.push(`${what}: file is a path from the mod's root (media/lua/...)`);
     const fix = issue.fix ?? { kind: 'none' };
     if (!FIX_KINDS.has(fix.kind)) p.push(`${what}: fix.kind must be one of ${[...FIX_KINDS].join(', ')}`);

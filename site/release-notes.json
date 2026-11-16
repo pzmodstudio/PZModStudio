@@ -1,4 +1,9 @@
 {
+ "1.8.7": [
+  "Servers: says when a server closed by itself, and why",
+  "Monitor: names a Java mod left out at boot above the cards",
+  "Mod Health: notes about one mod version end when the mod updates"
+ ],
  "1.8.6": [
   "Mod Health: names a Java mod left out at boot and the mods it took down",
   "Mod Health: one line verdict and the one thing to do first",

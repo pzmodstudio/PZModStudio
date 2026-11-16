@@ -4,6 +4,7 @@ import { Cpu, FileText, FolderOpen, Loader2, MemoryStick, Play, RotateCcw, Serve
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { WhereThingsLive } from '../common/WhereThingsLive';
+import { ZbExcludedNotice } from '../common/ZbExcludedNotice';
 import { ExcludedMod, MpAutomation, MpSecondCheck, MpTestPrepareProgress, MpTestPrepareReport, MpTestProcess, MpTestStatus } from '../../types';
 
 const AUTO_KEY = 'pz_mp_test_automation';
@@ -356,13 +357,7 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
         <div className="text-[11px] text-sky-200">{t(`servers.mpTest.phase.${status.phase.split(':')[0]}`, { defaultValue: status.phase })}</div>
       )}
       {/* Why it did not start, when the log says: a Java mod ZombieBuddy left out and its addons taking the boot down. */}
-      {excluded.map((x) => (
-        <div key={x.mod_id} className="rounded-lg border border-red-800/70 bg-red-950/30 p-3 text-[11px] text-red-100 leading-relaxed">
-          {t(x.kind === 'signature' ? 'servers.mpTest.zbExcluded.signature' : 'servers.mpTest.zbExcluded.other', { mod: x.mod_id })}{' '}
-          {x.addons.length > 0 && t(x.fatal ? 'servers.mpTest.zbExcluded.fatal' : 'servers.mpTest.zbExcluded.addons', { addons: x.addons.join(', ') })}{' '}
-          {t('servers.mpTest.zbExcluded.what')}
-        </div>
-      ))}
+      <ZbExcludedNotice excluded={excluded} />
 
       {running ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{status!.processes.map(card)}</div>

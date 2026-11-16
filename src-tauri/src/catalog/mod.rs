@@ -1889,6 +1889,10 @@ pub fn add_index_issues(
             if crate::rules::index::issue_is_handled(issue, shim_on, package_root) {
                 continue;
             }
+            // A note about one version of the mod ends when the mod is updated.
+            if !crate::rules::index::issue_applies_to_version(issue, catalog.get(id).and_then(|m| m.info.mod_version.as_deref())) {
+                continue;
+            }
             if compat_copy_loads && matches!(issue.fix, IssueFix::RequirePath { .. } | IssueFix::CompatibleCopy) {
                 continue;
             }

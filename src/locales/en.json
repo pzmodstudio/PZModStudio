@@ -2321,6 +2321,7 @@
       "settingsSaved": "💾 Settings saved successfully to '{{name}}.ini'.",
       "errorSaving": "Error saving settings: {{error}}",
       "error": "Error: {{error}}",
+      "closedAlone": "The server closed by itself. Its log is server-console.txt: the Monitoring Center opens it with \"Open the last session\".",
       "close": "Close"
     },
     "list": {
@@ -2470,6 +2471,7 @@
         "signature": "ZombieBuddy left {{mod}} out: its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded. It is the author's mistake.",
         "other": "ZombieBuddy left {{mod}} out: its Java never loaded.",
         "fatal": "Without it, {{addons}} took the server down at boot.",
+        "fatalGame": "Without it, {{addons}} took the game down at boot.",
         "addons": "Without it, {{addons}} stopped working.",
         "what": "Mod Health shows it with a button to switch it off along with the mods that use it, until its author fixes it."
       },

@@ -45,6 +45,8 @@ interface DiagnosticsPanelProps {
   viewingOther?: string | null;
   /** The cards are a server's or player 2's (that log's tab title): its list is not the profile's. */
   cardsFrom?: string | null;
+  /** Shown above the cards: what the whole log says (a Java mod ZombieBuddy left out, and what it took down). */
+  above?: React.ReactNode;
 }
 
 /**
@@ -69,6 +71,7 @@ export const DiagnosticsPanel: React.FC<DiagnosticsPanelProps> = ({
   profileName = null,
   viewingOther = null,
   cardsFrom = null,
+  above = null,
 }) => {
   const { t } = useTranslation();
   const [copiedCardId, setCopiedCardId] = useState<string | null>(null);
@@ -582,6 +585,7 @@ ${report}`);
         )}
       </div>
 
+      {above}
       {cardsFrom && (
         <div className="px-3 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 shrink-0">
           {t('monitor.cards.fromOtherLog', { log: cardsFrom })}

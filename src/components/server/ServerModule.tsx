@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { ZbExcludedNotice } from '../common/ZbExcludedNotice';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
 import {
@@ -38,7 +39,7 @@ import {
 import { TauriService, explainError } from '../../services/tauri';
 import { MpCheckPanel } from '../common/MpCheckPanel';
 import { issueText } from '../../i18n/backendText';
-import { MpModReport } from '../../types';
+import { ExcludedMod, MpModReport } from '../../types';
 import { tHtml } from '../../i18n/html';
 import { DiscordPanel } from './DiscordPanel';
 import { MpTestPanel } from './MpTestPanel';
@@ -138,12 +139,31 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
     [paths.user_zomboid_dir]
   );
 
+  /**
+   * A server that was running and is not, without Stop: it closed by itself (often at boot). Said
+   * here, with the cause when its log names one (a Java mod ZombieBuddy left out), instead of the
+   * button just turning back to Start.
+   */
+  const wasRunning = useRef(false);
+  const stoppedByUser = useRef(false);
+  const [closedAlone, setClosedAlone] = useState<ExcludedMod[] | null>(null);
+
   const refreshServerStatusAndPlayers = useCallback(async () => {
     try {
       const status: DedicatedServerStatus = await TauriService.getDedicatedServerStatus(
         paths.user_zomboid_dir || ''
       );
       setServerStatus(status);
+      if (status.is_running) {
+        wasRunning.current = true;
+        stoppedByUser.current = false;
+        setClosedAlone(null);
+      } else if (wasRunning.current) {
+        wasRunning.current = false;
+        if (!stoppedByUser.current && paths.user_zomboid_dir) {
+          setClosedAlone(await TauriService.zbExclusions(paths.user_zomboid_dir, 'server'));
+        }
+      }
 
       if (status.is_running) {
         const playerList = await TauriService.getConnectedPlayers(paths.user_zomboid_dir || '');
@@ -305,6 +325,7 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
 
   const handleStopDedicatedServer = async () => {
     if (!paths.user_zomboid_dir) return;
+    stoppedByUser.current = true;
     try {
       await TauriService.stopDedicatedServer(paths.user_zomboid_dir, serverStatus.pid || undefined);
       setStatusMessage(t('servers.status.stopped'));
@@ -448,6 +469,17 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
         </div>
       </div>
 
+      {closedAlone && (
+        <div className="space-y-2">
+          <div className="p-3 bg-red-950/40 border border-red-800/70 rounded-xl text-xs text-red-100 flex items-start justify-between gap-3">
+            <span>{t('servers.status.closedAlone')}</span>
+            <button onClick={() => setClosedAlone(null)} className="text-red-300 hover:underline cursor-pointer shrink-0">
+              {t('servers.status.close')}
+            </button>
+          </div>
+          <ZbExcludedNotice excluded={closedAlone} />
+        </div>
+      )}
       {statusMessage && (
         <div className="p-3 bg-purple-950/80 border border-purple-700/80 rounded-xl text-xs text-purple-200 font-bold flex items-center justify-between animate-fade-in shadow-lg">
           <span>{statusMessage}</span>

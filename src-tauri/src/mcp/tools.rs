@@ -611,6 +611,48 @@ fn available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "zb_exclusions".to_string(),
+            description: "Java mods ZombieBuddy left out of the last session, read from its log: per mod its id, kind (signature: its .zbs did not verify against the key its author shows on Steam; other), ZombieBuddy's reason, the addons that failed for want of its classes (NoClassDefFoundError of its package: the tag they log under, or the class being exposed to Lua) and fatal (one of them stopped the game or server at boot). log: \"game\" (console.txt, default) or \"server\" (server-console.txt, the Studio's dedicated server). Read-only; Mod Health reports the same as zb_excluded for mods on the list.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "log": { "type": "string", "enum": ["game", "server"], "description": "Which session's log (default game)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "function_overrides".to_string(),
+            description: "Game Lua functions two or more active mods redefine, in run order: each redefinition with mod, file, line, keeps_original (it calls the version before it) and deferred (defined inside a function, so it runs later); per function the winner (the last that replaces without calling the one before) and the mods it cuts off (their change never runs), and fixed_by_moving_before when loading the winner before them fixes it. Read from the mods' Lua and the game's, cached. Mod Health shows the cuts as function_overridden.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "active_mod_ids": { "type": "array", "items": { "type": "string" }, "description": "Mod ids in load order (default: the active list)" },
+                    "only_cut": { "type": "boolean", "description": "Only the functions where a mod's change is cut off" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" },
+                    "pz_install_dir": { "type": "string", "description": "Optional game install directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "game_resources".to_string(),
+            description: "What the game (each ProjectZomboid64.exe) and the Studio's dedicated server take now, read natively: memory used beside its Java heap limit, CPU share since the last call, and the PC's total and free memory.".to_string(),
+            input_schema: json!({ "type": "object", "properties": { "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" } } }),
+        },
+        McpTool {
+            name: "game_code_archive".to_string(),
+            description: "The game's own Lua and scripts of every build the Studio has seen, kept once per build in Zomboid/PZModStudio_GameArchive/<build>/game.zip: the installed build, the folder, and each kept build (version, revision, jar size and date, files, bytes). archive_now keeps the installed build first when it is new.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "archive_now": { "type": "boolean", "description": "Keep the installed build now when it is not kept yet (default false)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "pz_install_dir": { "type": "string", "description": "Optional game install directory" }
+                }
+            }),
+        },
+        McpTool {
             name: "check_mod_api".to_string(),
             description: "Names a mod's Lua calls that the installed build does not have, before the game is launched: a global call no one defines (not the game's Java globals or Lua, not the mod, not another active mod, not Lua itself), a method call (:name() no Java class and no Lua file defines, Kahlua's @LuaMethod names included), an Events.X.Add whose X nothing triggers or adds. Read from the installed projectzomboid.jar and media/lua (cached per build) and from each mod's Lua for the installed build's layers (cached per mod). A call the file also names without calling (if foo then, type(foo) == 'function') is taken as guarded and left out. Per finding: kind, name, file, line and a near known name when there is one. By name only: a method that some class has passes, a name built at run time is not seen, and a mod's Java (has_java) may define names Lua cannot show. Default: the active list.".to_string(),
             input_schema: json!({
@@ -895,6 +937,17 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
             json_result::<Vec<crate::overrides::SharedFunction>>(Ok(shared))
         }
         "game_resources" => json_result::<crate::resources::Resources>(Ok(crate::resources::read(&resolve_paths(&args)))),
+        "zb_exclusions" => {
+            let paths = resolve_paths(&args);
+            let file = if args.get("log").and_then(|v| v.as_str()) == Some("server") { "server-console.txt" } else { "console.txt" };
+            let found = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir)
+                .into_iter()
+                .next()
+                .and_then(|z| std::fs::read_to_string(z.join(file)).ok())
+                .map(|t| crate::zb_exclusions::analyze(&t, |_| Vec::new()))
+                .unwrap_or_default();
+            json_result::<Vec<crate::zb_exclusions::ExcludedMod>>(Ok(found))
+        }
         "game_code_archive" => {
             let paths = resolve_paths(&args);
             json_result(crate::game_archive::status(&paths, args.get("archive_now").and_then(|v| v.as_bool()).unwrap_or(false)))

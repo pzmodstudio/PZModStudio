@@ -1,5 +1,6 @@
+import { ZbExcludedNotice } from '../common/ZbExcludedNotice';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TranslatedErrorCard, LogFileInfoUI, ModInfo } from '../../types';
+import { TranslatedErrorCard, LogFileInfoUI, ModInfo, ExcludedMod } from '../../types';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, explainError } from '../../services/tauri';
@@ -335,6 +336,26 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
   const cardLines = (cardLog === 'game' ? tabs.find((tab) => tab.id === 'live_console') : tabs.find((tab) => tab.id === activeTabId))?.lines ?? [];
 
   const isPermanentTab = (tabId: string) => tabId === 'live_console' || tabId === 'live_server' || tabId === 'live_player2';
+  /**
+   * What the whole log of the tab in front says beyond its lines: a Java mod ZombieBuddy left out
+   * and the addons that failed without it (the lines alone read as unrelated class errors). The
+   * game's console.txt or the server's server-console.txt; read again when a session starts or ends.
+   */
+  const noticeLog: 'game' | 'server' | null = (() => {
+    const tab = tabs.find((x) => x.id === activeTabId);
+    if (activeTabId === 'live_server' || tab?.filePath?.toLowerCase().endsWith('server-console.txt')) return 'server';
+    if (activeTabId === 'live_player2') return null;
+    return 'game';
+  })();
+  const [zbExcluded, setZbExcluded] = useState<ExcludedMod[]>([]);
+  const runningKey = Object.values(running).join(',');
+  useEffect(() => {
+    if (!noticeLog || !paths.user_zomboid_dir) {
+      setZbExcluded([]);
+      return;
+    }
+    void TauriService.zbExclusions(paths.user_zomboid_dir, noticeLog).then(setZbExcluded);
+  }, [noticeLog, paths.user_zomboid_dir, runningKey]);
 
   /** Tabs are reordered by dragging one onto another; the order of the three live ones is kept. */
   const [draggedTab, setDraggedTab] = useState<string | null>(null);
@@ -845,6 +866,7 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
           profileName={profileName}
           viewingOther={activeTab && !['live_console', 'live_server', 'live_player2'].includes(activeTab.id) ? activeTab.title : null}
           cardsFrom={cardLog === 'game' ? null : activeTab?.title ?? null}
+          above={noticeLog ? <ZbExcludedNotice excluded={zbExcluded} place={noticeLog} /> : null}
         />
       </div>
     </div>

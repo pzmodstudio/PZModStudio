@@ -18,18 +18,24 @@
       "build": "42.22",
       "date": "2026-11-16",
       "source": "PZ Mod Studio, seen in a server's server-console.txt on 42.22 (2026-11-16)",
-      "status": "verified"
+      "status": "verified",
+      "mod_versions": [
+        "0.1.7"
+      ]
     },
     {
       "title": "0.1.7: crashes while preparing or building the scene with old addons carried along",
-      "note": "Players report Viewpoint 0.1.7 crashing ('Crashed while: preparing' or 'building the scene'). The advice shared by its players: switch off the old addons it carries along, in Viewpoint's own settings, the lines addons.legacyCarried.legacy_... set to 1 (legacy_dry_cure, legacy_fletcherarcheryfixes, legacy_pzvoxelstudioviewpoint, legacy_viewpointfences3d, legacy_viewpointvisibleloot): set them to 0. A 'Failed to compile shader: version 130 is not supported' line is the graphics driver, not the mod list.",
+      "note": "Players report Viewpoint 0.1.7 crashing ('Crashed while: preparing' or 'building the scene'). The advice shared by its players: switch off the old addons it carries along, in Viewpoint's own settings, the lines addons.legacyCarried.legacy_... set to 1 (legacy_dry_cure, legacy_fletcherarcheryfixes, legacy_pzvoxelstudioviewpoint, legacy_viewpointfences3d, legacy_viewpointlivingprops, legacy_viewpointvisibleloot): set them to 0. A 'Failed to compile shader: version 130 is not supported' line is the graphics driver, not the mod list.",
       "fix": {
         "kind": "none"
       },
       "build": "42.22",
       "date": "2026-11-16",
       "source": "Reported by players of the mod, 2026-11-16",
-      "status": "reported"
+      "status": "reported",
+      "mod_versions": [
+        "0.1.7"
+      ]
     }
   ]
 }
