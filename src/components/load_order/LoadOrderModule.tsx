@@ -1414,8 +1414,9 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       active ? 'border-cyan-600/70 text-cyan-200' : 'border-slate-800 text-slate-300'
     }`;
 
-  /** One row of the list (the same in the flat list and inside a group). */
-  const renderRow = (mod: ModInfo) => {
+  /** One row of the list (the same in the flat list and inside a group; `inGroup`: the group
+   *  heading it sits under, whose name the row does not repeat). */
+  const renderRow = (mod: ModInfo, inGroup?: string) => {
                 // The row's colour follows the worst thing the health check found for it.
                 const rowIssues = issuesByMod.get(mod.mod_id) ?? [];
                 const worstIssue = rowIssues.some((i) => i.severity === 'error') ? 'error' : rowIssues.some((i) => i.severity === 'warning') ? 'warning' : null;
@@ -1519,7 +1520,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                       gameShares={gameShares}
                       isFavorite={keep.isFavorite({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })}
                       note={meta.notes[mod.mod_id]}
-                      groups={groupsByMod.get(mod.mod_id)}
+                      groups={(groupsByMod.get(mod.mod_id) ?? []).filter((g) => g !== inGroup)}
                       onEditNote={(m) => setMetaOf({ mods: [m], tab: 'note' })}
                       showEveryMod={showEveryMod}
                       activeProfile={activeProfile}
@@ -1598,7 +1599,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             <button onClick={() => setManyOn(list, true)} className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-800/70 text-emerald-300 hover:bg-emerald-950/50 cursor-pointer">{t('modList.groupBy.allOn')}</button>
             <button onClick={() => setManyOn(list, false)} className="text-[10px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer">{t('modList.groupBy.allOff')}</button>
           </div>
-          {open && list.map(renderRow)}
+          {open && list.map((m) => renderRow(m, groupBy === 'mine' ? key : undefined))}
         </div>
       );
     });
@@ -1978,7 +1979,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                 )}
               </div>
             ) : (
-              groupBy === 'none' ? filteredMods.map(renderRow) : renderGrouped()
+              groupBy === 'none' ? filteredMods.map((m) => renderRow(m)) : renderGrouped()
             )}
           </div>
 

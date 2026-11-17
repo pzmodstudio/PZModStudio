@@ -7,6 +7,7 @@ import { DiskReport, DiskUnit } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { formatBytes } from '../browse/common';
+import { CleanupCard } from './CleanupCard';
 
 interface DiskPanelProps {
   paths: StudioPathsUI;
@@ -206,6 +207,8 @@ export const DiskPanel: React.FC<DiskPanelProps> = ({ paths, onModsChanged, onOp
           )}
         </div>
       </div>
+
+      <CleanupCard paths={paths} />
 
       {error && <div className="text-xs rounded-md border border-red-700/60 bg-red-950/40 text-red-200 px-3 py-2">{error}</div>}
       {!report && loading && <div className="text-xs text-slate-400">{t('disk.measuring')}</div>}

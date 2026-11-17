@@ -177,29 +177,10 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
 
     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
       <div className="flex items-center gap-1.5 min-w-0">
-        <span
-          className={`truncate min-w-0 ${note ? 'shrink max-w-[70%]' : ''} ${mod.enabled ? 'font-bold text-slate-100' : 'font-medium text-slate-400/80'}`}
-          title={mod.name}
-        >
+        <span className={`truncate min-w-0 ${mod.enabled ? 'font-bold text-slate-100' : 'font-medium text-slate-400/80'}`} title={mod.name}>
           {mod.name}
         </span>
         {isFavorite && <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" aria-label="In Favorites" />}
-        {/* The player's own note, readable on the row: the start of it, the whole on hover. */}
-        {note && (
-          <Tip content={<TipBody title={t('modList.row.noteHead')} tone="sky" action={onEditNote ? t('modList.row.noteEdit') : undefined}><div className="whitespace-pre-wrap">{note}</div></TipBody>}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditNote?.(mod);
-              }}
-              className="min-w-0 max-w-full flex items-center gap-1 px-1.5 py-px rounded bg-sky-950/60 border border-sky-800/60 text-sky-200 text-[10.5px] italic hover:border-sky-500 cursor-pointer"
-            >
-              <StickyNote className="w-3 h-3 shrink-0 text-sky-300" aria-hidden="true" />
-              <span className="truncate">{note.split('\n')[0]}</span>
-            </button>
-          </Tip>
-        )}
         {groups.slice(0, 2).map((g) => (
           <span key={g} className="shrink-0 text-[9px] px-1.5 py-px rounded bg-violet-900/50 text-violet-200 border border-violet-700/50">{g}</span>
         ))}
@@ -207,13 +188,32 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
       </div>
 
       <div className="flex items-start gap-2 min-w-0">
-        <div className={`text-[10px] font-mono truncate min-w-[4rem] flex-1 pt-0.5 ${mod.enabled ? 'text-emerald-500/80' : 'text-slate-600'}`} title={mod.mod_id}>
-          ID: {mod.mod_id}
+        <div className={`text-[10px] font-mono flex items-center gap-2 min-w-[4rem] flex-1 pt-0.5 ${mod.enabled ? 'text-emerald-500/80' : 'text-slate-600'}`}>
+          <span className={`truncate ${note ? 'shrink-0 max-w-[45%]' : 'min-w-0'}`} title={mod.mod_id}>
+            ID: {mod.mod_id}
+          </span>
           {showInstalled && mod.installed_at ? (
-            <span className="ml-2 text-sky-400/80" title={t('modList.row.installedTitle')}>
+            <span className="shrink-0 text-sky-400/80" title={t('modList.row.installedTitle')}>
               {t('modList.row.installed', { when: new Date(mod.installed_at * 1000).toLocaleDateString(i18next.language) })}
             </span>
           ) : null}
+          {/* The player's own note goes under the name, after the id, as plain text: the start of
+              it, the whole on hover. On the name's line, in a box, it pushed the name and the tags aside. */}
+          {note && (
+            <Tip className="min-w-0" content={<TipBody title={t('modList.row.noteHead')} tone="sky" action={onEditNote ? t('modList.row.noteEdit') : undefined}><div className="whitespace-pre-wrap">{note}</div></TipBody>}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditNote?.(mod);
+                }}
+                className="min-w-0 flex items-center gap-1 font-sans italic text-[10.5px] text-sky-300/80 hover:text-sky-200 cursor-pointer"
+              >
+                <StickyNote className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{note.split('\n')[0]}</span>
+              </button>
+            </Tip>
+          )}
         </div>
 
         {/* Right to left: the origin stays in the last column and a chip a row gains goes to the

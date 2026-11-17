@@ -1,4 +1,17 @@
 {
+  "cleanup": {
+    "title": "Liberar espacio",
+    "cacheTitle": "Caché del Studio ({{size}})",
+    "cacheText": "Lo que el Studio guarda para no volver a leer o pedir lo mismo: las revisiones de cada mod, lo que dijo Steam, las imágenes de los mapas y las traducciones. Si lo vaciás, lo vuelve a armar solo cuando lo necesite (la próxima revisión tarda un poco más). Nunca toca tus mods, partidas, perfiles ni notas.",
+    "cacheButton": "Vaciar caché",
+    "cacheConfirm": "¿Vaciar la caché del Studio ({{size}})?\n\nSon datos que el Studio vuelve a armar solo: la próxima revisión de mods y las páginas del Workshop tardan un poco más la primera vez. No se borra ningún mod, partida, perfil ni nota.",
+    "cacheDone": "Caché vaciada: se liberaron {{size}}.",
+    "secondTitle": "Carpeta del jugador 2 ({{size}})",
+    "secondText": "{{dir}}: la carpeta de Zomboid del segundo juego del test multiplayer, con copias de los mods del servidor. Si la sacás, el próximo test la vuelve a armar en el paso de preparar.",
+    "secondButton": "Mandar a la Papelera",
+    "secondConfirm": "¿Mandar a la Papelera la carpeta del jugador 2?\n\n{{dir}} ({{size}})\n\nSe puede recuperar desde la Papelera de reciclaje. Los mods en desarrollo que estaban enlazados ahí no se tocan: se quita solo el enlace. El próximo test multiplayer la vuelve a armar.",
+    "secondDone": "{{dir}} está en la Papelera de reciclaje."
+  },
   "diag": {
     "sections": {
       "home": "Resumen",
@@ -377,7 +390,10 @@
     "inactive": "Inactivo",
     "defaultDescription": "Perfil de mods para Project Zomboid.",
     "activeMods": "{{count}} mods activos",
-    "total": "Total: {{count}}",
+    "activeOf": "{{count}} mods activos de {{total}}",
+    "activeOfTitle": "Los {{total}} mods de la lista de este perfil, prendidos y apagados, como los muestra la Lista de Mods: cada sub-mod cuenta aparte. Vienen de {{items}} ítems del Workshop.",
+    "notInstalled": "{{count}} faltan en el disco",
+    "notInstalledTitle": "Activos en este perfil, pero ninguna carpeta del disco los trae (ni el Workshop ni Zomboid/mods): {{ids}}. Seguramente te desuscribiste o se borraron. El juego los salta; volvé a suscribirte o sacalos del perfil.",
     "buildSet": "Build {{build}}",
     "buildSetTitle": "Fijada a mano (Editar): el chequeo al iniciar y la insignia de Build del encabezado se guían por ella",
     "playedOn": "Jugado en {{build}}",
@@ -3399,6 +3415,11 @@
         "title": "{{mod}} pidió un archivo que no está",
         "explanation": "{{mod}} pidió el archivo {{file}} (require), y el juego no lo encontró ni en sus propios archivos ni en ningún mod activado. Muchas veces es una parte pensada para otro mod que no tenés (un archivo de compatibilidad), y el resto de {{mod}} anda.",
         "action": "No hay que hacer nada salvo que falte algo de {{mod}} en el juego; en ese caso su página del Workshop puede nombrar un mod que necesita sin ponerlo como requerido."
+      },
+      "mod_named_warning_require_moved": {
+        "title": "{{mod}} pidió un archivo del juego por su ruta vieja",
+        "explanation": "{{mod}} pidió {{file}} (require), la ruta que ese archivo tenía antes de que Build 42 lo moviera; ahora el juego lo tiene en {{moved_to}}. El juego carga su propio Lua antes que el de cualquier mod, así que el archivo ya corrió y el resto de {{mod}} anda.",
+        "action": "Nada que hacer: esta línea es solo ruido. Salvo que después aparezca en el log un error de {{mod}}; ahí una copia compatible (Diagnóstico) pide la ruta nueva."
       },
       "connection_lost": {
         "title": "La conexión con el servidor ya no estaba al entrar",

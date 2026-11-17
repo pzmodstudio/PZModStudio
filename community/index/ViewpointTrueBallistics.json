@@ -1,0 +1,29 @@
+{
+  "id": "ViewpointTrueBallistics",
+  "name": "Viewpoint True Ballistics",
+  "workshop_id": "3812864848",
+  "authors": [],
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "title": "Switches itself off on Build 42.22",
+      "note": "1.4.6 says a game method it needs is missing and turns itself off at every start; the game uses its own gun combat instead. Nothing breaks, it just does nothing. Nothing to do until its author updates it; switch it off if you prefer a shorter list.",
+      "log": "LOG  : General      f:0> [TrueBallistics] ERROR True Ballistics disabled: a required game method is missing (game update?). Vanilla firearm combat is used.",
+      "fix": {
+        "kind": "none"
+      },
+      "build": "42.22",
+      "date": "2026-11-17",
+      "source": "PZ Mod Studio, game log: off in 18 of 18 sessions on 42.22.2, on in 127 of 127 on 42.21 (same 1.4.6)",
+      "status": "verified",
+      "mod_versions": [
+        "1.4.6"
+      ]
+    }
+  ]
+}

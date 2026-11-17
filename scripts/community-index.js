@@ -83,7 +83,7 @@ function problemsOf(registry, fileName, patches, reportDir) {
   }
   if (registry.unneeded !== undefined) {
     // No longer needed from a build: the game does it, or the mod named in `by`.
-    if (!/^d+.d+/.test(registry.unneeded.since ?? '')) p.push('unneeded: since must be a build like 42.22');
+    if (!/^\d+\.\d+/.test(registry.unneeded.since ?? '')) p.push('unneeded: since must be a build like 42.22');
     if (registry.unneeded.by !== undefined && !str(registry.unneeded.by)) p.push('unneeded: by is a mod id');
   }
   const issues = registry.issues ?? [];

@@ -1,4 +1,17 @@
 {
+  "cleanup": {
+    "title": "Free up space",
+    "cacheTitle": "Studio cache ({{size}})",
+    "cacheText": "What the Studio keeps so it does not read or ask for the same thing again: each mod's checks, what Steam said, map pictures and translations. If you clear it, the Studio builds it again by itself when it needs it (the next check takes a bit longer). It never touches your mods, saves, profiles or notes.",
+    "cacheButton": "Clear cache",
+    "cacheConfirm": "Clear the Studio's cache ({{size}})?\n\nThe Studio builds it again by itself: the next mod check and Workshop pages take a bit longer the first time. No mod, save, profile or note is deleted.",
+    "cacheDone": "Cache cleared: {{size}} freed.",
+    "secondTitle": "Player 2's folder ({{size}})",
+    "secondText": "{{dir}}: the Zomboid folder of the multiplayer test's second game, with copies of the server's mods. If you remove it, the next test makes it again in its prepare step.",
+    "secondButton": "Send to the Recycle Bin",
+    "secondConfirm": "Send player 2's folder to the Recycle Bin?\n\n{{dir}} ({{size}})\n\nIt can be restored from the Recycle Bin. Mods in development linked there are not touched: only the link is removed. The next multiplayer test makes the folder again.",
+    "secondDone": "{{dir}} is in the Recycle Bin."
+  },
   "diag": {
     "sections": {
       "home": "Overview",
@@ -377,7 +390,10 @@
     "inactive": "Inactive",
     "defaultDescription": "Mod profile for Project Zomboid.",
     "activeMods": "{{count}} Active Mods",
-    "total": "Total: {{count}}",
+    "activeOf": "{{count}} active mods of {{total}}",
+    "activeOfTitle": "The {{total}} mods in this profile's list, on and off, as the Mod List shows them: each sub-mod counts on its own. They come from {{items}} Workshop items.",
+    "notInstalled": "{{count}} missing from disk",
+    "notInstalledTitle": "On in this profile, but no folder on disk has them (neither the Workshop nor Zomboid/mods): {{ids}}. Most likely unsubscribed or deleted. The game skips them; subscribe again or take them out of the profile.",
     "buildSet": "Build {{build}}",
     "buildSetTitle": "Set by hand (Edit): the launch check and the header's Build badge go by it",
     "playedOn": "Played on {{build}}",
@@ -3399,6 +3415,11 @@
         "title": "{{mod}} asked for a file that is not there",
         "explanation": "{{mod}} asked for the file {{file}} (require), and the game found it neither in its own files nor in any mod that is on. Often it is a part meant for another mod you do not have (a compatibility file), and the rest of {{mod}} works.",
         "action": "Nothing to do unless something of {{mod}} is missing in game; then its Workshop page may name a mod it needs without listing it as required."
+      },
+      "mod_named_warning_require_moved": {
+        "title": "{{mod}} asked for a game file by its old path",
+        "explanation": "{{mod}} asked for {{file}} (require), the path that file had before Build 42 moved it; the game has it now at {{moved_to}}. The game loads its own Lua before any mod's, so the file has already run and the rest of {{mod}} works.",
+        "action": "Nothing to do: this line is only noise. Unless an error from {{mod}} follows it in the log; then a compatible copy (Diagnostics) asks for the new path."
       },
       "connection_lost": {
         "title": "The connection to the server was gone while joining",

@@ -1,3 +1,5 @@
+pub mod forget_missing;
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use crate::load_order::mod_info::get_all_user_zomboid_dirs;

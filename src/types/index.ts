@@ -872,6 +872,14 @@ export interface DiskSpace {
   holds: string[];
 }
 
+/** What the cleanup in Diagnostics > Game > Disk can give back. */
+export interface Cleanup {
+  cache_bytes: number;
+  second_dir: string;
+  second_exists: boolean;
+  second_bytes: number;
+}
+
 export interface DiskReport {
   units: DiskUnit[];
   /** `kind`: `game`, `workshop`, `mods`, `saves`, or the Zomboid folder's name (`Logs`, `PZModStudio_Cache`...). */

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-10-18",
-  "about": "Load-order and compatibility facts about Project Zomboid mods that mod.info does not say. Read by PZ Mod Studio once a day. Add a rule by pull request, with where you saw it break; see community/README.md. Mod ids are the id= line of mod.info.",
+  "updated": "2026-11-17",
+  "about": "Load-order and compatibility facts about Project Zomboid mods that mod.info does not say. Built into PZ Mod Studio when it is compiled; nothing is downloaded or sent. See community/README.md. Mod ids are the id= line of mod.info.",
   "load_after": [],
   "incompatible": []
 }

@@ -1,4 +1,4 @@
-import { freshProfile } from '../../utils/profiles';
+import { freshProfile, profileModCounts } from '../../utils/profiles';
 import { ChangePreview } from '../common/ChangePreview';
 import React, { useState, useEffect } from 'react';
 import { Layers, ListOrdered, Plus, Check, Trash2, Zap, FolderArchive, RefreshCw, Edit3, Share2, X, Save, Loader2, Unplug } from 'lucide-react';
@@ -52,6 +52,13 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   const { t } = useTranslation();
   const changeRev = useChangeRevision();
   const [instances, setInstances] = useState<AppInstance[]>([]);
+  /** The mods on disk now, by id: a profile's mods that are not among them are counted on its card. */
+  const installedIds = React.useMemo(() => new Set(mods.filter((m) => !m.not_installed).map((m) => m.mod_id)), [mods]);
+  /** The same mods with the Workshop item each comes from, for the card's counts. */
+  const installedWorkshop = React.useMemo(
+    () => new Map(mods.filter((m) => !m.not_installed).map((m) => [m.mod_id, m.workshop_id || null] as [string, string | null])),
+    [mods]
+  );
   const [newInstanceName, setNewInstanceName] = useState('');
   /** The "new profile" form, folded away until asked for (open when there is no profile yet). */
   const [showCreate, setShowCreate] = useState(false);
@@ -662,9 +669,25 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                     </p>
 
                     <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400 pt-1">
-                      <span className="text-emerald-400 font-bold">{t('profiles.activeMods', { count: inst.active_mod_ids.length })}</span>
-                      <span>•</span>
-                      <span>{t('profiles.total', { count: inst.load_order.length })}</span>
+                      {(() => {
+                        const { active, total, workshopItems } = profileModCounts(inst, installedWorkshop);
+                        return (
+                          <span className="text-emerald-400 font-bold" title={t('profiles.activeOfTitle', { total, items: workshopItems })}>
+                            {t('profiles.activeOf', { count: active, total })}
+                          </span>
+                        );
+                      })()}
+                      {(() => {
+                        const missing = inst.active_mod_ids.map((id) => id.trim().replace(/^\\/, '')).filter((id) => id && !installedIds.has(id));
+                        return missing.length > 0 && mods.length > 0 ? (
+                          <>
+                            <span>•</span>
+                            <span className="text-amber-300" title={t('profiles.notInstalledTitle', { ids: missing.join(', ') })}>
+                              {t('profiles.notInstalled', { count: missing.length })}
+                            </span>
+                          </>
+                        ) : null;
+                      })()}
                       {inst.target_build ? (
                         <>
                           <span>•</span>

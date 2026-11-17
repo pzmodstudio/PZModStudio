@@ -1456,6 +1456,67 @@ pub fn mark_own_mod_installed(card: &mut TranslatedErrorPayload) {
     }
 }
 
+/// A `require` of a game file under the path it had before Build 42 moved it.
+fn require_moved_card(line: &str, mod_name: &str, counter: usize, file: &str, moved_to: &str, source_file: Option<String>, severity: Severity) -> TranslatedErrorPayload {
+    TranslatedErrorPayload {
+        called_from: Vec::new(),
+        id: format!("err_{}", counter),
+        code: "mod_named_warning".to_string(),
+        params: crate::catalog::issue_params(&[("mod", mod_name), ("file", file), ("moved_to", moved_to), ("variant", "require_moved")]),
+        raw_error: line.to_string(),
+        source_file,
+        line_number: None,
+        title: format!("{} asked for a game file by its old path", mod_name),
+        explanation: format!(
+            "{} asked for {} (require), the path that file had before Build 42 moved it; the game has it now at {}. The game loads its own Lua before any mod's, so the file has already run and the rest of {} works.",
+            mod_name, file, moved_to, mod_name
+        ),
+        recommended_action: format!(
+            "Nothing to do: this line is only noise. Unless an error from {} follows it in the log; then a compatible copy (Diagnostics) asks for the new path.",
+            mod_name
+        ),
+        polyfill_rule_id_suggestion: None,
+        mod_name: Some(mod_name.to_string()),
+        severity,
+        own_mod: false,
+        own_file: None,
+        frame_mod: None,
+        log: None,
+        log_name: None,
+    }
+}
+
+/// The game's own Lua by module name, read once per install folder: whether a module a mod failed
+/// to `require` is one Build 42 moved.
+static GAME_MODULES: std::sync::Mutex<Option<(String, Vec<(String, requires::ModuleCandidate)>)>> = std::sync::Mutex::new(None);
+
+/// Where the game has the module a mod asked for under an old path (`ISUI/ISHotbar` ->
+/// `Hotbar/ISHotbar`). None when the game has it at that very path, or nowhere.
+fn game_moved_module(wanted: &str, index: &[(String, requires::ModuleCandidate)]) -> Option<String> {
+    let answer = requires::answer_for(wanted, index);
+    let first = answer.candidates.first()?;
+    (!first.same_path && first.owner == "the game").then(|| first.module_path.clone())
+}
+
+/// `game_moved_module` against the installed game.
+fn game_moved_module_installed(wanted: &str) -> Option<String> {
+    // Tests see no installed game, except the ones run against this PC (PZMS_ZOMBOID_DIR).
+    if cfg!(test) && std::env::var("PZMS_ZOMBOID_DIR").is_err() {
+        return None;
+    }
+    let install = crate::vfs::studio_paths().pz_install_dir;
+    if install.is_empty() {
+        return None;
+    }
+    let Ok(mut cache) = GAME_MODULES.lock() else { return None };
+    if cache.as_ref().map(|(dir, _)| *dir != install).unwrap_or(true) {
+        let mut index = Vec::new();
+        requires::index_lua(&Path::new(&install).join("media").join("lua"), "the game", &mut index);
+        *cache = Some((install, index));
+    }
+    cache.as_ref().and_then(|(_, index)| game_moved_module(wanted, index))
+}
+
 /// A line worth showing even though it matches no known pattern, because the game named a mod.
 fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayload {
     let severity = Severity::of_line(line);
@@ -1552,6 +1613,9 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
         };
     }
     if let Some(file) = &required {
+        if let Some(moved_to) = game_moved_module_installed(file) {
+            return require_moved_card(line, mod_name, counter, file, &moved_to, source_file, severity);
+        }
         return TranslatedErrorPayload {
             called_from: Vec::new(),
             id: format!("err_{}", counter),
@@ -3494,5 +3558,23 @@ mod require_cards {
         assert_eq!(card.params.get("variant").map(String::as_str), Some("require"));
         assert_eq!(card.params.get("file").map(String::as_str), Some("Vehicles/Supra_functions"));
         assert!(card.recommended_action.starts_with("Nothing to do unless"));
+    }
+
+    #[test]
+    fn a_game_file_build_42_moved_is_said_as_moved_not_as_missing() {
+        let game = |path: &str| {
+            let key = path.rsplit('/').next().unwrap().to_lowercase();
+            (key, crate::sandbox::requires::ModuleCandidate { module_path: path.to_string(), phase: "client".to_string(), owner: "the game".to_string(), owner_id: String::new(), same_path: false })
+        };
+        let index = vec![game("Hotbar/ISHotbar"), game("ISUI/ISInventoryPane")];
+        assert_eq!(super::game_moved_module("ISUI/ISHotbar", &index).as_deref(), Some("Hotbar/ISHotbar"));
+        assert_eq!(super::game_moved_module("ISUI/ISInventoryPane", &index), None, "there at that path: not moved");
+        assert_eq!(super::game_moved_module("Vehicles/Supra_functions", &index), None, "nowhere: not moved");
+
+        let card = super::require_moved_card("WARN : Lua f:0 at Lua((MOD:Authentic Z)).x.lua> require(\"ISUI/ISHotbar\") failed.", "Authentic Z", 1, "ISUI/ISHotbar", "Hotbar/ISHotbar", None, super::Severity::Warning);
+        assert_eq!(card.params.get("variant").map(String::as_str), Some("require_moved"));
+        assert_eq!(card.params.get("moved_to").map(String::as_str), Some("Hotbar/ISHotbar"));
+        assert!(card.explanation.contains("Build 42 moved it") && !card.explanation.contains("another mod"));
+        assert!(card.recommended_action.starts_with("Nothing to do"));
     }
 }

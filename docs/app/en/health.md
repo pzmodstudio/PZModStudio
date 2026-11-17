@@ -120,6 +120,8 @@ In **Game** > **Frames**: frame times while you play (fps, frames over 25, 50 an
 
 ### Disk
 
+At the top, **Free up space**: **Clear cache** deletes what the Studio keeps so it does not read or ask for the same thing again (each mod's checks, what Steam said, map pictures, translations); it builds it again by itself and never touches mods, saves, profiles or notes. After a multiplayer test, **Player 2's folder** sends the second game's `Zomboid2` folder (with copies of the server's mods) to the Recycle Bin; mods in development linked there are not touched, and the next test makes it again. Not while the test runs.
+
 In **Game** > **Disk**: how much each installed mod takes, counted by what goes as one (a Workshop item with all its mods, a folder in `Zomboid/mods`). Measuring takes a couple of seconds.
 
 - **Nothing uses it** (amber): no profile has it, on or off; no save names it in its list; no kept server loaded it; it is not in the game's active list.

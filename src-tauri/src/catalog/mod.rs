@@ -2143,7 +2143,7 @@ fn near_match<'a>(catalog: &'a ModCatalog, id: &str) -> Option<&'a CatalogMod> {
 /// Every mod the missing id may have become: the folder named like it first, then the other mods
 /// of its Workshop item (an author may split one id into two, a stable and an experimental): each
 /// is offered, the player picks.
-fn renamed_options<'a>(catalog: &'a ModCatalog, id: &str, active_ids: &[&str]) -> Vec<&'a CatalogMod> {
+pub(crate) fn renamed_options<'a>(catalog: &'a ModCatalog, id: &str, active_ids: &[&str]) -> Vec<&'a CatalogMod> {
     let mut out: Vec<&CatalogMod> = renamed_to(catalog, id, active_ids).into_iter().collect();
     if let Some(item) = catalog.known_workshop.get(id) {
         for m in catalog.mods.iter().filter(|m| m.shadowed_by.is_none() && m.id != id && !active_ids.contains(&m.id.as_str())) {

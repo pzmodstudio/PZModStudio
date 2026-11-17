@@ -427,3 +427,109 @@ mod tests {
         }
     }
 }
+
+/// What the Settings-free cleanup can give back: the Studio's own cache (only what it builds again
+/// by itself) and the second player's Zomboid folder a multiplayer test made.
+#[derive(Debug, Clone, Serialize)]
+pub struct Cleanup {
+    pub cache_bytes: u64,
+    pub second_dir: String,
+    pub second_exists: bool,
+    pub second_bytes: u64,
+}
+
+/// The parts of `PZModStudio_Cache` the Studio builds again when it needs them: the API check,
+/// the Java patch and security readings, what it read of each mod, map pictures, Steam's answers
+/// and translations. Not in the list, so never cleared: `mod_workshop_ids.json` (the Workshop item
+/// of every mod id seen, which a renamed mod cannot give back), the Workshop upload records and
+/// staging, and a copy under way (`copying`).
+pub const CLEARABLE_CACHE: [&str; 7] = ["api", "java_patches", "maps", "mods", "security", "steam", "translate"];
+
+pub fn cleanup_info(user_zomboid_dir: &Path) -> Cleanup {
+    let cache = user_zomboid_dir.join("PZModStudio_Cache");
+    let cache_bytes = CLEARABLE_CACHE.iter().map(|n| size_of(&cache.join(n)).0).sum();
+    let second = crate::server_manager::mp_test::second_dir(user_zomboid_dir);
+    let second_exists = second.is_dir();
+    // Linked mods (a mod in development) are not the folder's own: their size is left out.
+    let second_bytes = if second_exists { size_of(&second).0 } else { 0 };
+    Cleanup { cache_bytes, second_dir: second.to_string_lossy().to_string(), second_exists, second_bytes }
+}
+
+/// Deletes the clearable parts of the cache; returns the bytes it gave back.
+pub fn clear_cache(user_zomboid_dir: &Path) -> Result<u64, String> {
+    let cache = user_zomboid_dir.join("PZModStudio_Cache");
+    let mut freed = 0;
+    for name in CLEARABLE_CACHE {
+        let dir = cache.join(name);
+        if !dir.exists() {
+            continue;
+        }
+        let (bytes, _) = size_of(&dir);
+        std::fs::remove_dir_all(&dir).map_err(|e| format!("Could not clear {}: {}", dir.display(), e))?;
+        freed += bytes;
+    }
+    Ok(freed)
+}
+
+/// A link (symlink or junction) rather than a folder of its own.
+fn is_link(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|m| {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            m.file_type().is_symlink() || m.file_attributes() & 0x400 != 0
+        }
+        #[cfg(not(windows))]
+        {
+            m.file_type().is_symlink()
+        }
+    })
+}
+
+/// The second player's Zomboid folder to the Recycle Bin (it can be restored from there). The
+/// links to mods in development in its `mods` folder are taken out first, so emptying the bin can
+/// never reach a mod's real folder. Refused while a game or server uses the folder.
+pub fn remove_second_player(user_zomboid_dir: &Path, in_use: bool) -> Result<(), String> {
+    if in_use {
+        return Err("A game or server is using the second player's folder: stop the multiplayer test first.".to_string());
+    }
+    let second = crate::server_manager::mp_test::second_dir(user_zomboid_dir);
+    if !second.is_dir() {
+        return Err(format!("There is no second player's folder at {}.", second.display()));
+    }
+    // Only ever the folder beside the player's own Zomboid folder, named like it with a 2.
+    if second.parent() != user_zomboid_dir.parent() || second == user_zomboid_dir {
+        return Err("That is not the second player's folder.".to_string());
+    }
+    if let Ok(entries) = std::fs::read_dir(second.join("mods")) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if is_link(&p) {
+                // remove_dir takes a junction or directory symlink away without touching its target.
+                std::fs::remove_dir(&p).or_else(|_| std::fs::remove_file(&p)).map_err(|e| format!("Could not unlink {}: {}", p.display(), e))?;
+            }
+        }
+    }
+    to_recycle_bin(&second)
+}
+
+#[cfg(test)]
+mod cleanup_tests {
+    #[test]
+    fn clearing_the_cache_keeps_what_cannot_be_built_again() {
+        let z = std::env::temp_dir().join(format!("pzms_cleanup_{}", std::process::id())).join("Zomboid");
+        let cache = z.join("PZModStudio_Cache");
+        std::fs::create_dir_all(cache.join("security")).unwrap();
+        std::fs::write(cache.join("security").join("a.json"), "1234").unwrap();
+        std::fs::create_dir_all(cache.join("workshop_uploads")).unwrap();
+        std::fs::write(cache.join("workshop_uploads").join("mine.json"), "keep").unwrap();
+        std::fs::write(cache.join("mod_workshop_ids.json"), "{}").unwrap();
+        assert_eq!(super::cleanup_info(&z).cache_bytes, 4);
+        assert_eq!(super::clear_cache(&z).unwrap(), 4);
+        assert!(!cache.join("security").exists());
+        assert!(cache.join("workshop_uploads").join("mine.json").exists());
+        assert!(cache.join("mod_workshop_ids.json").exists());
+        assert!(super::remove_second_player(&z, true).is_err());
+        let _ = std::fs::remove_dir_all(z.parent().unwrap());
+    }
+}

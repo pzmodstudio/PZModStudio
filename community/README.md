@@ -7,13 +7,13 @@ carries what was known when it was built. To change it, edit the files here, run
 
 - `rules.json`: one mod has to load after another, or two mods cannot be on together.
   **Auto-Sort** follows the load-after rules as if the mod had written `loadModAfter` itself;
-  **Mod Health** says when the active list breaks one, names its source, and offers the move that
+  **Diagnostics** says when the active list breaks one, names its source, and offers the move that
   mends it. The player's own rules (Mod List → right-click → Load-order rules…) win over these.
 - `index/`: one registry per mod, below.
 
 On each PC the player can mark a known issue as **No longer happens**
 (`Zomboid/PZModStudio_LocalIndex.json`), and Mod Health leaves out by itself an issue the mod's
-files show is gone: a `require_path` whose file no longer names the old module, or an issue with
+files show is gone: an issue whose `mod_versions` does not name the installed version, a `require_path` whose file no longer names the old module, or an issue with
 a `log` line when the mod changed after the issue's `date` and the line is not in the session.
 
 ## A rule in `rules.json`
@@ -71,19 +71,16 @@ is **verified** (the Studio checked it: mod.info, the log) or **reported** (a pe
 `fix.kind` is what the Studio can do in one click: `shim_patch` (one of the shim's per-mod
 patches, by its switch name), `require_path` (`from`/`to`: a module Build 42 moved — a compatible
 copy rewrites it, Fix the path in the Monitor Center publishes the one file), `compatible_copy`,
-or `none` (a harmless line, or no fix known yet). With `file` set, the Studio knows the issue is
+`disable_mod` (switch it off until its author updates it), `replace_mod` (`with`: the mod to use in
+its place), or `none` (nothing to do: a harmless line, or no fix known yet). `mod_versions` lists
+the `modversion=` values the issue was seen with; once the mod is updated past them the issue is
+no longer shown. With `file` set, the Studio knows the issue is
 already handled on a machine whose package carries that file.
 
-What the Studio does with it: Auto-Sort follows `load_after`; Mod Health and the Mod List row say
+Only what was seen goes in: a log line, the mod's own files, or the game checked by hand. A
+registry that only repeats the mod's `mod.info` does not, since the Studio reads that itself.
+
+What the Studio does with it: Auto-Sort follows `load_after`; Diagnostics and the Mod List row say
 when two mods of an `incompatible` pair are both on, when a known issue is not yet handled (with
 its fix beside it), and when a mod this build cannot load has a `successor`; the Browse page shows
 the registry before anything is installed. The player's own rules win over the index.
-
-## The web view
-
-Live at https://pichu6.github.io/-Project-Zomboid-Mod-Studio-PZ-Mod-Studio-/ — `site/index.html` shows the same data in a browser: search, a build filter, a card per mod, the
-detail with its issues and fixes, the rules table, and links to propose. `.github/workflows/pages.yml`
-publishes it as GitHub Pages with `index.json` and `rules.json` beside it, on every push that touches
-them; it needs Pages enabled once in the repository settings (Settings → Pages → Source: GitHub
-Actions). Locally: serve the repository root (`python -m http.server 8765`) and open `/site/`.
-Reports without git go through the issue form (`.github/ISSUE_TEMPLATE/mod-report.yml`).

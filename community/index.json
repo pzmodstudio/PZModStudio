@@ -2,115 +2,6 @@
   "version": 1,
   "updated": "2026-11-17",
   "mods": {
-    "2858201402/dailystatisticsandgains": {
-      "id": "2858201402/dailystatisticsandgains",
-      "name": "Daily Statistics and Gains",
-      "workshop_id": "2858201402",
-      "builds": [
-        "41",
-        "42"
-      ],
-      "issues": [
-        {
-          "title": "The daily report breaks on Build 42",
-          "note": "The shim's patch daily_report mends it.",
-          "fix": {
-            "kind": "shim_patch",
-            "name": "daily_report"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        }
-      ]
-    },
-    "B42FRUsedCarsAnimAlpha": {
-      "id": "B42FRUsedCarsAnimAlpha",
-      "name": "Filibuster Rhymes' Certified Used Cars!",
-      "workshop_id": "3683878228",
-      "builds": [
-        "42"
-      ],
-      "issues": [
-        {
-          "title": "Requires \"Vehicle/ISVehiclePartMenu\", which Build 42 moved",
-          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISUI/ISVehiclePartMenu\".",
-          "file": "media/lua/client/Vehicles/ISUI/FR_PropaneTank_ISVehiclePartMenu.lua",
-          "fix": {
-            "kind": "require_path",
-            "from": "Vehicle/ISVehiclePartMenu",
-            "to": "Vehicles/ISUI/ISVehiclePartMenu"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        },
-        {
-          "title": "Requires \"ISUI/ISVehicleMechanics\", which Build 42 moved",
-          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISUI/ISVehicleMechanics\".",
-          "file": "media/lua/client/Vehicles/ISUI/FR_VehicleMechanics.lua",
-          "fix": {
-            "kind": "require_path",
-            "from": "ISUI/ISVehicleMechanics",
-            "to": "Vehicles/ISUI/ISVehicleMechanics"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        },
-        {
-          "title": "Requires \"Vehicles/ISUI/ISVehicleTrailerUtils\", which Build 42 moved",
-          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/ISVehicleTrailerUtils\".",
-          "file": "media/lua/client/Vehicles/ISUI/FR_VehicleTrailerUtils.lua",
-          "fix": {
-            "kind": "require_path",
-            "from": "Vehicles/ISUI/ISVehicleTrailerUtils",
-            "to": "Vehicles/ISVehicleTrailerUtils"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        },
-        {
-          "title": "Requires \"ISUnlockVehicleDoor\", which Build 42 moved",
-          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"Vehicles/TimedActions/ISUnlockVehicleDoor\".",
-          "file": "media/lua/client/Vehicles/TimedActions/FR_UnlockedVehicleDoor.lua",
-          "fix": {
-            "kind": "require_path",
-            "from": "ISUnlockVehicleDoor",
-            "to": "Vehicles/TimedActions/ISUnlockVehicleDoor"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        }
-      ]
-    },
-    "ExhaustivePowerRework": {
-      "id": "ExhaustivePowerRework",
-      "name": "Exhaustive Power Rework",
-      "builds": [
-        "42"
-      ],
-      "issues": [
-        {
-          "title": "Needs the shim's exhaustive_power_rework patch on Build 42.21",
-          "fix": {
-            "kind": "shim_patch",
-            "name": "exhaustive_power_rework"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        }
-      ]
-    },
     "ExhaustivePowerReworkZB": {
       "id": "ExhaustivePowerReworkZB",
       "name": "Exhaustive Power Rework - ZombieBuddy",
@@ -150,85 +41,23 @@
       ],
       "issues": [
         {
-          "title": "getKey(nil) on every key press",
-          "note": "FHbindings[1] is a header with no value, and FHhandleKeybinds asks core:getKey for every entry on each key press: Java throws a NullPointerException (\"keybindID\" is null) and logs it, hundreds of times a session (holding the right mouse button adds more). The Studio's shim answers getKey(nil) with nil without asking Java (part 6, the guards on the game's own code), as the game would after logging; the mod works the same. Checked in the game on 42.21, 2026-10-30.",
+          "title": "Every key press writes an error to the log",
+          "note": "Its key handler asks the game for a key binding with no name (the \"[FancyHandwork]\" header of its own list), and the game logs a NullPointerException each time: hundreds a session. The mod works the same. Nothing to do: with the Studio's Live Bridge on, the errors are no longer written.",
           "file": "media/lua/shared/aFancyHandwork.lua",
           "line": 126,
           "log": "java.lang.NullPointerException: Cannot invoke \"zombie.input.KeybindId.getId()\" because \"keybindID\" is null at zombie.core.Core.getKey(Core.java:3023)",
           "fix": {
-            "kind": "shim_patch",
-            "name": "fancy_handwork"
+            "kind": "none"
           },
           "build": "42.21",
-          "date": "2026-10-30",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-30)",
-          "status": "verified"
-        },
-        {
-          "title": "Clashes with O.C.D. Inventory on the inventory pane",
-          "note": "Both rewrite the inventory pane; the shim's patch fancy_handwork_ocd keeps both working when both are on.",
-          "fix": {
-            "kind": "shim_patch",
-            "name": "fancy_handwork_ocd"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
+          "date": "2026-11-02",
+          "source": "PZ Mod Studio, seen in the game log on 42.21 until 2026-11-02; 2.5.1 still has the same code",
+          "status": "verified",
+          "mod_versions": [
+            "2.5.1"
+          ]
         }
       ]
-    },
-    "ImmersiveSnowWeatherPatch": {
-      "authors": [],
-      "builds": [
-        "42"
-      ],
-      "id": "ImmersiveSnowWeatherPatch",
-      "incompatible": [],
-      "issues": [],
-      "load_after": [],
-      "name": "Whiteout - [Compatibility & Gameplay Patch]",
-      "requires": [
-        "ZombieBuddy",
-        "Viewpoint",
-        "ViewpointImmersiveWeathers",
-        "ImmersiveSnow",
-        "ImmersiveSnowViewpoint"
-      ],
-      "workshop_id": "3827201530"
-    },
-    "InteractiveTailoring": {
-      "authors": [
-        "Chuckleberry Finn"
-      ],
-      "builds": [
-        "42"
-      ],
-      "id": "InteractiveTailoring",
-      "incompatible": [],
-      "issues": [],
-      "load_after": [],
-      "name": "Interactive Tailoring",
-      "requires": [
-        "ChuckleberryFinnAlertSystem",
-        "errorMagnifier"
-      ],
-      "workshop_id": "3522680786"
-    },
-    "ItemDetailsPanel": {
-      "authors": [
-        "DarMeao"
-      ],
-      "builds": [
-        "42"
-      ],
-      "id": "ItemDetailsPanel",
-      "incompatible": [],
-      "issues": [],
-      "load_after": [],
-      "name": "Item Details Panel",
-      "requires": [],
-      "workshop_id": "3826420021"
     },
     "ModernStatus": {
       "id": "ModernStatus",
@@ -242,93 +71,20 @@
       "load_after": [],
       "issues": [
         {
-          "title": "Hidden indicators take the clicks at the top-left of the screen",
-          "note": "Auto-hidden indicators are moved to -20000 and kept visible; 42.21 keeps top-level UI on the screen (ISUIElement:setX clamps to 0), so they pile up at 0,0, invisible, over the equipped-item icons: right-clicking the primary hand does nothing. The Studio's shim lets them leave the screen while hidden (patch modern_status). Checked in the game on 42.21, 2026-10-30: 22 indicators at 0,0, none after the patch.",
+          "title": "Hidden indicators block clicks at the top-left of the screen",
+          "note": "When it hides an indicator it moves it far off the screen, but the game puts it back at the top-left corner, invisible, over the equipped-item icons: right-clicking the primary hand does nothing. The Studio's shim patch modern_status fixes it.",
           "file": "media/lua/client/MS/MS_StatusIndicator.lua",
           "fix": {
             "kind": "shim_patch",
             "name": "modern_status"
           },
-          "build": "42.21",
-          "date": "2026-10-30",
-          "source": "PZ Mod Studio, checked in the game on 42.21 (2026-10-30)",
-          "status": "verified"
-        }
-      ]
-    },
-    "NeatLockpicking": {
-      "authors": [],
-      "builds": [
-        "42"
-      ],
-      "id": "NeatLockpicking",
-      "incompatible": [],
-      "issues": [
-        {
-          "build": "42.21",
-          "date": "2026-10-18",
-          "file": "media/lua/shared/NeatLockpicking/NeatLockpick_Unlock.lua",
-          "fix": {
-            "kind": "compatible_copy"
-          },
-          "line": 171,
-          "log": "ERROR: ... attempted index: ISPathFindAction of non-table",
-          "note": "NeatLockpick_Unlock.lua uses ISPathFindAction without requiring \"Vehicles/TimedActions/ISPathFindAction\" first; whether it is loaded depends on what ran before. The log line names no mod (KahluaThread.call > require), so the Monitor can blame a neighbour. The Studio package carries the file with the require added.",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
+          "build": "42.22",
+          "date": "2026-11-17",
+          "source": "PZ Mod Studio: 22 indicators at 0,0 in the game on 42.21 (2026-10-30); 2.5.5 still moves them to -20000 and 42.22's ISUIElement:setX still keeps them on the screen (code read 2026-11-17)",
           "status": "verified",
-          "title": "ISPathFindAction is nil when unlocking a vehicle"
-        }
-      ],
-      "load_after": [],
-      "name": "Neat Lockpicking",
-      "requires": [
-        "NeatUI_Framework"
-      ],
-      "workshop_id": "3783535220"
-    },
-    "NoLighterNeeded": {
-      "id": "NoLighterNeeded",
-      "name": "I Don't Need A Lighter",
-      "workshop_id": "2714198296",
-      "builds": [
-        "41",
-        "42"
-      ],
-      "issues": [
-        {
-          "title": "Requires \"shared/IDNALUtils\" with the folder in the path",
-          "note": "The game answers with \"module not found\" or an attempted index of a nil value when the file loads. Build 42 has the module at \"IDNALUtils\".",
-          "file": "media/lua/client/IDNAL_DisableVanillaSmoke.lua",
-          "fix": {
-            "kind": "require_path",
-            "from": "shared/IDNALUtils",
-            "to": "IDNALUtils"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
-        }
-      ]
-    },
-    "OCDInventory": {
-      "id": "OCDInventory",
-      "name": "O.C.D. Inventory",
-      "workshop_id": "3773985930",
-      "builds": [
-        "42"
-      ],
-      "issues": [
-        {
-          "title": "Needs the shim's ocd_inventory patch on Build 42.21",
-          "fix": {
-            "kind": "shim_patch",
-            "name": "ocd_inventory"
-          },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
+          "mod_versions": [
+            "2.5.5"
+          ]
         }
       ]
     },
@@ -344,10 +100,10 @@
       "load_after": [],
       "issues": [
         {
-          "title": "findAimTarget calls getMaxRange on an item that is not a weapon",
-          "note": "Its OnPlayerUpdate handler keeps looking for a tank to shoot while an attack is under way, even when the item in the hand is not a firearm; findAimTarget then calls weapon:getMaxRange(), which only weapons have. The Studio's shim answers no target when the hand holds no ranged weapon (patch propane_explosion). Reproduced and checked in the game on 42.21, 2026-10-30.",
+          "title": "Attacking with something that is not a gun writes an error",
+          "note": "While an attack is under way it looks for a tank to shoot even when the hand holds no firearm, and asks that item for a gun's range: \"Object tried to call nil in findAimTarget\". The Studio's shim patch propane_explosion fixes it.",
           "file": "media/lua/shared/PropaneExplosion_Utils.lua",
-          "line": 632,
+          "line": 982,
           "log": "ERROR: General f:188498> Lua((MOD:Propane Explosion)).findAimTarget> Exception thrown java.lang.RuntimeException: Object tried to call nil in findAimTarget",
           "fix": {
             "kind": "shim_patch",
@@ -355,100 +111,70 @@
           },
           "build": "42.21",
           "date": "2026-10-30",
-          "source": "PZ Mod Studio, checked in the game on 42.21 (2026-10-30)",
-          "status": "verified"
+          "source": "PZ Mod Studio, reproduced in the game on 42.21 (2026-10-30, the log said line 632); the installed 1.1.0 still makes the same call, now at line 982 (read 2026-11-17)",
+          "status": "verified",
+          "mod_versions": [
+            "1.1.0"
+          ]
         }
       ]
     },
-    "ReactiveSE": {
-      "authors": [
-        "JulianFVM"
-      ],
+    "RC_RealisticColdMod": {
+      "id": "RC_RealisticColdMod",
+      "name": "Realistic Temperature",
+      "workshop_id": "3600401184",
+      "authors": [],
       "builds": [
         "42"
       ],
-      "id": "ReactiveSE",
-      "incompatible": [
-        {
-          "id": "ReactiveSoundEvents",
-          "note": "per its mod.info",
-          "status": "verified",
-          "source": "its mod.info"
-        }
-      ],
-      "issues": [],
-      "load_after": [],
-      "name": "Reactive Sound Events",
       "requires": [],
-      "workshop_id": "3656190498"
-    },
-    "RealisticDash": {
-      "authors": [
-        "LonelyDesperate"
-      ],
-      "builds": [
-        "42"
-      ],
-      "id": "RealisticDash",
       "incompatible": [],
-      "issues": [],
       "load_after": [],
-      "name": "Realistic Dashboard and Gauges",
-      "requires": [],
-      "workshop_id": "3635591071"
-    },
-    "ResearchLabInternProfession": {
-      "authors": [
-        "rEXX"
-      ],
-      "builds": [
-        "42"
-      ],
-      "id": "ResearchLabInternProfession",
-      "incompatible": [],
-      "issues": [],
-      "load_after": [],
-      "name": "Zombie Virus Vaccine: Research Lab Intern Profession [B42.20+ SP/MP]",
-      "requires": [
-        "ZVirusVaccine42BETA"
-      ],
-      "workshop_id": "3615135168"
-    },
-    "SaucedCarts": {
-      "id": "SaucedCarts",
-      "name": "SaucedCarts - Pushable Carts",
-      "workshop_id": "3651954650",
-      "builds": [
-        "42"
-      ],
       "issues": [
         {
-          "title": "Needs the shim's sauced_carts patch on Build 42.21",
+          "title": "Its check for walls around a room fails on Build 42.22",
+          "note": "It asks a tile for its wall flags with get(IsoFlagType...), which 42.22 does not take (the game's own code uses has): \"No implementation found for function: get(...PropertyContainer..., IsoFlagType WallN)\". That check stops with an error each time; the rest of the mod goes on. Nothing to fix from here: its author has to change those calls (12 of them).",
+          "file": "media/lua/client/RC_RoomLogic/RC_RoomLogic.lua",
+          "line": 439,
+          "log": "ERROR: General      f:3> Lua((MOD:Realistic Temperature)).edgeHasBlockingOnSquare> Exception thrown",
           "fix": {
-            "kind": "shim_patch",
-            "name": "sauced_carts"
+            "kind": "none"
           },
-          "build": "42.21",
-          "date": "2026-10-18",
-          "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-          "status": "verified"
+          "build": "42.22",
+          "date": "2026-11-17",
+          "source": "PZ Mod Studio, game log on 42.22.2 (8 sessions, 2026-11-16 and 17); the 2.4.0 copy updated 2026-11-17 14:56 still has the call at line 439",
+          "status": "verified",
+          "mod_versions": [
+            "2.4.0"
+          ]
         }
       ]
     },
-    "StealthAttackBySwas": {
-      "authors": [
-        "swas"
-      ],
+    "RealisticBodyweight": {
+      "id": "RealisticBodyweight",
+      "name": "Realistic Bodyweight",
+      "workshop_id": "3820946489",
+      "authors": [],
       "builds": [
         "42"
       ],
-      "id": "StealthAttackBySwas",
-      "incompatible": [],
-      "issues": [],
-      "load_after": [],
-      "name": "Stealth Attack",
       "requires": [],
-      "workshop_id": "3786073264"
+      "incompatible": [],
+      "load_after": [],
+      "issues": [
+        {
+          "title": "Two of its Java changes do not fit Build 42.22",
+          "note": "ZombieBuddy cannot apply its changes to a weapon's knockdown (HandWeapon.getKnockdownMod) and to a zombie being hit (IsoZombie.Hit): the game's methods use other number types than the mod expects. Body weight does not change those two parts of combat; the mod's other changes load. Nothing to do until its author updates it.",
+          "log": "LOG  : General      f:0> [ZB] [!] ERROR transforming zombie.inventory.types.HandWeapon: Cannot assign double to float.",
+          "fix": {
+            "kind": "none"
+          },
+          "build": "42.22",
+          "date": "2026-11-17",
+          "source": "PZ Mod Studio, game log: in 16 of 16 sessions on 42.22.2 with the copy installed 2026-11-12 (no modversion)",
+          "status": "verified"
+        }
+      ]
     },
     "Viewpoint": {
       "id": "Viewpoint",
@@ -522,35 +248,34 @@
         }
       ]
     },
-    "VisibleVehicleCouplingB42": {
-      "authors": [
-        "Malevi4"
-      ],
+    "ViewpointTrueBallistics": {
+      "id": "ViewpointTrueBallistics",
+      "name": "Viewpoint True Ballistics",
+      "workshop_id": "3812864848",
+      "authors": [],
       "builds": [
         "42"
       ],
-      "id": "VisibleVehicleCouplingB42",
-      "incompatible": [],
-      "issues": [],
-      "load_after": [],
-      "name": "Visible Vehicle Coupling (VVC)",
       "requires": [],
-      "workshop_id": "3807182783"
-    },
-    "moodlesinlua": {
-      "authors": [
-        "molecule31; Dreamweave"
-      ],
-      "builds": [
-        "42"
-      ],
-      "id": "moodlesinlua",
       "incompatible": [],
-      "issues": [],
       "load_after": [],
-      "name": "Moodles in lua",
-      "requires": [],
-      "workshop_id": "3395171770"
+      "issues": [
+        {
+          "title": "Switches itself off on Build 42.22",
+          "note": "1.4.6 says a game method it needs is missing and turns itself off at every start; the game uses its own gun combat instead. Nothing breaks, it just does nothing. Nothing to do until its author updates it; switch it off if you prefer a shorter list.",
+          "log": "LOG  : General      f:0> [TrueBallistics] ERROR True Ballistics disabled: a required game method is missing (game update?). Vanilla firearm combat is used.",
+          "fix": {
+            "kind": "none"
+          },
+          "build": "42.22",
+          "date": "2026-11-17",
+          "source": "PZ Mod Studio, game log: off in 18 of 18 sessions on 42.22.2, on in 127 of 127 on 42.21 (same 1.4.6)",
+          "status": "verified",
+          "mod_versions": [
+            "1.4.6"
+          ]
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,26 @@
+{
+  "id": "RealisticBodyweight",
+  "name": "Realistic Bodyweight",
+  "workshop_id": "3820946489",
+  "authors": [],
+  "builds": [
+    "42"
+  ],
+  "requires": [],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "title": "Two of its Java changes do not fit Build 42.22",
+      "note": "ZombieBuddy cannot apply its changes to a weapon's knockdown (HandWeapon.getKnockdownMod) and to a zombie being hit (IsoZombie.Hit): the game's methods use other number types than the mod expects. Body weight does not change those two parts of combat; the mod's other changes load. Nothing to do until its author updates it.",
+      "log": "LOG  : General      f:0> [ZB] [!] ERROR transforming zombie.inventory.types.HandWeapon: Cannot assign double to float.",
+      "fix": {
+        "kind": "none"
+      },
+      "build": "42.22",
+      "date": "2026-11-17",
+      "source": "PZ Mod Studio, game log: in 16 of 16 sessions on 42.22.2 with the copy installed 2026-11-12 (no modversion)",
+      "status": "verified"
+    }
+  ]
+}

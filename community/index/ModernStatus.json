@@ -10,17 +10,20 @@
   "load_after": [],
   "issues": [
     {
-      "title": "Hidden indicators take the clicks at the top-left of the screen",
-      "note": "Auto-hidden indicators are moved to -20000 and kept visible; 42.21 keeps top-level UI on the screen (ISUIElement:setX clamps to 0), so they pile up at 0,0, invisible, over the equipped-item icons: right-clicking the primary hand does nothing. The Studio's shim lets them leave the screen while hidden (patch modern_status). Checked in the game on 42.21, 2026-10-30: 22 indicators at 0,0, none after the patch.",
+      "title": "Hidden indicators block clicks at the top-left of the screen",
+      "note": "When it hides an indicator it moves it far off the screen, but the game puts it back at the top-left corner, invisible, over the equipped-item icons: right-clicking the primary hand does nothing. The Studio's shim patch modern_status fixes it.",
       "file": "media/lua/client/MS/MS_StatusIndicator.lua",
       "fix": {
         "kind": "shim_patch",
         "name": "modern_status"
       },
-      "build": "42.21",
-      "date": "2026-10-30",
-      "source": "PZ Mod Studio, checked in the game on 42.21 (2026-10-30)",
-      "status": "verified"
+      "build": "42.22",
+      "date": "2026-11-17",
+      "source": "PZ Mod Studio: 22 indicators at 0,0 in the game on 42.21 (2026-10-30); 2.5.5 still moves them to -20000 and 42.22's ISUIElement:setX still keeps them on the screen (code read 2026-11-17)",
+      "status": "verified",
+      "mod_versions": [
+        "2.5.5"
+      ]
     }
   ]
 }

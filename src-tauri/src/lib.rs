@@ -116,7 +116,19 @@ fn write_mod_list_ini_cmd(ini_path: String, active_mods: Vec<String>) -> Result<
 
 #[tauri::command(async)]
 fn scan_all_installed_mods_cmd(paths: StudioPaths) -> Vec<ModManifest> {
-    scan_all_installed_mods(&paths)
+    let mods = scan_all_installed_mods(&paths);
+    // A mod no longer on disk is no longer in the app: out of the profiles and the game's list.
+    if instance_manager::forget_missing::forget_missing_mods(&paths, &mods).is_empty() {
+        mods
+    } else {
+        scan_all_installed_mods(&paths)
+    }
+}
+
+/// The mod ids the scans took out of the profiles since the app last asked (gone from disk).
+#[tauri::command]
+fn take_forgotten_mods_cmd() -> Vec<String> {
+    instance_manager::forget_missing::take_forgotten()
 }
 
 /// Read-only health check of `active` (mod ids in load order) against what is installed,
@@ -960,6 +972,30 @@ fn disk_recycle_cmd(paths: StudioPaths, folder: String) -> Result<(), String> {
     let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
     let report = disk_usage::report(&paths.pz_install_dir, &paths.workshop_dir, &z_dir, &catalog);
     disk_usage::recycle(&report, &folder, sandbox::find_running_pz_pid().is_some())
+}
+
+/// What the cleanup can give back: the Studio's rebuildable cache and the second player's folder.
+#[tauri::command(async)]
+fn cleanup_info_cmd(paths: StudioPaths) -> Result<disk_usage::Cleanup, String> {
+    Ok(disk_usage::cleanup_info(&zomboid_dir_of(&paths)?))
+}
+
+/// Clears the parts of the Studio's cache it builds again by itself; returns the bytes freed.
+#[tauri::command(async)]
+fn cleanup_clear_cache_cmd(paths: StudioPaths) -> Result<u64, String> {
+    disk_usage::clear_cache(&zomboid_dir_of(&paths)?)
+}
+
+/// The second player's Zomboid folder (multiplayer test) to the Recycle Bin, unless a game or
+/// server is using it.
+#[tauri::command(async)]
+fn cleanup_remove_second_cmd(paths: StudioPaths) -> Result<(), String> {
+    let z_dir = zomboid_dir_of(&paths)?;
+    let second = server_manager::mp_test::second_dir(&z_dir);
+    let norm = |p: &std::path::Path| p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase();
+    let status = server_manager::mp_test::status(&z_dir, std::path::Path::new(&vfs::trusted_install_dir()));
+    let in_use = status.processes.iter().any(|p| norm(std::path::Path::new(&p.zomboid_dir)) == norm(&second));
+    disk_usage::remove_second_player(&z_dir, in_use)
 }
 
 /// For each save whose own list names mods that are not installed: those mods.
@@ -2160,6 +2196,7 @@ pub fn run() {
             read_mod_list_ini_cmd,
             write_mod_list_ini_cmd,
             scan_all_installed_mods_cmd,
+            take_forgotten_mods_cmd,
             get_mod_health_cmd,
             health_inputs_cmd,
             zb_exclusions_cmd,
@@ -2237,6 +2274,9 @@ pub fn run() {
             set_launch_save_cmd,
             disk_report_cmd,
             disk_recycle_cmd,
+            cleanup_info_cmd,
+            cleanup_clear_cache_cmd,
+            cleanup_remove_second_cmd,
             java_agents_plan_cmd,
             backup_save_cmd,
             save_names_cmd,

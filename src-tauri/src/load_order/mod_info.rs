@@ -50,7 +50,7 @@ pub fn folder_created(dir: &Path) -> Option<u64> {
 }
 
 /// A row for a mod the active list names but nothing installed provides.
-fn not_installed_row(id: &str) -> ModManifest {
+pub(crate) fn not_installed_row(id: &str) -> ModManifest {
     ModManifest {
         id: id.to_string(),
         name: id.to_string(),
@@ -801,7 +801,7 @@ fn mod_info_rank(mod_info: &Path, game_version: Option<u32>) -> Option<(u8, Opti
 /// The installed mod a list entry means: the exact id first (the game matches ids exactly), then
 /// the same id in another case, then the same letters and digits -- each looser step only when
 /// it names a single mod, so `Mod_A` never switches on `ModA` beside it.
-fn match_installed_key<V>(installed: &std::collections::HashMap<String, V>, wanted: &str) -> Option<String> {
+pub(crate) fn match_installed_key<V>(installed: &std::collections::HashMap<String, V>, wanted: &str) -> Option<String> {
     let wanted = wanted.trim();
     if installed.contains_key(wanted) {
         return Some(wanted.to_string());

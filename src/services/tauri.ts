@@ -6,7 +6,7 @@ import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
 import { MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources } from '../types';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod } from '../types';
 
 /** A process holding a file Windows would not let the Studio touch. */
 export interface FileHolder {
@@ -431,6 +431,13 @@ export const TauriService = {
   scanAllInstalledMods: async (paths: StudioPathsUI): Promise<ModInfo[]> => {
     try {
       const rawMods = await invoke<any[]>('scan_all_installed_mods_cmd', { paths });
+      // The scan takes the mods no longer on disk out of the profiles and the game's list: the
+      // screens that show profiles read them again.
+      const forgotten = await invoke<string[]>('take_forgotten_mods_cmd').catch(() => [] as string[]);
+      if (forgotten.length > 0) {
+        console.info(`Mods no longer on disk, taken out of the profiles: ${forgotten.join(', ')}`);
+        noteChange('profiles');
+      }
       if (!rawMods || rawMods.length === 0) {
         return [];
       }
@@ -2269,6 +2276,14 @@ export const TauriService = {
   /** An unused local mod folder or leftover Workshop folder, to the Recycle Bin. */
   diskRecycle: async (paths: StudioPathsUI, folder: string): Promise<void> => {
     await invoke('disk_recycle_cmd', { paths, folder });
+  },
+  /** What the cleanup can give back: the Studio's rebuildable cache and the second player's folder. */
+  cleanupInfo: async (paths: StudioPathsUI): Promise<Cleanup> => invoke<Cleanup>('cleanup_info_cmd', { paths }),
+  /** Clears the cache the Studio builds again by itself; the bytes freed. */
+  cleanupClearCache: async (paths: StudioPathsUI): Promise<number> => invoke<number>('cleanup_clear_cache_cmd', { paths }),
+  /** The second player's Zomboid folder to the Recycle Bin; throws while a game or server uses it. */
+  cleanupRemoveSecond: async (paths: StudioPathsUI): Promise<void> => {
+    await invoke('cleanup_remove_second_cmd', { paths });
   },
   saveMissingMods: async (paths: StudioPathsUI): Promise<Record<string, SaveMissingMod[]>> => {
     try {

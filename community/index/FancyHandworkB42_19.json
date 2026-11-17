@@ -7,31 +7,21 @@
   ],
   "issues": [
     {
-      "title": "getKey(nil) on every key press",
-      "note": "FHbindings[1] is a header with no value, and FHhandleKeybinds asks core:getKey for every entry on each key press: Java throws a NullPointerException (\"keybindID\" is null) and logs it, hundreds of times a session (holding the right mouse button adds more). The Studio's shim answers getKey(nil) with nil without asking Java (part 6, the guards on the game's own code), as the game would after logging; the mod works the same. Checked in the game on 42.21, 2026-10-30.",
+      "title": "Every key press writes an error to the log",
+      "note": "Its key handler asks the game for a key binding with no name (the \"[FancyHandwork]\" header of its own list), and the game logs a NullPointerException each time: hundreds a session. The mod works the same. Nothing to do: with the Studio's Live Bridge on, the errors are no longer written.",
       "file": "media/lua/shared/aFancyHandwork.lua",
       "line": 126,
       "log": "java.lang.NullPointerException: Cannot invoke \"zombie.input.KeybindId.getId()\" because \"keybindID\" is null at zombie.core.Core.getKey(Core.java:3023)",
       "fix": {
-        "kind": "shim_patch",
-        "name": "fancy_handwork"
+        "kind": "none"
       },
       "build": "42.21",
-      "date": "2026-10-30",
-      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-30)",
-      "status": "verified"
-    },
-    {
-      "title": "Clashes with O.C.D. Inventory on the inventory pane",
-      "note": "Both rewrite the inventory pane; the shim's patch fancy_handwork_ocd keeps both working when both are on.",
-      "fix": {
-        "kind": "shim_patch",
-        "name": "fancy_handwork_ocd"
-      },
-      "build": "42.21",
-      "date": "2026-10-18",
-      "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
-      "status": "verified"
+      "date": "2026-11-02",
+      "source": "PZ Mod Studio, seen in the game log on 42.21 until 2026-11-02; 2.5.1 still has the same code",
+      "status": "verified",
+      "mod_versions": [
+        "2.5.1"
+      ]
     }
   ]
 }

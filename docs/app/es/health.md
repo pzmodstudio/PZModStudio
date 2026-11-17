@@ -120,6 +120,8 @@ En **Juego** > **Frames**: los tiempos de frame mientras jugás (fps, frames de 
 
 ### Disco
 
+Arriba, **Liberar espacio**: **Vaciar caché** borra lo que el Studio guarda para no volver a leer o pedir lo mismo (las revisiones de cada mod, lo que dijo Steam, las imágenes de los mapas, las traducciones); lo vuelve a armar solo y nunca toca mods, partidas, perfiles ni notas. Si hiciste un test multiplayer, **Carpeta del jugador 2** manda a la Papelera la carpeta `Zomboid2` del segundo juego (con copias de los mods del servidor); los mods en desarrollo enlazados ahí no se tocan, y el próximo test la vuelve a armar. No se puede mientras el test corre.
+
 En **Juego** > **Disco**: cuánto ocupa cada mod instalado, contado por lo que se va junto (un ítem del Workshop con todos sus mods, una carpeta de `Zomboid/mods`). Medirlo tarda un par de segundos.
 
 - **Nada lo usa** (ámbar): ningún perfil lo tiene, ni prendido ni apagado; ninguna partida lo nombra en su lista; ningún servidor guardado lo cargó; no está en la lista activa del juego.
