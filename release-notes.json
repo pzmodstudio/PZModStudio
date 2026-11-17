@@ -1,4 +1,12 @@
 {
+ "1.9.1": [
+  "Diagnostics: free up space - clear the app cache, remove player 2's folder",
+  "Mod index reviewed on 42.22: only problems seen in the game stay",
+  "Profiles: the card says how many of its mods are on",
+  "Mods no longer on disk leave profiles, servers and saves",
+  "Mod List: your note under the mod's name",
+  "Monitor: says when a require points to a file Build 42 moved"
+ ],
  "1.9.0": [
   "Diagnostics replaces Mod Health: your mods, the game and the server",
   "Diagnostics: the Doctor on its front page, one step at a time",

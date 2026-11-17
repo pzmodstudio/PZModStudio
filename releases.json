@@ -1,8 +1,20 @@
 {
- "latest": "1.9.0",
- "count": 34,
+ "latest": "1.9.1",
+ "count": 35,
  "built": "2026-11-17",
  "releases": [
+  {
+   "version": "1.9.1",
+   "date": "2026-11-17",
+   "notes": [
+    "Diagnostics: free up space - clear the app cache, remove player 2's folder",
+    "Mod index reviewed on 42.22: only problems seen in the game stay",
+    "Profiles: the card says how many of its mods are on",
+    "Mods no longer on disk leave profiles, servers and saves",
+    "Mod List: your note under the mod's name",
+    "Monitor: says when a require points to a file Build 42 moved"
+   ]
+  },
   {
    "version": "1.9.0",
    "date": "2026-11-17",
@@ -128,13 +140,6 @@
    "notes": [
     "Help: every page checked against the screens and brought up to date",
     "Developer: no New mod button in the header, the tab is enough"
-   ]
-  },
-  {
-   "version": "1.7.13",
-   "date": "2026-10-29",
-   "notes": [
-    "Developer: Workshop publishing says when Steam has finished"
    ]
   }
  ]
