@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Download, ExternalLink, FileArchive, Heart, Languages, Layers, Loader2, Play, Plus, Trash2, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, Download, ExternalLink, FileArchive, Heart, Languages, Layers, ListOrdered, Loader2, MessageSquare, Newspaper, Play, Plus, Trash2, Users, X } from 'lucide-react';
 import { AuthorLink, NexusMod, NexusModDetails, Translation, WorkshopComment, WorkshopInstallState, WorkshopItem, WorkshopItemDetails, WorkshopLookup } from '../../types';
 import { TRANSLATION_SERVICES, appLanguage, languageName, scriptLanguage, translateErrorText } from '../../utils/language';
 import { SupportLinks } from '../common/SupportLinks';
@@ -42,6 +42,8 @@ interface ModDetailProps {
   installedBuild?: string | null;
   /** Favorite, lists, profiles: the star in the header. */
   keep?: KeepActions;
+  /** Opens the Mod List on this installed mod. */
+  onShowInModList?: (modId: string) => void;
 }
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -64,7 +66,7 @@ const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
  * YouTube's cookie-free embed; a link under it opens YouTube in the browser, for the videos
  * whose author does not allow embedding (YouTube then says so in the box).
  */
-const Gallery: React.FC<{ images: string[]; videos?: string[] }> = ({ images, videos = [] }) => {
+export const Gallery: React.FC<{ images: string[]; videos?: string[] }> = ({ images, videos = [] }) => {
   const [current, setCurrent] = useState(0);
   const [playing, setPlaying] = useState<string | null>(null);
   const imagesKey = images.join('|');
@@ -123,7 +125,7 @@ const Gallery: React.FC<{ images: string[]; videos?: string[] }> = ({ images, vi
  * once translated, the original is a click away. The button stands out when the script says the
  * text is not in a Latin alphabet (Russian, Chinese, Japanese, Korean...).
  */
-const Description: React.FC<{ source?: string | null; fallback?: string | null; title?: string | null; onTitle?: (translated: string | null) => void }> = ({ source, fallback, title, onTitle }) => {
+export const Description: React.FC<{ source?: string | null; fallback?: string | null; title?: string | null; onTitle?: (translated: string | null) => void }> = ({ source, fallback, title, onTitle }) => {
   const [translation, setTranslation] = useState<Translation | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -191,7 +193,7 @@ const COMMENTS_PAGE = 20;
  * What people say about a Workshop item, newest first, from its public comment thread. Steam is
  * asked only once the section scrolls into view, and again for each "Load more".
  */
-const Comments: React.FC<{ id: string }> = ({ id }) => {
+export const Comments: React.FC<{ id: string }> = ({ id }) => {
   const [comments, setComments] = useState<WorkshopComment[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
@@ -288,6 +290,36 @@ const Comments: React.FC<{ id: string }> = ({ id }) => {
     </section>
   );
 };
+
+/** The detail's two views: the page itself, and what people say about it. */
+const PageTabs: React.FC<{ view: 'page' | 'comments'; onView: (v: 'page' | 'comments') => void }> = ({ view, onView }) => (
+  <div role="tablist" className="flex items-end gap-1 border-b border-slate-800">
+    {(['page', 'comments'] as const).map((id) => (
+      <button
+        key={id}
+        type="button"
+        role="tab"
+        aria-selected={view === id}
+        onClick={() => onView(id)}
+        className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 -mb-px cursor-pointer transition ${
+          view === id ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-400 hover:text-slate-200'
+        }`}
+      >
+        {id === 'page' ? <Newspaper className="w-3.5 h-3.5" aria-hidden="true" /> : <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />}
+        {i18next.t(id === 'page' ? 'browse.detail.tabPage' : 'browse.detail.commentsTitle')}
+      </button>
+    ))}
+  </div>
+);
+
+/** "Show in the Mod List" for a mod installed here. */
+const ShowInListButton: React.FC<{ modId: string; onShow?: (modId: string) => void }> = ({ modId, onShow }) =>
+  onShow ? (
+    <button type="button" onClick={() => onShow(modId)} title={i18next.t('browse.detail.showInListTitle')}
+      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700">
+      <ListOrdered className="w-3.5 h-3.5" aria-hidden="true" /> {i18next.t('browse.detail.showInList')}
+    </button>
+  ) : null;
 
 const ActionButton: React.FC<{ onClick: () => void; className: string; title?: string; children: React.ReactNode }> = ({ onClick, className, title, children }) => (
   <button type="button" onClick={onClick} title={title}
@@ -387,7 +419,8 @@ const InstalledSupport: React.FC<{ paths: StudioPathsUI; modId: string; more?: A
   return <SupportLinks links={links} more={more} />;
 };
 
-const WorkshopDetail: React.FC<ModDetailProps & { target: { kind: 'workshop' } & DetailTarget }> = ({ target, paths, installedByItem, stateByItem, onOpen, steamReady, onSubscribe, installedBuild = null, keep }) => {
+const WorkshopDetail: React.FC<ModDetailProps & { target: { kind: 'workshop' } & DetailTarget }> = ({ target, paths, installedByItem, stateByItem, onOpen, steamReady, onSubscribe, installedBuild = null, keep, onShowInModList }) => {
+  const [view, setView] = useState<'page' | 'comments'>('page');
   const { data, loading } = useDetails<WorkshopItemDetails>(() => TauriService.workshopItemDetails(target.id), target.id, i18next.t('browse.detail.loadingWorkshop'));
   const index = useCommunityIndex(paths);
   const item = data?.item ?? target.preview;
@@ -406,11 +439,20 @@ const WorkshopDetail: React.FC<ModDetailProps & { target: { kind: 'workshop' } &
       subtitle={translatedTitle ? [originalTitle, by].filter(Boolean).join(' · ') : by}
       chips={<>{keep && <StarButton keep={keep} target={{ workshop_id: target.id, name: item?.title ?? i18next.t('browse.detail.workshopItem', { id: target.id }), installedModIds: installed }} />}{installed.length > 0 && <InstalledChip />}<UpdateChips state={stateByItem.get(target.id)} />{item && <BuildChips builds={item.builds} source={i18next.t('browse.card.workshopSource')} />}</>}
       loading={loading}
+      support={installed.length > 0
+        ? <InstalledSupport paths={paths} modId={installed[0]} more={data?.item.support} />
+        : <SupportLinks links={[]} more={data?.item.support} />}
       main={
         <>
-          <Gallery images={images} videos={data?.videos} />
-          <Description source={data?.description} fallback={item?.summary} title={item?.title} onTitle={setTranslatedTitle} />
-          <Comments id={target.id} />
+          <PageTabs view={view} onView={setView} />
+          {view === 'page' ? (
+            <>
+              <Gallery images={images} videos={data?.videos} />
+              <Description source={data?.description} fallback={item?.summary} title={item?.title} onTitle={setTranslatedTitle} />
+            </>
+          ) : (
+            <Comments id={target.id} />
+          )}
         </>
       }
       side={
@@ -422,10 +464,8 @@ const WorkshopDetail: React.FC<ModDetailProps & { target: { kind: 'workshop' } &
               title={i18next.t('browse.detail.openWorkshopTitle')}>
               <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> {steamReady || installed.length > 0 ? i18next.t('browse.detail.openWorkshop') : i18next.t('browse.detail.openToSubscribe')}
             </ActionButton>
+            {installed.length > 0 && <ShowInListButton modId={installed[0]} onShow={onShowInModList} />}
             {installed.length > 0 && <div className="text-[10px] font-mono text-emerald-400/80 break-all">{i18next.t('browse.detail.installedAs', { ids: installed.join(', ') })}</div>}
-            {installed.length > 0
-              ? <InstalledSupport paths={paths} modId={installed[0]} more={data?.item.support} />
-              : <SupportLinks links={[]} more={data?.item.support} />}
           </div>
           {item && (
             <Section title={i18next.t('browse.detail.info')}>
@@ -473,7 +513,7 @@ const FILE_STYLE: Record<string, string> = {
   OPTIONAL: 'border-violet-600/60 text-violet-300',
 };
 
-const NexusDetail: React.FC<ModDetailProps & { target: { kind: 'nexus' } & DetailTarget }> = ({ target, paths, installedByNexusId, onNexusDownload, onOpen, keep }) => {
+const NexusDetail: React.FC<ModDetailProps & { target: { kind: 'nexus' } & DetailTarget }> = ({ target, paths, installedByNexusId, onNexusDownload, onOpen, keep, onShowInModList }) => {
   const { data, loading } = useDetails<NexusModDetails>(() => TauriService.nexusModDetails(target.modId), String(target.modId), i18next.t('browse.detail.loadingNexus'));
   const m = data?.mod ?? target.preview;
   const installed = installedByNexusId.get(target.modId) ?? [];
@@ -490,6 +530,7 @@ const NexusDetail: React.FC<ModDetailProps & { target: { kind: 'nexus' } & Detai
       subtitle={translatedTitle ? [originalTitle, by].filter(Boolean).join(' · ') : by}
       chips={<>{keep && <StarButton keep={keep} target={{ nexus_id: target.modId, name: m?.name ?? i18next.t('browse.detail.nexusMod', { id: target.modId }), installedModIds: installed }} />}{installed.length > 0 && <InstalledChip />}{m && <BuildChips builds={m.build_hint ? m.build_hint.split('+') : []} source={i18next.t('browse.card.nexusSource')} />}{m?.category && <Chip className="border-orange-700/60 text-orange-300">{m.category}</Chip>}</>}
       loading={loading}
+      support={installed.length > 0 ? <InstalledSupport paths={paths} modId={installed[0]} /> : undefined}
       main={
         <>
           <Gallery images={image ? [image] : []} />
@@ -508,8 +549,8 @@ const NexusDetail: React.FC<ModDetailProps & { target: { kind: 'nexus' } & Detai
             <ActionButton onClick={() => TauriService.openExternalUrl(pageUrl)} className="bg-slate-800 hover:bg-slate-700 text-slate-200">
               <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> {i18next.t('browse.detail.openNexus')}
             </ActionButton>
+            {installed.length > 0 && <ShowInListButton modId={installed[0]} onShow={onShowInModList} />}
             {installed.length > 0 && <div className="text-[10px] font-mono text-emerald-400/80 break-all">{i18next.t('browse.detail.installedAs', { ids: installed.join(', ') })}</div>}
-            {installed.length > 0 && <InstalledSupport paths={paths} modId={installed[0]} />}
             <p className="text-[10px] text-slate-500" dangerouslySetInnerHTML={{ __html: tHtml('browse.detail.afterDownload') }} />
           </div>
           {m && (
@@ -690,9 +731,11 @@ const DetailLayout: React.FC<{
   loading: boolean;
   main: React.ReactNode;
   side: React.ReactNode;
-}> = ({ title, subtitle, chips, loading, main, side }) => (
+  /** Under the title: the author's support links. */
+  support?: React.ReactNode;
+}> = ({ title, subtitle, chips, loading, main, side, support }) => (
   <>
-    <div className="flex flex-col gap-1 min-w-0">
+    <div className="flex flex-col gap-1.5 min-w-0">
       <h2 className="text-base font-bold text-slate-100 leading-snug flex items-center gap-2">
         <span className="min-w-0">{title}</span>
         {loading && <Loader2 className="w-4 h-4 animate-spin text-slate-500 shrink-0" aria-label={i18next.t('browse.detail.loading')} />}
@@ -701,6 +744,7 @@ const DetailLayout: React.FC<{
         {subtitle && <span className="text-[11px] text-slate-400 mr-1">{subtitle}</span>}
         {chips}
       </div>
+      {support}
     </div>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] mt-3">
       <div className="flex flex-col gap-4 min-w-0">{main}</div>

@@ -1,6 +1,6 @@
 # Servers
 
-The Servers screen has two sides: **Join a server**, to find a multiplayer server and play on it, and **Host a server**, to run your own dedicated server from this PC. Switch between them with the two buttons at the top.
+The Servers screen has three tabs at the top: **Public servers** and **My servers**, to find a multiplayer server and join it, and **Host a server**, to run your own dedicated server from this PC. Under **Host a server**, a bar says whether your server is on, with **See how it runs** (opens Diagnostics > Server: memory, CPU, whether it has started and what its log says), **Share Invite** and the button that reads the server files again.
 
 ## Join a server: finding one
 

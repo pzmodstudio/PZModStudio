@@ -27,11 +27,13 @@ Nexus downloads happen on the Nexus site. In a Nexus mod's detail view, **Downlo
 
 ## My mods
 
-Everything you have installed: Workshop subscriptions, Nexus mods and local mods. Filter by name or id, choose a **Source**, sort by **Recently updated** or **Name**, pick a category, and use the chips **New since last play** and **Update waiting in Steam** to see only those. Right-click a Workshop mod to **Unsubscribe**.
+Everything you have installed: Workshop subscriptions, Nexus mods and local mods. Filter by name or id, choose a **Source**, sort by **Recently updated** or **Name**, pick a category, and use the chips **New since last play** and **Update waiting in Steam** to see only those. Each card says which profiles hold the mod (the active one first, in green; **+N** when more do, their names on hover) or **No profile**, and the **All profiles** filter shows only one profile's mods or the ones no profile holds. Right-click a Workshop mod to **Unsubscribe**. While Steam sends the pictures and details of your items (a few seconds), the tab says so instead of showing empty cards.
 
 ## The detail view
 
-Clicking a card opens a large view with pictures, the description, info and requirements. **Back** returns to the previous one, and Esc or the X closes it.
+Clicking a card opens a large view. At the top, the title, the author, the **Favorites** star and **Support the author** with the links the author gave for that, when there are any. Below, two tabs: **Page** (pictures, videos and the description) and **Comments** (what people say on its Workshop page, newest first, with **Load more**). On the right, the buttons, the info and the requirements. **Back** returns to the previous one, and Esc or the X closes it.
+
+- **Show in the Mod List**: on a mod you have installed, opens the Mod List with that mod picked (to switch it on or off, move it, or see your note and what Diagnostics found).
 
 - **Subscribe** / **Unsubscribe**: done through the Steam client, so Steam must be running. Steam downloads the files; the mod appears in your Mod List when it finishes. Without Steam there is no Subscribe button, and **Open Workshop page** reads **Open page to subscribe**.
 - **Required items**: what the mod needs on the Workshop, marked **Installed** or **Missing**. Click one to open it.
@@ -39,7 +41,6 @@ Clicking a card opens a large view with pictures, the description, info and requ
 - The star in the header adds it to your **Favorites**.
 - **Translate to ...** puts the description in the app's language; **Show original** goes back to it. The text goes to a translation service only when you press it.
 - A video among the pictures plays in the view. If its author does not allow that, **Watch on YouTube (browser)** opens it.
-- **Support the author** lists the links the author gave for that, when there are any.
 
 For a collection you get **Subscribe to the N missing** (or **Unsubscribe from all** when you have them all), **Make a profile from this** (a profile with the mods of the collection you have installed), and the list of what you are missing.
 

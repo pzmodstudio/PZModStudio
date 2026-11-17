@@ -10,6 +10,12 @@ import { issueText } from '../../i18n/backendText';
 type Symptom = 'crash' | 'mod' | 'slow' | 'other';
 
 /**
+ * Where the Doctor was, kept while the app runs: Diagnóstico's front page shows it, and a step
+ * sends the player to another tab ("go fix", "play and come back"); coming back finds the same step.
+ */
+const kept: { symptom: Symptom | null; tried: string[]; waiting: boolean } = { symptom: null, tried: [], waiting: false };
+
+/**
  * A guided way through a problem, for a player who does not know where to look: what is wrong
  * (buttons, not free text), then one step at a time from what the Studio knows (utils/doctor),
  * each with what to do and a way to do it; after a step, play and come back, and it looks again.
@@ -20,18 +26,33 @@ export const Doctor: React.FC<{
   issues: HealthIssue[];
   cards: TranslatedErrorCard[];
   nameOf: (id: string) => string;
-  onClose: () => void;
+  /** The window closes; on Diagnóstico's front page (embedded) there is nothing to close. */
+  onClose?: () => void;
+  /** Shown inside a page (Diagnóstico's front page) rather than as a window over the app. */
+  embedded?: boolean;
   onGoIssue: (issue: HealthIssue) => void;
   onSwitchOffMod: (modName: string) => void;
   onGoMonitor: () => void;
   onGoPerformance: () => void;
   onGoAudit: () => void;
   onRecheck: () => void;
-}> = ({ paths, issues, cards, nameOf, onClose, onGoIssue, onSwitchOffMod, onGoMonitor, onGoPerformance, onGoAudit, onRecheck }) => {
+}> = ({ paths, issues, cards, nameOf, onClose: onCloseWindow, embedded = false, onGoIssue, onSwitchOffMod, onGoMonitor, onGoPerformance, onGoAudit, onRecheck }) => {
   const { t } = useTranslation();
-  const [symptom, setSymptom] = useState<Symptom | null>(null);
-  const [tried, setTried] = useState<string[]>([]);
-  const [waiting, setWaiting] = useState(false);
+  const [symptom, setSymptom] = useState<Symptom | null>(kept.symptom);
+  const [tried, setTried] = useState<string[]>(kept.tried);
+  const [waiting, setWaiting] = useState(kept.waiting);
+  useEffect(() => {
+    kept.symptom = symptom;
+    kept.tried = tried;
+    kept.waiting = waiting;
+  }, [symptom, tried, waiting]);
+  const startOver = () => {
+    setSymptom(null);
+    setTried([]);
+    setWaiting(false);
+  };
+  /** After a step that leads elsewhere: the window closes; on the page, nothing (the step stays). */
+  const onClose = () => onCloseWindow?.();
   const [memory, setMemory] = useState<GameMemory | null>(null);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
@@ -115,7 +136,7 @@ export const Doctor: React.FC<{
       <>
         <p className="text-sm text-slate-200">{t('doctor.playAndComeBack')}</p>
         <div className="flex flex-wrap gap-2">
-          {button(t('doctor.itWorks'), onClose, true)}
+          {button(t('doctor.itWorks'), () => { startOver(); onCloseWindow?.(); }, true)}
           {button(t('doctor.stillBroken'), () => { onRecheck(); setWaiting(false); })}
         </div>
       </>
@@ -168,21 +189,38 @@ export const Doctor: React.FC<{
     );
   }
 
+  if (embedded) {
+    return (
+      <div className="rounded-xl border border-sky-900/60 bg-slate-900/60 p-5 flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-100">
+          <Stethoscope className="w-4 h-4 text-sky-300" aria-hidden="true" /> {t('doctor.title')}
+        </div>
+        {body}
+        {note && <div className="text-[11px] text-emerald-300">{note}</div>}
+        {symptom && (
+          <button type="button" onClick={startOver} className="self-start text-[11px] text-slate-500 hover:text-slate-300 cursor-pointer">
+            {t('doctor.startOver')}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6" onClick={onCloseWindow}>
       <div role="dialog" aria-modal="true" className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-950 p-5 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-100">
             <Stethoscope className="w-4 h-4 text-sky-300" aria-hidden="true" /> {t('doctor.title')}
           </div>
-          <button type="button" onClick={onClose} aria-label={t('doctor.close')} className="text-slate-500 hover:text-slate-200 cursor-pointer">
+          <button type="button" onClick={onCloseWindow} aria-label={t('doctor.close')} className="text-slate-500 hover:text-slate-200 cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
         {body}
         {note && <div className="text-[11px] text-emerald-300">{note}</div>}
         {symptom && (
-          <button type="button" onClick={() => { setSymptom(null); setTried([]); setWaiting(false); }} className="self-start text-[11px] text-slate-500 hover:text-slate-300 cursor-pointer">
+          <button type="button" onClick={startOver} className="self-start text-[11px] text-slate-500 hover:text-slate-300 cursor-pointer">
             {t('doctor.startOver')}
           </button>
         )}

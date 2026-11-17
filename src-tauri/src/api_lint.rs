@@ -244,6 +244,15 @@ const LUA_BUILTINS: &[&str] = &[
     "rawequal", "rawget", "rawset", "rawlen", "require", "select", "setmetatable", "tonumber", "tostring", "type", "unpack", "xpcall",
     "string", "table", "math", "os", "io", "coroutine", "debug", "_G", "_VERSION", "newproxy", "setfenv", "getfenv", "module",
     "luanet", "java", "kahlua", "Events", "LuaEventManager", "triggerEvent", "ZombRand", "ZombRandFloat", "ZombRandBetween",
+    // Kahlua's RandomLib registers this global by name (no Java method or annotation carries it).
+    "newrandom",
+];
+
+/// Methods Kahlua's stdlib gives Lua values, registered by name in `StringLib` / `RandomLib`
+/// (no Java method carries them): `("A"):byte()`, `s:gsub(...)`, `rnd:random(1, 6)`. Checked
+/// live in 42.22.2: `("A"):byte()` is 65, `newrandom()` a `java.util.Random`.
+const KAHLUA_METHODS: &[&str] = &[
+    "byte", "char", "find", "format", "gmatch", "gsub", "len", "lower", "match", "rep", "reverse", "sub", "upper", "random", "seed",
 ];
 
 /// Methods of the Java standard library that game objects return (lists, maps, strings, enums).
@@ -262,6 +271,15 @@ const KEYWORDS: &[&str] = &[
     "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "goto", "if", "in", "local", "nil", "not", "or", "repeat",
     "return", "then", "true", "until", "while",
 ];
+
+/// Bumped when what the game API holds changes (v2: Kahlua's own `newrandom` and string/random
+/// methods), so an API kept by an older Studio is read again instead of reused.
+const GAME_API_VERSION: u32 = 2;
+
+/// The game API cache key: the jar's size and date, and the version of what is kept.
+fn game_api_key(jar: &Path) -> Option<String> {
+    jar_key(jar).map(|k| format!("{}-a{}", k, GAME_API_VERSION))
+}
 
 fn jar_key(jar: &Path) -> Option<String> {
     let meta = std::fs::metadata(jar).ok()?;
@@ -426,6 +444,31 @@ fn word_before(chars: &[char], i: usize) -> Option<String> {
     Some(chars[k..j].iter().collect())
 }
 
+/// The string a name is set to in the text (`name = "X"`, `local name = 'X'`), first found.
+fn string_assigned_to(raw: &str, name: &str) -> Option<String> {
+    let mut rest = raw;
+    while let Some(p) = rest.find(name) {
+        let before_ok = rest[..p].chars().last().is_none_or(|c| !is_ident(c) && c != '.');
+        let after = &rest[p + name.len()..];
+        rest = after;
+        if !before_ok || after.chars().next().is_some_and(is_ident) {
+            continue;
+        }
+        let Some(value) = after.trim_start().strip_prefix('=') else { continue };
+        if value.starts_with('=') {
+            continue;
+        }
+        let value = value.trim_start();
+        if let Some(q) = value.strip_prefix('"').or_else(|| value.strip_prefix('\'')) {
+            let s: String = q.chars().take_while(|c| is_ident(*c)).collect();
+            if !s.is_empty() {
+                return Some(s);
+            }
+        }
+    }
+    None
+}
+
 /// Definitions in a (raw) Lua text; the events are read from the raw text, strings included.
 pub fn definitions(raw: &str) -> Defs {
     let mut d = Defs::default();
@@ -439,6 +482,14 @@ pub fn definitions(raw: &str) -> Defs {
                 let name: String = q.chars().take_while(|c| is_ident(*c)).collect();
                 if !name.is_empty() {
                     d.events.insert(name);
+                }
+            } else {
+                // `AddEvent(minuteEventName)` with `local minuteEventName = "OnX"` in the file.
+                let var: String = after.chars().take_while(|c| is_ident(*c)).collect();
+                if !var.is_empty() {
+                    if let Some(name) = string_assigned_to(raw, &var) {
+                        d.events.insert(name);
+                    }
                 }
             }
         }
@@ -611,11 +662,18 @@ pub fn calls(raw: &str) -> Vec<Call> {
         let prev = if i > 0 { chars[i - 1] } else { ' ' };
         if word == "Events" && chars.get(end) == Some(&'.') && prev != '.' {
             let (ev, e2) = ident_at(&chars, end + 1);
+            // `Events.X.Add(f)` is a call; `Events.X` or `Events.X.Add` not called is a mention,
+            // which is how a mod asks first: `if Events.X and Events.X.Add then ... end`.
+            let mut called = false;
             if !ev.is_empty() && chars.get(e2) == Some(&'.') {
-                let (op, _) = ident_at(&chars, e2 + 1);
-                if op == "Add" || op == "Remove" {
-                    out.push(Call { kind: "event".into(), name: ev, line, guarded: false });
+                let (op, e3) = ident_at(&chars, e2 + 1);
+                if (op == "Add" || op == "Remove") && chars.get(skip_ws(&chars, e3)) == Some(&'(') {
+                    out.push(Call { kind: "event".into(), name: ev.clone(), line, guarded: false });
+                    called = true;
                 }
+            }
+            if !called && !ev.is_empty() {
+                bare.insert(("event", ev));
             }
             i = end;
             continue;
@@ -638,7 +696,7 @@ pub fn calls(raw: &str) -> Vec<Call> {
         i = end;
     }
     for c in &mut out {
-        if c.kind != "event" && bare.contains(&(c.kind.as_str(), c.name.clone())) {
+        if bare.contains(&(c.kind.as_str(), c.name.clone())) {
             c.guarded = true;
         }
     }
@@ -661,23 +719,26 @@ fn api_cache_dir(user_zomboid_dir: &Path) -> PathBuf {
     user_zomboid_dir.join("PZModStudio_Cache").join("api")
 }
 
+/// What every build has before its jar is read: Lua's and Kahlua's own names and the Java
+/// basics game objects return.
+fn base_api(jar_key: String) -> GameApi {
+    let mut api = GameApi { jar_key, ..Default::default() };
+    api.globals.extend(LUA_BUILTINS.iter().map(|b| b.to_string()));
+    api.methods.extend(JAVA_BASICS.iter().chain(KAHLUA_METHODS).map(|m| m.to_string()));
+    api
+}
+
 /// The installed build's API, read from its jar and Lua once and kept.
 pub fn game_api(pz_install_dir: &Path, user_zomboid_dir: &Path) -> Result<GameApi, String> {
     let jar = pz_install_dir.join("projectzomboid.jar");
-    let key = jar_key(&jar).ok_or_else(|| format!("{} is not there: no game to read the API from.", jar.display()))?;
+    let key = game_api_key(&jar).ok_or_else(|| format!("{} is not there: no game to read the API from.", jar.display()))?;
     let cache = api_cache_dir(user_zomboid_dir).join(format!("{}.json", key));
     if let Some(api) = std::fs::read_to_string(&cache).ok().and_then(|t| serde_json::from_str::<GameApi>(&t).ok()) {
         if api.jar_key == key {
             return Ok(api);
         }
     }
-    let mut api = GameApi { jar_key: key, ..Default::default() };
-    for b in LUA_BUILTINS {
-        api.globals.insert(b.to_string());
-    }
-    for m in JAVA_BASICS {
-        api.methods.insert(m.to_string());
-    }
+    let mut api = base_api(key);
     // The jar.
     let bytes = std::fs::read(&jar).map_err(|e| format!("Could not read {}: {}", jar.display(), e))?;
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("{} is not a jar: {}", jar.display(), e))?;
@@ -841,7 +902,7 @@ fn mod_jars(root: &Path) -> Vec<PathBuf> {
 }
 
 /// Bumped when what `read_mod` keeps changes, so older caches are read again.
-const MOD_CACHE_VERSION: u32 = 2;
+const MOD_CACHE_VERSION: u32 = 3;
 
 pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version: Option<u32>) -> ModLua {
     let (fp, _) = crate::security::fingerprint(root);
@@ -1042,7 +1103,7 @@ static WARMING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::n
 /// The build's names when they were read before; reading the jar for the first time takes
 /// seconds and is not done on a refresh.
 fn game_api_if_cached(pz_install_dir: &Path, cache_root: &Path) -> Option<GameApi> {
-    let key = jar_key(&pz_install_dir.join("projectzomboid.jar"))?;
+    let key = game_api_key(&pz_install_dir.join("projectzomboid.jar"))?;
     let cache = api_cache_dir(cache_root).join(format!("{}.json", key));
     std::fs::read_to_string(&cache).ok().and_then(|t| serde_json::from_str::<GameApi>(&t).ok()).filter(|api| api.jar_key == key)
 }
@@ -1119,6 +1180,17 @@ pub fn reports_for_health(paths: &crate::vfs::StudioPaths, catalog: &crate::cata
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_event_asked_for_first_or_added_by_name_is_not_missing() {
+        // Realistic Temperature: an event 42.22 does not have, asked for before it is used...
+        let asked = "if Events.OnObjectAboutToBeDeleted and Events.OnObjectAboutToBeDeleted.Add then\n    Events.OnObjectAboutToBeDeleted.Add(onObjectRemoved)\nend\nEvents.OnGone.Add(f)";
+        let found: Vec<(String, bool)> = calls(asked).into_iter().filter(|c| c.kind == "event").map(|c| (c.name, c.guarded)).collect();
+        assert_eq!(found, vec![("OnObjectAboutToBeDeleted".to_string(), true), ("OnGone".to_string(), false)]);
+        // ...and its own event, added under a name kept in a variable.
+        let config = "local minuteEventName = \"OnRealisticColdMinuteUpdate\"\nif LuaEventManager and LuaEventManager.AddEvent then\n    LuaEventManager.AddEvent(minuteEventName)\nend";
+        assert!(definitions(config).events.contains("OnRealisticColdMinuteUpdate"));
+    }
 
     /// The Studio's shim gives back names a build renamed (`PropertyContainer:Is`, `:Val`). A mod
     /// that calls them is reported on its own and not beside a mod that carries the shim.
@@ -1221,6 +1293,20 @@ MyGlobal = 1
         assert!(!names.iter().any(|(_, n)| n == "setup"), "a definition is not a call");
         assert!(!names.iter().any(|(_, n)| n == "require" && false));
         assert_eq!(c.iter().find(|c| c.name == "Say").unwrap().line, 6);
+    }
+
+    #[test]
+    fn kahluas_own_string_and_random_names_are_known() {
+        // Mod Health flagged `:byte(` in 16 mods and `newrandom` in 6; both work in 42.22.2.
+        let api = base_api(String::new());
+        let text = "local r = newrandom()
+local n = r:random(1, 6)
+local b = s:byte(1)
+local t = s:gsub(\"a\", \"b\"):upper()
+p:HasTrait(\"x\")";
+        let this = ModLua { fingerprint: String::new(), defs: definitions(text), calls: [("a.lua".to_string(), calls(text))].into_iter().collect() };
+        let names: Vec<String> = check(&api, &this, &Defs::default()).findings.iter().map(|f| f.name.clone()).collect();
+        assert_eq!(names, vec!["HasTrait".to_string()], "only the name the build lacks is reported");
     }
 
     #[test]

@@ -678,6 +678,7 @@ impl CardMaker {
         }
         callers.truncate(3);
         card.called_from = callers;
+        lua_failure_in_words(&mut card);
         Some(card)
     }
 
@@ -689,6 +690,7 @@ impl CardMaker {
 
     /// The cards this line completes (usually none, at most two).
     pub fn line(&mut self, line: &str) -> Vec<TranslatedErrorPayload> {
+        let line = without_log_time(line);
         let mut out = Vec::new();
         self.blame.observe(line);
         let level = is_level_line(line);
@@ -721,14 +723,88 @@ impl CardMaker {
             out.extend(self.text_card(card, line));
         } else if let Some(mut card) = translate_log_error(line, self.counter) {
             self.counter += 1;
-            if card.code != "java_mod_error" {
+            if names_java_mod_by_tag(&card.code) {
+                // The tag a Java mod signs its lines with -> the name in the mod list.
+                let tag = card.params.get("mod").cloned().unwrap_or_default();
+                // `[ZB] [!] class viewpoint.Main: error invoking main()`: ZombieBuddy (which signs
+                // as ZB) could not run a Java mod's start-up code. The mod is the one whose jar the
+                // class's package is; ZombieBuddy goes on loading its patches.
+                let zb_main = (tag == "ZB")
+                    .then(|| line.split("class ").nth(1).filter(|_| line.contains("error invoking main()")).and_then(|r| r.split('.').next()).map(str::to_string))
+                    .flatten();
+                if let Some(package) = zb_main {
+                    let name = self.blame.jar_mod(&package).unwrap_or(package.clone());
+                    card.mod_name = Some(name.clone());
+                    card.title = format!("ZombieBuddy could not run {}'s start-up code", name);
+                    card.explanation = format!(
+                        "ZombieBuddy started {}'s Java (its main) and that code failed; ZombieBuddy went on and loaded its patches. On a dedicated server this is expected for a mod that draws the picture (a server draws nothing). In the game it means what {} sets up when it starts may be missing.",
+                        name, name
+                    );
+                    card.recommended_action = format!(
+                        "Nothing to do on a dedicated server. In the game, if {} does not work, update it; its Workshop page often says which version of the game it needs.",
+                        name
+                    );
+                    card.params = crate::catalog::issue_params(&[("mod", &name), ("variant", "zb_main")]);
+                } else if tag == "ZB" {
+                    card.title = card.title.replacen("ZB", "ZombieBuddy", 1);
+                    card.params.insert("mod".to_string(), "ZombieBuddy".to_string());
+                    card.mod_name = Some("ZombieBuddy".to_string());
+                } else if let Some(name) = self.blame.jar_mod(&tag) {
+                    card.params.insert("mod".to_string(), name.clone());
+                    card.title = card.title.replacen(&tag, &name, 1);
+                    card.mod_name = Some(name);
+                } else if card.mod_name.is_none() && !tag.is_empty() {
+                    card.mod_name = Some(tag);
+                }
+            } else {
                 card.mod_name = culprit.clone();
+            }
+            if card.code == "java_patch_failed" {
+                let suspects = self.blame.transform_suspects(line);
+                let said = if suspects.is_empty() { "none found in the jars loaded".to_string() } else { suspects.join(", ") };
+                card.explanation = card.explanation.replacen("(see the log)", &said, 1);
+                card.params.insert("suspects".to_string(), said);
+                card.params.insert("suspectsKey".to_string(), if suspects.is_empty() { "none_in_jars".to_string() } else { String::new() });
+            }
+            if card.code == "java_shader_failed" {
+                // The code that uses an undefined name is often an addon's, put into the host's
+                // shader: when exactly one other loaded jar carries shader code with that name,
+                // the card says so.
+                let name = card.params.get("name").cloned().unwrap_or_default();
+                let host = card.mod_name.clone().unwrap_or_default();
+                let suspects = self.blame.shader_suspects(&name, &host);
+                if let [addon] = suspects.as_slice() {
+                    card.params.insert("addon".to_string(), addon.clone());
+                    card.params.insert("variant".to_string(), "addon".to_string());
+                    card.explanation = format!(
+                        "{} could not build a shader: it uses \"{}\", which was not defined when it compiled. Shader code that uses \"{}\" is in {}'s jar (an addon that adds to {}'s shaders), so that is the likely source, perhaps made for another version of {}. What that shader draws is missing.",
+                        host, name, name, addon, host, host
+                    );
+                    card.recommended_action = format!(
+                        "Nothing breaks the game; that part of the picture (often the lighting) is missing or wrong. If it bothers you, switch {} off or update it, and see whether this card goes away; {} works without it.",
+                        addon, host
+                    );
+                }
+            }
+            // A Java mod's own failures come once per shader, per pass on a class, per stage: one
+            // card each for what failed and whose.
+            if matches!(card.code.as_str(), "java_patch_failed" | "java_mod_turned_off" | "java_shader_failed" | "java_addon_incompatible") {
+                let key = format!("{}|{}|{}", card.code, card.mod_name.as_deref().unwrap_or(""), card.title);
+                if !self.already_reported.insert(key) {
+                    return out;
+                }
             }
             let generic = matches!(card.code.as_str(), "nil_table" | "java_npe" | "kahlua");
             let held_names_mod = self.pending.as_ref().is_some_and(|h| h.code.starts_with("mod_named") || h.code == "package_copy");
             if !level && generic && self.in_error && self.pending.is_none() {
                 // Under an ERROR whose card was already shown (the same failure again, every tick):
-                // its exception is that same error, not a new one.
+                // its exception is that same error, not a new one. An ERROR in the game's own file
+                // (`Lua(Vanilla).getMissingMods> Exception thrown`) names no mod and makes no card:
+                // its exception is the only card it gets, once per wording.
+                let key = format!("unnamed|{}", without_frame_stamp(trimmed).chars().take(80).collect::<String>());
+                if culprit.is_none() && self.already_reported.insert(key) {
+                    out.push(card);
+                }
             } else if !level && generic && held_names_mod {
                 // The exception under an ERROR that already named its mod: the card keeps the mod
                 // and takes the game's own words, which say more than a general card would.
@@ -823,6 +899,58 @@ pub struct ModBlame {
     java_echo: bool,
     /// `recent` came from a "cannot create item ... modID" line, not from a stack frame.
     recent_is_item: bool,
+    /// Java mods ZombieBuddy put on the classpath (`[ZB] added to classpath: <jar>`): the jar's
+    /// name without `.jar`, lowercased -> the mod's name from its `mod.info`. A Java mod's own
+    /// lines carry a tag, often its jar's name (`[ViewpointHeadlightPlacement]`), which is not
+    /// the name the player sees in the mod list ("Viewpoint - Light Fix").
+    jars: std::collections::HashMap<String, String>,
+    /// The mod of the jar ZombieBuddy put on the classpath last: its patches are applied next.
+    loading_jar: Option<String>,
+    /// Every jar put on the classpath: (mod name, jar path, package ZombieBuddy scanned in it).
+    loaded_jars: Vec<(String, String, Option<String>)>,
+    /// The `@Patch` targets (class, method) read from each of those jars, when first needed.
+    jar_targets: std::collections::HashMap<String, Vec<(String, String, Vec<String>)>>,
+    /// An undefined shader name -> the loaded addons whose jar carries shader code using it.
+    shader_users: std::collections::HashMap<String, Vec<String>>,
+    /// The methods ZombieBuddy is patching in the pass under way (`[ZB] patching <class>.<method>`).
+    pass_methods: Vec<(String, String)>,
+    /// `[ZB] [!] ERROR transforming <class>: <why>` -> the mod it is said of (None when the
+    /// jars leave more than one) and the mods whose patches were in that pass. The same failure
+    /// comes back each time a later mod patches that class (the patches of a class are applied
+    /// together) and keeps what was found the first time.
+    transform_first: std::collections::HashMap<String, (Option<String>, Vec<String>)>,
+}
+
+/// `[ZB] [!] ERROR transforming zombie.characters.IsoZombie: Cannot assign float arg2 to double.`
+/// -> `zombie.characters.IsoZombie: Cannot assign float arg2 to double`.
+fn zb_transform_failure(line: &str) -> Option<&str> {
+    let rest = line.split("[ZB] [!] ERROR transforming ").nth(1)?;
+    let rest = rest.trim().trim_end_matches('.');
+    rest.contains(": ").then_some(rest)
+}
+
+/// The mod a jar belongs to, from the `mod.info` of a folder above it
+/// (`...\mods\ViewpointLight\42\media\java\client\X.jar` -> `...\ViewpointLight\42\mod.info`);
+/// the mod's folder name when there is none to read.
+fn mod_of_jar(jar: &str) -> Option<String> {
+    let path = Path::new(jar);
+    // `mods/X/42/media/java/client/X.jar`: the mod.info is in `42/` or, for a mod that keeps it
+    // there, in `common/` beside it (Viewpoint RTX).
+    let infos = path.ancestors().skip(1).take(6).flat_map(|dir| {
+        let common = (dir.file_name().is_some_and(|n| n != "common")).then(|| dir.parent().map(|p| p.join("common").join("mod.info"))).flatten();
+        std::iter::once(dir.join("mod.info")).chain(common)
+    });
+    for info in infos {
+        if let Ok(text) = std::fs::read_to_string(&info) {
+            let name = text.lines().find_map(|l| l.trim().strip_prefix("name=")).map(str::trim).filter(|n| !n.is_empty());
+            if let Some(name) = name {
+                return Some(name.to_string());
+            }
+        }
+    }
+    let normal = jar.replace('/', "\\");
+    let (_, after) = normal.rsplit_once("\\mods\\")?;
+    after.split('\\').next().filter(|f| !f.is_empty()).map(str::to_string)
 }
 
 /// How many lines a mod's name carries forward. The frame and its error are next to each other;
@@ -844,6 +972,38 @@ impl ModBlame {
         });
         if java_mod_own_error(line).is_some() {
             self.java_last = line.split_once(": java.").map(|(_, rest)| format!("java.{}", rest.trim()));
+        }
+        if let Some(jar) = line.split("[ZB] added to classpath: ").nth(1) {
+            let jar = jar.trim().trim_end_matches('.');
+            let stem = Path::new(jar).file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+            self.loading_jar = mod_of_jar(jar);
+            if let (false, Some(name)) = (stem.is_empty(), self.loading_jar.clone()) {
+                self.jars.insert(stem, name.clone());
+                self.loaded_jars.push((name, jar.to_string(), None));
+            }
+        }
+        // `[ZB] Scanned 32 classes in package vpheadlights.`: the package of the jar just loaded.
+        if let Some(rest) = line.split("[ZB] Scanned ").nth(1) {
+            if let (Some(package), Some(last)) = (rest.split(" in package ").nth(1), self.loaded_jars.last_mut()) {
+                last.2.get_or_insert_with(|| package.trim().trim_end_matches('.').to_string());
+            }
+        }
+        if let Some(rest) = line.split("[ZB] patching ").nth(1) {
+            if let Some((full, _)) = rest.split_once(" with ") {
+                if let Some((class, method)) = full.rsplit_once('.') {
+                    self.pass_methods.push((class.to_string(), method.to_string()));
+                }
+            }
+        } else if line.contains("[ZB] Transformed: ") {
+            self.pass_methods.clear();
+        }
+        if let Some(failure) = zb_transform_failure(line) {
+            if !self.transform_first.contains_key(failure) {
+                let (class, why) = failure.split_once(": ").unwrap_or((failure, ""));
+                let found = self.patch_suspects(class, why);
+                self.transform_first.insert(failure.to_string(), found);
+            }
+            self.pass_methods.clear();
         }
         self.recent = match self.recent.take() {
             Some((name, age)) if age + 1 < BLAME_WINDOW => Some((name, age + 1)),
@@ -894,8 +1054,102 @@ impl ModBlame {
         line.contains("Lua(Vanilla)")
     }
 
+    /// The mod a Java mod's log tag stands for: `ViewpointHeadlightPlacement` -> "Viewpoint -
+    /// Light Fix", when a jar of that name was put on the classpath this session.
+    /// Else the one jar whose name ends with the tag: `[TrueBallistics]` signs for
+    /// `ViewpointTrueBallistics.jar` ("Viewpoint True Ballistics" in the mod list).
+    pub fn jar_mod(&self, tag: &str) -> Option<String> {
+        let tag = tag.trim().to_lowercase();
+        if let Some(name) = self.jars.get(&tag) {
+            return Some(name.clone());
+        }
+        if tag.len() < 6 {
+            return None;
+        }
+        let mut ends: Vec<&String> = self.jars.iter().filter(|(jar, _)| jar.ends_with(&tag)).map(|(_, name)| name).collect();
+        ends.sort();
+        ends.dedup();
+        (ends.len() == 1).then(|| ends[0].clone())
+    }
+
+    /// Whose patch failed in a pass on `class`: the loaded jars whose `@Patch` names one of the
+    /// pass's methods. The jar being loaded when it is one of them (its patches are the ones being
+    /// added: a class already loaded is patched again as each jar comes); otherwise the only one;
+    /// otherwise nobody, with all of them listed. The class a lazily loaded class's pass names is
+    /// unrelated to whatever jar was loaded last (Viewpoint's camera, patched by two mods, was
+    /// blamed on the jar loaded just before it).
+    ///
+    /// ByteBuddy's `Cannot assign float arg3 to class [F` names the type a patch declares
+    /// (`class [F`, a float[]) where the method has another: of the suspects, the one whose patch
+    /// to that method has a parameter of that type is the one, when it is the only one (Viewpoint
+    /// Rolling Hills' camera patch, beside OldPoint's, after Viewpoint changed `place`).
+    fn patch_suspects(&mut self, class: &str, why: &str) -> (Option<String>, Vec<String>) {
+        let declared = why.strip_prefix("Cannot assign ").and_then(|r| r.rsplit_once(" to ")).map(|(_, t)| t.trim().to_string());
+        let mut typed: Vec<String> = Vec::new();
+        let methods: Vec<String> = self.pass_methods.iter().filter(|(c, _)| c == class).map(|(_, m)| m.clone()).collect();
+        let mut suspects: Vec<String> = Vec::new();
+        for (name, jar, package) in self.loaded_jars.clone() {
+            let Some(package) = package else { continue };
+            let targets = self.jar_targets.entry(jar.clone()).or_insert_with(|| {
+                std::fs::read(&jar)
+                    .ok()
+                    .and_then(|bytes| crate::java_patches::read_jar(&bytes, &package).ok())
+                    .map(|read| read.patches.into_iter().filter_map(|p| Some((p.target_class?, p.target_method?, p.advice_param_types))).collect())
+                    .unwrap_or_default()
+            });
+            let hits: Vec<&Vec<String>> =
+                targets.iter().filter(|(c, m, _)| c == class && (methods.is_empty() || methods.iter().any(|x| x == m))).map(|(_, _, t)| t).collect();
+            if hits.is_empty() {
+                continue;
+            }
+            let has_type = declared.as_ref().is_some_and(|d| hits.iter().any(|types| types.contains(d)));
+            if has_type && !typed.contains(&name) {
+                typed.push(name.clone());
+            }
+            if !suspects.contains(&name) {
+                suspects.push(name);
+            }
+        }
+        let named = match &self.loading_jar {
+            _ if typed.len() == 1 => typed.first().cloned(),
+            Some(loading) if suspects.contains(loading) => Some(loading.clone()),
+            _ if suspects.len() == 1 => suspects.first().cloned(),
+            _ => None,
+        };
+        (named, suspects)
+    }
+
+    /// The loaded Java mods other than `host` whose jars carry shader code that uses `name`.
+    pub fn shader_suspects(&mut self, name: &str, host: &str) -> Vec<String> {
+        if name.is_empty() {
+            return Vec::new();
+        }
+        if let Some(found) = self.shader_users.get(name) {
+            return found.iter().filter(|m| m.as_str() != host).cloned().collect();
+        }
+        let mut found: Vec<String> = Vec::new();
+        for (mod_name, jar, _) in &self.loaded_jars {
+            if mod_name == host || found.contains(mod_name) {
+                continue;
+            }
+            if std::fs::read(jar).is_ok_and(|bytes| crate::java_patches::jar_shader_uses(&bytes, name)) {
+                found.push(mod_name.clone());
+            }
+        }
+        self.shader_users.insert(name.to_string(), found.clone());
+        found
+    }
+
+    /// The mods whose patches were in the pass a ZombieBuddy transform failure is about.
+    pub fn transform_suspects(&self, line: &str) -> Vec<String> {
+        zb_transform_failure(line).and_then(|f| self.transform_first.get(f)).map(|(_, s)| s.clone()).unwrap_or_default()
+    }
+
     /// The mod this line is about, if the game said.
     pub fn of(&self, line: &str) -> Option<String> {
+        if let Some(failure) = zb_transform_failure(line) {
+            return self.transform_first.get(failure).and_then(|(named, _)| named.clone());
+        }
         // A line in one of the game's own files is the game's, whatever mod was named above it
         // (42.21's own TakeSameType.lua requires a module that no longer exists, for one).
         if Self::is_vanilla_frame(line) && !line.contains("(MOD:") {
@@ -1094,7 +1348,7 @@ pub fn tail_lines(path: &Path, n: usize) -> std::io::Result<Vec<String>> {
     }
 }
 
-/// The last count, kept while console.txt is unchanged: Mod Health asks on every refresh, and a
+/// The last count, kept while console.txt is unchanged: Diagnostics asks on every refresh, and a
 /// long session's log runs to tens of megabytes.
 static STATS_CACHE: std::sync::Mutex<Option<(std::path::PathBuf, u64, Option<std::time::SystemTime>, Vec<ModErrorStat>)>> = std::sync::Mutex::new(None);
 
@@ -1256,6 +1510,75 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
             log_name: None,
         };
     }
+    // `require("Vehicles/Supra_functions") failed`: the file asked for is in no mod that is on,
+    // nor in the game (often a compatibility file for a mod the player does not have).
+    let required = (severity == Severity::Warning && on_line)
+        .then(|| line.split("require(\"").nth(1).and_then(|r| r.split_once("\") failed")).map(|(f, _)| f.to_string()))
+        .flatten();
+    // `recursive require(): .../media/lua/server/LooseEnds/Delivery.lua`: the mod's files ask for
+    // each other in a loop; the game loads the file once and skips the repeat.
+    let looped = (severity == Severity::Warning && on_line)
+        .then(|| detail.strip_prefix("recursive require():").map(|f| {
+            let f = f.trim().trim_end_matches('.').replace('\\', "/");
+            f.split("/media/lua/").nth(1).map(|s| s.to_string()).unwrap_or_else(|| f.rsplit('/').next().unwrap_or(&f).to_string())
+        }))
+        .flatten();
+    if let Some(file) = &looped {
+        return TranslatedErrorPayload {
+            called_from: Vec::new(),
+            id: format!("err_{}", counter),
+            code: "mod_named_warning".to_string(),
+            params: crate::catalog::issue_params(&[("mod", mod_name), ("file", file), ("variant", "recursive_require")]),
+            raw_error: line.to_string(),
+            source_file,
+            line_number: None,
+            title: format!("{}'s files ask for each other in a loop", mod_name),
+            explanation: format!(
+                "{} asked for {} (require) while that file was still loading: two of its files ask for each other. The game loads the file once and skips the repeat, so usually nothing is missing.",
+                mod_name, file
+            ),
+            recommended_action: format!(
+                "Nothing to do unless something of {} is missing in game; then tell its author (Save report writes the note).",
+                mod_name
+            ),
+            polyfill_rule_id_suggestion: None,
+            mod_name: Some(mod_name.to_string()),
+            severity,
+            own_mod: false,
+            own_file: None,
+            frame_mod: None,
+            log: None,
+            log_name: None,
+        };
+    }
+    if let Some(file) = &required {
+        return TranslatedErrorPayload {
+            called_from: Vec::new(),
+            id: format!("err_{}", counter),
+            code: "mod_named_warning".to_string(),
+            params: crate::catalog::issue_params(&[("mod", mod_name), ("file", file), ("variant", "require")]),
+            raw_error: line.to_string(),
+            source_file,
+            line_number: None,
+            title: format!("{} asked for a file that is not there", mod_name),
+            explanation: format!(
+                "{} asked for the file {} (require), and the game found it neither in its own files nor in any mod that is on. Often it is a part meant for another mod you do not have (a compatibility file), and the rest of {} works.",
+                mod_name, file, mod_name
+            ),
+            recommended_action: format!(
+                "Nothing to do unless something of {} is missing in game; then its Workshop page may name a mod it needs without listing it as required.",
+                mod_name
+            ),
+            polyfill_rule_id_suggestion: None,
+            mod_name: Some(mod_name.to_string()),
+            severity,
+            own_mod: false,
+            own_file: None,
+            frame_mod: None,
+            log: None,
+            log_name: None,
+        };
+    }
     TranslatedErrorPayload {
         called_from: Vec::new(),
         id: format!("err_{}", counter),
@@ -1295,6 +1618,117 @@ fn blame_card(line: &str, mod_name: &str, counter: usize) -> TranslatedErrorPayl
     }
 }
 
+/// What a Kahlua failure message says, in a player's words: `(kind, name)` where `name` is the
+/// field or function the message names (`attempted index: getName of non-table: null` ->
+/// ("index", "getName")). None for a message the Studio does not know.
+fn lua_failure_kind(message: &str) -> Option<(&'static str, String)> {
+    let m = message.trim().trim_start_matches("java.lang.RuntimeException:").trim();
+    if m.starts_with("__concat not defined for operands") {
+        return Some(("concat", String::new()));
+    }
+    if let Some(rest) = m.strip_prefix("attempted index: ") {
+        let (name, tail) = rest.split_once(' ')?;
+        return tail.starts_with("of non-table").then(|| ("index", name.to_string()));
+    }
+    if let Some(rest) = m.strip_prefix("Object tried to call nil in ") {
+        let name = rest.split(" at ").next().unwrap_or(rest).trim().trim_end_matches('.').to_string();
+        return Some(("call", name));
+    }
+    if ["__add", "__sub", "__mul", "__div", "__mod", "__pow", "__unm"].iter().any(|op| m.starts_with(&format!("{} not defined for operands", op))) {
+        return Some(("arith", String::new()));
+    }
+    if ["__lt", "__le"].iter().any(|op| m.starts_with(&format!("{} not defined for operands", op))) {
+        return Some(("compare", String::new()));
+    }
+    // `No implementation found for function: get(class zombie...PropertyContainer {...}, class ...)`:
+    // a Java method of the game called with arguments it no longer takes.
+    if let Some(rest) = m.strip_prefix("No implementation found for function: ") {
+        let name = rest.split('(').next().unwrap_or(rest).trim().to_string();
+        // The first thing it was given: `(class zombie.inventory.types.ComboItem Base.Bandage...` -> ComboItem.
+        let given = rest
+            .split_once('(')
+            .and_then(|(_, args)| args.strip_prefix("class "))
+            .and_then(|a| a.split([' ', ',', ')']).next())
+            .and_then(|c| c.rsplit('.').next())
+            .unwrap_or("")
+            .to_string();
+        return Some(("no_impl", format!("{}|{}", name, given)));
+    }
+    None
+}
+
+/// A mod-named error whose exception is a Lua failure the Studio knows (text joined with nil, a
+/// field of nil, a function that does not exist, math or a comparison with nil): its card says
+/// what happened in plain words, where (file and line when the stack gave them), that what the
+/// mod was doing stopped while the game went on, and keeps the game's own words at the end.
+fn lua_failure_in_words(card: &mut TranslatedErrorPayload) {
+    if card.code != "mod_named_exception" || card.params.get("variant").is_some_and(|v| !v.is_empty()) {
+        return;
+    }
+    let Some((kind, name)) = lua_failure_kind(&card.explanation) else { return };
+    // `no_impl` carries the function and what it was given: `getWeaponType|ComboItem`.
+    let (name, given) = match name.split_once('|') {
+        Some((n, g)) => (n.to_string(), g.to_string()),
+        None => (name, String::new()),
+    };
+    let Some(mod_name) = card.mod_name.clone() else { return };
+    let place = match (&card.source_file, card.line_number) {
+        (Some(f), Some(n)) => format!("{}:{}", f, n),
+        (Some(f), None) => f.clone(),
+        _ => String::new(),
+    };
+    let (short, long) = match kind {
+        "concat" => ("joined text with a value that is not there".to_string(), "tried to join text with a value that does not exist (nil)".to_string()),
+        "index" => (format!("used {} of something that is not there", name), format!("asked for {} of something that does not exist (nil)", name)),
+        "call" => (format!("called {}, which does not exist", name), format!("called {}, a function that does not exist: renamed or removed by a game update, or part of a mod that is not loaded", name)),
+        "arith" => ("did math with a value that is not there".to_string(), "did math with a value that does not exist (nil)".to_string()),
+        "no_impl" => (
+            format!("called the game's {} with something it does not take", name),
+            format!(
+                "called the game's {} with {}, which that function does not take: either the mod passed the wrong kind of thing, or the function changed in a game update",
+                name,
+                if given.is_empty() { "a value".to_string() } else { format!("a {}", given) }
+            ),
+        ),
+        _ => ("compared a value that is not there".to_string(), "compared a value that does not exist (nil)".to_string()),
+    };
+    let game_words = card.explanation.trim().to_string();
+    card.title = format!("{}: {}", mod_name, short);
+    card.explanation = format!(
+        "{} {}{}. What it was doing at that moment stopped; the game carried on. The game's words: {}",
+        mod_name,
+        long,
+        if place.is_empty() { String::new() } else { format!(", in {}", place) },
+        game_words
+    );
+    card.recommended_action = format!(
+        "If something of {} does not work in game, this is the likely reason. It is a mistake in the mod's own code: tell its author (Save report writes the note, with the file and the line). Switching {} off tells whether it is the cause.",
+        mod_name, mod_name
+    );
+    card.params.insert("variant".to_string(), "lua".to_string());
+    card.params.insert("luaKey".to_string(), format!("lua_{}", kind));
+    card.params.insert("luaLongKey".to_string(), format!("lua_{}_long", kind));
+    card.params.insert("name".to_string(), name);
+    card.params.insert("given".to_string(), given.clone());
+    card.params.insert("givenKey".to_string(), if given.is_empty() { "lua_given_value".to_string() } else { "lua_given".to_string() });
+    card.params.insert("place".to_string(), place.clone());
+    card.params.insert("placeKey".to_string(), if place.is_empty() { String::new() } else { "lua_place".to_string() });
+    card.params.insert("words".to_string(), game_words);
+}
+
+/// A line of a session log the game kept in `Logs/` (`[16-11-26 16:47:46.533] LOG  : ...`) as it
+/// stood in `console.txt` (`LOG  : ...`).
+fn without_log_time(line: &str) -> &str {
+    if let Some(rest) = line.strip_prefix('[') {
+        if let Some((stamp, after)) = rest.split_once("] ") {
+            if stamp.len() <= 24 && stamp.chars().all(|c| c.is_ascii_digit() || matches!(c, '-' | ':' | '.' | ' ')) {
+                return after;
+            }
+        }
+    }
+    line
+}
+
 /// The UI method a line says was indexed on nil (`attempted index: prerender of non-table:
 /// null`): the lifecycle methods a window inherits from its base class.
 fn ui_method_of_nil(line: &str) -> Option<&'static str> {
@@ -1307,12 +1741,70 @@ fn ui_method_of_nil(line: &str) -> Option<&'static str> {
     METHODS.iter().copied().find(|m| *m == method)
 }
 
+/// `[Tag] rest` written by a Java mod: its tag and what follows.
+fn java_mod_tag_line(line: &str) -> Option<(String, String)> {
+    let text = line.split_once("> ").map(|(_, rest)| rest).unwrap_or(line).trim_start();
+    let (tag, rest) = text.strip_prefix('[')?.split_once(']')?;
+    let ok_tag = !tag.is_empty() && tag.len() <= 40 && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ');
+    ok_tag.then(|| (tag.trim().to_string(), rest.trim().trim_end_matches('.').trim_end_matches(':').trim().to_string()))
+}
+
+/// A Java mod saying it stopped working for the rest of the session: `[Viewpoint] crashed while
+/// preparing: ...`, `[Viewpoint] disabled after error while preparing:`, `[ViewpointHeadlightPlacement]
+/// Disabled after API error: java.lang.ExceptionInInitializerError`.
+///
+/// Also a line at its own ERROR level saying the mod as a whole is disabled: `[TrueBallistics]
+/// ERROR True Ballistics disabled: a required game method is missing (game update?). Vanilla
+/// firearm combat is used.` (42.22.2). A WARN about one of its features (`... feature disabled`)
+/// is not the mod switching off.
+fn java_mod_turned_off(line: &str) -> Option<(String, String)> {
+    let (tag, rest) = java_mod_tag_line(line)?;
+    let lower = rest.to_lowercase();
+    let after_error = lower.strip_prefix("[error]").or_else(|| lower.strip_prefix("error")).map(str::trim_start);
+    let whole_mod_off = after_error.is_some_and(|t| t.contains(" disabled") && !t.contains("feature"));
+    let off = lower.starts_with("crashed while") || (lower.starts_with("disabled after") && (lower.contains("error") || lower.contains("exception") || lower.contains("crash"))) || whole_mod_off;
+    let rest = if whole_mod_off { rest[rest.len() - after_error.unwrap_or_default().len()..].to_string() } else { rest };
+    off.then_some((tag, rest))
+}
+
+/// A Java mod's shader that did not compile: `[Viewpoint] light, default shader compile failed
+/// (light.frag): lib/spots.glsl(116) : error C1503: undefined variable "headlightGain"`. The tag
+/// and the name the shader used and nothing defined, when the line gives one.
+fn java_mod_shader_failed(line: &str) -> Option<(String, Option<String>)> {
+    let (tag, rest) = java_mod_tag_line(line)?;
+    if !rest.contains("shader compile failed") {
+        return None;
+    }
+    let undefined = rest.split("undefined variable \"").nth(1).and_then(|v| v.split('"').next()).filter(|v| !v.is_empty()).map(str::to_string);
+    Some((tag, undefined))
+}
+
+/// A Java mod naming an addon of its own that does not fit it: `[Viewpoint] model program:
+/// [ViewpointDoorLighting] Incompatible model shader; missing: ...` -> (`Viewpoint`,
+/// `ViewpointDoorLighting`, `Incompatible model shader; missing: ...`).
+fn java_addon_incompatible(line: &str) -> Option<(String, String, String)> {
+    let (host, rest) = java_mod_tag_line(line)?;
+    let (_, after) = rest.split_once("program: [")?;
+    let (addon, what) = after.split_once(']')?;
+    let what = what.trim();
+    let ok = !addon.is_empty() && addon.len() <= 40 && addon.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    (ok && what.to_lowercase().starts_with("incompatible")).then(|| (host, addon.to_string(), what.trim_end_matches(';').to_string()))
+}
+
+/// Codes of cards about a Java mod that name it by its log tag, which `CardMaker` turns into the
+/// mod's name when a jar of that name was loaded.
+fn names_java_mod_by_tag(code: &str) -> bool {
+    matches!(code, "java_mod_error" | "java_mod_turned_off" | "java_shader_failed" | "java_addon_incompatible")
+}
+
 /// Translates raw Java stacktraces & Lua errors into actionable cards.
 pub fn translate_log_error(line: &str, counter: usize) -> Option<TranslatedErrorPayload> {
     let mut card = translate_log_error_rule(line, counter)?;
     // A rule that knows the game carried on says so; a rule that reports an exception is still only
-    // a warning when the game itself wrote the line at WARN/LOG level.
-    if card.severity == Severity::Exception {
+    // a warning when the game itself wrote the line at WARN/LOG level -- except a mod's Java patch
+    // not applied and a Java mod switching itself off: written at LOG level by ZombieBuddy or the
+    // mod, and something of the mod no longer works.
+    if card.severity == Severity::Exception && !matches!(card.code.as_str(), "java_patch_failed" | "java_mod_turned_off" | "java_addon_incompatible") {
         card.severity = Severity::of_line(line);
     }
     Some(card)
@@ -1325,7 +1817,8 @@ fn java_mod_own_error(line: &str) -> Option<(String, String)> {
     let rest = text.strip_prefix('[')?;
     let (tag, rest) = rest.split_once(']')?;
     let (what, thrown) = rest.split_once(": java.")?;
-    let class = thrown.split(|c: char| c == ':' || c.is_whitespace()).next().unwrap_or("");
+    // The game ends each line it logs with a full stop: `java.lang.ExceptionInInitializerError.`
+    let class = thrown.split(|c: char| c == ':' || c.is_whitespace()).next().unwrap_or("").trim_end_matches('.');
     let ok_tag = !tag.is_empty() && tag.len() <= 40 && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ');
     (ok_tag && (class.ends_with("Exception") || class.ends_with("Error"))).then(|| (tag.trim().to_string(), what.trim().to_string()))
 }
@@ -1408,6 +1901,71 @@ fn nil_index_key(line: &str) -> Option<String> {
 }
 
 fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErrorPayload> {
+    // Lines the game writes at LOG level for others: ZombieBuddy saying a mod's Java patch was not
+    // applied, a Java mod saying it switched itself off. The game itself carries on, the mod does not.
+    if let Some(failure) = zb_transform_failure(line) {
+        let (class, why) = failure.split_once(": ").unwrap_or((failure, ""));
+        let short = class.rsplit('.').next().unwrap_or(class);
+        // No source file: the card is about a mod's jar, which nothing in the Studio edits (a
+        // `.java` name here put a "Patch IsoZombie.java" button on it that opened the Merger on a
+        // mod with no such file).
+        let card = rule_card(
+            counter,
+            line,
+            "java_patch_failed",
+            crate::catalog::issue_params(&[("class", class), ("short", short), ("why", why), ("variant", if class.starts_with("zombie.") { "" } else { "mod" })]),
+            &format!("A Java patch to {} could not be applied", short),
+            &format!(
+                "A mod's Java change to {}{} no longer fits: the method it changes is different now, usually after an update (ZombieBuddy said: \"{}\"). That change is missing in game; the game itself carries on. Mods with a change to that method: {}. Other mods' changes to {} that came after it can be missing too.",
+                short, if class.starts_with("zombie.") { ", part of the game" } else { ", part of another mod's code" }, why, "(see the log)", short
+            ),
+            "Nothing to do to play. If what the named mod does matters to you, keep it and wait for its author to update it (Save report writes the note for them); if not, switch it off, and the other mods' changes to this class apply. When no mod is named, the Studio could not tell which of those it is.",
+            Severity::Exception,
+        );
+        return Some(card);
+    }
+    if let Some((tag, what)) = java_mod_turned_off(line) {
+        return Some(rule_card(
+            counter,
+            line,
+            "java_mod_turned_off",
+            crate::catalog::issue_params(&[("mod", &tag), ("tag", &tag), ("what", &what)]),
+            &format!("{} switched itself off", tag),
+            &format!("{} wrote \"{}\" (in the log it signs as [{}]): it stopped its own work for the rest of this session. The game carries on without it.", tag, what, tag),
+            "If it happens every session, it does not work with what is installed now, usually after an update of the game or of the mod it builds on. Switch it off until its author updates it; its Workshop page often already says so.",
+            Severity::Exception,
+        ));
+    }
+    if let Some((host, addon, what)) = java_addon_incompatible(line) {
+        let mut card = rule_card(
+            counter,
+            line,
+            "java_addon_incompatible",
+            crate::catalog::issue_params(&[("mod", &addon), ("tag", &addon), ("host", &host), ("what", &what)]),
+            &format!("{} does not fit this version of {}", addon, host),
+            &format!("{} says its addon [{}] does not fit it: \"{}\". The shaders that addon changes do not build, and {} may switch itself off for it (a card of its own says so).", host, addon, what, host),
+            &format!("Switch the addon off until its author updates it for this version of {}; {} works without it.", host, host),
+            Severity::Exception,
+        );
+        card.frame_mod = Some(host);
+        return Some(card);
+    }
+    if let Some((tag, undefined)) = java_mod_shader_failed(line) {
+        let name = undefined.clone().unwrap_or_default();
+        return Some(rule_card(
+            counter,
+            line,
+            "java_shader_failed",
+            crate::catalog::issue_params(&[("mod", &tag), ("tag", &tag), ("name", &name), ("variant", if undefined.is_some() { "undefined" } else { "" })]),
+            &format!("A shader of {} did not compile", tag),
+            &match &undefined {
+                Some(v) => format!("{} could not build a shader: it uses \"{}\", which was not defined when it compiled. What that shader draws is missing.", tag, v),
+                None => format!("{} could not build a shader; the line says why. What that shader draws is missing.", tag),
+            },
+            "A name a shader expects but nobody defines is usually given by an addon of that mod. If another card says an addon switched itself off this session, that addon is the one to switch off or update.",
+            Severity::Warning,
+        ));
+    }
     // A card says something went wrong. Nothing but a line the game itself marked as trouble.
     let is_trouble = line.starts_with("ERROR")
         || line.starts_with("WARN")
@@ -1435,9 +1993,9 @@ fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErro
                 "Java asked for memory and got none (OutOfMemoryError). This one is not the Java heap limit: it is memory outside it, which runs out when the PC itself is short. The game usually closes or stops responding after this."
             },
             if heap {
-                "Health > Performance > Memory shows the limit, what the PC has, and lets you raise it for the next start."
+                "Diagnostics > Game > Memory shows the limit, what the PC has, and lets you raise it for the next start."
             } else {
-                "Close other big programs before playing. Health > Performance > Memory shows what the PC had; raising the Java limit does not help with this one."
+                "Close other big programs before playing. Diagnostics > Game > Memory shows what the PC had; raising the Java limit does not help with this one."
             },
             Severity::Exception,
         ))
@@ -1589,7 +2147,7 @@ fn translate_log_error_rule(line: &str, counter: usize) -> Option<TranslatedErro
             params,
             &format!("{} wrote an error of its own to the log", tag),
             &format!("{} wrote this line itself: \"{}\". It caught the error and went on.", tag, what),
-            "The line says what the mod did about it, if anything. A merge package or the shim cannot change Java code; Save report makes a text for its author.",
+            "Nothing to do: the mod handled it itself, and the line says how. If what the line names is missing in game, Save report makes a text for its author (the Studio cannot change a mod's Java).",
             Severity::Warning,
         );
         card.mod_name = Some(tag);
@@ -2007,6 +2565,98 @@ mod blame_tests {
     use super::*;
 
     #[test]
+    fn an_addon_its_host_calls_incompatible_is_one_card_under_the_addon() {
+        let mut maker = CardMaker::new();
+        let mut cards = Vec::new();
+        for line in [
+            "LOG  : General      f:0> [Viewpoint] model program: [ViewpointDoorLighting] Incompatible model shader; missing: vLight = texelFetch(uDraws, record + LIGHT);",
+            "LOG  : General      f:0> [Viewpoint] vehicle program: [ViewpointDoorLighting] Incompatible model shader; missing: vLight = texelFetch(uDraws, record + LIGHT);",
+            "LOG  : General      f:0> done",
+        ] {
+            cards.extend(maker.line(line));
+        }
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].code, "java_addon_incompatible");
+        assert_eq!(cards[0].mod_name.as_deref(), Some("ViewpointDoorLighting"));
+        assert_eq!(cards[0].params.get("host").map(String::as_str), Some("Viewpoint"));
+        assert_eq!(cards[0].severity, Severity::Exception);
+    }
+
+    #[test]
+    fn java_mods_that_stop_working_are_carded_under_their_list_name() {
+        let dir = std::env::temp_dir().join(format!("pzms_jar_blame_{}", std::process::id()));
+        let jar_dir = dir.join("mods").join("ViewpointLight").join("42").join("media").join("java").join("client");
+        std::fs::create_dir_all(&jar_dir).unwrap();
+        std::fs::write(dir.join("mods").join("ViewpointLight").join("42").join("mod.info"), "name=Viewpoint - Light Fix\nid=ViewpointLight\n").unwrap();
+        let body_dir = dir.join("mods").join("RealisticBodyweight").join("42").join("media").join("java");
+        std::fs::create_dir_all(&body_dir).unwrap();
+        std::fs::write(dir.join("mods").join("RealisticBodyweight").join("42").join("mod.info"), "name=Realistic Bodyweight\n").unwrap();
+        let other_dir = dir.join("mods").join("EFZ").join("42").join("media").join("java");
+        std::fs::create_dir_all(&other_dir).unwrap();
+        std::fs::write(dir.join("mods").join("EFZ").join("42").join("mod.info"), "name=Other Firearms\n").unwrap();
+        let classpath = |p: &std::path::Path, jar: &str| format!("[16-11-26 16:47:46.454] LOG  : General      f:0> [ZB] added to classpath: {}.", p.join(jar).display());
+        let lines = vec![
+            classpath(&jar_dir, "ViewpointHeadlightPlacement.jar"),
+            "[16-11-26 16:47:46.533] LOG  : General      f:0> [ViewpointHeadlightPlacement] Disabled after API error: java.lang.ExceptionInInitializerError.".to_string(),
+            classpath(&body_dir, "RealisticBodyweight.jar"),
+            "LOG  : General      f:0> [ZB] [!] ERROR transforming zombie.characters.IsoZombie: Cannot assign float arg2 to double.".to_string(),
+            "LOG  : General      f:0> java.lang.IllegalStateException: Cannot assign float arg2 to double.".to_string(),
+            classpath(&other_dir, "Other.jar"),
+            "LOG  : General      f:0> [ZB] [!] ERROR transforming zombie.characters.IsoZombie: Cannot assign float arg2 to double.".to_string(),
+            "LOG  : General      f:0> [Viewpoint] light, default shader compile failed (light.frag): lib/spots.glsl(116) : error C1503: undefined variable \"headlightGain\".".to_string(),
+            "LOG  : General      f:0> [Viewpoint] air, default shader compile failed (air.frag): lib/spots.glsl(116) : error C1503: undefined variable \"headlightGain\".".to_string(),
+            "LOG  : General      f:0> [Viewpoint] disabled after error while preparing:.".to_string(),
+            "LOG  : General      f:0> [Viewpoint] crashed while preparing: the crash window shows the report to send.".to_string(),
+            classpath(&other_dir, "ViewpointTrueBallistics.jar"),
+            "LOG  : General      f:0> [TrueBallistics] WARN Exact player wound location (multiplayer) unavailable: zombie.network.fields.hit.WeaponHit not found; feature disabled".to_string(),
+            "LOG  : General      f:0> [TrueBallistics] ERROR True Ballistics disabled: a required game method is missing (game update?). Vanilla firearm combat is used.".to_string(),
+            "LOG  : General      f:0> done".to_string(),
+        ];
+        let mut maker = CardMaker::new();
+        let mut cards = Vec::new();
+        for line in &lines {
+            cards.extend(maker.line(line));
+        }
+        cards.extend(maker.flush());
+        let _ = std::fs::remove_dir_all(&dir);
+        let got: Vec<(&str, Option<&str>, &str)> = cards.iter().map(|c| (c.code.as_str(), c.mod_name.as_deref(), c.title.as_str())).collect();
+        assert_eq!(
+            got,
+            vec![
+                ("java_mod_turned_off", Some("Viewpoint - Light Fix"), "Viewpoint - Light Fix switched itself off"),
+                // The test jars hold no classes: nobody is named rather than the jar loaded last.
+                ("java_patch_failed", None, "A Java patch to IsoZombie could not be applied"),
+                ("java_shader_failed", Some("Viewpoint"), "A shader of Viewpoint did not compile"),
+                ("java_mod_turned_off", Some("Viewpoint"), "Viewpoint switched itself off"),
+                // The tag is the end of the jar's name: said by the name in the mod list.
+                ("java_mod_turned_off", Some("Other Firearms"), "Other Firearms switched itself off"),
+            ]
+        );
+        assert_eq!(cards[4].params.get("what").map(String::as_str), Some("True Ballistics disabled: a required game method is missing (game update?). Vanilla firearm combat is used"));
+        assert_eq!(cards[0].params.get("tag").map(String::as_str), Some("ViewpointHeadlightPlacement"));
+        assert_eq!(cards[2].params.get("name").map(String::as_str), Some("headlightGain"));
+        assert!(cards.iter().filter(|c| c.code != "java_shader_failed").all(|c| c.severity == Severity::Exception));
+    }
+
+    #[test]
+    fn an_error_in_the_games_own_file_still_gets_its_card() {
+        let mut maker = CardMaker::new();
+        let mut cards = Vec::new();
+        for _ in 0..2 {
+            for line in [
+                "ERROR: General      f:0> Lua(Vanilla).getMissingMods> Exception thrown",
+                "\tjava.lang.RuntimeException: attempted index: getMods of non-table: null at KahluaThread.tableget(KahluaThread.java:1430).",
+                "\t\tLua(Vanilla).getMissingMods(MainScreen.lua:1034)",
+                "LOG  : General      f:0> next",
+            ] {
+                cards.extend(maker.line(line));
+            }
+        }
+        cards.extend(maker.flush());
+        assert_eq!(cards.iter().map(|c| c.code.as_str()).collect::<Vec<_>>(), vec!["nil_table"]);
+    }
+
+    #[test]
     fn reads_the_mod_the_game_names() {
         let mut blame = ModBlame::default();
         let warn = "WARN : Lua          f:0 at Lua((MOD:Filibuster Rhymes' Certified Used Cars!)).FR_VehicleMechanics.lua> require(\"ISUI/ISVehicleMechanics\") failed";
@@ -2058,7 +2708,9 @@ mod blame_tests {
         assert_eq!(card.mod_name.as_deref(), Some("Nature's Call"));
         assert_eq!(card.source_file.as_deref(), Some("NC_Main.lua"));
         assert!(card.title.contains("Nature's Call"));
-        assert_eq!(card.explanation, "require(\"NCUtils\") failed");
+        // A failed require says what that means rather than the bare line.
+        assert!(card.explanation.contains("asked for the file NCUtils"));
+        assert_eq!(card.params.get("variant").map(String::as_str), Some("require"));
         assert!(card.line_number.is_none(), "no line number is invented");
     }
 }
@@ -2411,7 +3063,11 @@ mod one_card_tests {
         let card = &cards[0];
         assert_eq!(card.mod_name.as_deref(), Some("Take A Bath And Shower [SP/MP]"));
         assert_eq!(card.called_from, vec!["Project Viewpoint: Visible Construction"]);
-        assert!(card.explanation.starts_with("java.lang.RuntimeException: attempted index: getUnequippedWeight"), "{}", card.explanation);
+        // Said in plain words, where it failed, and the game's own words kept at the end.
+        assert!(card.explanation.starts_with("Take A Bath And Shower [SP/MP] asked for getUnequippedWeight of something that does not exist (nil), in TABAS_ISPlace3DItemCursor.lua:48."), "{}", card.explanation);
+        assert!(card.explanation.ends_with("java.lang.RuntimeException: attempted index: getUnequippedWeight of non-table: null at KahluaThread.tableget(KahluaThread.java:1430)."), "{}", card.explanation);
+        assert_eq!(card.params.get("variant").map(String::as_str), Some("lua"));
+        assert_eq!(card.params.get("place").map(String::as_str), Some("TABAS_ISPlace3DItemCursor.lua:48"));
         assert!(card.raw_error.starts_with("ERROR:"));
         assert!(maker.flush().is_none());
 
@@ -2464,7 +3120,7 @@ mod one_card_tests {
         ]);
         let link = cards.iter().find(|c| c.mod_name.as_deref() == Some("PZ Mod Studio Link")).expect("its card");
         assert!(link.called_from.is_empty(), "nothing but the game called it: {:?}", link.called_from);
-        assert!(link.explanation.starts_with("java.lang.RuntimeException"));
+        assert!(link.explanation.contains("The game's words: java.lang.RuntimeException"), "{}", link.explanation);
     }
 
     #[test]
@@ -2491,6 +3147,24 @@ mod one_card_tests {
         assert!(cards[0].polyfill_rule_id_suggestion.is_none());
         // A nil table that is not a window's base class is still the plain card.
         assert!(super::ui_method_of_nil("attempted index: getUnequippedWeight of non-table: null").is_none());
+        assert_eq!(super::lua_failure_kind("java.lang.RuntimeException: __concat not defined for operands: , and null at KahluaUtil.fail(KahluaUtil.java:100)."), Some(("concat", String::new())));
+        assert_eq!(super::lua_failure_kind("java.lang.RuntimeException: attempted index: getName of non-table: null at KahluaThread.tableget(KahluaThread.java:1430)."), Some(("index", "getName".to_string())));
+        assert_eq!(super::lua_failure_kind("java.lang.RuntimeException: Object tried to call nil in SpawnsValues at KahluaUtil.fail(KahluaUtil.java:100)."), Some(("call", "SpawnsValues".to_string())));
+        assert_eq!(super::lua_failure_kind("java.lang.RuntimeException: __lt not defined for operands at KahluaUtil.fail"), Some(("compare", String::new())));
+        assert_eq!(super::lua_failure_kind("java.lang.NullPointerException"), None);
+        assert_eq!(super::lua_failure_kind("java.lang.RuntimeException: No implementation found for function: get(class zombie.core.properties.PropertyContainer {1=0}, class zombie.iso.SpriteDetails.IsoFlagType WallN)"), Some(("no_impl", "get|PropertyContainer".to_string())));
+    }
+
+    #[test]
+    fn a_recursive_require_says_the_files_ask_for_each_other() {
+        let mut maker = super::CardMaker::new();
+        let mut cards = maker.line("WARN : Lua          f:0 at Lua((MOD:Loose Ends)).GameMaster.lua> recursive require(): D:/Apps/Steam/steamapps/workshop/content/108600/3824292323/mods/LooseEnds/42/media/lua/server/LooseEnds/Delivery.lua.");
+        cards.extend(maker.line("LOG  : General      f:1> next"));
+        cards.extend(maker.flush());
+        let card = cards.iter().find(|c| c.mod_name.as_deref() == Some("Loose Ends")).expect("a card");
+        assert_eq!(card.params.get("variant").map(String::as_str), Some("recursive_require"));
+        assert_eq!(card.params.get("file").map(String::as_str), Some("server/LooseEnds/Delivery.lua"));
+        assert!(card.recommended_action.starts_with("Nothing to do"), "{}", card.recommended_action);
     }
 
     #[test]
@@ -2803,5 +3477,22 @@ LOG  : General      f:242> something else
         let (cards, restarted) = follow_other_log(&mut log, &path);
         assert!(restarted && cards.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+
+#[cfg(test)]
+mod require_cards {
+    #[test]
+    fn a_failed_require_says_the_file_is_not_there_and_that_nothing_is_to_do() {
+        let mut maker = super::CardMaker::new();
+        let mut cards = maker.line("WARN : Lua          f:0 at Lua((MOD:Vanilla Vehicles Animated)).Supra_functions_fix.lua> require(\"Vehicles/Supra_functions\") failed.");
+        cards.extend(maker.flush());
+        assert_eq!(cards.len(), 1);
+        let card = &cards[0];
+        assert_eq!((card.code.as_str(), card.mod_name.as_deref()), ("mod_named_warning", Some("Vanilla Vehicles Animated")));
+        assert_eq!(card.params.get("variant").map(String::as_str), Some("require"));
+        assert_eq!(card.params.get("file").map(String::as_str), Some("Vehicles/Supra_functions"));
+        assert!(card.recommended_action.starts_with("Nothing to do unless"));
     }
 }

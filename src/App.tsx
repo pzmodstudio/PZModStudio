@@ -33,7 +33,7 @@ import { SplashScreen } from './components/layout/SplashScreen';
 import { SHOW_WELCOME_EVENT, WelcomeTour, welcomeSeen } from './components/common/WelcomeTour';
 import { BackendErrorToasts } from './components/layout/BackendErrorToasts';
 import { SteamDownloadsBar } from './components/layout/SteamDownloadsBar';
-import { HealthModule } from './components/health/HealthModule';
+import { HealthModule, HealthTab } from './components/health/HealthModule';
 import { useModHealth } from './hooks/useModHealth';
 import { BrowseModule } from './components/browse/BrowseModule';
 import { issuesByModOf, linkModsText, modTagsOf } from './components/load_order/modFacets';
@@ -46,11 +46,12 @@ const MergerModule = lazy(() => import('./components/merger/MergerModule').then(
 /** The list set aside by Developer > launch with only this mod, until it is put back. */
 const DEV_LAUNCH_KEY = 'pzms_dev_launch';
 
-import { Sparkles, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import { Sparkles, CheckCircle2, AlertTriangle, Info, Globe, Server, Star } from 'lucide-react';
 import i18next from 'i18next';
 import { tHtml } from './i18n/html';
 import { issueText } from './i18n/backendText';
 import { labelFor } from './components/load_order/RowHealth';
+import { issueStateOf } from './utils/issueState';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('PROFILES');
@@ -139,15 +140,18 @@ export const App: React.FC = () => {
 
   /**
    * Mod Health's warnings go to the game too: the Studio Link mod marks those mods in the game's
-   * Mods screen, with the text on hover, in the language the Studio speaks.
+   * Mods screen, with the text on hover, in the language the Studio speaks. Only what Mod Health
+   * itself puts under "what to do now" (act: error, recommended: warning): the game's card said
+   * "29 warnings" while Mod Health said "nothing to do", counting what is only to know or what
+   * the Studio already settled.
    */
   const healthIssues = health.report?.issues;
   useEffect(() => {
     if (!paths.is_valid || !paths.user_zomboid_dir || !healthIssues) return;
     const plain = (text: string) => text.replace(/`|\*\*/g, '').replace(/\s+/g, ' ').trim();
     const lines: [string, string, string][] = healthIssues
-      .filter((i) => i.mod_id && (i.severity === 'error' || i.severity === 'warning'))
-      .map((i) => [i.severity, i.mod_id as string, plain(`${labelFor(i)}: ${issueText(i)}`)]);
+      .filter((i) => i.mod_id && ['act', 'recommended'].includes(issueStateOf(i)))
+      .map((i) => [issueStateOf(i) === 'act' ? 'error' : 'warning', i.mod_id as string, plain(`${labelFor(i)}: ${issueText(i)}`)]);
     void TauriService.writeLinkHealth(paths, lines);
   }, [paths, healthIssues, i18next.language]);
 
@@ -251,7 +255,8 @@ export const App: React.FC = () => {
   }, [activeTab]);
   /** The issue a row's chip sent the player to: Mod Health scrolls to it and lights it up. */
   const [healthFocus, setHealthFocus] = useState<HealthIssue | null>(null);
-  const [doctorOpen, setDoctorOpen] = useState(false);
+  /** A Diagnóstico tab another screen sends the player to (the Doctor's steps, the header). */
+  const [healthTabFocus, setHealthTabFocus] = useState<HealthTab | null>(null);
 
   /** Whether the profiles were read once (until then "none active" is not known yet). */
   const [profilesRead, setProfilesRead] = useState(false);
@@ -640,7 +645,7 @@ export const App: React.FC = () => {
    * counted and named instead, and the collection's own Subscribe button is the way to get them.
    */
   /** Which half of the Servers screen is shown: joining someone's server, or hosting one. */
-  const [serversView, setServersView] = useState<'JOIN' | 'HOST'>('JOIN');
+  const [serversView, setServersView] = useState<'PUBLIC' | 'MINE' | 'HOST'>('PUBLIC');
 
   /** A profile with the mods a server loaded, in its order. */
   /** Explore Mods, on one Workshop item / on a Workshop search. */
@@ -1268,10 +1273,12 @@ export const App: React.FC = () => {
         onRunSandbox={handleRunSandbox}
         paths={paths}
         activeProfileId={activeProfile?.id ?? null}
-        onOpenDoctor={() => setDoctorOpen(true)}
+        onOpenDoctor={() => {
+          setHealthTabFocus('home');
+          setActiveTab('HEALTH');
+        }}
         onOpenPerformance={() => {
-          // Mod Health opens on the tab it last showed: this one.
-          localStorage.setItem('pz_health_tab', 'performance');
+          setHealthTabFocus('live');
           setActiveTab('HEALTH');
         }}
       />
@@ -1323,6 +1330,7 @@ export const App: React.FC = () => {
                   setActiveTab('MOD_LIST');
                 }}
                 onGoToBrowse={activeProfile ? () => setActiveTab('BROWSE') : undefined}
+                onGoToModList={() => setActiveTab('MOD_LIST')}
                 onProfilesChanged={() => void refreshActiveProfile()}
                 onRefreshMods={handleRefreshMods}
               />
@@ -1387,20 +1395,42 @@ export const App: React.FC = () => {
           )}
 
           {activeTab === 'SERVERS' && (
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 font-sans">
-              <div className="flex items-center gap-1 p-1 mb-4 rounded-lg bg-slate-900 border border-slate-800 w-fit">
-                {(['JOIN', 'HOST'] as const).map((k) => (
-                  <button key={k} onClick={() => setServersView(k)} className={`px-4 py-1.5 rounded-md text-xs font-semibold cursor-pointer ${serversView === k ? 'bg-emerald-700/40 text-emerald-100' : 'text-slate-400 hover:text-slate-200'}`}>
-                    {k === 'JOIN' ? i18next.t('join.tabJoin') : i18next.t('join.tabHost')}
-                  </button>
-                ))}
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 gap-4 font-sans">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <Server className="w-5 h-5 text-purple-400 shrink-0" aria-hidden="true" />
+                <h1 className="text-base font-bold text-slate-100">{i18next.t('nav.servers')}</h1>
+                <span className="text-[11px] text-slate-400">{i18next.t(`join.blurb_${serversView}`)}</span>
               </div>
-              {serversView === 'JOIN' ? (
-                <JoinServers paths={paths} mods={mods} profiles={profiles} installedBuild={health.report?.game_version ?? null} onMakeProfile={handleMakeProfileFromServer} />
+              <div role="tablist" className="flex flex-wrap items-center gap-1.5">
+                {(['PUBLIC', 'MINE', 'HOST'] as const).map((k) => {
+                  const Icon = k === 'PUBLIC' ? Globe : k === 'MINE' ? Star : Server;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      role="tab"
+                      aria-selected={serversView === k}
+                      onClick={() => setServersView(k)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border cursor-pointer transition ${
+                        serversView === k ? 'bg-sky-900/40 border-sky-600 text-sky-100' : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" aria-hidden="true" />
+                      {i18next.t(k === 'PUBLIC' ? 'join.source_public' : k === 'MINE' ? 'join.source_mine' : 'join.tabHost')}
+                    </button>
+                  );
+                })}
+              </div>
+              {serversView !== 'HOST' ? (
+                <JoinServers paths={paths} mods={mods} profiles={profiles} installedBuild={health.report?.game_version ?? null} onMakeProfile={handleMakeProfileFromServer} source={serversView === 'PUBLIC' ? 'public' : 'mine'} />
               ) : (
                 <ServerModule
                   paths={paths}
                   mods={mods}
+                  onShowPerformance={() => {
+                    setHealthTabFocus('server');
+                    setActiveTab('HEALTH');
+                  }}
                 />
               )}
             </div>
@@ -1409,6 +1439,11 @@ export const App: React.FC = () => {
           {activeTab === 'BROWSE' && (
             <BrowseModule
               paths={paths}
+              catalogLoading={paths.is_valid && health.catalog.length === 0 && (health.checking || health.report === null)}
+              onShowInModList={(modId) => {
+                setModListFocus(modId);
+                setActiveTab('MOD_LIST');
+              }}
               catalog={health.catalog}
               onInstalled={handleRefreshMods}
               onSubscribed={handleSubscribed}
@@ -1450,6 +1485,37 @@ export const App: React.FC = () => {
               onUpdatePatch={handleUpdatePatch}
               onOpenInBrowser={openInBrowser}
               onSearchInBrowser={searchInBrowser}
+              focusTab={healthTabFocus}
+              onFocusTabHandled={() => setHealthTabFocus(null)}
+              onGoServers={() => {
+                setServersView('HOST');
+                setActiveTab('SERVERS');
+              }}
+              doctor={
+                <Doctor
+                  paths={paths}
+                  issues={health.report?.issues ?? []}
+                  cards={errorCards}
+                  nameOf={(id) => mods.find((m) => m.mod_id === id)?.name ?? id}
+                  embedded
+                  onGoIssue={(issue) => {
+                    setHealthFocus(issue);
+                    setActiveTab('HEALTH');
+                  }}
+                  onSwitchOffMod={(modName) => {
+                    const target = mods.find((m) => m.name === modName || m.mod_id === modName);
+                    if (!target || !target.enabled) {
+                      alert(i18next.t('app.switchOff.gone', { name: modName }));
+                      return;
+                }
+                if (confirm(i18next.t('app.switchOff.confirm', { name: target.name }))) handleToggleMod(target.mod_id);
+              }}
+              onGoMonitor={() => setActiveTab('MONITOR')}
+              onGoPerformance={() => setHealthTabFocus('memory')}
+              onGoAudit={() => setHealthTabFocus('audit')}
+              onRecheck={() => void health.recheck()}
+            />
+              }
             />
           )}
 
@@ -1486,6 +1552,10 @@ export const App: React.FC = () => {
           {activeTab === 'MONITOR' && (
             <SandboxModule
               paths={paths}
+              onShowPerformance={() => {
+                setHealthTabFocus('live');
+                setActiveTab('HEALTH');
+              }}
               profileName={activeProfile?.name ?? null}
               mods={mods}
               onRefreshMods={handleRefreshMods}
@@ -1744,37 +1814,6 @@ export const App: React.FC = () => {
       />
     )}
     <SteamDownloadsBar paths={paths} batches={downloadBatches} onStopWaiting={stopWaiting} />
-    {doctorOpen && (
-      <Doctor
-        paths={paths}
-        issues={health.report?.issues ?? []}
-        cards={errorCards}
-        nameOf={(id) => mods.find((m) => m.mod_id === id)?.name ?? id}
-        onClose={() => setDoctorOpen(false)}
-        onGoIssue={(issue) => {
-          setHealthFocus(issue);
-          setActiveTab('HEALTH');
-        }}
-        onSwitchOffMod={(modName) => {
-          const target = mods.find((m) => m.name === modName || m.mod_id === modName);
-          if (!target || !target.enabled) {
-            alert(i18next.t('app.switchOff.gone', { name: modName }));
-            return;
-          }
-          if (confirm(i18next.t('app.switchOff.confirm', { name: target.name }))) handleToggleMod(target.mod_id);
-        }}
-        onGoMonitor={() => setActiveTab('MONITOR')}
-        onGoPerformance={() => {
-          localStorage.setItem('pz_health_tab', 'performance');
-          setActiveTab('HEALTH');
-        }}
-        onGoAudit={() => {
-          localStorage.setItem('pz_health_tab', 'audit');
-          setActiveTab('HEALTH');
-        }}
-        onRecheck={() => void health.recheck()}
-      />
-    )}
     <BackendErrorToasts />
     </ContextMenuProvider>
   );

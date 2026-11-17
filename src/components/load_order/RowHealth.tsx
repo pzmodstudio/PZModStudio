@@ -1,6 +1,6 @@
 import { openRequiredItem } from '../../utils/workshopRequirement';
 import React from 'react';
-import { Wrench } from 'lucide-react';
+import { ArrowRight, Info, Wrench } from 'lucide-react';
 import { HealthFix, HealthIssue, IssueState, ModInfo } from '../../types';
 import { STATE_ORDER, STATE_STYLE, issueStateOf } from '../../utils/issueState';
 import { TauriService } from '../../services/tauri';
@@ -35,7 +35,7 @@ const STYLE: Record<IssueState, { chip: string; tone: 'red' | 'amber' | 'slate' 
 const LIST_FIX_ACTIONS = new Set<HealthFix['action']>(['enable_mod', 'disable_mod', 'move_before', 'remove_from_list', 'replace_in_list']);
 
 /** `rowModId`: the mod whose row shows the fix; a move of another mod above it names that one. */
-const fixLabel = (fix: HealthFix, nameOf: (id: string) => string, rowModId?: string | null): string => {
+export const fixLabel = (fix: HealthFix, nameOf: (id: string) => string, rowModId?: string | null): string => {
   const t = i18next.t;
   switch (fix.action) {
     case 'enable_mod':
@@ -72,48 +72,20 @@ const fixLabel = (fix: HealthFix, nameOf: (id: string) => string, rowModId?: str
   }
 };
 
-interface RowHealthChipsProps {
+/** What a fix needs to run from a row or the inspector. */
+export interface FixContext {
   paths: StudioPathsUI;
-  issues: HealthIssue[];
   mods: ModInfo[];
-  /** Replaces the list (order + switches) and persists it. */
   onApplyList: (mods: ModInfo[]) => void;
-  onJumpToMod: (modId: string) => void;
   onOpenMerger?: (relativePath: string) => void;
-  /** Opens Mod Health, scrolled to the issue when one is given. */
   onGoToHealth?: (issue?: HealthIssue) => void;
-  /** Opens a Workshop item / a Workshop search in Explore Mods. */
   onOpenInBrowser?: (workshopId: string) => void;
   onSearchInBrowser?: (text: string) => void;
-  /** A line for the list's toast, for a fix that happened on disk. */
   onNote?: (message: string) => void;
 }
 
-/**
- * The health check's findings for one mod, on its row: one chip per problem, worst first, with
- * the fix beside it when the row can apply it. The chip itself goes to the other mod involved,
- * or to Mod Health when there is none.
- */
-export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, mods, onApplyList, onJumpToMod, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote }) => {
-  if (issues.length === 0) return null;
-  const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
-  // The names and ids a message may mention, set in bold in the tips.
-  const modWords = mods.flatMap((m) => [m.name, m.mod_id]);
-
-  // One chip per kind of problem, worst first; the message of the first is the tooltip. What is
-  // already settled stays off the row, and past two chips the rest fold into one, so the mod's
-  // name stays readable.
-  const seen = new Set<string>();
-  const all = [...issues]
-    .filter(onRow)
-    .sort((a, b) => STATE_ORDER.indexOf(issueStateOf(a)) - STATE_ORDER.indexOf(issueStateOf(b)))
-    .filter((i) => (seen.has(i.code) ? false : (seen.add(i.code), true)));
-  if (all.length === 0) return null;
-  const shown = all.slice(0, MAX_CHIPS);
-  const folded = all.slice(MAX_CHIPS);
-
-  /** What the fix button does beyond its label, when that needs saying. */
-  const fixHint = (fix: HealthFix): string =>
+/** What the fix button does beyond its label, when that needs saying. */
+export const fixHint = (fix: HealthFix): string =>
     LIST_FIX_ACTIONS.has(fix.action)
       ? i18next.t('modList.health.listFix')
       : fix.action === 'open_in_merger'
@@ -122,7 +94,10 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
       ? i18next.t('modList.health.healthFix')
       : '';
 
-  const runFix = (fix: HealthFix, issue: HealthIssue) => {
+/** What a chip's or a card's fix button runs: the list rewritten, a page opened, or Mod Health. */
+export const makeFixRunner = ({ paths, mods, onApplyList, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote }: FixContext) => {
+  const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
+  return (fix: HealthFix, issue: HealthIssue) => {
     switch (fix.action) {
       case 'subscribe_workshop':
         // The item that provides it, from the requiring mod's Required items; a search otherwise.
@@ -170,6 +145,53 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
     const next = applyFix(mods, fix);
     if (next) onApplyList(next);
   };
+};
+
+interface RowHealthChipsProps {
+  paths: StudioPathsUI;
+  issues: HealthIssue[];
+  mods: ModInfo[];
+  /** Replaces the list (order + switches) and persists it. */
+  onApplyList: (mods: ModInfo[]) => void;
+  onJumpToMod: (modId: string) => void;
+  onOpenMerger?: (relativePath: string) => void;
+  /** Opens Mod Health, scrolled to the issue when one is given. */
+  onGoToHealth?: (issue?: HealthIssue) => void;
+  /** Opens a Workshop item / a Workshop search in Explore Mods. */
+  onOpenInBrowser?: (workshopId: string) => void;
+  onSearchInBrowser?: (text: string) => void;
+  /** A line for the list's toast, for a fix that happened on disk. */
+  onNote?: (message: string) => void;
+}
+
+/**
+ * The health check's findings for one mod, on its row: one chip per problem, worst first, with
+ * the fix beside it when the row can apply it. The chip itself goes to the other mod involved,
+ * or to Mod Health when there is none.
+ */
+export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, mods, onApplyList, onJumpToMod, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote }) => {
+  if (issues.length === 0) return null;
+  const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
+  // The names and ids a message may mention, set in bold in the tips.
+  const modWords = mods.flatMap((m) => [m.name, m.mod_id]);
+
+  // One chip per kind of problem, worst first; the message of the first is the tooltip. What is
+  // already settled stays off the row, and past two chips the rest fold into one, so the mod's
+  // name stays readable.
+  const seen = new Set<string>();
+  const all = [...issues]
+    .filter(onRow)
+    .sort((a, b) => STATE_ORDER.indexOf(issueStateOf(a)) - STATE_ORDER.indexOf(issueStateOf(b)))
+    .filter((i) => (seen.has(i.code) ? false : (seen.add(i.code), true)));
+  if (all.length === 0) return null;
+  // Only what asks for something gets a chip of its own; "nothing to do" is the inspector's to
+  // say, and folds with the rest into one quiet chip.
+  const actionable = all.filter((i) => issueStateOf(i) !== 'info');
+  const shown = actionable.slice(0, MAX_CHIPS);
+  const folded = [...actionable.slice(MAX_CHIPS), ...all.filter((i) => issueStateOf(i) === 'info')];
+  const onlyInfo = folded.every((i) => issueStateOf(i) === 'info');
+
+  const runFix = makeFixRunner({ paths, mods, onApplyList, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote });
 
   return (
     <>
@@ -245,7 +267,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
       {folded.length > 0 && (
         <Tip
           content={
-            <TipBody title={i18next.t('modList.health.moreTitle', { count: folded.length })} action={i18next.t('modList.health.moreAction')}>
+            <TipBody title={onlyInfo ? i18next.t('modList.health.infoTitle', { count: folded.length }) : i18next.t('modList.health.moreTitle', { count: folded.length })} action={i18next.t('modList.health.moreAction')} footnote={i18next.t('modList.health.moreInPanel')}>
               <ul className="space-y-0.5">
                 {folded.map((i) => {
                   const FoldIcon = STATE_STYLE[issueStateOf(i)].icon;
@@ -266,12 +288,99 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
               e.stopPropagation();
               onGoToHealth?.(folded[0]);
             }}
-            className="flex items-center text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border transition cursor-pointer shadow-sm bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-600 shrink-0"
+            className="flex items-center gap-0.5 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border transition cursor-pointer shadow-sm bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-600 shrink-0"
           >
-            +{folded.length}
+            {onlyInfo ? <Info className="w-3 h-3 text-slate-400" aria-hidden="true" /> : '+'}
+            {folded.length}
           </button>
         </Tip>
       )}
     </>
+  );
+};
+
+interface IssueCardsProps extends FixContext {
+  issues: HealthIssue[];
+  onJumpToMod: (modId: string) => void;
+}
+
+/**
+ * The inspector's "what to do" list: every finding for the selected mod, worst first, as a card
+ * with its state word (act / recommended / nothing to do), the whole message, and the buttons:
+ * its fix when it asks for one, the other mod when there is exactly one, and Mod Health.
+ */
+export const IssueCards: React.FC<IssueCardsProps> = ({ issues, onJumpToMod, ...ctx }) => {
+  const { mods, onGoToHealth } = ctx;
+  const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
+  const modWords = mods.flatMap((m) => [m.name, m.mod_id]);
+  const seen = new Set<string>();
+  const list = [...issues]
+    .filter(onRow)
+    .sort((a, b) => STATE_ORDER.indexOf(issueStateOf(a)) - STATE_ORDER.indexOf(issueStateOf(b)))
+    .filter((i) => {
+      const key = `${i.code}|${i.related.join(',')}`;
+      return seen.has(key) ? false : (seen.add(key), true);
+    });
+  if (list.length === 0) return null;
+  const runFix = makeFixRunner(ctx);
+  return (
+    <div className="flex flex-col gap-2">
+      {list.map((issue, n) => {
+        const state = issueStateOf(issue);
+        const Icon = STATE_STYLE[state].icon;
+        const others = issue.related.filter((id) => mods.some((m) => m.mod_id === id));
+        const other = others.length === 1 && !HEALTH_ONLY_CODES.has(issue.code) ? others[0] : undefined;
+        const fix = state === 'act' || state === 'recommended' ? issue.fixes[0] : undefined;
+        return (
+          <div key={`${issue.code}-${n}`} className={`rounded-lg border px-3 py-2 text-[11.5px] ${STATE_STYLE[state].card}`}>
+            <div className="flex items-start gap-2">
+              <Icon className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${STATE_STYLE[state].iconColor}`} aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className={`font-bold ${STATE_STYLE[state].label}`}>{labelFor(issue)}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500">{i18next.t(`health.state.${state}.word`)}</span>
+                </div>
+                <div className="mt-0.5 text-slate-300 leading-relaxed">
+                  <RichText text={issueText(issue)} mods={modWords} foldAt={220} />
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {fix && (
+                    <Tip content={<TipBody title={fixLabel(fix, nameOf, issue.mod_id)} tone="cyan"><RichText mods={modWords} text={[i18next.t(`health.effect.${fix.action}`), fixHint(fix)].filter(Boolean).join(' ')} /></TipBody>}>
+                      <button
+                        type="button"
+                        onClick={() => runFix(fix, issue)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold cursor-pointer"
+                      >
+                        <Wrench className="w-3 h-3" aria-hidden="true" />
+                        {fixLabel(fix, nameOf, issue.mod_id)}
+                      </button>
+                    </Tip>
+                  )}
+                  {other && (
+                    <button
+                      type="button"
+                      onClick={() => onJumpToMod(other)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md border border-slate-700 hover:bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
+                    >
+                      <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                      {i18next.t('inspector.issues.goTo', { name: nameOf(other) })}
+                    </button>
+                  )}
+                  {onGoToHealth && (
+                    <button
+                      type="button"
+                      onClick={() => onGoToHealth(issue)}
+                      className="px-2 py-1 rounded-md text-cyan-300 hover:bg-slate-800 text-[11px] cursor-pointer"
+                    >
+                      {i18next.t('inspector.issues.inHealth')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 };

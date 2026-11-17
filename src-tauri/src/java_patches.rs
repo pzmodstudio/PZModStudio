@@ -95,6 +95,8 @@ struct MethodAnns {
     annotations: Vec<Ann>,
     /// Every annotation on every parameter.
     param_annotations: Vec<Ann>,
+    /// `(Ljava/lang/Object;[FZ)V`.
+    descriptor: String,
 }
 
 /// One class, as far as patches need it.
@@ -289,9 +291,15 @@ fn parse_class(bytes: &[u8]) -> Option<ClassAnns> {
         i += 2;
         for _ in 0..n {
             let name_idx = u16_at(bytes, i + 2)?;
+            let desc_idx = u16_at(bytes, i + 4)?;
             let attrs = u16_at(bytes, i + 6)?;
             i += 8;
-            let mut m = MethodAnns { name: pool.str(name_idx).unwrap_or_default(), annotations: Vec::new(), param_annotations: Vec::new() };
+            let mut m = MethodAnns {
+                name: pool.str(name_idx).unwrap_or_default(),
+                annotations: Vec::new(),
+                param_annotations: Vec::new(),
+                descriptor: pool.str(desc_idx).unwrap_or_default(),
+            };
             for _ in 0..attrs {
                 let attr_name = u16_at(bytes, i)?;
                 let len = u32_at(bytes, i + 2)?;
@@ -369,6 +377,11 @@ pub struct JavaPatch {
     /// `experimental` (ZombieBuddy's own experimental patches, off unless switched on).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_applied: Option<String>,
+    /// The parameter types of its advice methods, as ByteBuddy names them in its errors
+    /// (`float`, `class [F`, `class java.lang.Object`): what tells, of several patches to one
+    /// method, which one a `Cannot assign float arg3 to class [F` is about.
+    #[serde(skip)]
+    pub advice_param_types: Vec<String>,
 }
 
 /// What one jar's bytes declare.
@@ -422,7 +435,24 @@ fn patch_of(class: &ClassAnns, scanned: &[String], experimental: Option<&str>, a
     let kind = if ann.bool("isAdvice") == Some(false) { PatchKind::Delegation } else { PatchKind::Advice };
 
     let mut effects: BTreeSet<&str> = BTreeSet::new();
+    let mut advice_param_types: Vec<String> = Vec::new();
     for m in &class.methods {
+        let is_advice = m.annotations.iter().any(|a| {
+            matches!(
+                a.type_desc.as_str(),
+                "Lme/zed_0xff/zombie_buddy/Patch$OnEnter;"
+                    | "Lme/zed_0xff/zombie_buddy/Patch$OnExit;"
+                    | "Lnet/bytebuddy/asm/Advice$OnMethodEnter;"
+                    | "Lnet/bytebuddy/asm/Advice$OnMethodExit;"
+            )
+        });
+        if is_advice {
+            for t in byte_buddy_param_types(&m.descriptor) {
+                if !advice_param_types.contains(&t) {
+                    advice_param_types.push(t);
+                }
+            }
+        }
         for a in &m.annotations {
             match a.type_desc.as_str() {
                 "Lme/zed_0xff/zombie_buddy/Patch$OnEnter;" => {
@@ -490,7 +520,46 @@ fn patch_of(class: &ClassAnns, scanned: &[String], experimental: Option<&str>, a
         effects: order.iter().filter(|e| effects.contains(*e)).map(|e| e.to_string()).collect(),
         by_code,
         not_applied: not_applied.map(str::to_string),
+        advice_param_types,
     })
+}
+
+/// A method descriptor's parameter types as ByteBuddy writes a type in its messages:
+/// `(Ljava/lang/Object;[FZ)V` -> `class java.lang.Object`, `class [F`, `boolean`.
+fn byte_buddy_param_types(descriptor: &str) -> Vec<String> {
+    let Some(params) = descriptor.strip_prefix('(').and_then(|d| d.split(')').next()) else { return Vec::new() };
+    let chars: Vec<char> = params.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let start = i;
+        while i < chars.len() && chars[i] == '[' {
+            i += 1;
+        }
+        let Some(&c) = chars.get(i) else { break };
+        let end = if c == 'L' { chars[i..].iter().position(|&x| x == ';').map(|p| i + p + 1).unwrap_or(chars.len()) } else { i + 1 };
+        let token: String = chars[start..end].iter().collect();
+        out.push(if start < i {
+            format!("class {}", token.replace('/', "."))
+        } else if c == 'L' {
+            format!("class {}", token[1..token.len() - 1].replace('/', "."))
+        } else {
+            match c {
+                'Z' => "boolean",
+                'B' => "byte",
+                'C' => "char",
+                'S' => "short",
+                'I' => "int",
+                'J' => "long",
+                'F' => "float",
+                'D' => "double",
+                _ => "?",
+            }
+            .to_string()
+        });
+        i = end;
+    }
+    out
 }
 
 /// The packages ZombieBuddy scans for `javaPkgName = package`, and the one it scans only with
@@ -504,6 +573,38 @@ fn scanned_packages(package: &str) -> (Vec<String>, Option<String>) {
 }
 
 /// Reads a jar's bytes (a zip of class files) for its `@Patch` classes.
+/// Whether a jar's classes carry shader source (a string constant with GLSL in it) that uses
+/// `name` as a word: what tells which addon brought the code a shader that failed with
+/// `undefined variable "name"` (Viewpoint RTX's lighting code, `bounce`, in Viewpoint's light.frag).
+pub fn jar_shader_uses(bytes: &[u8], name: &str) -> bool {
+    let Ok(mut zip) = zip::ZipArchive::new(std::io::Cursor::new(bytes)) else { return false };
+    let is_word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    let uses = |text: &str| {
+        text.match_indices(name).any(|(at, _)| {
+            let before = text[..at].chars().next_back();
+            let after = text[at + name.len()..].chars().next();
+            !before.is_some_and(is_word) && !after.is_some_and(is_word)
+        })
+    };
+    let glsl = |text: &str| ["vec3", "vec4", "uniform ", "#define"].iter().any(|m| text.contains(m));
+    for idx in 0..zip.len() {
+        let Ok(mut entry) = zip.by_index(idx) else { continue };
+        if !entry.name().ends_with(".class") || entry.size() > 16 * 1024 * 1024 {
+            continue;
+        }
+        let mut data = Vec::with_capacity(entry.size() as usize);
+        if entry.read_to_end(&mut data).is_err() {
+            continue;
+        }
+        if let Some(class) = parse_class(&data) {
+            if class.strings.iter().any(|t| glsl(t) && uses(t)) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 pub fn read_jar(bytes: &[u8], package: &str) -> Result<JarPatches, String> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("not a jar: {}", e))?;
     let (scanned, experimental) = scanned_packages(package);
@@ -1002,7 +1103,11 @@ pub fn overlap_issues(radar: &Radar) -> Vec<crate::catalog::HealthIssue> {
                     replace,
                     by_code_text
                 );
-                (Severity::Warning, if o.methods.len() > 1 { "methods" } else { "method" }, message, methods, String::new())
+                // A warning only when two replace the same method (one of them cannot work): code
+                // added by several stacks, and 43 such rows counted as warnings on a list where
+                // every one said "nothing to do".
+                let severity = if o.delegations_meet { Severity::Warning } else { Severity::Info };
+                (severity, if o.methods.len() > 1 { "methods" } else { "method" }, message, methods, String::new())
             } else {
                 let detail = o
                     .mods
@@ -1348,8 +1453,18 @@ mod tests {
         assert_eq!(said, vec![(Some("zombie.core.Core".into()), None), (Some("zombie.network.ServerMap".into()), Some("experimental".into()))]);
     }
 
+    #[test]
+    fn advice_parameter_types_are_said_the_way_byte_buddy_says_them() {
+        // Viewpoint Rolling Hills' camera patch: `exit(Object, float[], boolean)`; ByteBuddy's
+        // `Cannot assign float arg3 to class [F` names the float[] one.
+        assert_eq!(byte_buddy_param_types("(Ljava/lang/Object;[FZ)V"), vec!["class java.lang.Object", "class [F", "boolean"]);
+        assert_eq!(byte_buddy_param_types("([Ljava/lang/Object;D)Z"), vec!["class [Ljava.lang.Object;", "double"]);
+        assert!(byte_buddy_param_types("()V").is_empty());
+    }
+
     fn patch(class: &str, method: &str, kind: PatchKind) -> JavaPatch {
         JavaPatch {
+            advice_param_types: Vec::new(),
             target_class: Some(class.to_string()),
             target_method: Some(method.to_string()),
             patch_class: format!("p.Patch_{}", method),
@@ -1556,12 +1671,12 @@ mod tests {
             vec![("zombie.iso.IsoCell", "same_method", None), ("zombie.iso.objects.IsoDoor", "same_class", None), ("fw.Hooks", "same_method", Some("Framework"))]
         );
 
-        // Mod Health: the game's classes only; same method a warning, same class info, and the
-        // words claim no conflict.
+        // Mod Health: the game's classes only; all info (a warning only when two replace the
+        // same method), and the words claim no conflict.
         let issues = overlap_issues(&r);
         assert_eq!(issues.len(), 2);
         assert!(issues.iter().all(|i| i.code == "java_patch_overlap" && i.state == crate::catalog::IssueState::Info));
-        assert_eq!(issues[0].severity, crate::catalog::Severity::Warning);
+        assert_eq!(issues[0].severity, crate::catalog::Severity::Info);
         assert_eq!(issues[0].params.get("variant").map(String::as_str), Some("method"));
         assert_eq!((issues[0].mod_id.as_deref(), issues[0].related.clone()), (None, vec!["Framework".to_string(), "Addon".to_string()]));
         assert_eq!(shared_with(&r, "Addon"), vec![

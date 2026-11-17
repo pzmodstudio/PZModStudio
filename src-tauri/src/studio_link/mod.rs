@@ -442,6 +442,27 @@ fn handle_requests<R: tauri::Runtime>(app: &tauri::AppHandle<R>, z_dir: &Path, r
         // "<mode>/<world>": answered with the copy's world folder.
         start_copy(app, z_dir, r.arg.trim(), r.id.clone());
     }
+    for r in requests.iter().filter(|r| r.verb == "dropmods") {
+        // "<mode>/<world>\t<id;id;...>": the save is backed up, then those mods leave its own
+        // list (mods.txt), the one the game loads it with. Answered once both are done.
+        let (save, ids) = r.arg.split_once('\t').unwrap_or((r.arg.as_str(), ""));
+        let ids: Vec<String> = ids.split(';').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        let (app, z_dir, save, id) = (app.clone(), z_dir.to_path_buf(), save.trim().to_string(), r.id.clone());
+        thread::spawn(move || {
+            let result = crate::save_backup::backup_save(&z_dir, &save, crate::save_backup::REASON_BEFORE_FIX, false)
+                .and_then(|_| drop_mods_from_save(&z_dir, &save, &ids));
+            if let Err(e) = &result {
+                crate::diagnostics::error(format!("[StudioLink] could not take {} out of {}: {}", ids.join(", "), save, e));
+            }
+            write_saves_file(&z_dir);
+            let _ = app.emit(SAVES_CHANGED_EVENT, &save);
+            let answer = match result {
+                Ok(n) => (id, true, n.to_string()),
+                Err(e) => (id, false, e),
+            };
+            write_acks(&z_dir.join("Lua"), &[answer]);
+        });
+    }
     // "Open PZ Mod Studio" on the game's Mods screen: the window comes to the front.
     for r in requests.iter().filter(|r| r.verb == "show") {
         crate::window_prefs::bring_to_front(app);
@@ -451,10 +472,57 @@ fn handle_requests<R: tauri::Runtime>(app: &tauri::AppHandle<R>, z_dir: &Path, r
         }
         answers.push((r.id.clone(), true, String::new()));
     }
-    for r in requests.iter().filter(|r| !["add", "backup", "copy", "show"].contains(&r.verb.as_str())) {
+    for r in requests.iter().filter(|r| !["add", "backup", "copy", "show", "dropmods"].contains(&r.verb.as_str())) {
         answers.push((r.id.clone(), false, format!("This version of PZ Mod Studio does not know \"{}\".", r.verb)));
     }
     answers
+}
+
+/// Takes `ids` out of a save's own mod list (`Saves/<mode>/<world>/mods.txt`), the list the game
+/// loads it with whatever the profile says: a mod switched off in the profile still loads with
+/// every save that had it. Returns how many lines went.
+pub fn drop_mods_from_save(z_dir: &Path, save_id: &str, ids: &[String]) -> Result<usize, String> {
+    if save_id.contains("..") || save_id.split('/').count() != 2 {
+        return Err(format!("\"{}\" is not a save (<mode>/<world>).", save_id));
+    }
+    let path = z_dir.join("Saves").join(save_id).join("mods.txt");
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("Cannot read {}: {}", path.display(), e))?;
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut dropped = 0;
+    let kept: Vec<&str> = text
+        .split_inclusive('\n')
+        .filter(|line| {
+            let entry = line.trim().strip_prefix("mod = ").map(|m| m.trim_end_matches(',').trim().trim_start_matches('\\'));
+            let drop = entry.is_some_and(|id| ids.iter().any(|x| x == id));
+            if drop {
+                dropped += 1;
+            }
+            !drop
+        })
+        .collect();
+    if dropped > 0 {
+        let out = kept.concat();
+        let out = if out.ends_with('\n') || out.is_empty() { out } else { format!("{}{}", out, eol) };
+        std::fs::write(&path, out).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
+    }
+    Ok(dropped)
+}
+
+#[cfg(test)]
+mod drop_mods_tests {
+    #[test]
+    fn a_saves_own_list_loses_only_the_mods_named() {
+        let z = std::env::temp_dir().join(format!("pzms_dropmods_{}", std::process::id()));
+        let save = z.join("Saves").join("Sandbox").join("W");
+        std::fs::create_dir_all(&save).unwrap();
+        std::fs::write(save.join("mods.txt"), "VERSION = 1,\r\nmods\r\n{\r\n    mod = A,\r\n    mod = \\Snow,\r\n    mod = SnowVP,\r\n    mod = B,\r\n}\r\nmaps\r\n{\r\n    map = Muldraugh, KY,\r\n}\r\n").unwrap();
+        let n = super::drop_mods_from_save(&z, "Sandbox/W", &["Snow".to_string(), "SnowVP".to_string()]).unwrap();
+        let after = std::fs::read_to_string(save.join("mods.txt")).unwrap();
+        let _ = std::fs::remove_dir_all(&z);
+        assert_eq!(n, 2);
+        assert_eq!(after, "VERSION = 1,\r\nmods\r\n{\r\n    mod = A,\r\n    mod = B,\r\n}\r\nmaps\r\n{\r\n    map = Muldraugh, KY,\r\n}\r\n");
+        assert!(super::drop_mods_from_save(&z, "../x", &[]).is_err());
+    }
 }
 
 // ------------------------------------------------------------------ save backups

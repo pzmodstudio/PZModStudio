@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PageGuide } from '../common/PageGuide';
-import { ArrowRight, ClipboardList, CheckCircle2, ChevronDown, ChevronRight, Gauge, GitMerge, HardDrive, HeartPulse, ListChecks, Loader2, MessageSquare, RefreshCw, ShieldCheck, Wand2, X } from 'lucide-react';
+import { Activity, ArrowRight, ClipboardList, CheckCircle2, ChevronDown, ChevronRight, Film, Gamepad2, GitMerge, HardDrive, HeartPulse, ListChecks, Loader2, MemoryStick, MessageSquare, RefreshCw, Rocket, Server, ShieldCheck, Stethoscope, Timer, Wand2, X } from 'lucide-react';
 import { AutoMergeResult, CompatResult, HealthFix, HealthIssue, HealthReport, IssueState, ModInfo, CatalogModSummary } from '../../types';
 import { STATE_ORDER, STATE_STYLE, UNDO_ACTIONS, issueStateOf, scopeOfIssue, SCOPE_CHIP } from '../../utils/issueState';
 import { StudioPathsUI } from '../settings/SettingsModule';
@@ -11,7 +11,7 @@ import { healthVerdict, inDoFirstOrder } from '../../utils/healthVerdict';
 import type { HealthChanges } from '../../utils/healthChanges';
 import { HealthListTarget, fixActsOn, listDifference, serverListIds } from '../../utils/healthList';
 import { useListHealth } from '../../hooks/useListHealth';
-import { ResourceMeter } from '../common/ResourceMeter';
+import { DiagSection, DiagnosticsHome, GameLivePanel, ServerLivePanel } from './DiagnosticsPanels';
 import { ProfilePhotos } from './ProfilePhotos';
 import { AuditPanel } from './AuditPanel';
 import { pickCollectionMods } from '../../utils/collectionPick';
@@ -60,6 +60,13 @@ interface HealthModuleProps {
   profileId?: string | null;
   /** The installed mods as the game sees them (when Steam last updated each), for the photos. */
   catalog?: CatalogModSummary[];
+  /** A tab another screen sends the player to (the header's Doctor and meter, the Doctor's steps). */
+  focusTab?: HealthTab | null;
+  onFocusTabHandled?: () => void;
+  /** The Doctor, shown on the front page. */
+  doctor?: React.ReactNode;
+  /** Opens the Servers screen (to start a server). */
+  onGoServers?: () => void;
 }
 
 /** Fixes handled here (not by rewriting the mod list). */
@@ -86,20 +93,42 @@ const YOUR_CALL_CODES = new Set(['script_definition_conflict', 'script_definitio
  * row on every tab says one of those four states (`issueStateOf`), the same words the Mod List
  * uses. Conflicts (which mod's file or item wins) and Security keep tabs of their own.
  */
-type HealthTab = 'problems' | 'conflicts' | 'security' | 'audit' | 'performance' | 'disk';
-/** Tabs that are no list of findings of their own. */
-type PanelTab = 'audit' | 'performance' | 'disk';
-const TABS: HealthTab[] = ['problems', 'conflicts', 'security', 'audit', 'performance', 'disk'];
-const TAB_ICON: Record<HealthTab, React.ElementType> = { problems: ListChecks, conflicts: GitMerge, security: ShieldCheck, audit: ClipboardList, performance: Gauge, disk: HardDrive };
+export type HealthTab = 'home' | 'problems' | 'conflicts' | 'security' | 'audit' | 'modtime' | 'live' | 'memory' | 'boot' | 'frames' | 'disk' | 'server';
+/** The tabs that are lists of findings. */
+type ListTab = 'problems' | 'conflicts' | 'security';
+const isListTab = (tab: HealthTab): tab is ListTab => tab === 'problems' || tab === 'conflicts' || tab === 'security';
+/**
+ * Diagnóstico in parts: what it knows about the mods, about the game and how it runs, about the
+ * server and how it runs. The front page (home, the Doctor) sits above the three.
+ */
+const SECTION_TABS: Record<DiagSection, HealthTab[]> = {
+  mods: ['problems', 'conflicts', 'security', 'audit', 'modtime'],
+  game: ['live', 'memory', 'boot', 'frames', 'disk'],
+  server: ['server'],
+};
+const SECTIONS: DiagSection[] = ['mods', 'game', 'server'];
+const sectionOf = (tab: HealthTab): DiagSection | 'home' => (tab === 'home' ? 'home' : SECTIONS.find((sec) => SECTION_TABS[sec].includes(tab)) ?? 'mods');
+const SECTION_ICON: Record<DiagSection | 'home', React.ElementType> = { home: Stethoscope, mods: HeartPulse, game: Gamepad2, server: Server };
+/** The tab last open in each part, so a part opens where it was left. */
+const LAST_TAB_KEY = 'pz_diag_last_';
+const TAB_ICON: Record<HealthTab, React.ElementType> = {
+  home: Stethoscope,
+  problems: ListChecks,
+  conflicts: GitMerge,
+  security: ShieldCheck,
+  audit: ClipboardList,
+  modtime: Timer,
+  live: Activity,
+  memory: MemoryStick,
+  boot: Rocket,
+  frames: Film,
+  disk: HardDrive,
+  server: Server,
+};
 /** Rows of one code that are the same thing for several mods: one card with one button. */
 const GROUP_CODES = new Set(['compatible_copy_unneeded', 'compatible_copy', 'workshop_copy_by_hand', 'workshop_copy_stale', 'workshop_copy_kept']);
 /** What a button changes, said before it is pressed: the key under health.effect. */
 const effectKey = (fix: HealthFix): string => `health.effect.${fix.action}`;
-const TAB_KEY = 'pz_health_tab';
-/** Performance has four panels, each a screen of its own: one at a time. */
-type PerfTab = 'memory' | 'boot' | 'time' | 'frames';
-const PERF_TABS: PerfTab[] = ['memory', 'boot', 'time', 'frames'];
-const PERF_KEY = 'pz_health_perf_tab';
 /** The sections the player folded, by tab and section. */
 const COLLAPSED_KEY = 'pz_health_collapsed';
 /** Two mods giving the same file, item, recipe or text: the game uses one, which one is your call. */
@@ -179,7 +208,7 @@ const groupItems = (issues: HealthIssue[]): SectionItem[] => {
   return out;
 };
 
-export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report: profileReport, checking: profileChecking, checkStage: profileStage = null, onRecheck: profileRecheck, checkedAt: profileCheckedAt = null, changes: profileChanges = null, onApplyModList, onModsChanged, onOpenMerger, onUpdatePatch, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled, profileName = null, profileId = null, catalog = [] }) => {
+export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report: profileReport, checking: profileChecking, checkStage: profileStage = null, onRecheck: profileRecheck, checkedAt: profileCheckedAt = null, changes: profileChanges = null, onApplyModList, onModsChanged, onOpenMerger, onUpdatePatch, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled, profileName = null, profileId = null, catalog = [], focusTab = null, onFocusTabHandled, doctor, onGoServers }) => {
   const { t } = useTranslation();
   // Which list is checked: the profile's (the app's own check, shared with the Mod List), or a
   // server's Mods= (checked here, on its own). Everything below reads report / checking.
@@ -739,23 +768,17 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       (i) => !YOUR_CALL_CODES.has(i.code) && i.fixes.some((f) => SAFE_FIX_ACTIONS.has(f.action))
     ).length ?? 0;
 
-  const tabOf = (i: HealthIssue): Exclude<HealthTab, PanelTab> =>
+  const tabOf = (i: HealthIssue): ListTab =>
     i.code.startsWith('security_') ? 'security' : CONFLICT_CODE.test(i.code) || YOUR_CALL_CODES.has(i.code) ? 'conflicts' : 'problems';
   const byTab = useMemo(() => {
-    const out: Record<Exclude<HealthTab, PanelTab>, HealthIssue[]> = { problems: [], conflicts: [], security: [] };
+    const out: Record<ListTab, HealthIssue[]> = { problems: [], conflicts: [], security: [] };
     report?.issues.forEach((i) => out[tabOf(i)].push(i));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report]);
-  const [tab, setTab] = useState<HealthTab>(() => {
-    try {
-      const saved = localStorage.getItem(TAB_KEY) as HealthTab | null;
-      if (saved && TABS.includes(saved)) return saved;
-    } catch {
-      // no storage: the first tab
-    }
-    return 'problems';
-  });
+  // The front page (the Doctor) on entering, unless another screen sent the player to a tab.
+  const [tab, setTab] = useState<HealthTab>(() => focusTab ?? 'home');
+  const section = sectionOf(tab);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
       return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '{}') as Record<string, boolean>;
@@ -776,30 +799,33 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       return next;
     });
   };
-  const [perfTab, setPerfTab] = useState<PerfTab>(() => {
-    try {
-      const saved = localStorage.getItem(PERF_KEY) as PerfTab | null;
-      return saved && PERF_TABS.includes(saved) ? saved : 'memory';
-    } catch {
-      return 'memory';
-    }
-  });
-  const pickPerfTab = (next: PerfTab) => {
-    setPerfTab(next);
-    try {
-      localStorage.setItem(PERF_KEY, next);
-    } catch {
-      // only a convenience
-    }
-  };
   const pickTab = (next: HealthTab) => {
     setTab(next);
+    const sec = sectionOf(next);
+    if (sec === 'home') return;
     try {
-      localStorage.setItem(TAB_KEY, next);
+      localStorage.setItem(LAST_TAB_KEY + sec, next);
     } catch {
       // only a convenience
     }
   };
+  /** A part opens on the tab it was left on. */
+  const openSection = (sec: DiagSection | 'home') => {
+    if (sec === 'home') return pickTab('home');
+    let last: HealthTab | null = null;
+    try {
+      last = localStorage.getItem(LAST_TAB_KEY + sec) as HealthTab | null;
+    } catch {
+      // no storage: the part's first tab
+    }
+    pickTab(last && SECTION_TABS[sec].includes(last) ? last : SECTION_TABS[sec][0]);
+  };
+  useEffect(() => {
+    if (!focusTab) return;
+    pickTab(focusTab);
+    onFocusTabHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTab]);
   // A Mod List chip points at one issue: its tab first, and its section open, so the row is there
   // to scroll to (not saved: the player's own folding stays as it was).
   useEffect(() => {
@@ -814,13 +840,10 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   /** What wants something done on a tab: the rows that act or are worth acting on. */
   const toDo = (issues: HealthIssue[]) => issues.filter((i) => ['act', 'recommended'].includes(issueStateOf(i)));
   const actCount = (issues: HealthIssue[]) => issues.filter((i) => issueStateOf(i) === 'act').length;
-  const tabCount: Record<HealthTab, number | null> = {
+  const tabCount: Partial<Record<HealthTab, number>> = {
     problems: toDo(byTab.problems).length,
     conflicts: toDo(byTab.conflicts).length,
     security: toDo(byTab.security).length,
-    audit: null,
-    performance: null,
-    disk: null,
   };
 
   /**
@@ -828,7 +851,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
    * worth knowing, already fixed by the Studio. The same four on every tab.
    */
   const sections = useMemo(() => {
-    if (tab === 'audit' || tab === 'performance' || tab === 'disk') return [];
+    if (!isListTab(tab)) return [];
     const by: Record<IssueState, HealthIssue[]> = { act: [], recommended: [], info: [], handled: [] };
     byTab[tab].forEach((i) => by[issueStateOf(i)].push(i));
     // Inside a section, what can be done with a button and is sure first; a suspicion with nothing to press last.
@@ -1201,6 +1224,35 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
     );
   }
 
+  /** The tabs of the part in front (none on the front page). */
+  const renderSubTabs = () => (
+  <div role="tablist" className="flex items-end gap-1 border-b border-slate-800">
+    {(section === 'home' ? [] : SECTION_TABS[section]).map((id) => {
+      const Icon = TAB_ICON[id];
+      const count = tabCount[id];
+      const active = tab === id;
+      const issuesHere = id === 'problems' || id === 'conflicts' || id === 'security' ? byTab[id] : [];
+      const badge = actCount(issuesHere) > 0 ? STATE_STYLE.act.badge : STATE_STYLE.recommended.badge;
+      return (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={active}
+          onClick={() => pickTab(id)}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px cursor-pointer ${
+            active ? 'bg-slate-900 border-slate-700 text-slate-100' : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+          {t(`health.tabs.${id}`)}
+          {!!count && <span className={`px-1.5 rounded-full text-[10px] font-mono ${badge}`}>{count}</span>}
+        </button>
+      );
+    })}
+  </div>
+  );
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 gap-4 font-sans">
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
@@ -1273,6 +1325,35 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
         </div>
       </div>
 
+      {/* The parts: front page, mods, the game, the server */}
+      <div role="tablist" className="flex flex-wrap items-center gap-1.5">
+        {(['home', ...SECTIONS] as const).map((sec) => {
+          const Icon = SECTION_ICON[sec];
+          const active = section === sec;
+          const todo = sec === 'mods' ? toDo(report?.issues ?? []).length : 0;
+          return (
+            <button
+              key={sec}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => openSection(sec)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border cursor-pointer transition ${
+                active ? 'bg-sky-900/40 border-sky-600 text-sky-100' : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+              }`}
+            >
+              <Icon className="w-4 h-4" aria-hidden="true" />
+              {t(`diag.sections.${sec}`)}
+              {todo > 0 && <span className={`px-1.5 rounded-full text-[10px] font-mono ${actCount(report?.issues ?? []) > 0 ? STATE_STYLE.act.badge : STATE_STYLE.recommended.badge}`}>{todo}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {section === 'home' && <DiagnosticsHome paths={paths} report={report} checking={checking} onOpen={openSection} doctor={doctor} />}
+
+      {section === 'mods' && (
+        <>
       {servers.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-slate-400 mr-1">{t('health.list.checking')}</span>
@@ -1399,33 +1480,9 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
 
       <PageGuide page="health" />
 
-      <div role="tablist" className="flex items-end gap-1 border-b border-slate-800">
-        {TABS.map((id) => {
-          const Icon = TAB_ICON[id];
-          const count = tabCount[id];
-          const active = tab === id;
-          const issuesHere = id === 'problems' || id === 'conflicts' || id === 'security' ? byTab[id] : [];
-          const badge = actCount(issuesHere) > 0 ? STATE_STYLE.act.badge : STATE_STYLE.recommended.badge;
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => pickTab(id)}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px cursor-pointer ${
-                active ? 'bg-slate-900 border-slate-700 text-slate-100' : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-              {t(`health.tabs.${id}`)}
-              {count !== null && count > 0 && <span className={`px-1.5 rounded-full text-[10px] font-mono ${badge}`}>{count}</span>}
-            </button>
-          );
-        })}
-      </div>
+      {renderSubTabs()}
 
-      {tab !== 'audit' && tab !== 'performance' && tab !== 'disk' && (
+      {isListTab(tab) && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-slate-400 max-w-3xl">{t(`health.tabs.${tab}Intro`)}</p>
           {tab === 'problems' && !onServer && safeFixes.length > 0 && (
@@ -1536,7 +1593,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       )}
 
       {/* On the first tab, an "in order" verdict above already says it: the same green line twice reads as noise. */}
-      {report && tab !== 'audit' && tab !== 'performance' && tab !== 'disk' && toDo(byTab[tab]).length === 0 && !(tab === 'problems' && verdict?.level === 'ok') && (
+      {report && isListTab(tab) && toDo(byTab[tab]).length === 0 && !(tab === 'problems' && verdict?.level === 'ok') && (
         <div className="flex items-center gap-3 p-5 rounded-xl border border-emerald-800/60 bg-emerald-950/30 text-emerald-200 text-sm">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-hidden="true" />
           {tab === 'problems' ? t('health.noProblems', { count: report.active_count }) : t(`health.tabs.${tab}Empty`)}
@@ -1577,31 +1634,18 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
           </section>
         );
       })}
-      {tab === 'performance' && <ResourceMeter paths={paths} />}
-      {tab === 'performance' && (
-        <div role="tablist" className="flex flex-wrap items-center gap-1">
-          {PERF_TABS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={perfTab === id}
-              onClick={() => pickPerfTab(id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md border cursor-pointer ${
-                perfTab === id ? 'bg-slate-800 border-slate-600 text-slate-100' : 'border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              {t(`health.perfTabs.${id}`)}
-            </button>
-          ))}
-        </div>
-      )}
-      {tab === 'performance' && perfTab === 'memory' && <MemoryPanel paths={paths} />}
-      {tab === 'performance' && perfTab === 'boot' && <BootTimePanel paths={paths} />}
-      {tab === 'performance' && perfTab === 'time' && <GameTimePanel paths={paths} mods={mods} onModsChanged={onModsChanged} />}
-      {tab === 'performance' && perfTab === 'frames' && <FramesPanel paths={paths} mods={mods} />}
+      {tab === 'modtime' && <GameTimePanel paths={paths} mods={mods} onModsChanged={onModsChanged} />}
       {tab === 'audit' && report && <AuditPanel mods={mods} issues={report.issues} nameOf={nameOf} onGo={(issue) => setOwnFocus(issue)} />}
+        </>
+      )}
+
+      {section === 'game' && renderSubTabs()}
+      {tab === 'live' && <GameLivePanel paths={paths} />}
+      {tab === 'memory' && <MemoryPanel paths={paths} />}
+      {tab === 'boot' && <BootTimePanel paths={paths} />}
+      {tab === 'frames' && <FramesPanel paths={paths} mods={mods} />}
       {tab === 'disk' && <DiskPanel paths={paths} onModsChanged={onModsChanged} onOpenInBrowser={onOpenInBrowser} />}
+      {tab === 'server' && <ServerLivePanel paths={paths} onGoServers={onGoServers} />}
     </div>
   );
 };

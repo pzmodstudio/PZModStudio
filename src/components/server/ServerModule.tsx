@@ -26,6 +26,7 @@ import {
   UserX,
   Ban,
   Send,
+  Activity,
 } from 'lucide-react';
 import {
   ModInfo,
@@ -47,11 +48,13 @@ import { MpTestPanel } from './MpTestPanel';
 interface ServerModuleProps {
   paths: StudioPathsUI;
   mods: ModInfo[];
+  /** Opens Diagnóstico > Server, where the running server's memory, CPU and log are. */
+  onShowPerformance?: () => void;
 }
 
 type ServerSubTab = 'HOST' | 'MODS' | 'PLAYERS' | 'SETTINGS' | 'DISCORD' | 'MPTEST';
 
-export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
+export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowPerformance }) => {
   const { t } = useTranslation();
   const changeRev = useChangeRevision();
   const [servers, setServers] = useState<PZServerConfig[]>([]);
@@ -407,66 +410,57 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods }) => {
 
   return (
     <div className="space-y-6">
-      {/* Top Suite Banner */}
-      <div className="p-5 bg-gradient-to-r from-purple-950/90 via-slate-900 to-indigo-950/90 border border-purple-800/60 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center">
-              <Server className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-100 tracking-tight">
-                  {t('servers.header.title')}
-                </h2>
-                {serverStatus.is_running ? (
-                  <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-600/60 px-2.5 py-0.5 rounded-full shadow">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>{t('servers.header.online', { pid: serverStatus.pid })}</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold bg-slate-900 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                    <span>{t('servers.header.offline')}</span>
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                {t('servers.header.subtitle')}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {selectedServer && (
-            <button
-              onClick={handleCopyInviteLink}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-800/50 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow"
-              title={t('servers.header.shareTitle')}
-            >
-              {copiedInvite ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400">{t('servers.header.copied')}</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4 text-purple-400" />
-                  <span>{t('servers.header.share')}</span>
-                </>
-              )}
-            </button>
-          )}
-
+      {/* The hosted server's state, and what to do with it */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-xl border border-slate-800 bg-slate-900/60">
+        {serverStatus.is_running ? (
+          <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-600/60 px-2.5 py-0.5 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{t('servers.header.online', { pid: serverStatus.pid })}</span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold bg-slate-900 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+            <span>{t('servers.header.offline')}</span>
+          </span>
+        )}
+        <p className="flex-1 min-w-[240px] text-[11px] text-slate-400 leading-relaxed">{t('servers.header.subtitle')}</p>
+        {onShowPerformance && (
           <button
-            onClick={() => loadServerConfigs(true)}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
-            title={t('servers.header.reload')}
+            onClick={onShowPerformance}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+            title={t('servers.header.performanceTitle')}
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <Activity className="w-3.5 h-3.5" />
+            <span>{t('servers.header.performance')}</span>
           </button>
-        </div>
+        )}
+        {selectedServer && (
+          <button
+            onClick={handleCopyInviteLink}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-800/50 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow"
+            title={t('servers.header.shareTitle')}
+          >
+            {copiedInvite ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="text-emerald-400">{t('servers.header.copied')}</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4 text-purple-400" />
+                <span>{t('servers.header.share')}</span>
+              </>
+            )}
+          </button>
+        )}
+
+        <button
+          onClick={() => loadServerConfigs(true)}
+          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer"
+          title={t('servers.header.reload')}
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {closedAlone && (

@@ -63,6 +63,12 @@ pub enum IssueFix {
     },
     /// Copy the mod to Zomboid/mods and adapt it to the installed build.
     CompatibleCopy,
+    /// Switch the mod off until its author updates it: it stops the game (EPRZB 1.1.7 at load).
+    DisableMod,
+    /// Put another mod in its place in the list: the item now ships the version to use under
+    /// another id (Viewpoint RTX: `ViewpointRTX` is the legacy one for Viewpoint 0.1.6.2,
+    /// `ViewpointRTXNightly` the current).
+    ReplaceMod { with: String },
     /// Nothing to do: the line is harmless, or no fix is known yet.
     None,
 }
@@ -311,7 +317,7 @@ pub fn issue_is_handled(issue: &KnownIssue, shim_on: &dyn Fn(&str) -> bool, pack
             .as_deref()
             .map(|f| package_root.join(f).is_file() || package_root.join("42").join(f).is_file())
             .unwrap_or(false),
-        IssueFix::None => false,
+        IssueFix::DisableMod | IssueFix::ReplaceMod { .. } | IssueFix::None => false,
     }
 }
 

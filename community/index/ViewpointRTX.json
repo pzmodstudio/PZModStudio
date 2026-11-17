@@ -1,0 +1,31 @@
+{
+  "id": "ViewpointRTX",
+  "name": "Viewpoint RTX (legacy, for Viewpoint 0.1.6.2)",
+  "workshop_id": "3837506742",
+  "builds": [
+    "42"
+  ],
+  "requires": [
+    "ZombieBuddy",
+    "Viewpoint"
+  ],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "title": "This id is now the legacy version, for Viewpoint 0.1.6.2",
+      "note": "Workshop item 3837506742 updated on 2026-11-17: the id ViewpointRTX is now \"Viewpoint RTX (legacy, for Viewpoint 0.1.6.2)\", version 1.0.0, and the current Viewpoint RTX (1.2.33) has the id ViewpointRTXNightly. With Viewpoint 0.1.7 or newer, use ViewpointRTXNightly.",
+      "fix": {
+        "kind": "replace_mod",
+        "with": "ViewpointRTXNightly"
+      },
+      "build": "42.22",
+      "date": "2026-11-17",
+      "source": "PZ Mod Studio, read from the item's mod.info files on 2026-11-17",
+      "status": "verified",
+      "mod_versions": [
+        "1.0.0"
+      ]
+    }
+  ]
+}

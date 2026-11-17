@@ -51,6 +51,8 @@ interface SandboxModuleProps {
   /** Removes one card, once what it reported has been fixed. */
   onDismissErrorCard?: (cardId: string) => void;
   onGoToSettings: () => void;
+  /** Opens Diagnóstico > Game > Live: what the game uses while it runs. */
+  onShowPerformance?: () => void;
 }
 
 interface LogTab {
@@ -98,6 +100,7 @@ export const formatLogDisplayName = (file: LogFileInfoUI): string => {
 const TAB_ORDER_KEY = 'pz_monitor_tab_order';
 
 export const SandboxModule: React.FC<SandboxModuleProps> = ({
+  onShowPerformance,
   paths,
   profileName = null,
   mods,
@@ -518,17 +521,23 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
 
   return (
     <div className="flex-1 flex flex-col bg-slate-950 text-slate-100 overflow-hidden p-6 font-sans min-h-0">
-      {/* Module Header & Controls */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-3 shrink-0">
-        <div>
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" />
-            <span>{t('monitor.console.title')}</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">{t('monitor.console.subtitle')}</p>
-        </div>
+      {/* Header: the screen's name, what it shows, and its switches */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0">
+        <Activity className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
+        <h1 className="text-base font-bold text-slate-100">{t('monitor.console.title')}</h1>
+        <span className="flex-1 min-w-[260px] text-[11px] text-slate-400">{t('monitor.console.subtitle')}</span>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {onShowPerformance && (
+            <button
+              onClick={onShowPerformance}
+              className="px-3 py-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+              title={t('monitor.console.performanceTitle')}
+            >
+              <Activity className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{t('monitor.console.performance')}</span>
+            </button>
+          )}
           {/* Open Real Logs Folder */}
           <button
             onClick={() => TauriService.openLogsFolder(paths.user_zomboid_dir)}

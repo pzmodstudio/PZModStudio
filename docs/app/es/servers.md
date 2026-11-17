@@ -1,6 +1,6 @@
 # Servidores
 
-La pantalla Servidores tiene dos lados: **Unirse a un servidor**, para encontrar un servidor multijugador y jugar ahí, y **Alojar un servidor**, para correr tu propio servidor dedicado desde esta PC. Pasá de uno a otro con los dos botones de arriba.
+La pantalla Servidores tiene tres pestañas arriba: **Servidores públicos** y **Mis servidores**, para encontrar un servidor multijugador y unirte, y **Alojar un servidor**, para correr tu propio servidor dedicado desde esta PC. En **Alojar un servidor**, una barra dice si tu servidor está encendido, con **Ver cómo rinde** (abre Diagnóstico > Servidor: memoria, CPU, si ya arrancó y qué dice su registro), **Compartir invitación** y el botón para volver a leer los archivos de servidor.
 
 ## Unirse a un servidor: encontrar uno
 

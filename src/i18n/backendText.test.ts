@@ -38,17 +38,37 @@ describe('backendText', () => {
     expect(cardText(one, 'explanation')).toContain('El texto: Sandbox_A. El Studio no lo encontró en los textos de los mods que tenés activados; puede ser del propio juego.');
   });
 
+  it('says a Lua failure of a mod in plain words, with where and the words of the game', () => {
+    const card = {
+      code: 'mod_named_exception',
+      params: { mod: 'Radio Voices', variant: 'lua', luaKey: 'lua_index', luaLongKey: 'lua_index_long', name: 'getId', place: 'RadioVoices.lua:1463', placeKey: 'lua_place', given: '', givenKey: 'lua_given_value', words: 'java.lang.RuntimeException: attempted index: getId of non-table: null' },
+      title: 'english', explanation: 'english', recommended_action: 'english',
+    };
+    expect(cardText(card, 'title')).toBe('Radio Voices: usó getId de algo que no existe');
+    expect(cardText(card, 'explanation')).toBe(
+      'Radio Voices pidió getId de algo que no existe (nil), en RadioVoices.lua:1463. Lo que estaba haciendo en ese momento se cortó; el juego siguió. Lo que dijo el juego: java.lang.RuntimeException: attempted index: getId of non-table: null',
+    );
+    const call = { ...card, params: { ...card.params, luaKey: 'lua_no_impl', luaLongKey: 'lua_no_impl_long', name: 'getWeaponType', given: 'ComboItem', givenKey: 'lua_given', place: '', placeKey: '' } };
+    expect(cardText(call, 'explanation')).toContain('Radio Voices llamó a getWeaponType del juego con un ComboItem, que esa función no acepta: o el mod le pasó algo equivocado, o la función cambió en una actualización del juego. Lo que');
+  });
+
+  it('says ZombieBuddy could not start a Java mod, naming the mod', () => {
+    const card = { code: 'java_mod_error', params: { mod: 'Viewpoint', variant: 'zb_main' }, title: 'english', explanation: 'english', recommended_action: 'english' };
+    expect(cardText(card, 'title')).toBe('ZombieBuddy no pudo correr el código de arranque de Viewpoint');
+    expect(cardText(card, 'action')).toContain('En un servidor dedicado no hay nada que hacer.');
+  });
+
   it('says a call the build does not have by name, with where, how many more and what the log adds', () => {
     const params = {
       mod: 'TV Remote', count: '2', names: ':Is(, getFoo(', moreNames: '', moreNamesKey: '', file: '42/media/lua/server/RemoteSpawn.lua', line: '353',
       more: '2', moreKey: 'and_more_places', variant: '', exceptions: '20', tailKey: 'api_tail_errors',
     };
     expect(issueText({ code: 'api_missing', params, message: 'english' })).toBe(
-      'TV Remote llama a 2 cosas que esta versión del juego no tiene, por nombre: :Is(, getFoo( (42/media/lua/server/RemoteSpawn.lua:353 y 2 lugares más). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve. El log de la última sesión tiene 20 errores de este mod: el Monitor los muestra.',
+      'TV Remote llama a 2 cosas que esta versión del juego no tiene, por nombre: :Is(, getFoo( (42/media/lua/server/RemoteSpawn.lua:353 y 2 lugares más). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve. El log de la última sesión tiene 20 errores de este mod: el Monitor los muestra. Qué hacer: apagá el mod, o dejalo y esperá que su autor lo actualice; el Studio no puede arreglarlo.',
     );
     const one = { ...params, count: '7', names: ':a(, :b(, :c(, :d(, :e(', moreNames: '2', moreNamesKey: 'api_more_names', more: '', moreKey: '', variant: 'one', tailKey: 'api_tail_java' };
     expect(issueText({ code: 'api_missing', params: one, message: 'english' })).toBe(
-      'TV Remote llama a algo que esta versión del juego no tiene, por nombre: :a(, :b(, :c(, :d(, :e( y 2 más (42/media/lua/server/RemoteSpawn.lua:353). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve. Este mod trae Java, que puede darle a Lua nombres que esta revisión no ve: puede que no sea nada.',
+      'TV Remote llama a algo que esta versión del juego no tiene, por nombre: :a(, :b(, :c(, :d(, :e( y 2 más (42/media/lua/server/RemoteSpawn.lua:353). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve. Este mod trae Java, que puede darle a Lua nombres que esta revisión no ve: puede que no sea nada. No hay nada que hacer salvo que veas fallar este mod en el juego.',
     );
   });
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-16",
+  "updated": "2026-11-17",
   "mods": {
     "2858201402/dailystatisticsandgains": {
       "id": "2858201402/dailystatisticsandgains",
@@ -108,6 +108,36 @@
           "date": "2026-10-18",
           "source": "PZ Mod Studio, verified in the game's console.txt on 42.21 (2026-10-18)",
           "status": "verified"
+        }
+      ]
+    },
+    "ExhaustivePowerReworkZB": {
+      "id": "ExhaustivePowerReworkZB",
+      "name": "Exhaustive Power Rework - ZombieBuddy",
+      "workshop_id": "3786970737",
+      "builds": [
+        "42"
+      ],
+      "requires": [
+        "ExhaustivePowerRework",
+        "ZombieBuddy"
+      ],
+      "incompatible": [],
+      "load_after": [],
+      "issues": [
+        {
+          "title": "1.1.7 loaded after Viewpoint 0.1.7: the game closes while it loads the mods",
+          "note": "With Viewpoint 0.1.7 (2026-11-15) loaded first, the game class zombie.SandboxOptions is already loaded when this addon's Java patches it (getWaterShutModifier, doesPowerGridExist), so ZombieBuddy (2.3.4) re-patches it and starts it before Lua exists: NullPointerException ('thread is null'), ExceptionInInitializerError, then 'GameThread exited'. It worked on 42.22.2 with Viewpoint 0.1.6 (2026-11-12). Loaded before Viewpoint, the game started and loaded a save once (2026-11-16); Viewpoint then switched itself off in that session, but because of Viewpoint - Light Fix, which fails at start with Viewpoint 0.1.7 whatever this addon does. Exhaustive Power Rework itself does not need this addon: switching it off is the sure fix; loading it before Viewpoint was seen to work once.",
+          "fix": {
+            "kind": "disable_mod"
+          },
+          "build": "42.22",
+          "date": "2026-11-16",
+          "source": "PZ Mod Studio, seen three times in console.txt on 42.22.2 with ZombieBuddy 2.3.4 when loaded after Viewpoint; one session loaded before it started (2026-11-16)",
+          "status": "verified",
+          "mod_versions": [
+            "1.1.7"
+          ]
         }
       ]
     },
@@ -432,8 +462,8 @@
       "load_after": [],
       "issues": [
         {
-          "title": "0.1.7: ZombieBuddy rejects its signature, and its addons take the game or server down without it",
-          "note": "The 0.1.7 jar (Workshop update of 2026-11-15) is signed with a key its author's Steam profile does not show, so ZombieBuddy leaves Viewpoint out ('invalid ZBS'). Addons built on it then fail at boot with NoClassDefFoundError viewpoint/...: an addon exposed to Lua stops the game or the server before it starts. It is the author's to fix. Until then: switch Viewpoint off along with the mods that use it (Mod Health offers it when your last session shows it), or wait for the author's update. Other players report it loads again after closing the game and removing every \"Viewpoint\" entry from ZombieBuddy's approvals file (%USERPROFILE%\\.zombie_buddy\\mod_approvals.json; older versions of the jar stay approved there), then approving it again when ZombieBuddy asks. Some delete Viewpoint.jar.zbs from the Workshop folder; that skips ZombieBuddy's signature check for the mod and results are mixed: the Studio does not do it for you.",
+          "title": "0.1.7: ZombieBuddy left it out until its author re-uploaded it unsigned (2026-11-16), and its addons took the game or server down",
+          "note": "The first 0.1.7 jar (Workshop update of 2026-11-15) was signed with a key its author's Steam profile does not show, so ZombieBuddy left Viewpoint out ('invalid ZBS') and addons built on it failed at boot with NoClassDefFoundError viewpoint/...; one exposed to Lua stopped the game or the server. On 2026-11-16 the author re-uploaded 0.1.7 without a signature: after Steam updates it, it loads. A copy the Studio made in Zomboid/mods before that still carries the old Viewpoint.jar.zbs: Mod Health offers to copy it again. If ZombieBuddy still leaves it out with 'blocked by policy=prompt', a \"don't allow\" for that jar was saved during the broken hours: hold Shift while the game loads and allow it in ZombieBuddy's window (the Studio never edits that file).",
           "fix": {
             "kind": "none"
           },
@@ -457,6 +487,37 @@
           "status": "reported",
           "mod_versions": [
             "0.1.7"
+          ]
+        }
+      ]
+    },
+    "ViewpointRTX": {
+      "id": "ViewpointRTX",
+      "name": "Viewpoint RTX (legacy, for Viewpoint 0.1.6.2)",
+      "workshop_id": "3837506742",
+      "builds": [
+        "42"
+      ],
+      "requires": [
+        "ZombieBuddy",
+        "Viewpoint"
+      ],
+      "incompatible": [],
+      "load_after": [],
+      "issues": [
+        {
+          "title": "This id is now the legacy version, for Viewpoint 0.1.6.2",
+          "note": "Workshop item 3837506742 updated on 2026-11-17: the id ViewpointRTX is now \"Viewpoint RTX (legacy, for Viewpoint 0.1.6.2)\", version 1.0.0, and the current Viewpoint RTX (1.2.33) has the id ViewpointRTXNightly. With Viewpoint 0.1.7 or newer, use ViewpointRTXNightly.",
+          "fix": {
+            "kind": "replace_mod",
+            "with": "ViewpointRTXNightly"
+          },
+          "build": "42.22",
+          "date": "2026-11-17",
+          "source": "PZ Mod Studio, read from the item's mod.info files on 2026-11-17",
+          "status": "verified",
+          "mod_versions": [
+            "1.0.0"
           ]
         }
       ]

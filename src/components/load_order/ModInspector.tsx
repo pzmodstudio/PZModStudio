@@ -1,19 +1,31 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AuthorLink, ModChangelog, ModInfo, ModJavaPatches } from '../../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AuthorLink, CatalogModSummary, HealthIssue, IssueState, ModChangelog, ModErrorStat, ModInfo, ModJavaPatches } from '../../types';
+import { SourceBadge } from '../common/SourceBadge';
+import { ModWorkshopPage } from './ModWorkshopPage';
+import { FixContext, IssueCards } from './RowHealth';
+import { STATE_ORDER, STATE_STYLE, issueStateOf } from '../../utils/issueState';
 import { SupportLinks } from '../common/SupportLinks';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { findInstalledDependencyInMods } from './modLookup';
 import {
+  Activity,
   BookOpen,
   Check,
-  ExternalLink,
+  ChevronRight,
+  Info,
   Layers,
+  MessageSquare,
+  Newspaper,
   Link2,
   ListOrdered,
   MapPin,
   Package,
+  Pencil,
+  Power,
   ShieldAlert,
+  ShieldCheck,
+  StickyNote,
   Wand2,
 } from 'lucide-react';
 import i18next from 'i18next';
@@ -43,7 +55,28 @@ interface ModInspectorProps {
   onFixLoadOrder: (modId: string, requiredModId: string) => void;
   onToggleMod: (modId: string) => void;
   onOpenInBrowser?: (workshopId: string) => void;
+  /** The health check's findings for this mod, and what their fix buttons need. */
+  issues: HealthIssue[];
+  fixContext: FixContext;
+  /** Where it comes from (Steam, a compatible copy, Nexus...). */
+  catalogEntry?: CatalogModSummary;
+  /** Last session: what the game logged about it, its loading time (ms), its share of the game's time (%). */
+  errorStat?: ModErrorStat;
+  loadMs?: number;
+  gameShare?: number;
+  /** The player's own: the profiles holding it, the active one, its note and groups. */
+  profileNames: string[];
+  activeProfileName?: string;
+  note?: string;
+  groups: string[];
+  onEditNote?: (mod: ModInfo) => void;
+  onEditGroups?: (mod: ModInfo) => void;
 }
+
+type InspectorTab = 'studio' | 'page' | 'comments';
+
+/** "Needed by" shows this many before folding the rest (a library can have dozens). */
+const DEPENDENTS_SHOWN = 6;
 
 /** The game's own description markup: `<LINE>`, `<SIZE:large>`, `<RGB:r,g,b>`, `<CENTRE>`. */
 const renderPZRichText = (text?: string): React.ReactNode => {
@@ -117,10 +150,11 @@ const renderPZRichText = (text?: string): React.ReactNode => {
 };
 
 /**
- * The right column of the Mod List: the selected mod, its problems with buttons that fix them,
- * its description and poster, its mod.info fields, and the mods on either side of its
- * requirements. The poster is read from disk, or taken from the Workshop page when the mod
- * ships none.
+ * The right column of the Mod List, most pressing first: who the mod is (poster, kind, origin,
+ * author), its switch, what to do about it (every health finding with its fix), the player's own
+ * note, groups and profiles, the last session's errors and costs, what it needs and what needs
+ * it, its description (folded), its mod.info facts and, folded, what its Java changes. The poster
+ * is read from disk, or taken from the Workshop page when the mod ships none.
  */
 export const ModInspector: React.FC<ModInspectorProps> = ({
   paths,
@@ -134,9 +168,45 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   onFixLoadOrder,
   onToggleMod,
   onOpenInBrowser,
+  issues,
+  fixContext,
+  catalogEntry,
+  errorStat,
+  loadMs,
+  gameShare,
+  profileNames,
+  activeProfileName,
+  note,
+  groups,
+  onEditNote,
+  onEditGroups,
 }) => {
   const { t } = useTranslation();
   const [imageError, setImageError] = useState<boolean>(false);
+  /** The poster shown full size over the screen. */
+  const [posterBig, setPosterBig] = useState(false);
+  /** The description unfolded. */
+  const [descOpen, setDescOpen] = useState(false);
+  /** Which tab is open; it stays as picked from one mod to the next (and between sessions). */
+  const [tab, setTab] = useState<InspectorTab>(() => {
+    const kept = localStorage.getItem('pz_inspector_tab');
+    return kept === 'comments' ? 'comments' : kept === 'page' || kept === 'mod' ? 'page' : 'studio';
+  });
+  const pickTab = (id: InspectorTab) => {
+    setTab(id);
+    localStorage.setItem('pz_inspector_tab', id);
+    scroller.current?.scrollTo({ top: 0 });
+  };
+  /** "Needed by" unfolded past the first few. */
+  const [dependentsOpen, setDependentsOpen] = useState(false);
+  /** The scrolling part: back to the top for each mod picked. */
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setPosterBig(false);
+    setDescOpen(false);
+    setDependentsOpen(false);
+    scroller.current?.scrollTo({ top: 0 });
+  }, [mod?.mod_id]);
   /** The changelog the mod ships, for its newest entry and its author's support links. */
   const [changelog, setChangelog] = useState<ModChangelog | null>(null);
   useEffect(() => {
@@ -243,14 +313,36 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   if (!mod) {
     return (
       <div className="col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow p-4">
-        <div className="flex-1 flex items-center justify-center text-slate-500 text-xs">
-          {t('inspector.selectOne')}
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center text-slate-500 text-xs">
+          <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center">
+            <ListOrdered className="w-6 h-6 text-slate-600" />
+          </div>
+          <span className="max-w-[240px] leading-relaxed">{t('inspector.selectOne')}</span>
         </div>
       </div>
     );
   }
 
+  /** Comments need a Workshop page: a mod without one shows its description instead. */
+  const shownTab: InspectorTab = tab === 'comments' && !mod.workshop_id ? 'page' : tab;
   const { orderViolation, disabledDependency, incompatibility } = problems;
+  // The health check's cards say the same with the fix: the older cards stay only for what it did not raise.
+  const codes = new Set(issues.map((i) => i.code));
+  const showOrderCard = orderViolation && !codes.has('dependency_after') && !codes.has('load_after_order');
+  const showDisabledCard = disabledDependency && !codes.has('dependency_not_enabled');
+  const showIncompatCard = incompatibility && !codes.has('incompatible') && !codes.has('community_incompatible');
+  const visibleIssues = issues.filter((i) => issueStateOf(i) !== 'handled');
+  const worst = visibleIssues.reduce<IssueState | null>(
+    (w, i) => (w === null || STATE_ORDER.indexOf(issueStateOf(i)) < STATE_ORDER.indexOf(w) ? issueStateOf(i) : w),
+    null
+  );
+  const problemCount = visibleIssues.length + (showOrderCard ? 1 : 0) + (showDisabledCard ? 1 : 0) + (showIncompatCard ? 1 : 0);
+  const hasSession =
+    (errorStat && (errorStat.exceptions > 0 || errorStat.warnings > 0)) || loadMs !== undefined || gameShare !== undefined;
+  const KindIcon = mod.is_map_mod ? MapPin : mod.is_library ? Package : ListOrdered;
+  const kindColor = mod.is_map_mod ? 'text-amber-400' : mod.is_library ? 'text-purple-400' : 'text-cyan-400';
+  const showPoster = !!posterSrc && !imageError;
+
   /** Under a class of the Java list: the other active mods whose Java changes it too. */
   const javaSharedLine = (className: string) => {
     const shared = javaPatches?.shared?.find((s) => s.target_class === className);
@@ -263,398 +355,476 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
       </div>
     );
   };
+  const javaClassItem = (c: { name: string; methods: string[] }) => (
+    <li key={c.name} className="break-all">
+      <span className="text-slate-200">{c.name}</span>
+      <span className="text-slate-500"> · {c.methods.length > 0 ? c.methods.join(', ') : t('inspector.java.wholeClass')}</span>
+      {javaSharedLine(c.name)}
+    </li>
+  );
+  const fact = (label: string, value: React.ReactNode) => (
+    <React.Fragment key={label}>
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="text-slate-200 min-w-0 break-words">{value}</dd>
+    </React.Fragment>
+  );
 
   return (
-    <div className="col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow p-4">
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
-        <div className="border-b border-slate-800 pb-3 space-y-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                {mod.is_map_mod ? t('inspector.mapMod') : mod.is_library ? t('inspector.baseLibrary') : t('inspector.scriptMod')}
+    <div className="col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow">
+      {/* Header: picture, kind, name and the few facts that say what it is */}
+      <div className="p-4 pb-3 border-b border-slate-800 flex gap-3">
+        <button
+          type="button"
+          onClick={() => showPoster && setPosterBig(true)}
+          className={`w-20 h-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center ${showPoster ? 'cursor-zoom-in hover:border-slate-600' : 'cursor-default'}`}
+          title={showPoster ? t('inspector.posterZoom') : undefined}
+        >
+          {showPoster ? (
+            <img src={posterSrc!} alt={mod.name} className="w-full h-full object-cover" onError={() => setImageError(true)} />
+          ) : (
+            <KindIcon className={`w-7 h-7 ${kindColor}`} />
+          )}
+        </button>
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 ${kindColor}`}>
+              <KindIcon className="w-3 h-3" />
+              {mod.is_map_mod ? t('inspector.mapMod') : mod.is_library ? t('inspector.baseLibrary') : t('inspector.scriptMod')}
+            </span>
+            {packageBadgeClass && (
+              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${packageBadgeClass} flex items-center gap-1`}>
+                <Layers className="w-3 h-3" />
+                {t('inspector.multiPackage')}
               </span>
-              {packageBadgeClass && (
-                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${packageBadgeClass} flex items-center gap-1`}>
-                  <Layers className="w-3 h-3" />
-                  {t('inspector.multiPackage')}
-                </span>
-              )}
-            </div>
-
-            {mod.workshop_id && onOpenInBrowser && (
-              <button
-                onClick={() => onOpenInBrowser(mod.workshop_id!)}
-                className="flex items-center gap-1 text-[10px] text-cyan-400 hover:underline font-mono bg-transparent border-0 cursor-pointer"
-                title={t('inspector.openInBrowserTitle')}
-              >
-                <span>{t('inspector.openInBrowser', { id: mod.workshop_id })}</span>
-                <BookOpen className="w-3 h-3" />
-              </button>
             )}
+            {!mod.not_installed && <SourceBadge modId={mod.mod_id} entry={catalogEntry} />}
           </div>
-
           <h3
             onClick={() => onJumpToMod(mod.mod_id)}
-            className="text-base font-bold text-slate-100 hover:text-emerald-400 transition cursor-pointer flex items-center gap-1.5"
+            className="text-base font-bold leading-snug text-slate-100 hover:text-emerald-400 transition cursor-pointer"
             title={t('inspector.centerTitle')}
           >
-            <span>{mod.name}</span>
+            {mod.name}
           </h3>
-          <div className="text-xs font-mono text-slate-400">{t('inspector.id')} <code className="text-emerald-400">{mod.mod_id}</code></div>
+          <div className="text-[11px] font-mono text-emerald-400/90 truncate" title={mod.mod_id}>{mod.mod_id}</div>
+          <div className="text-[11px] text-slate-400 truncate">
+            {[mod.author || t('inspector.unknown'), mod.version ? `v${mod.version}` : null].filter(Boolean).join(' · ')}
+          </div>
+          <SupportLinks links={changelog?.links ?? []} more={mod.workshop_id ? workshopSupport.get(mod.workshop_id) : undefined} />
         </div>
+      </div>
 
-        {/* Load Order Violation Warning Card */}
-        {orderViolation && (
-          <div className="p-3 bg-orange-950/70 border-2 border-orange-500 rounded-xl space-y-2 text-xs shadow-lg">
-            <div className="flex items-center justify-between font-bold text-orange-300">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0" />
-                <span>{t('inspector.orderTitle')}</span>
-              </div>
-              <span className="text-[10px] font-mono bg-orange-900/80 text-orange-200 px-2 py-0.5 rounded border border-orange-600">
-                {t('inspector.position', { n: position + 1 })}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('inspector.orderBody', { name: orderViolation.requiredModName, n: orderViolation.requiredModIndex + 1 }) }} />
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => onFixLoadOrder(mod.mod_id, orderViolation.requiredModId)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow"
-              >
-                <Wand2 className="w-4 h-4" />
-                <span>{t('inspector.moveAfter', { name: orderViolation.requiredModName })}</span>
-              </button>
-              <button
-                onClick={() => onJumpToMod(orderViolation.requiredModId)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-orange-300 border border-orange-800 rounded-lg text-xs font-bold transition cursor-pointer"
-                title={t('inspector.jumpToDependency')}
-              >
-                <span>{t('inspector.viewDependency')}</span>
-              </button>
-            </div>
-          </div>
+      {/* Its switch, and the Workshop page */}
+      <div className="px-4 py-2 border-b border-slate-800 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onToggleMod(mod.mod_id)}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border cursor-pointer transition ${
+            mod.enabled
+              ? 'bg-emerald-600/20 text-emerald-300 border-emerald-600/60 hover:bg-emerald-600/30'
+              : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-slate-500'
+          }`}
+          title={mod.enabled ? t('modList.row.clickDisable') : t('modList.row.clickEnable')}
+        >
+          <Power className="w-3.5 h-3.5" />
+          {mod.enabled ? t('inspector.onWithPlace', { n: position + 1 }) : t('inspector.offTurnOn')}
+        </button>
+        <div className="flex-1" />
+        {mod.workshop_id && onOpenInBrowser && (
+          <button
+            onClick={() => onOpenInBrowser(mod.workshop_id!)}
+            className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 bg-transparent border-0 cursor-pointer"
+            title={t('inspector.openInBrowserTitle')}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{t('inspector.workshopPage')}</span>
+          </button>
         )}
+      </div>
 
-        {/* Disabled Dependency Warning Card */}
-        {disabledDependency && (
-          <div className="p-3 bg-rose-950/60 border-2 border-rose-500/80 rounded-xl space-y-2 text-xs">
-            <div className="flex items-center gap-2 font-bold text-rose-300">
-              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{t('inspector.disabledTitle')}</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('inspector.disabledBody', { name: disabledDependency.name }) }} />
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => onToggleMod(disabledDependency.mod_id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow"
-              >
-                <Check className="w-4 h-4" />
-                <span>{t('inspector.activateLibrary')}</span>
-              </button>
-              <button
-                onClick={() => onJumpToMod(disabledDependency.mod_id)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-800 rounded-lg text-xs font-bold transition cursor-pointer"
-                title={t('inspector.jumpToLibrary')}
-              >
-                <span>{t('inspector.viewMod')}</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Active Incompatibility Warning Card in Inspector */}
-        {incompatibility && (
-          <div className="p-3 bg-amber-950/60 border-2 border-amber-500/80 rounded-xl space-y-2 text-xs">
-            <div className="flex items-center gap-2 font-bold text-amber-300">
-              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{t('inspector.incompatTitle')}</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('inspector.incompatBody', { name: incompatibility.conflictingModName }) }} />
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => onJumpToMod(incompatibility.conflictingModId)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/50 rounded-lg text-xs font-bold transition cursor-pointer"
-              >
-                <span>{t('inspector.viewConflicting')}</span>
-              </button>
-              <button
-                onClick={() => onToggleMod(incompatibility.conflictingModId)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
-                title={t('inspector.deactivateTitle')}
-              >
-                <span>{t('inspector.deactivate')}</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {((changelog && (changelog.links.length > 0 || changelog.entries.length > 0)) || (mod.workshop_id && workshopSupport.has(mod.workshop_id))) && (
-          <div className="space-y-2 p-3 rounded-xl border border-slate-800 bg-slate-950/60">
-            <SupportLinks links={changelog?.links ?? []} more={mod.workshop_id ? workshopSupport.get(mod.workshop_id) : undefined} />
-            {changelog?.entries[0] && (
-              <details>
-                <summary className="text-[11px] text-sky-300 cursor-pointer select-none">
-                  {t('inspector.changelog')}
-                  {changelog.entries[0].title ? `: ${changelog.entries[0].title}` : ''}
-                </summary>
-                <div className="mt-1.5 text-[11px] text-slate-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">{changelog.entries[0].text}</div>
-              </details>
+      {/* Tabs: what the Studio knows about it in this list; its Workshop page (or the mod.info
+          description for a mod with none); the Workshop comments */}
+      <div className="px-4 border-b border-slate-800 flex items-end gap-1" role="tablist">
+        {(mod.workshop_id ? (['studio', 'page', 'comments'] as const) : (['studio', 'page'] as const)).map((id) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={shownTab === id}
+            onClick={() => pickTab(id)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-[11.5px] font-bold border-b-2 -mb-px cursor-pointer transition ${
+              shownTab === id ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {id === 'studio' ? <ShieldCheck className="w-3.5 h-3.5" /> : id === 'page' ? <Newspaper className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
+            {t(id === 'studio' ? 'inspector.tabs.studio' : id === 'comments' ? 'inspector.workshop.comments' : mod.workshop_id ? 'inspector.workshop.page' : 'inspector.overview')}
+            {id === 'studio' && problemCount > 0 && worst && (
+              <span className={`text-[10px] px-1.5 rounded-full ${STATE_STYLE[worst].badge}`}>{problemCount}</span>
             )}
-          </div>
-        )}
+          </button>
+        ))}
+      </div>
 
-        {/* Top Section: Split Description (Left) + Poster Thumbnail Frame (Right) */}
-        <div className="grid grid-cols-12 gap-3 items-start">
-          {/* Left Description Box with Parsed RichText */}
-          <div className="col-span-12 sm:col-span-7 space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              {t('inspector.overview')}
-            </label>
-            <div className="p-3 bg-slate-950/90 rounded-xl text-xs text-slate-300 leading-relaxed font-sans border border-slate-800 h-48 overflow-y-auto select-text shadow-inner">
-              {renderPZRichText(mod.description)}
+      <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
+        {shownTab === 'studio' && (
+          <>
+        {/* The player's own: note, groups, profiles */}
+        <Section icon={StickyNote} iconClass="text-sky-300" title={t('inspector.sections.notes')}>
+          <div className="space-y-2.5">
+            {note ? (
+              <div className="rounded-lg border border-sky-800/60 bg-sky-950/30 px-3 py-2">
+                <div className="text-[12px] text-sky-100 whitespace-pre-wrap break-words leading-relaxed">{note}</div>
+                {onEditNote && (
+                  <button onClick={() => onEditNote(mod)} className="mt-1.5 flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer">
+                    <Pencil className="w-3 h-3" />
+                    {t('inspector.sections.editNote')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              onEditNote && (
+                <button onClick={() => onEditNote(mod)} className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-slate-700 text-[11.5px] text-slate-400 hover:text-sky-300 hover:border-sky-700 cursor-pointer">
+                  <StickyNote className="w-3.5 h-3.5" />
+                  {t('inspector.sections.addNote')}
+                </button>
+              )
+            )}
+            <div className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-1.5 text-[11.5px] items-start">
+              <span className="text-slate-500 pt-0.5">{t('inspector.sections.groups')}</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {groups.map((g) => (
+                  <span key={g} className="text-[10.5px] px-1.5 py-0.5 rounded bg-violet-900/50 text-violet-200 border border-violet-700/50">{g}</span>
+                ))}
+                {onEditGroups && (
+                  <button onClick={() => onEditGroups(mod)} className="text-[10.5px] px-1.5 py-0.5 rounded border border-dashed border-slate-700 text-slate-400 hover:text-violet-200 hover:border-violet-600 cursor-pointer">
+                    {groups.length ? t('inspector.sections.editGroups') : t('inspector.sections.addGroup')}
+                  </button>
+                )}
+              </div>
+              <span className="text-slate-500 pt-0.5">{t('inspector.sections.profiles')}</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {profileNames.length === 0 && <span className="text-slate-500 italic">{t('modList.row.noProfileYet')}</span>}
+                {profileNames.map((p) => (
+                  <span
+                    key={p}
+                    className={`flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded border ${
+                      p === activeProfileName ? 'border-emerald-700/60 text-emerald-300 bg-emerald-950/30' : 'border-slate-700 text-slate-400'
+                    }`}
+                    title={p === activeProfileName ? t('inspector.sections.activeProfile') : undefined}
+                  >
+                    <Layers className="w-3 h-3" />
+                    {p}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
+        </Section>
 
-          {/* Right Poster Image Frame (256x256 image with fallback) */}
-          <div className="col-span-12 sm:col-span-5 space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              {t('inspector.poster')}
-            </label>
-            <div className="h-48 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner">
-              {posterSrc && !imageError ? (
-                <img
-                  src={posterSrc}
-                  alt={mod.name}
-                  className="w-full h-full object-cover rounded-xl"
-                  onError={() => setImageError(true)}
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-xl flex flex-col items-center justify-center p-3 text-center space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shadow">
-                    {mod.is_map_mod ? (
-                      <MapPin className="w-5 h-5 text-amber-400" />
-                    ) : mod.is_library ? (
-                      <Package className="w-5 h-5 text-purple-400" />
-                    ) : (
-                      <ListOrdered className="w-5 h-5 text-cyan-400" />
-                    )}
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-200 line-clamp-1 max-w-[150px]">
-                    {mod.name}
-                  </span>
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    <span>{mod.is_map_mod ? t('inspector.mapTile') : mod.is_library ? t('inspector.framework') : t('inspector.scriptModShort')}</span>
+        {/* What to do: every finding of the health check, worst first, with its fix */}
+        {problemCount > 0 ? (
+          <Section
+            icon={worst ? STATE_STYLE[worst].icon : ShieldAlert}
+            iconClass={worst ? STATE_STYLE[worst].iconColor : 'text-orange-400'}
+            title={t('inspector.sections.todo', { count: problemCount })}
+            foldId="todo"
+          >
+            <div className="space-y-2">
+              {showOrderCard && orderViolation && (
+                <div className="rounded-lg border border-orange-500/50 bg-orange-950/30 px-3 py-2 text-[11.5px] space-y-1.5">
+                  <div className="font-bold text-orange-300">{t('inspector.orderTitle')}</div>
+                  <p className="text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('inspector.orderBody', { name: orderViolation.requiredModName, n: orderViolation.requiredModIndex + 1 }) }} />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => onFixLoadOrder(mod.mod_id, orderViolation.requiredModId)} className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold cursor-pointer">
+                      <Wand2 className="w-3 h-3" />
+                      {t('inspector.moveAfter', { name: orderViolation.requiredModName })}
+                    </button>
+                    <button onClick={() => onJumpToMod(orderViolation.requiredModId)} className="px-2 py-1 rounded-md border border-slate-700 hover:bg-slate-800 text-slate-300 text-[11px] cursor-pointer" title={t('inspector.jumpToDependency')}>
+                      {t('inspector.viewDependency')}
+                    </button>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Section: In-Game Style Metadata Table Grid */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl overflow-hidden text-xs shadow-md">
-          <div className="bg-slate-900/90 px-3.5 py-2 border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center justify-between">
-            <span>{t('inspector.metadata')}</span>
-            <span className="text-[10px] font-mono text-emerald-400 font-normal">{t('inspector.manifest')}</span>
-          </div>
-          <div className="divide-y divide-slate-800/60 font-mono text-[11px]">
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.status')}</div>
-              <div className={`col-span-8 font-bold ${mod.enabled ? 'text-emerald-400' : 'text-slate-500'}`}>
-                {mod.enabled ? t('inspector.enabled') : t('inspector.disabled')}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.version')}</div>
-              <div className="col-span-8 text-slate-200">{mod.version || '1.0'}</div>
-            </div>
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.author')}</div>
-              <div className="col-span-8 text-cyan-300 font-bold">{mod.author || t('inspector.unknown')}</div>
-            </div>
-
-            {mod.url && (
-              <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-                <div className="col-span-4 text-slate-400">{t('inspector.homepage')}</div>
-                <div className="col-span-8">
-                  <button
-                    onClick={() => TauriService.openExternalUrl(mod.url!)}
-                    className="text-cyan-400 hover:underline font-mono truncate max-w-full text-left"
-                  >
-                    {mod.url}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.modId')}</div>
-              <div className="col-span-8 text-emerald-400 font-bold">{mod.mod_id}</div>
-            </div>
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.workshopId')}</div>
-              <div className="col-span-8 text-slate-300">{mod.workshop_id || t('inspector.builtIn')}</div>
-            </div>
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.source')}</div>
-              <div className="col-span-8 text-slate-300">{mod.workshop_id ? t('inspector.steamWorkshop') : t('inspector.localDirectory')}</div>
-            </div>
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-center">
-              <div className="col-span-4 text-slate-400">{t('inspector.zomboidVersion')}</div>
-              <div className="col-span-8 text-slate-300">{mod.pzversion || '42.0+'}</div>
-            </div>
-
-            <div className="grid grid-cols-12 px-3.5 py-1.5 items-start">
-              <div className="col-span-4 text-slate-400 pt-0.5">{t('inspector.incompatibleWith')}</div>
-              <div className="col-span-8">
-                {mod.incompatible && mod.incompatible.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {mod.incompatible.map((incRaw, idx) => (
-                      <span key={idx} className="text-amber-400 font-bold">{incRaw}</span>
-                    ))}
+              {showDisabledCard && disabledDependency && (
+                <div className="rounded-lg border border-rose-500/50 bg-rose-950/30 px-3 py-2 text-[11.5px] space-y-1.5">
+                  <div className="font-bold text-rose-300">{t('inspector.disabledTitle')}</div>
+                  <p className="text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('inspector.disabledBody', { name: disabledDependency.name }) }} />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => onToggleMod(disabledDependency.mod_id)} className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold cursor-pointer">
+                      <Check className="w-3 h-3" />
+                      {t('inspector.activateLibrary')}
+                    </button>
+                    <button onClick={() => onJumpToMod(disabledDependency.mod_id)} className="px-2 py-1 rounded-md border border-slate-700 hover:bg-slate-800 text-slate-300 text-[11px] cursor-pointer" title={t('inspector.jumpToLibrary')}>
+                      {t('inspector.viewMod')}
+                    </button>
                   </div>
-                ) : (
-                  <span className="text-slate-600 italic">-</span>
-                )}
-              </div>
+                </div>
+              )}
+              {showIncompatCard && incompatibility && (
+                <div className="rounded-lg border border-amber-500/50 bg-amber-950/30 px-3 py-2 text-[11.5px] space-y-1.5">
+                  <div className="font-bold text-amber-300">{t('inspector.incompatTitle')}</div>
+                  <p className="text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('inspector.incompatBody', { name: incompatibility.conflictingModName }) }} />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => onJumpToMod(incompatibility.conflictingModId)} className="px-2 py-1 rounded-md border border-amber-600/60 hover:bg-amber-900/30 text-amber-200 text-[11px] font-bold cursor-pointer">
+                      {t('inspector.viewConflicting')}
+                    </button>
+                    <button onClick={() => onToggleMod(incompatibility.conflictingModId)} className="px-2 py-1 rounded-md border border-slate-700 hover:bg-slate-800 text-slate-300 text-[11px] cursor-pointer" title={t('inspector.deactivateTitle')}>
+                      {t('inspector.deactivate')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <IssueCards issues={issues} onJumpToMod={onJumpToMod} {...fixContext} />
             </div>
-          </div>
-        </div>
-
-        {/* What the mod's Java changes: the classes its jar declares patches for */}
-        {javaPatches && (
-          <div className="space-y-1 border-t border-slate-800 pt-3">
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-sky-400" />
-              <span className="text-sky-300">{t('inspector.java.title', { count: javaClasses.length })}</span>
-            </label>
-            {javaPatches.unknown ? (
-              <p className="text-[11px] text-amber-300 leading-relaxed">
-                {t(javaPatches.unknown === 'jar_missing' ? 'inspector.java.jarMissing' : javaPatches.unknown === 'no_package' ? 'inspector.java.noPackage' : 'inspector.java.unreadable', { jar: javaPatches.jar ?? '' })}
-              </p>
-            ) : (
-              <>
-                <p className="text-[11px] text-slate-500 leading-relaxed">{t('inspector.java.how', { jar: javaPatches.jar ?? '', package: javaPatches.package ?? '' })}</p>
-                {(javaPatches.shared?.length ?? 0) > 0 && <p className="text-[11px] text-slate-400 leading-relaxed">{t('inspector.java.sharedNote')}</p>}
-                {javaClasses.length === 0 && <p className="text-[11px] text-slate-400">{t('inspector.java.none')}</p>}
-                {javaClasses.length > 0 && (
-                  <ul className="text-[11px] font-mono leading-relaxed">
-                    {javaClasses.slice(0, 8).map((c) => (
-                      <li key={c.name} className="break-all">
-                        <span className="text-slate-200">{c.name}</span>
-                        <span className="text-slate-500"> · {c.methods.length > 0 ? c.methods.join(', ') : t('inspector.java.wholeClass')}</span>
-                        {javaSharedLine(c.name)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {javaClasses.length > 8 && (
-                  <details>
-                    <summary className="text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer select-none">{t('inspector.java.more', { count: javaClasses.length - 8 })}</summary>
-                    <ul className="text-[11px] font-mono leading-relaxed">
-                      {javaClasses.slice(8).map((c) => (
-                        <li key={c.name} className="break-all">
-                          <span className="text-slate-200">{c.name}</span>
-                          <span className="text-slate-500"> · {c.methods.length > 0 ? c.methods.join(', ') : t('inspector.java.wholeClass')}</span>
-                          {javaSharedLine(c.name)}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-                {[...new Set(javaPatches.patches.map((p) => p.not_applied).filter((w): w is string => !!w))].map((why) => (
-                  <p key={why} className="text-[11px] text-slate-500 leading-relaxed">
-                    {t('inspector.java.notApplied', { count: javaPatches.patches.filter((p) => p.not_applied === why).length, why: t(`inspector.java.why.${why}`, { defaultValue: why }) })}
-                  </p>
-                ))}
-                {javaPatches.patches.some((p) => p.by_code && !p.not_applied) && <p className="text-[11px] text-slate-500 leading-relaxed">{t('inspector.java.byCode')}</p>}
-                {javaPatches.patches_in_code.length > 0 && (
-                  <p className="text-[11px] text-amber-200/90 leading-relaxed">{t('inspector.java.inCode', { what: javaPatches.patches_in_code.join(', ') })}</p>
-                )}
-                {javaPatches.side && <p className="text-[11px] text-slate-500 leading-relaxed">{t(javaPatches.side === 'client' ? 'inspector.java.sideClient' : 'inspector.java.sideServer')}</p>}
-              </>
-            )}
+          </Section>
+        ) : (
+          <div className="flex items-center gap-2 text-[11.5px] text-emerald-300/90 bg-emerald-950/20 border border-emerald-900/50 rounded-lg px-3 py-2">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            {t('inspector.sections.allGood')}
           </div>
         )}
 
-        {/* SECTION 1: Base Libraries (Library Required by this Mod) */}
-        <div className="space-y-1 border-t border-slate-800 pt-3">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-              <Package className="w-3.5 h-3.5 text-emerald-400" />
-              {t('inspector.libraryRequired', { count: parentLibraries.length })}
-            </span>
-          </label>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {parentLibraries.length > 0 ? (
-              parentLibraries.map((item, idx) => {
+        {/* Last session: what the game logged and what it cost */}
+        {hasSession && (
+          <Section icon={Activity} iconClass="text-cyan-300" title={t('inspector.sections.session')} foldId="session">
+            <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-1.5 text-[11.5px]">
+              {errorStat && (errorStat.exceptions > 0 || errorStat.warnings > 0) && (
+                <>
+                  <dt className="text-slate-500">{t('inspector.sections.logged')}</dt>
+                  <dd className="min-w-0">
+                    <span className={errorStat.exceptions > 0 ? 'text-red-300 font-bold' : 'text-slate-300'}>
+                      {[
+                        errorStat.exceptions > 0 ? t('modList.row.threw', { count: errorStat.exceptions }) : null,
+                        errorStat.warnings > 0 ? t('modList.row.warn', { count: errorStat.warnings }) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                    {(errorStat.last_exception ?? errorStat.last_warning) && (
+                      <div className="mt-1 font-mono text-[10.5px] text-red-200/80 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 break-all max-h-24 overflow-y-auto">
+                        {errorStat.last_exception ?? errorStat.last_warning}
+                      </div>
+                    )}
+                  </dd>
+                </>
+              )}
+              {loadMs !== undefined && (
+                <>
+                  <dt className="text-slate-500">{t('inspector.sections.loadTime')}</dt>
+                  <dd className={loadMs >= 1000 ? 'text-amber-300 font-bold' : 'text-slate-300'}>
+                    {loadMs >= 1000 ? `${(loadMs / 1000).toFixed(1)} s` : `${loadMs} ms`}
+                  </dd>
+                </>
+              )}
+              {gameShare !== undefined && (
+                <>
+                  <dt className="text-slate-500">{t('inspector.sections.gameTime')}</dt>
+                  <dd className={gameShare >= 5 ? 'text-amber-300 font-bold' : 'text-slate-300'}>{t('modList.row.gameTime', { pct: gameShare.toFixed(gameShare < 10 ? 1 : 0) })}</dd>
+                </>
+              )}
+            </dl>
+          </Section>
+        )}
+
+        {/* What it needs and what needs it */}
+        <Section icon={Link2} iconClass="text-purple-300" title={t('inspector.sections.deps')}>
+          <div className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-2 text-[11.5px] items-start">
+            <span className="text-slate-500 pt-1">{t('inspector.sections.needs')}</span>
+            <div className="flex flex-wrap gap-1">
+              {parentLibraries.length === 0 && <span className="text-slate-500 italic pt-1">{t('inspector.sections.none')}</span>}
+              {parentLibraries.map((item, idx) => {
                 const matched = item.matchedMod;
-                const isDepDisabled = matched && !matched.enabled;
+                const off = matched && !matched.enabled;
                 return (
                   <button
                     key={idx}
                     onClick={() => onJumpToDependency(item.raw)}
-                    className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition cursor-pointer flex items-center gap-2 shadow-sm ${
-                      isDepDisabled
-                        ? 'bg-rose-950/80 border-rose-700 text-rose-200 hover:border-rose-400 shadow'
-                        : matched
-                        ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200 hover:border-emerald-400 shadow'
-                        : 'bg-red-950/80 border-red-700 text-red-200 hover:border-red-400 shadow'
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] cursor-pointer transition ${
+                      off ? 'border-rose-700 text-rose-200 bg-rose-950/50 hover:border-rose-400' : matched ? 'border-emerald-800 text-emerald-200 bg-emerald-950/40 hover:border-emerald-500' : 'border-red-700 text-red-200 bg-red-950/50 hover:border-red-400'
                     }`}
-                    title={
-                      matched
-                        ? t('inspector.parentTitle', { name: matched.name, state: matched.enabled ? t('inspector.active') : t('inspector.disabledUpper') })
-                        : t('inspector.notInstalledTitle', { name: item.raw })
-                    }
+                    title={matched ? t('inspector.parentTitle', { name: matched.name, state: matched.enabled ? t('inspector.active') : t('inspector.disabledUpper') }) : t('inspector.notInstalledTitle', { name: item.raw })}
                   >
-                    <span className={`w-2 h-2 rounded-full ${isDepDisabled ? 'bg-rose-400 animate-pulse' : matched ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                    <span>{matched ? matched.name : item.raw}</span>
-                    <ExternalLink className="w-3 h-3 text-emerald-400 shrink-0 ml-0.5" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${off ? 'bg-rose-400' : matched ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                    {matched ? matched.name : item.raw}
                   </button>
                 );
-              })
-            ) : (
-              <span className="text-xs text-slate-500 italic">{t('inspector.noLibrary')}</span>
-            )}
-          </div>
-        </div>
-
-        {/* SECTION 2: Reverse Dependents (Mods Requiring This Library) */}
-        <div className="space-y-1 border-t border-slate-800 pt-3">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-purple-400 font-bold">
-              <Link2 className="w-3.5 h-3.5 text-purple-400" />
-              {t('inspector.modsRequiring', { count: reverseDependents.length })}
-            </span>
-          </label>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {reverseDependents.length > 0 ? (
-              reverseDependents.map((depMod) => (
+              })}
+            </div>
+            <span className="text-slate-500 pt-1">{t('inspector.sections.neededBy')}</span>
+            <div className="flex flex-wrap gap-1">
+              {reverseDependents.length === 0 && <span className="text-slate-500 italic pt-1">{t('inspector.sections.none')}</span>}
+              {(dependentsOpen ? reverseDependents : reverseDependents.slice(0, DEPENDENTS_SHOWN)).map((d) => (
                 <button
-                  key={depMod.mod_id}
-                  onClick={() => onJumpToMod(depMod.mod_id)}
-                  className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition cursor-pointer flex items-center gap-2 shadow-sm ${
-                    depMod.enabled
-                      ? 'bg-purple-950/80 border-purple-700 text-purple-200 hover:border-purple-400 shadow'
-                      : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
+                  key={d.mod_id}
+                  onClick={() => onJumpToMod(d.mod_id)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] cursor-pointer transition ${
+                    d.enabled ? 'border-purple-800 text-purple-200 bg-purple-950/40 hover:border-purple-500' : 'border-slate-800 text-slate-500 hover:text-slate-300'
                   }`}
-                  title={t('inspector.childTitle', { name: depMod.name, state: depMod.enabled ? t('inspector.active') : t('inspector.disabledUpper') })}
+                  title={t('inspector.childTitle', { name: d.name, state: d.enabled ? t('inspector.active') : t('inspector.disabledUpper') })}
                 >
-                  <span className={`w-2 h-2 rounded-full ${depMod.enabled ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                  <span>{depMod.name}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${d.enabled ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  {d.name}
                 </button>
-              ))
-            ) : (
-              <span className="text-xs text-slate-500 italic">{t('inspector.noDependents')}</span>
-            )}
+              ))}
+              {reverseDependents.length > DEPENDENTS_SHOWN && (
+                <button onClick={() => setDependentsOpen((o) => !o)} className="px-2 py-1 text-[11px] text-cyan-400 hover:text-cyan-300 cursor-pointer">
+                  {dependentsOpen ? t('inspector.sections.less') : t('inspector.sections.andMore', { count: reverseDependents.length - DEPENDENTS_SHOWN })}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        </Section>
+
+        {/* mod.info facts, in two columns */}
+        <Section icon={Info} iconClass="text-slate-400" title={t('inspector.metadata')} foldId="modinfo" startClosed>
+          <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-1 text-[11.5px]">
+            {fact(t('inspector.version'), mod.version || '1.0')}
+            {fact(t('inspector.author'), mod.author || t('inspector.unknown'))}
+            {fact(t('inspector.zomboidVersion'), mod.pzversion || '42.0+')}
+            {fact(t('inspector.workshopId'), mod.workshop_id || t('inspector.builtIn'))}
+            {fact(t('inspector.source'), mod.workshop_id ? t('inspector.steamWorkshop') : t('inspector.localDirectory'))}
+            {mod.url &&
+              fact(
+                t('inspector.homepage'),
+                <button onClick={() => TauriService.openExternalUrl(mod.url!)} className="text-cyan-400 hover:underline text-left break-all cursor-pointer">
+                  {mod.url}
+                </button>
+              )}
+            {mod.incompatible && mod.incompatible.length > 0 && fact(t('inspector.incompatibleWith'), <span className="text-amber-300">{mod.incompatible.join(', ')}</span>)}
+          </dl>
+          {changelog?.entries[0] && (
+            <div className="mt-3 space-y-2">
+                            {changelog?.entries[0] && (
+                <details>
+                  <summary className="text-[11px] text-sky-300 cursor-pointer select-none">
+                    {t('inspector.changelog')}
+                    {changelog.entries[0].title ? `: ${changelog.entries[0].title}` : ''}
+                  </summary>
+                  <div className="mt-1.5 text-[11px] text-slate-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">{changelog.entries[0].text}</div>
+                </details>
+              )}
+            </div>
+          )}
+        </Section>
+
+        {/* What the mod's Java changes: folded, it is for the curious */}
+        {javaPatches && (
+          <details className="group">
+            <summary className="list-none cursor-pointer select-none flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200">
+              <ChevronRight className="w-3.5 h-3.5 transition group-open:rotate-90" />
+              <Layers className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-sky-300">{t('inspector.java.title', { count: javaClasses.length })}</span>
+              {(javaPatches.shared?.length ?? 0) > 0 && (
+                <span className="ml-1 normal-case tracking-normal font-normal text-amber-300/90">{t('inspector.sections.javaShared', { count: javaPatches.shared!.length })}</span>
+              )}
+            </summary>
+            <div className="mt-2 space-y-1">
+              {javaPatches.unknown ? (
+                <p className="text-[11px] text-amber-300 leading-relaxed">
+                  {t(javaPatches.unknown === 'jar_missing' ? 'inspector.java.jarMissing' : javaPatches.unknown === 'no_package' ? 'inspector.java.noPackage' : 'inspector.java.unreadable', { jar: javaPatches.jar ?? '' })}
+                </p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">{t('inspector.java.how', { jar: javaPatches.jar ?? '', package: javaPatches.package ?? '' })}</p>
+                  {(javaPatches.shared?.length ?? 0) > 0 && <p className="text-[11px] text-slate-400 leading-relaxed">{t('inspector.java.sharedNote')}</p>}
+                  {javaClasses.length === 0 && <p className="text-[11px] text-slate-400">{t('inspector.java.none')}</p>}
+                  {javaClasses.length > 0 && <ul className="text-[11px] font-mono leading-relaxed">{javaClasses.map(javaClassItem)}</ul>}
+                  {[...new Set(javaPatches.patches.map((p) => p.not_applied).filter((w): w is string => !!w))].map((why) => (
+                    <p key={why} className="text-[11px] text-slate-500 leading-relaxed">
+                      {t('inspector.java.notApplied', { count: javaPatches.patches.filter((p) => p.not_applied === why).length, why: t(`inspector.java.why.${why}`, { defaultValue: why }) })}
+                    </p>
+                  ))}
+                  {javaPatches.patches.some((p) => p.by_code && !p.not_applied) && <p className="text-[11px] text-slate-500 leading-relaxed">{t('inspector.java.byCode')}</p>}
+                  {javaPatches.patches_in_code.length > 0 && (
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed">{t('inspector.java.inCode', { what: javaPatches.patches_in_code.join(', ') })}</p>
+                  )}
+                  {javaPatches.side && <p className="text-[11px] text-slate-500 leading-relaxed">{t(javaPatches.side === 'client' ? 'inspector.java.sideClient' : 'inspector.java.sideServer')}</p>}
+                </>
+              )}
+            </div>
+          </details>
+        )}
+          </>
+        )}
+        {shownTab !== 'studio' && (
+          <>
+        {mod.workshop_id ? (
+          <ModWorkshopPage view={shownTab === 'comments' ? 'comments' : 'page'} workshopId={mod.workshop_id} mods={mods} fallback={plainDescription(mod.description)} onJumpToMod={onJumpToMod} onOpenInBrowser={onOpenInBrowser} />
+        ) : (
+          <>
+        {/* The mod's own description, folded to a few lines */}
+        <Section icon={BookOpen} iconClass="text-slate-300" title={t('inspector.overview')}>
+          <div className={`relative text-xs text-slate-300 ${descOpen ? '' : 'max-h-32 overflow-hidden'}`}>
+            {renderPZRichText(mod.description)}
+            {!descOpen && (mod.description?.length ?? 0) > 280 && <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none" />}
+          </div>
+          {(mod.description?.length ?? 0) > 280 && (
+            <button onClick={() => setDescOpen((o) => !o)} className="mt-1 text-[11px] text-cyan-400 hover:text-cyan-300 cursor-pointer">
+              {descOpen ? t('inspector.sections.less') : t('inspector.sections.more')}
+            </button>
+          )}
+        </Section>
+
+          </>
+        )}
+          </>
+        )}
       </div>
+
+      {/* The poster, full size, over the screen */}
+      {posterBig && showPoster && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-8 cursor-zoom-out" onClick={() => setPosterBig(false)}>
+          <img src={posterSrc!} alt={mod.name} className="max-w-full max-h-full rounded-xl shadow-2xl border border-slate-700" />
+        </div>
+      )}
     </div>
   );
 };
+
+/**
+ * One block of the inspector: a small heading with its icon, then its content. With `foldId` the
+ * heading folds it, and the choice is kept (the same for every mod, and between sessions).
+ */
+const Section: React.FC<{ icon: React.ElementType; iconClass: string; title: React.ReactNode; children: React.ReactNode; foldId?: string; startClosed?: boolean }> = ({
+  icon: Icon,
+  iconClass,
+  title,
+  children,
+  foldId,
+  startClosed = false,
+}) => {
+  const key = foldId ? `pz_inspector_open_${foldId}` : '';
+  const [open, setOpen] = useState(() => {
+    if (!foldId) return true;
+    const kept = localStorage.getItem(key);
+    return kept === null ? !startClosed : kept === '1';
+  });
+  const heading = (
+    <>
+      {foldId && <ChevronRight className={`w-3.5 h-3.5 transition ${open ? 'rotate-90' : ''}`} />}
+      <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
+      {title}
+    </>
+  );
+  return (
+    <section>
+      {foldId ? (
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(!open);
+            localStorage.setItem(key, open ? '0' : '1');
+          }}
+          className={`w-full flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 cursor-pointer ${open ? 'mb-2' : ''}`}
+        >
+          {heading}
+        </button>
+      ) : (
+        <h4 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">{heading}</h4>
+      )}
+      {open && children}
+    </section>
+  );
+};
+
+/** The game's description markup as plain text, for where Steam's page did not answer. */
+const plainDescription = (text?: string) => (text ? text.replace(/<LINE>/gi, '\n').replace(/<[^>]+>/g, '').trim() : undefined);

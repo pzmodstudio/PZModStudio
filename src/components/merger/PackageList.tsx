@@ -1,7 +1,7 @@
 import React from 'react';
 import { PageGuide } from '../common/PageGuide';
 import { MergedPackageInfoUI } from '../../services/tauri';
-import { Box, Download, Edit2, Eye, EyeOff, FolderOpen, Lock, Package, PackageCheck, Plus, Trash2, Upload } from 'lucide-react';
+import { Box, ChevronRight, Download, Edit2, Eye, EyeOff, FolderOpen, Lock, Package, Plus, Trash2, Upload } from 'lucide-react';
 import i18next from 'i18next';
 
 interface PackageListProps {
@@ -52,113 +52,14 @@ export const PackageList: React.FC<PackageListProps> = ({
   onToggleOtherProfiles,
   ownersOf = () => [],
   isInActiveProfile = () => true,
-}) => (
-  <div className="flex-1 flex flex-col overflow-hidden">
-    <PageGuide page="merger" className="m-3 mb-0" />
-    {/* Top Bar for Level 1 */}
-    <div className="bg-slate-900 border-b border-slate-800 p-3.5 flex items-center justify-between gap-4 shrink-0 shadow-md">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-          <Box className="w-4 h-4" />
-        </div>
-        <div>
-          <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            <span>{i18next.t('merger.list.title')}</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
-              {i18next.t('merger.list.count', { count: packages.length })}
-            </span>
-          </h2>
-          <p className="text-[11px] text-slate-400">
-            {i18next.t('merger.list.blurb')}
-          </p>
-        </div>
-      </div>
+}) => {
+  /** The packages that merge mods, and the Studio's own mods (Link, Bridge), which are no merge packages. */
+  const mergePackages = packages.filter((p) => !p.is_companion_bridge);
+  const studioMods = packages.filter((p) => p.is_companion_bridge);
+  const card = (pkg: MergedPackageInfoUI) => {
+    const isSelected = pkg.folder_name === selectedFolder;
+    return (
 
-      <div className="flex items-center gap-2 shrink-0">
-        {activeProfileName && (otherProfilesCount > 0 || showOtherProfiles) && (
-          <button
-            onClick={onToggleOtherProfiles}
-            aria-pressed={showOtherProfiles}
-            className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer ${
-              showOtherProfiles
-                ? 'bg-purple-950/60 text-purple-200 border-purple-600/60 hover:bg-purple-900/60'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-            }`}
-            title={i18next.t('merger.list.otherProfilesTitle', { name: activeProfileName })}
-          >
-            {showOtherProfiles ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            <span>
-              {showOtherProfiles
-                ? i18next.t('merger.list.onlyProfile', { name: activeProfileName })
-                : i18next.t('merger.list.otherProfiles', { count: otherProfilesCount })}
-            </span>
-          </button>
-        )}
-        <button
-          onClick={onImport}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer"
-          title={i18next.t('merger.list.importTitle')}
-        >
-          <Upload className="w-3.5 h-3.5 text-cyan-400" />
-          <span>{i18next.t('merger.list.import')}</span>
-        </button>
-
-        {activeProfileName && onCreateForProfile && !packages.some((p) => !p.is_companion_bridge && isInActiveProfile(p)) && (
-          <button
-            onClick={onCreateForProfile}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-200 border border-emerald-700/60 text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer"
-            title={i18next.t('merger.list.forProfileTitle', { name: activeProfileName })}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{i18next.t('merger.list.forProfile', { name: activeProfileName })}</span>
-          </button>
-        )}
-        <button
-          onClick={onCreate}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{i18next.t('merger.list.new')}</span>
-        </button>
-
-        {/* Package & Publish stays greyed out until a package is open */}
-        <button
-          disabled
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed opacity-50 shadow shrink-0"
-          title={i18next.t('merger.list.publishDisabledTitle')}
-        >
-          <PackageCheck className="w-4 h-4 text-slate-600" />
-          <span>{i18next.t('merger.list.publish')}</span>
-        </button>
-      </div>
-    </div>
-
-    {/* Level 1 Body: Cards or Empty State */}
-    {packages.length === 0 ? (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 shadow-inner">
-          <Box className="w-8 h-8 text-emerald-400" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-slate-200">{i18next.t('merger.list.none')}</h3>
-          <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
-            {i18next.t('merger.list.noneBlurb')}
-          </p>
-        </div>
-        <button
-          onClick={onCreate}
-          className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition shadow-lg flex items-center gap-2 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{i18next.t('merger.list.createFirst')}</span>
-        </button>
-      </div>
-    ) : (
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-5xl w-full mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {packages.map((pkg) => {
-            const isSelected = pkg.folder_name === selectedFolder;
-            return (
               <div
                 key={pkg.folder_name}
                 onClick={() => onSelect(pkg.folder_name)}
@@ -375,9 +276,117 @@ export const PackageList: React.FC<PackageListProps> = ({
                 </div>
               </div>
             );
-          })}
+  };
+
+  return (
+  <div className="flex-1 flex flex-col overflow-hidden">
+    <PageGuide page="merger" className="m-3 mb-0" />
+    {/* Top Bar for Level 1 */}
+    <div className="bg-slate-900 border-b border-slate-800 p-3.5 flex items-center justify-between gap-4 shrink-0 shadow-md">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+          <Box className="w-4 h-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+            <span>{i18next.t('merger.title')}</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
+              {i18next.t('merger.list.count', { count: mergePackages.length })}
+            </span>
+          </h2>
+          <p className="text-[11px] text-slate-400">
+            {i18next.t('merger.list.blurb')}
+          </p>
         </div>
       </div>
-    )}
-  </div>
-);
+
+      <div className="flex items-center gap-2 shrink-0">
+        {activeProfileName && (otherProfilesCount > 0 || showOtherProfiles) && (
+          <button
+            onClick={onToggleOtherProfiles}
+            aria-pressed={showOtherProfiles}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer ${
+              showOtherProfiles
+                ? 'bg-purple-950/60 text-purple-200 border-purple-600/60 hover:bg-purple-900/60'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+            }`}
+            title={i18next.t('merger.list.otherProfilesTitle', { name: activeProfileName })}
+          >
+            {showOtherProfiles ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            <span>
+              {showOtherProfiles
+                ? i18next.t('merger.list.onlyProfile', { name: activeProfileName })
+                : i18next.t('merger.list.otherProfiles', { count: otherProfilesCount })}
+            </span>
+          </button>
+        )}
+        <button
+          onClick={onImport}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer"
+          title={i18next.t('merger.list.importTitle')}
+        >
+          <Upload className="w-3.5 h-3.5 text-cyan-400" />
+          <span>{i18next.t('merger.list.import')}</span>
+        </button>
+
+        {activeProfileName && onCreateForProfile && !mergePackages.some((p) => isInActiveProfile(p)) && (
+          <button
+            onClick={onCreateForProfile}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-200 border border-emerald-700/60 text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer"
+            title={i18next.t('merger.list.forProfileTitle', { name: activeProfileName })}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{i18next.t('merger.list.forProfile', { name: activeProfileName })}</span>
+          </button>
+        )}
+        <button
+          onClick={onCreate}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow shrink-0 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{i18next.t('merger.list.new')}</span>
+        </button>
+
+      </div>
+    </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-5 max-w-5xl w-full mx-auto">
+        {mergePackages.length === 0 ? (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8 flex flex-col items-center text-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center">
+              <Box className="w-7 h-7 text-emerald-400" />
+            </div>
+            <h3 className="text-base font-bold text-slate-200">{activeProfileName ? i18next.t('merger.list.noneForProfile', { name: activeProfileName }) : i18next.t('merger.list.none')}</h3>
+            <p className="text-xs text-slate-400 max-w-lg leading-relaxed">{i18next.t('merger.list.noneWhen')}</p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button onClick={onCreate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                <Plus className="w-4 h-4" />
+                <span>{i18next.t('merger.list.createFirst')}</span>
+              </button>
+              {activeProfileName && otherProfilesCount > 0 && !showOtherProfiles && (
+                <button onClick={onToggleOtherProfiles} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                  <Eye className="w-4 h-4" />
+                  <span>{i18next.t('merger.list.otherProfiles', { count: otherProfilesCount })}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{mergePackages.map(card)}</div>
+        )}
+
+        {studioMods.length > 0 && (
+          <details className="group rounded-xl border border-slate-800 bg-slate-900/40">
+            <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center gap-2 text-xs text-slate-300">
+              <ChevronRight className="w-4 h-4 text-slate-500 transition group-open:rotate-90" />
+              <Lock className="w-3.5 h-3.5 text-cyan-400/80" />
+              <span className="font-bold">{i18next.t('merger.list.studioMods', { count: studioMods.length })}</span>
+              <span className="text-slate-500">{i18next.t('merger.list.studioModsNote')}</span>
+            </summary>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 pt-1">{studioMods.map(card)}</div>
+          </details>
+        )}
+      </div>
+    </div>
+  );
+};

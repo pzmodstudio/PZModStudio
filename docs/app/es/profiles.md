@@ -4,12 +4,13 @@ Un perfil es una lista de mods con nombre: qué mods le pertenecen, cuáles est�
 
 ## Qué ves
 
-- A la izquierda, el formulario **Crear perfil nuevo**.
-- A la derecha, una tarjeta por cada perfil guardado. El activo tiene un marco verde y la etiqueta **Activo**; los demás dicen **Inactivo**.
+- Arriba, cuántos perfiles tenés guardados y el botón **Nuevo perfil**, que abre una ventana que te guía en tres pasos para crear uno.
+- Una tarjeta por cada perfil guardado, el activo primero. El activo tiene un marco verde, la etiqueta **Activo** y el botón **Ver sus mods**, que abre la Lista de mods; los demás dicen **Inactivo** y tienen **Activar (1 clic)**.
 - Cada tarjeta muestra su descripción, cuántos mods están prendidos (**mods activos**), el **Total** de mods de su orden y la build: **Build 41/42** si la fijaste a mano, o **Jugado en ...** con la build en la que se jugó por última vez desde el Studio.
-- El contador de arriba a la derecha dice cuántos perfiles tenés guardados.
 
 ## Crear un perfil
+
+Tocá **Nuevo perfil**: se abre una ventana con tres pasos (**Nombre**, **Qué mods**, **Revisar**), cada uno con una explicación arriba. **Siguiente** y **Atrás** pasan de uno a otro; Esc o la X la cierran sin crear nada.
 
 1. Escribí un **Nombre del perfil** (obligatorio) y, si querés, una **Descripción (opcional)**.
 2. En **Qué mods**, elegí con qué arranca el perfil:
@@ -17,7 +18,7 @@ Un perfil es una lista de mods con nombre: qué mods le pertenecen, cuáles est�
    - **Todo lo instalado**: todos los mods que encontró el Studio.
    - **Elegirlos**: una lista con buscador y botones **Todos** / **Ninguno**; marcá los mods que quieras.
    - **Ninguno todavía**: un perfil vacío. El Studio te pide confirmar, porque cambiar a él apaga todos los mods. Mientras hay un perfil activo, un botón **Buscar mods en Explorar mods** te lleva ahí para suscribirte antes.
-3. Tocá **Crear perfil nuevo**.
+3. En **Revisar** ves el nombre y cuántos mods arrancan prendidos. Tocá **Crear y activar**.
 
 El perfil nuevo se crea y se activa en el momento, y conserva el orden de carga que ya tiene tu lista. Si el Studio todavía no encontró ningún mod (carpeta del juego o de Zomboid sin fijar en Configuración), no lo deja crear, para que un perfil no apague todos tus mods por error.
 

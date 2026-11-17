@@ -4,9 +4,12 @@ En Configuración le decís al Studio dónde están tu juego y tus mods, y eleg�
 
 ## Qué ves
 
-La pantalla tiene pestañas arriba a la derecha:
+La pantalla tiene pestañas arriba, una al lado de la otra:
 
-- **Carpetas**: las carpetas y todas las preferencias generales (casi toda esta página).
+- **Carpetas**: dónde están el juego, el Workshop, tu carpeta Zomboid y la lista de mods.
+- **Avisos**: qué avisos te muestra el Studio.
+- **La app**: cómo arranca el Studio, su ventana y el botón de cerrar, el idioma, recordar el inicio del juego, la pantalla de Mods del juego, buscar versiones nuevas y la traducción.
+- **Avanzado**: el diagnóstico de la app, las funciones para desarrolladores y, con ellas, los mods Java que permitiste en ZombieBuddy.
 - **Arreglos para Build 42**: qué cubre el shim de compatibilidad para Build 42, con un interruptor por cada mod que parchea.
 - **Servidor MCP para agentes**: solo aparece con **Funciones para desarrolladores** encendido.
 

@@ -38,7 +38,7 @@ Each row shows the map's name, the mod it comes from, how many cells it has, how
 ## Clashes
 
 - A **red** warning means two map mods share cells and both are on: in your next game one replaces the other there. Under it, each mod has a button to see it in the Mod List and a **Turn off** button that switches it off (after asking).
-- An **amber** warning means they would clash if both were on.
+- What would clash only if you switched on mods that are off today folds into one grey line (**N possible clashes if you switch on mods that are off today: nothing to do now**). Open it to see each one.
 - A tile definition warning means two mods use the same tile definition number. If both are on, their tiles overwrite each other and you get wrong walls, floors or furniture. Keep only one on. Under it, each mod has a button to see it in the Mod List, and **Turn off** when more than one is on.
 
 ## Other map mods

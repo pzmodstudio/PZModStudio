@@ -13,7 +13,7 @@ La barra lateral lista las pantallas bajo **Módulos del Studio**. Las pantallas
 - **Centro de monitoreo**: iniciá el juego y leé su registro, con una tarjeta por error y el mod del que vino.
 - **Lista de mods**: prendé y apagá mods y fijá el orden de carga, con filtros, grupos, notas y deshacer.
 - **Novedades**: tus mods del Workshop actualizados desde que jugaste, con sus notas de cambios y un aviso cuando una actualización puede romper partidas.
-- **Salud de mods**: revisa la lista activa como lo hace el juego: requisitos faltantes o apagados, orden incorrecto, mods incompatibles, mods que tu build no carga, con arreglos.
+- **Diagnóstico**: lo que la app sabe de tus mods (los revisa como el juego: requisitos faltantes o apagados, orden incorrecto, mods incompatibles, mods que tu build no carga, con arreglos), del juego (memoria, CPU, arranque, frames, disco) y del servidor que corre en tu PC, con el Doctor en la portada.
 - **Explorar mods**: buscá en el Steam Workshop, suscribite, armá tus propias listas e instalá mods bajados de otros lados.
 - **Mapas**: las celdas de cada mod de mapa sobre el mundo del juego, y dónde dos mods de mapa se pelean por las mismas celdas.
 - **Fusionador de mods**: cuando dos mods cambian el mismo archivo, combinalos en un paquete de parche que carga último.
@@ -48,13 +48,13 @@ El botón **MODS** del menú principal abre la pantalla de Mods del Link en vez 
 - grupos por autor o categoría, las opciones de cada mod (**Opciones del mod**), el **Orden de mapas**, y **Deshacer** / **Rehacer**;
 - **Aceptar** guarda en la lista que lee el juego, igual que la pantalla original. **Pantalla del juego** abre la original.
 
-Con la app, la misma pantalla además muestra solo los mods del perfil (**Mods del perfil** / **Todos los instalados**), los avisos de Salud de mods en cada mod, los mods actualizados desde tu última sesión, tus notas y grupos, y un botón para agregar al perfil los mods nuevos que no están en ninguno. **Sincronizar con PZ Mod Studio** trae lo que cambió la app, y **Abrir PZ Mod Studio** pone la app al frente.
+Con la app, la misma pantalla además muestra solo los mods del perfil (**Mods del perfil** / **Todos los instalados**), los avisos de Diagnóstico en cada mod, los mods actualizados desde tu última sesión, tus notas y grupos, y un botón para agregar al perfil los mods nuevos que no están en ninguno. **Sincronizar con PZ Mod Studio** trae lo que cambió la app, y **Abrir PZ Mod Studio** pone la app al frente.
 
 Si está prendido otro administrador de mods que maneja la pantalla de Mods, el Link te pregunta cuál pantalla querés, y si elegís la otra se la deja.
 
 ### La tarjeta del menú principal
 
-Si la app ya se ejecutó en esta PC, una tarjeta en el menú principal muestra si la app está abierta o cerrada, el perfil activo y su cantidad de mods, los errores y avisos de Salud de mods, y **Continuar: (partida)** con lo que cambió en sus mods desde su última sesión. Si la app nunca se instaló, la tarjeta en cambio invita a conseguirla, con **Descargar** (copia la dirección de la página de descarga) y **Ocultar**.
+Si la app ya se ejecutó en esta PC, una tarjeta en el menú principal muestra si la app está abierta o cerrada, el perfil activo y su cantidad de mods, los errores y avisos de Diagnóstico, y **Continuar: (partida)** con lo que cambió en sus mods desde su última sesión. Si la app nunca se instaló, la tarjeta en cambio invita a conseguirla, con **Descargar** (copia la dirección de la página de descarga) y **Ocultar**.
 
 ### El aviso de errores
 
@@ -65,4 +65,4 @@ Cuando el juego registra un error de Lua, un aviso nombra el mod del que vino (y
 - Sin la app: la pantalla de Mods del Link, el aviso de errores (sin **Ver en el Studio**) y la tarjeta de invitación.
 - Con un perfil activo, aun con la app cerrada: la pantalla de Mods muestra el perfil como lo dejó la app; en la pantalla de carga cada partida dice si sus mods coinciden con el perfil; una partida que usa mods fuera del perfil no carga; una partida con la lista de mods vacía pregunta antes.
 - Solo con la app abierta: las copias de una partida antes de cargarla con mods cambiados y al salir de ella, jugar una partida en una copia, agregar mods nuevos al perfil, **Sincronizar**, **Abrir PZ Mod Studio** y **Ver en el Studio**.
-- Las notas, los grupos, los perfiles y Salud de mods se hacen en la app; el juego solo los muestra.
+- Las notas, los grupos, los perfiles y Diagnóstico se hacen en la app; el juego solo los muestra.

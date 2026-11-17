@@ -6,7 +6,7 @@ use crate::instance_manager::{activate_instance, create_instance, list_instances
 use crate::patch_generator::{get_master_patch_status, list_merged_packages, save_draft_resolution};
 use crate::sandbox::{
     find_running_pz_pid, install_bridge_companion_mod, kill_pz_game, launch_pz_direct,
-    list_available_log_files, read_game_ipc_response, read_log_file, translate_log_error,
+    list_available_log_files, read_game_ipc_response, read_log_file,
     write_game_ipc_command, TranslatedErrorPayload,
 };
 use crate::vfs::{scan_conflicts, StudioPaths};
@@ -473,7 +473,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "make_compatible_copy".to_string(),
-            description: "What Mod Health offers as \"make_compatible_copy\": copies a Workshop mod the installed build will not load, or loads with errors, into Zomboid/mods and adapts the copy (version limits, require paths Build 42 moved, JSON translations); the Workshop original is never touched and the copy wins over it. Returns the folder, what was changed and what could not be fixed. With replace_existing a folder of that name already in Zomboid/mods is replaced. Refused while the game runs. remove_compatible_copy undoes it.".to_string(),
+            description: "What Diagnostics offers as \"make_compatible_copy\": copies a Workshop mod the installed build will not load, or loads with errors, into Zomboid/mods and adapts the copy (version limits, require paths Build 42 moved, JSON translations); the Workshop original is never touched and the copy wins over it. Returns the folder, what was changed and what could not be fixed. With replace_existing a folder of that name already in Zomboid/mods is replaced. Refused while the game runs. remove_compatible_copy undoes it.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -599,7 +599,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "java_patches".to_string(),
-            description: "Java patch radar: which classes each Java mod changes and where two mods change the same one. Read from each mod's jar (the one its mod.info names with javaJarFile=, found the way ZombieBuddy finds it) without running anything: the class-level @Patch(className, methodName) annotations of the package ZombieBuddy scans (javaPkgName=), which is how ZombieBuddy mods declare their patches. Per mod: jar, package, side (client/server-only jar), classes (target class -> method names; '<init>' is the constructors, '*' a wildcard), patch_count, not_applied (patches the jar has that ZombieBuddy does not apply, by reason: outside_package, zombiebuddy_class, exposer, experimental), patches_in_code (the jar's own code uses Instrumentation/ByteBuddy/ASM/Javassist directly: it can change classes in ways no annotation declares, unknown here), unknown (jar_missing, no_package, unreadable: nothing is guessed). With detail=true also every patch: target_class, target_method, patch_class, kind (advice: adds code before/after, several stack; delegation: replaces the method), effects declared on its methods (enter, exit, skip = can skip the original method, return = can change the return value, args = can change the arguments), by_code (not in the scanned package; the mod's own code hands its package to ZombieBuddy, possibly only in some cases). overlaps: one per class two or more of the mods patch, with kind same_method (the methods they share) or same_class (different methods), owner_mod when the class belongs to another mod's jar rather than the game (add-ons patching their framework), delegations_meet (more than one replaces the same method), and per mod its methods, effects and whether it replaces. An overlap is not a conflict: whether two patches clash depends on what each does, which is not read. Mod Health shows the overlaps on the game's classes as java_patch_overlap (in_mod_health). Cached per mod until its jar or mod.info changes. Default: the active list.".to_string(),
+            description: "Java patch radar: which classes each Java mod changes and where two mods change the same one. Read from each mod's jar (the one its mod.info names with javaJarFile=, found the way ZombieBuddy finds it) without running anything: the class-level @Patch(className, methodName) annotations of the package ZombieBuddy scans (javaPkgName=), which is how ZombieBuddy mods declare their patches. Per mod: jar, package, side (client/server-only jar), classes (target class -> method names; '<init>' is the constructors, '*' a wildcard), patch_count, not_applied (patches the jar has that ZombieBuddy does not apply, by reason: outside_package, zombiebuddy_class, exposer, experimental), patches_in_code (the jar's own code uses Instrumentation/ByteBuddy/ASM/Javassist directly: it can change classes in ways no annotation declares, unknown here), unknown (jar_missing, no_package, unreadable: nothing is guessed). With detail=true also every patch: target_class, target_method, patch_class, kind (advice: adds code before/after, several stack; delegation: replaces the method), effects declared on its methods (enter, exit, skip = can skip the original method, return = can change the return value, args = can change the arguments), by_code (not in the scanned package; the mod's own code hands its package to ZombieBuddy, possibly only in some cases). overlaps: one per class two or more of the mods patch, with kind same_method (the methods they share) or same_class (different methods), owner_mod when the class belongs to another mod's jar rather than the game (add-ons patching their framework), delegations_meet (more than one replaces the same method), and per mod its methods, effects and whether it replaces. An overlap is not a conflict: whether two patches clash depends on what each does, which is not read. Diagnostics shows the overlaps on the game's classes as java_patch_overlap (in_mod_health). Cached per mod until its jar or mod.info changes. Default: the active list.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -612,7 +612,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "zb_exclusions".to_string(),
-            description: "Java mods ZombieBuddy left out of the last session, read from its log: per mod its id, kind (signature: its .zbs did not verify against the key its author shows on Steam; other), ZombieBuddy's reason, the addons that failed for want of its classes (NoClassDefFoundError of its package: the tag they log under, or the class being exposed to Lua) and fatal (one of them stopped the game or server at boot). log: \"game\" (console.txt, default) or \"server\" (server-console.txt, the Studio's dedicated server). Read-only; Mod Health reports the same as zb_excluded for mods on the list.".to_string(),
+            description: "Java mods ZombieBuddy left out of the last session, read from its log: per mod its id, kind (signature: its .zbs did not verify against the key its author shows on Steam; denied: blocked by policy=prompt, a \"don't allow\" saved for that jar in ~/.zombie_buddy/mod_approvals.json or given in its window, shown again by holding Shift while the game loads (the Studio never edits that file); unapproved: blocked by another policy, e.g. a server's deny-new for a jar never allowed on this PC; other), ZombieBuddy's reason, the addons that failed for want of its classes (NoClassDefFoundError of its package: the tag they log under, or the class being exposed to Lua) and fatal (one of them stopped the game or server at boot). log: \"game\" (console.txt, default) or \"server\" (server-console.txt, the Studio's dedicated server). Read-only; Diagnostics reports the same as zb_excluded for mods on the list.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -623,7 +623,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "function_overrides".to_string(),
-            description: "Game Lua functions two or more active mods redefine, in run order: each redefinition with mod, file, line, keeps_original (it calls the version before it) and deferred (defined inside a function, so it runs later); per function the winner (the last that replaces without calling the one before) and the mods it cuts off (their change never runs), and fixed_by_moving_before when loading the winner before them fixes it. Read from the mods' Lua and the game's, cached. Mod Health shows the cuts as function_overridden.".to_string(),
+            description: "Game Lua functions two or more active mods redefine, in run order: each redefinition with mod, file, line, keeps_original (it calls the version before it) and deferred (defined inside a function, so it runs later); per function the winner (the last that replaces without calling the one before) and the mods it cuts off (their change never runs), and fixed_by_moving_before when loading the winner before them fixes it. Read from the mods' Lua and the game's, cached. Diagnostics shows the cuts as function_overridden.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -744,7 +744,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "dismiss_index_issue".to_string(),
-            description: "Marks one known issue of the Studio's mod index as no longer happening on this machine (Mod Health stops showing it), or brings it back with dismissed: false. Kept in Zomboid/PZModStudio_LocalIndex.json.".to_string(),
+            description: "Marks one known issue of the Studio's mod index as no longer happening on this machine (Diagnostics stops showing it), or brings it back with dismissed: false. Kept in Zomboid/PZModStudio_LocalIndex.json.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -758,7 +758,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "list_load_rules".to_string(),
-            description: "The player's own load-order rules (\"mod_id loads after after\", with a note), from Zomboid/PZModStudio_Rules.json. Auto-Sort follows them like loadModAfter; Mod Health reports a broken one as user_rule_order.".to_string(),
+            description: "The player's own load-order rules (\"mod_id loads after after\", with a note), from Zomboid/PZModStudio_Rules.json. Auto-Sort follows them like loadModAfter; Diagnostics reports a broken one as user_rule_order.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -1233,46 +1233,46 @@ fn handle_get_crash_diagnostics(args: Value) -> ToolCallResult {
 
     match File::open(&console_path) {
         Ok(file) => {
-            let reader = BufReader::new(file);
+            let mut reader = BufReader::new(file);
             let mut error_cards: Vec<TranslatedErrorPayload> = Vec::new();
             let mut raw_error_snippets: Vec<String> = Vec::new();
-            let mut counter = 1;
-            // The game writes the same failure once per frame: a session's log holds a thousand
-            // error lines and a handful of problems. One card each, with how often it happened,
-            // and the mod named a line or two above where the error itself names nobody.
+            // The Monitor's own card maker, so this tool and the Monitor say the same thing about
+            // one log. The game writes the same failure once per frame: a session's log holds a
+            // thousand error lines and a handful of problems. One card each, with how often it
+            // happened.
             let mut times: Vec<usize> = Vec::new();
-            let mut blame = crate::sandbox::ModBlame::default();
-
-            for line_res in reader.lines() {
-                if let Ok(line) = line_res {
-                    blame.observe(&line);
-                    if blame.java_echo() {
-                        continue;
-                    }
-                    if let Some(mut card) = translate_log_error(&line, counter) {
-                        if card.mod_name.is_none() {
-                            card.mod_name = blame.of(&line);
-                        }
-                        let shape = error_shape(&card.raw_error);
-                        // One card per problem and mod, as the Monitor shows them; a mod's bare %
-                        // signs are one problem whichever exception each text threw.
-                        match error_cards.iter().position(|c: &TranslatedErrorPayload| {
-                            c.mod_name == card.mod_name
-                                && ((c.title == card.title && error_shape(&c.raw_error) == shape) || (c.code == "translator_text" && card.code == "translator_text"))
-                        }) {
-                            Some(at) => times[at] += 1,
-                            None => {
-                                error_cards.push(card);
-                                times.push(1);
-                                counter += 1;
-                            }
-                        }
-                    } else if line.contains("Exception") || line.contains("ERROR:") {
-                        if raw_error_snippets.len() < 30 {
-                            raw_error_snippets.push(line);
-                        }
+            let mut maker = crate::sandbox::CardMaker::new();
+            let take = |card: TranslatedErrorPayload, error_cards: &mut Vec<TranslatedErrorPayload>, times: &mut Vec<usize>| {
+                // A card sent again with its id (a mod's texts, one more key) replaces the old one.
+                if let Some(at) = error_cards.iter().position(|c| c.id == card.id) {
+                    error_cards[at] = card;
+                    times[at] += 1;
+                    return;
+                }
+                let shape = error_shape(&card.raw_error);
+                match error_cards.iter().position(|c| c.mod_name == card.mod_name && c.title == card.title && error_shape(&c.raw_error) == shape) {
+                    Some(at) => times[at] += 1,
+                    None => {
+                        error_cards.push(card);
+                        times.push(1);
                     }
                 }
+            };
+            // Byte by byte: one line in another encoding must not end the reading.
+            let mut buf: Vec<u8> = Vec::new();
+            while reader.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+                let line = String::from_utf8_lossy(&buf).trim_end().to_string();
+                buf.clear();
+                let made = maker.line(&line);
+                if made.is_empty() && (line.contains("Exception") || line.contains("ERROR:")) && raw_error_snippets.len() < 30 {
+                    raw_error_snippets.push(line.clone());
+                }
+                for card in made {
+                    take(card, &mut error_cards, &mut times);
+                }
+            }
+            if let Some(card) = maker.flush() {
+                take(card, &mut error_cards, &mut times);
             }
 
             let cards: Vec<Value> = error_cards
@@ -2162,7 +2162,7 @@ fn handle_keep_mod_version(args: Value) -> ToolCallResult {
     json_result(result)
 }
 
-/// The Mod Health fix "make_compatible_copy", as the app's button does it.
+/// The Diagnostics fix "make_compatible_copy", as the app's button does it.
 fn handle_make_compatible_copy(args: Value) -> ToolCallResult {
     let paths = resolve_paths(&args);
     let mod_id = arg_str(&args, "mod_id");

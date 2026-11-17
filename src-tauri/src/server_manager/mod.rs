@@ -7,6 +7,7 @@ use crate::load_order::mod_info::get_all_user_zomboid_dirs;
 pub mod java_mods;
 pub mod mod_sync;
 pub mod mp_test;
+pub mod unreachable;
 mod rcon;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,6 +156,10 @@ pub fn check_server_mods(
     let approvals = java_mods::approvals_path().map(|p| java_mods::read_approvals(&p)).unwrap_or_default();
     report.issues.extend(java_mods::java_issues(&catalog, &report.mods, &approvals));
     report.issues.extend(java_mods::copy_issues(&java_mods::copies_needed(&catalog, &report.mods, nosteam.unwrap_or(false))));
+    if !nosteam.unwrap_or(false) {
+        let log = fs::read_to_string(primary_dir(&paths.user_zomboid_dir).join("server-console.txt")).unwrap_or_default();
+        report.issues.extend(unreachable::issues(&unreachable::find(&catalog, &content, &log, &unreachable::ask_steam)));
+    }
     report.issues.sort_by(|a, b| a.severity.cmp(&b.severity));
     Ok(report)
 }
@@ -437,6 +442,30 @@ pub fn launch_dedicated_server(
         crate::diagnostics::error(format!("[Servers] Could not set an RCON password for {}: {}", clean_name, e));
     }
 
+    // A server with Steam stops at boot on one Workshop item it may not download (removed, private,
+    // hidden): those leave WorkshopItems=, their mods run from a copy in Zomboid/mods.
+    if let Ok(mut left) = LAST_LEFT_OUT.lock() {
+        left.clear();
+    }
+    if !is_nosteam && ini_path.is_file() {
+        let paths = crate::vfs::studio_paths();
+        let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &user_zomboid_dir, None);
+        match unreachable::leave_out(&ini_path, &primary_dir(&user_zomboid_dir), &catalog) {
+            Ok(found) if !found.is_empty() => {
+                crate::diagnostics::error(format!(
+                    "[Servers] {}: left out of WorkshopItems= what a server cannot download: {}",
+                    clean_name,
+                    found.iter().map(|u| format!("{} ({}; {})", u.item, u.mods.join(", "), u.reason)).collect::<Vec<_>>().join(", ")
+                ));
+                if let Ok(mut left) = LAST_LEFT_OUT.lock() {
+                    *left = found;
+                }
+            }
+            Ok(_) => {}
+            Err(e) => crate::diagnostics::error(format!("[Servers] Could not check {}'s Workshop items: {}", clean_name, e)),
+        }
+    }
+
     // ZombieBuddy (B42 Java mods) only works with its native agent on the JVM's command line.
     // Without zbNative.dll the JVM would refuse to start at all ("Could not find agent library"),
     // so the server then starts without it, and says why its Java mods are missing.
@@ -672,6 +701,8 @@ pub fn rcon_query(zomboid_dir: &Path, server_name: &str, command: &str) -> Resul
 /// How the server was last started from the Studio (name, memory, without Steam): a restart
 /// asked from Discord starts it the same way.
 pub static LAST_LAUNCH: std::sync::Mutex<Option<(String, Option<u32>, Option<bool>)>> = std::sync::Mutex::new(None);
+/// The Workshop items the last start left out of `WorkshopItems=` (a server with Steam cannot download them).
+pub static LAST_LEFT_OUT: std::sync::Mutex<Vec<unreachable::UnreachableItem>> = std::sync::Mutex::new(Vec::new());
 
 fn quit_over_rcon(zomboid_dir: &Path, server_name: &str) -> bool {
     let ini = zomboid_dir.join("Server").join(format!("{}.ini", server_name));

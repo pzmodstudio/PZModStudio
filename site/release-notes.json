@@ -1,4 +1,15 @@
 {
+ "1.9.0": [
+  "Diagnostics replaces Mod Health: your mods, the game and the server",
+  "Diagnostics: the Doctor on its front page, one step at a time",
+  "Diagnostics: what the game and your server use while they run",
+  "Mod List: the side panel in tabs, with the Workshop page and comments",
+  "Mod List: your notes readable on each row, fewer tags",
+  "Explore Mods: Page and Comments tabs, and which profile holds each mod",
+  "Profiles: a guided window to make a new profile",
+  "Monitor: a mod's Lua errors said in plain words, with file and line",
+  "Every screen: one tidy header and tabs side by side"
+ ],
  "1.8.7": [
   "Servers: says when a server closed by itself, and why",
   "Monitor: names a Java mod left out at boot above the cards",

@@ -16,6 +16,8 @@ interface JoinServersProps {
   /** Makes a profile with these mods, in this order; `announcedOf` when they are only the first
    * ones the server announces out of that many. */
   onMakeProfile: (name: string, modIds: string[], announcedOf?: number, server?: { address: string; name: string }) => Promise<void>;
+  /** Public list or the player's own servers, when the screen's tabs choose. */
+  source?: 'public' | 'mine';
 }
 
 /** What is selected: a server from the public list, or one of the player's own. */
@@ -36,10 +38,12 @@ const majorMinor = (v: string) => v.split('.').slice(0, 2).join('.');
  * game's own browser does), the player's own servers (private ones by address), what a server
  * says about itself, and a profile with the mods it really loaded the last time it was joined.
  */
-export const JoinServers: React.FC<JoinServersProps> = ({ paths, mods, profiles, installedBuild, onMakeProfile }) => {
+export const JoinServers: React.FC<JoinServersProps> = ({ paths, mods, profiles, installedBuild, onMakeProfile, source: sourceProp }) => {
   const { t } = useTranslation();
   const changeRev = useChangeRevision();
-  const [source, setSource] = useState<'public' | 'mine'>('public');
+  const [ownSource, setSource] = useState<'public' | 'mine'>('public');
+  /** The Servers screen's tabs pick it; on its own, the toggle above the list does. */
+  const source = sourceProp ?? ownSource;
   const [list, setList] = useState<PublicServer[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -279,7 +283,7 @@ export const JoinServers: React.FC<JoinServersProps> = ({ paths, mods, profiles,
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-start">
       <div className="flex-[3] min-w-0 w-full space-y-3">
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-900 border border-slate-800 w-fit">
+        {!sourceProp && <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-900 border border-slate-800 w-fit">
           {(['public', 'mine'] as const).map((k) => (
             <button key={k} onClick={() => setSource(k)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs cursor-pointer ${source === k ? 'bg-emerald-700/40 text-emerald-100' : 'text-slate-400 hover:text-slate-200'}`}>
               {k === 'public' ? <Globe className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
@@ -287,7 +291,7 @@ export const JoinServers: React.FC<JoinServersProps> = ({ paths, mods, profiles,
               {k === 'mine' && saved.length > 0 && <span className="text-[10px] text-slate-500">{saved.length}</span>}
             </button>
           ))}
-        </div>
+        </div>}
 
         {source === 'public' && (
           <>

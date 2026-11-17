@@ -1498,7 +1498,7 @@ export interface WorkshopInstallState {
 /** A Java mod ZombieBuddy left out of a session, and the addons that failed without it. */
 export interface ExcludedMod {
   mod_id: string;
-  kind: 'signature' | 'other';
+  kind: 'signature' | 'denied' | 'unapproved' | 'other';
   reason: string;
   addons: string[];
   fatal: boolean;

@@ -1,4 +1,56 @@
 {
+  "diag": {
+    "sections": {
+      "home": "Resumen",
+      "mods": "Mods",
+      "game": "Juego",
+      "server": "Servidor"
+    },
+    "home": {
+      "see": "Ver",
+      "mods": {
+        "checking": "Revisando la lista…",
+        "notYet": "Todavía no se revisó la lista.",
+        "act": "{{count}} cosa(s) que rompen el juego: hay que hacer algo.",
+        "recommended": "{{count}} cosa(s) que te conviene arreglar; nada se rompe por ahora.",
+        "ok": "Todo en orden con tus {{count}} mods activos.",
+        "sub": "Requisitos, orden, conflictos, seguridad y qué mods se llevan más tiempo."
+      },
+      "game": {
+        "running": "Abierto: {{where}}, usando {{ram}}.",
+        "closed": "Cerrado.",
+        "lastBoot": "último arranque {{time}}",
+        "oom": "se quedó sin memoria {{count}} vez/veces",
+        "limit": "límite {{gb}}"
+      },
+      "server": {
+        "running": "{{name}}: {{state}}, usando {{ram}}.",
+        "off": "Ningún servidor corriendo en esta PC.",
+        "sub": "{{errors}} error(es) en su registro.",
+        "offSub": "Arrancalo desde Servidores; acá ves cómo rinde."
+      }
+    },
+    "live": {
+      "reading": "Mirando qué procesos del juego hay abiertos…",
+      "gameClosed": "El juego está cerrado.",
+      "gameClosedHint": "Cuando lo abras, acá aparece lo que usa: memoria contra su límite, CPU, en qué pantalla está y qué dice su registro. Mientras tanto, lo que se sabe de la última vez:",
+      "lastBoot": "Último arranque",
+      "lastBootValue": "{{time}} con {{mods}} mods",
+      "limit": "Límite de memoria (Java)",
+      "oom": "Sesiones sin memoria",
+      "oomCount": "{{count}}: mirá Memoria",
+      "windowsLow": "Windows sin memoria (14 días)",
+      "windowsLowCount": "{{count}} vez/veces: mirá Memoria",
+      "none": "ninguna"
+    },
+    "server": {
+      "none": "No hay ningún servidor corriendo en esta PC.",
+      "noneHint": "Un servidor que arranques desde Servidores (o el de un test multiplayer) aparece acá con su memoria, CPU, si ya arrancó y qué dice su registro.",
+      "goServers": "Ir a Servidores",
+      "testGames": "Jugadores del test multiplayer",
+      "remoteNote": "Un servidor de otra PC al que te unís no se puede medir desde acá: solo el que corre en esta PC."
+    }
+  },
   "support": {
     "title": "Apoyar al autor"
   },
@@ -8,7 +60,7 @@
     "copied": "Copiado: pegalo en el chat de tu asistente.",
     "unknownMod": "un mod que el juego no nombró",
     "monitorAsk": "Juego Project Zomboid con mods y apareció este error en {{mod}}. Abajo está todo lo que juntó PZ Mod Studio (la línea del log, lo que pasó antes, el mod y su archivo). Decime con palabras simples qué está fallando, si el mod nombrado es de verdad la causa, y qué puedo hacer: una opción, otro orden de carga, una actualización o una versión compatible, desactivarlo, o un arreglo al archivo (mostrámelo).",
-    "healthAsk": "Juego Project Zomboid con mods y el Mod Health de PZ Mod Studio muestra esto. Explicámelo con palabras simples, si puede romper mi partida o mi guardado, y qué debería hacer."
+    "healthAsk": "Juego Project Zomboid con mods y el Diagnóstico de PZ Mod Studio muestra esto. Explicámelo con palabras simples, si puede romper mi partida o mi guardado, y qué debería hacer."
   },
   "help": {
     "button": "Ayuda de esta pantalla (F1)",
@@ -25,7 +77,7 @@
     "monitor": "Centro de monitoreo",
     "modList": "Lista de mods",
     "whatsNew": "Novedades",
-    "health": "Salud de mods",
+    "health": "Diagnóstico",
     "maps": "Mapas",
     "browse": "Explorar mods",
     "merger": "Fusionador de mods",
@@ -99,6 +151,9 @@
     }
   },
   "settings": {
+    "tabAlerts": "Avisos",
+    "tabApp": "La app",
+    "tabAdvanced": "Avanzado",
     "photos": {
       "kept": "Fotos de perfiles guardadas: {{count}} ({{size}})",
       "clear": "Borrar fotos",
@@ -280,6 +335,21 @@
     "zbListOwn": "Elegiste otro valor en el juego (Opciones → Mods → ZombieBuddy, opacidad de la marca de agua): el Studio lo deja como está."
   },
   "profiles": {
+    "wizard": {
+      "step1": "Nombre",
+      "step2": "Qué mods",
+      "step3": "Revisar",
+      "hint1": "Un perfil es una lista de mods con nombre: cuáles tiene, cuáles están prendidos y en qué orden cargan. Ponele un nombre que te diga para qué es (por ejemplo \"Partida con amigos\" o \"Solo mapas\"). La descripción es para vos.",
+      "hint2": "Elegí con qué mods arranca. \"Los que están activos ahora\" copia tu lista de este momento; \"Todo lo instalado\" prende todo; \"Elegirlos\" te deja marcar cuáles; \"Ninguno todavía\" arranca vacío (cambiar a él apaga todos los mods). Después podés cambiar todo en la Lista de mods.",
+      "hint3": "Al crearlo, el perfil se activa al momento: el juego va a cargar estos mods, en el orden que ya tiene tu lista. Los demás perfiles quedan guardados como están y volvés a cualquiera con un clic.",
+      "modsOn": "{{count}} prendidos de {{total}} instalados",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "create": "Crear y activar"
+    },
+    "seeMods": "Ver sus mods",
+    "seeModsTitle": "Abre la Lista de mods: los mods de este perfil, cuáles están prendidos y su orden",
+    "newProfile": "Nuevo perfil",
     "title": "Perfiles de mods",
     "blurb": "Creá y guardá combinaciones de mods (p. ej. <i>Vanilla Plus B42</i>, <i>Brita + Armas</i>, <i>Servidor coop</i>) y cambiá entre ellas con un clic sin perder el orden de carga.",
     "saved": "{{count}} perfiles guardados",
@@ -518,6 +588,8 @@
       "groups": "Grupos…"
     },
     "row": {
+      "noteHead": "Tu nota",
+      "noteEdit": "Clic para editarla",
       "draftLocked": "Este paquete está abierto en modo borrador y desactivado. No se puede activar hasta empaquetarlo o publicarlo en el Fusionador.",
       "clickDisable": "Clic para apagar el mod",
       "clickEnable": "Clic para activar el mod",
@@ -564,12 +636,12 @@
       "fromConsoleNote": "De console.txt tal como está ahora; el Centro de monitoreo tiene las tarjetas completas.",
       "loadsInHead": "Carga en {{time}}",
       "loadTimeBody": "Del tiempo que el juego pasó en la pantalla de carga la última sesión, {{time}} se fueron en leer los archivos de este mod.\nLa mayoría de los mods tardan unos milisegundos; los packs de tiles y modelos, segundos. No dice nada de cómo corre el mod una vez cargado.",
-      "loadTimeHow": "La etiqueta aparece solo desde {{min}} ms: todos los mods tienen su tiempo, pero los que tardan menos (casi todos, 2 a 20 ms) no llevan etiqueta para no llenar la lista. Medido del DebugLog del propio juego (Zomboid/Logs), desde la línea \"loading\" de este mod hasta la del siguiente; la fase de Lua que sigue es una sola pasada y no se mide por mod.",
+      "loadTimeHow": "La etiqueta aparece solo desde {{min}} ms (el panel de la derecha muestra el tiempo de cualquier mod): todos los mods tienen su tiempo, pero los que tardan menos (casi todos, 2 a 20 ms) no llevan etiqueta para no llenar la lista. Medido del DebugLog del propio juego (Zomboid/Logs), desde la línea \"loading\" de este mod hasta la del siguiente; la fase de Lua que sigue es una sola pasada y no se mide por mod.",
       "offNoPlace": "Desactivado: no tiene lugar en el orden de carga que lee el juego.",
       "gameTime": "{{pct}} % del juego",
       "gameTimeHead": "{{pct}} % del tiempo del juego",
-      "gameTimeBody": "Mientras el juego corría la última vez que se midió, el Lua de este mod (sus handlers de eventos, ventanas y acciones con tiempo) se llevó el {{pct}} % del tiempo real. Mod Health > Rendimiento tiene el detalle: qué handler, archivo y línea.",
-      "gameTimeHow": "Se muestra desde el {{min}} %, en ámbar desde el 5 %. Se mide con Mod Health > Rendimiento > Medir; queda como estaba hasta que vuelvas a medir.",
+      "gameTimeBody": "Mientras el juego corría la última vez que se midió, el Lua de este mod (sus handlers de eventos, ventanas y acciones con tiempo) se llevó el {{pct}} % del tiempo real. Diagnóstico > Mods > Tiempo por mod tiene el detalle: qué handler, archivo y línea.",
+      "gameTimeHow": "La fila lo muestra desde el {{min}} %; el panel de la derecha muestra cualquier valor medido. Se mide con Diagnóstico > Mods > Tiempo por mod > Medir; queda como estaba hasta que vuelvas a medir.",
       "installed": "· instalado el {{when}}",
       "installedTitle": "Cuándo se instaló: cuando se creó su carpeta (para el Workshop, la primera descarga; las actualizaciones no la cambian)"
     },
@@ -620,7 +692,7 @@
         "workshop_copy_by_hand": "Copia a mano",
         "compatible_copy_renamed": "Copia de antes del cambio de id",
         "zb_excluded": "ZombieBuddy lo dejó afuera",
-      "workshop_copy_renamed": "Copia de antes del cambio de id",
+        "workshop_copy_renamed": "Copia de antes del cambio de id",
         "workshop_copy_stale": "Copia vieja",
         "workshop_copy_kept": "Copia para servidor",
         "api_missing": "Llama cosas que esta versión no tiene"
@@ -637,20 +709,22 @@
         "removeFromPackage": "Quitar del paquete",
         "keepVersion": "Guardar esta versión",
         "shimOn": "Encender el arreglo de compatibilidad",
-        "inHealth": "Arreglar en Salud de mods",
+        "inHealth": "Arreglar en Diagnóstico",
         "replace": "Usar {{name}}"
       },
       "kept": "{{name}} tal como está hoy quedó guardado ({{when}}). Clic derecho en la fila para ver sus versiones guardadas.",
       "shimOn": "El arreglo de compatibilidad {{name}} está encendido, escrito en {{count}} paquete(s); el juego lo lee en el próximo inicio.",
       "confirmDisable": "¿Apagar {{name}}?\n\nQueda instalado, y podés volver a activarlo acá.",
       "clickGoTo": "Clic: ir a {{name}}",
-      "clickHealthAll": "Clic: abrir Salud de mods en esto, que muestra los {{count}} mods, los archivos y los arreglos",
-      "clickHealth": "Clic: abrir Salud de mods en esto",
+      "clickHealthAll": "Clic: abrir Diagnóstico en esto, que muestra los {{count}} mods, los archivos y los arreglos",
+      "clickHealth": "Clic: abrir Diagnóstico en esto",
       "listFix": "Cambia tu lista; Listas anteriores puede deshacerlo.",
       "mergerFix": "Abre {{path}} en el Fusionador, en el paquete que usa el juego, con lo que dice cada mod lado a lado. Un paquete cerrado lo muestra solo lectura; Guardar publica la decisión en él.",
-      "healthFix": "Abre Salud de mods en esto, donde está el botón.",
+      "healthFix": "Abre Diagnóstico en esto, donde está el botón.",
       "moreTitle": "{{count}} problema(s) más",
-      "moreAction": "Clic: abrir Salud de mods en ellos"
+      "moreAction": "Clic: abrir Diagnóstico en ellos",
+      "infoTitle": "{{count}} dato(s), nada que hacer",
+      "moreInPanel": "El panel de la derecha los muestra todos, con lo que dice cada uno."
     },
     "statWorkshop": "del Workshop",
     "statWorkshopOf": "de {{total}} del Workshop",
@@ -658,7 +732,7 @@
     "statMods": "mods",
     "statActive": "activos",
     "tagLabel": "Filtrar por etiqueta",
-    "tagTitle": "Mostrar solo los mods que llevan una etiqueta: errores o avisos de la última sesión, carga lenta, o un problema de Salud de mods",
+    "tagTitle": "Mostrar solo los mods que llevan una etiqueta: errores o avisos de la última sesión, carga lenta, o un problema de Diagnóstico",
     "tags": {
       "all": "Todas las etiquetas",
       "errors": "Con errores la última sesión",
@@ -762,7 +836,7 @@
     }
   },
   "health": {
-    "title": "Salud de mods",
+    "title": "Diagnóstico",
     "blurb": "Revisa tu orden de carga activo como lo lee el juego: mods que tu build no carga, requisitos faltantes o apagados, librerías que cargan tarde, mods incompatibles activos a la vez.",
     "gameBuild": "Build del juego {{build}}",
     "unknown": "desconocida",
@@ -805,7 +879,7 @@
     },
     "pendingFix": "Aplicado · comprobando…",
     "audit": {
-      "intro": "Tu lista mod por mod, con un veredicto cada uno a partir de lo que encontró Mod Health. Tocá un mod para ver por qué, e Ir para ir al aviso.",
+      "intro": "Tu lista mod por mod, con un veredicto cada uno a partir de lo que encontró Diagnóstico. Tocá un mod para ver por qué, e Ir para ir al aviso.",
       "reasons_one": "1 motivo",
       "reasons_other": "{{count}} motivos",
       "broken": {
@@ -959,6 +1033,12 @@
     "confirmFixAll": "Esto va a {{what}}.\n\nNo se apaga nada, y la Lista de mods puede deshacerlo.",
     "and": " y ",
     "tabs": {
+      "modtime": "Tiempo por mod",
+      "live": "En vivo",
+      "memory": "Memoria",
+      "boot": "Arranque",
+      "frames": "Frames",
+      "server": "En vivo",
       "audit": "Auditoría",
       "problems": "Qué hacer ahora",
       "conflicts": "Conflictos",
@@ -1023,7 +1103,7 @@
       "replace_in_list": "Cambia esa línea de tu lista por el mod correcto.",
       "subscribe_workshop": "Abre el Workshop para que te suscribas. En tu PC no cambia nada.",
       "open_workshop_page": "Abre la página del mod en el Workshop. En tu PC no cambia nada.",
-      "make_compatible_copy": "El original del Workshop no se toca. Se hace una copia tuya, arreglada para tu versión del juego (en Zomboid/mods), y el juego usa esa en su lugar. Si el autor lo actualiza, Mod Health te avisa para volver al original.",
+      "make_compatible_copy": "El original del Workshop no se toca. Se hace una copia tuya, arreglada para tu versión del juego (en Zomboid/mods), y el juego usa esa en su lugar. Si el autor lo actualiza, Diagnóstico te avisa para volver al original.",
       "keep_version": "Guarda una copia del mod como está hoy, por si una actualización rompe tu partida. No cambia lo que carga el juego.",
       "remove_compatible_copy": "Se quita tu copia arreglada (queda guardada en los backups) y el juego vuelve a usar el original del Workshop.",
       "merge_files": "Combina esos archivos en el paquete del Studio, que carga último. Los mods no se tocan.",
@@ -1032,8 +1112,8 @@
       "remove_from_package": "Saca el archivo del paquete del Studio; el juego vuelve a leer el del mod.",
       "dismiss_known_issue": "Deja de mostrar este aviso en esta PC. Se puede volver a mostrar.",
       "adopt_workshop_copy": "Le pone a la copia la marca del Studio. No cambia ningún archivo del mod; desde ahí la app avisa cuando el Workshop tenga una versión nueva.",
-      "recopy_workshop": "Reemplaza la copia de Zomboid/mods por la versión actual del Workshop. Tus juegos y un servidor sin Steam cargan la nueva."
-      ,"update_package": "Vuelve a escanear con tu lista de ahora y publica el paquete: lo que se une solo entra, lo que espera que elijas queda afuera y el Fusionador te dice cuál."
+      "recopy_workshop": "Reemplaza la copia de Zomboid/mods por la versión actual del Workshop. Tus juegos y un servidor sin Steam cargan la nueva.",
+      "update_package": "Vuelve a escanear con tu lista de ahora y publica el paquete: lo que se une solo entra, lo que espera que elijas queda afuera y el Fusionador te dice cuál."
     },
     "group": {
       "compatible_copy_unneeded": {
@@ -1135,7 +1215,7 @@
       "deleteTitle": "Borrar esta copia guardada",
       "delete": "Borrar",
       "keptNow": "{{name}} tal como está hoy quedó guardado ({{when}}).",
-      "confirmUse": "¿Usar la versión de {{name}} guardada el {{when}}{{version}}?\n\nVa a Zomboid/mods como copia local, y el juego iniciado desde el Studio la lee en vez de la del Workshop. Salud de mods la lista como copia compatible, con \"Volver al original\" para volver a la del Workshop.",
+      "confirmUse": "¿Usar la versión de {{name}} guardada el {{when}}{{version}}?\n\nVa a Zomboid/mods como copia local, y el juego iniciado desde el Studio la lee en vez de la del Workshop. Diagnóstico la lista como copia compatible, con \"Volver al original\" para volver a la del Workshop.",
       "restored": "{{name}} volvió a la versión guardada el {{when}}. Iniciá el juego desde el Studio para jugarla.",
       "confirmDelete": "¿Borrar la versión de {{name}} guardada el {{when}}? No se puede deshacer."
     },
@@ -1161,7 +1241,7 @@
     },
     "rules": {
       "title": "Reglas de orden de carga para {{name}}",
-      "blurb": "Lo que descubriste jugando y el mod.info no dice. Ordenar sigue una regla como si fuera el loadModAfter del mod; Salud de mods y la fila avisan cuando la lista la rompe.",
+      "blurb": "Lo que descubriste jugando y el mod.info no dice. Ordenar sigue una regla como si fuera el loadModAfter del mod; Diagnóstico y la fila avisan cuando la lista la rompe.",
       "mustLoadAfter": "{{name}} debe cargar después de…",
       "whichMod": "¿Qué mod? Escribí parte de su nombre",
       "notePlaceholder": "Por qué, en pocas palabras (opcional): si no, desaparecen recetas…",
@@ -1171,7 +1251,7 @@
       "loadsAfterThis": "carga después de este mod",
       "remove": "Quitar",
       "removeTitle": "Quitar esta regla",
-      "added": "{{name}} ahora carga después de {{after}}. Ordenar lo pone ahí; Salud de mods avisa si la lista lo rompe."
+      "added": "{{name}} ahora carga después de {{after}}. Ordenar lo pone ahí; Diagnóstico avisa si la lista lo rompe."
     },
     "keep": {
       "favorite": "Favorito",
@@ -1347,6 +1427,14 @@
       "adultHidden": " ({{count}} adultos ocultos en esta página)"
     },
     "mine": {
+      "noProfile": "Sin perfil",
+      "noProfileTitle": "Ningún perfil tiene este mod (por ejemplo, te suscribiste desde la web de Steam).",
+      "profilesTitle": "En los perfiles: {{names}}",
+      "profileFilter": "Perfil",
+      "allProfiles": "Todos los perfiles",
+      "activeMark": "activo",
+      "readingMods": "Leyendo tus mods instalados… (la primera revisión de la app tarda unos segundos)",
+      "loadingSteam": "Pidiéndole a Steam las imágenes y los datos de tus {{count}} ítems del Workshop…",
       "filterPlaceholder": "Filtrar por nombre, id del mod o id del Workshop",
       "filterLabel": "Filtrar tus mods",
       "source": "Origen",
@@ -1360,7 +1448,7 @@
       "updateWaiting": "Actualización pendiente en Steam",
       "count": "{{shown}} de {{total}} mods",
       "none": "No se encontraron mods instalados. Revisá tus carpetas en Configuración.",
-      "notLoadable": "Tu build del juego no carga este mod tal como está (ver Salud de mods).",
+      "notLoadable": "Tu build del juego no carga este mod tal como está (ver Diagnóstico).",
       "labels": {
         "nexus": "Nexus",
         "compat": "Copia compatible",
@@ -1385,6 +1473,9 @@
       "all": "Todas"
     },
     "detail": {
+      "tabPage": "Página",
+      "showInList": "Ver en la Lista de mods",
+      "showInListTitle": "Abre la Lista de mods en este mod: prenderlo o apagarlo, su orden, tu nota y lo que encontró Diagnóstico.",
       "back": "Volver",
       "close": "Cerrar",
       "nexusKind": "NEXUS MODS",
@@ -1534,7 +1625,7 @@
       "installed": "Ya instalado",
       "gone": "Ya no está en el Workshop (borrado o privado)",
       "neededBy": "lo necesita {{names}}",
-      "unread": "Steam no dejó leer la página de {{count}} de ellos (frena cuando se le piden muchas seguidas), así que de esos no se sabe si necesitan algo más. Podés suscribirte igual: si después falta algo, Mod Health te lo avisa.",
+      "unread": "Steam no dejó leer la página de {{count}} de ellos (frena cuando se le piden muchas seguidas), así que de esos no se sabe si necesitan algo más. Podés suscribirte igual: si después falta algo, Diagnóstico te lo avisa.",
       "cutShort": "La cadena de requisitos es muy larga; solo se lista la primera parte.",
       "retry": "Volver a leerlas",
       "retrying": "Leyendo {{count}} páginas, a paso de Steam…",
@@ -1544,6 +1635,7 @@
     }
   },
   "merger": {
+    "title": "Fusionador de mods",
     "outOfDate_one": "Tu parche quedó viejo: 1 cosa cambió desde que lo publicaste (un mod se actualizó o cambió la lista). Actualizarlo lo vuelve a armar con tu lista de ahora; lo que ya decidiste se mantiene.",
     "outOfDate_other": "Tu parche quedó viejo: {{count}} cosas cambiaron desde que lo publicaste (mods actualizados o la lista cambió). Actualizarlo lo vuelve a armar con tu lista de ahora; lo que ya decidiste se mantiene.",
     "updatePatch": "Actualizar parche",
@@ -1606,6 +1698,10 @@
       "save": "✓ Guardar la fusión de este archivo"
     },
     "list": {
+      "noneForProfile": "\"{{name}}\" no tiene paquetes de fusión",
+      "noneWhen": "Un paquete de fusión solo hace falta cuando dos mods cambian el mismo archivo o la misma definición y querés quedarte con lo de los dos: Diagnóstico, pestaña Conflictos, te avisa y te trae acá. Si Diagnóstico no marca conflictos, no necesitás ninguno.",
+      "studioMods": "Mods del Studio ({{count}})",
+      "studioModsNote": "no son paquetes de fusión: la app los usa para hablar con el juego",
       "forProfile": "Paquete para {{name}}",
       "forProfileTitle": "Crea un paquete con el nombre del perfil {{name}}, guardado con él: sus merges resuelven la lista de este perfil.",
       "forProfileDescription": "Merges del perfil {{name}}, hechos con PZ Mod Studio.",
@@ -1621,12 +1717,12 @@
       "blurb": "Elegí un paquete y entrá para revisar sus archivos fusionados, editar o empaquetar.",
       "importTitle": "Importa un paquete guardado (.pzmerge) desde el disco",
       "import": "Cargar paquete (.pzmerge)",
-      "new": "➕ Paquete nuevo",
+      "new": "Paquete nuevo",
       "publishDisabledTitle": "Primero tenés que abrir / entrar a un paquete para poder escanear y empaquetar",
       "publish": "📦 Empaquetar y publicar",
       "none": "No hay paquetes de fusión creados",
       "noneBlurb": "Para escanear conflictos y fusionar mods, primero creá un paquete de fusión o cargá un archivo .pzmerge existente.",
-      "createFirst": "➕ Crear el primer paquete de fusión",
+      "createFirst": "Crear el primer paquete de fusión",
       "renameTitle": "Editar nombre y descripción del paquete",
       "deleteTitle": "Borrar el paquete del disco",
       "systemTitle": "Mod acompañante integrado del sistema (protegido contra edición o borrado)",
@@ -1799,6 +1895,8 @@
       "resolved": "Resuelto",
       "autoMerged": "Autofusionado",
       "needsReview": "Requiere revisión",
+      "notPatched": "Sin parchear",
+      "notPatchedTitle": "Es un archivo propio de un solo mod: no choca con nada. Editalo y Guardar lo pone en el paquete; una copia sin cambios no se guarda.",
       "collidingFile": "Archivo en conflicto:",
       "line": "Línea #{{line}}",
       "sources": "{{count}} fuentes",
@@ -2062,6 +2160,52 @@
     "apply": "Aplicar el preset a mi juego"
   },
   "inspector": {
+    "workshop": {
+      "page": "Página del Workshop",
+      "comments": "Comentarios",
+      "failed": "Steam no respondió: abajo va la descripción que trae el mod.",
+      "author": "Autor",
+      "required": "Ítems que requiere ({{count}})",
+      "requiredHave": "Instalado: clic para ir a su fila",
+      "requiredMissing": "No lo tenés: clic para verlo en Explorar mods"
+    },
+    "tabs": {
+      "studio": "Studio",
+      "mod": "Mod"
+    },
+    "posterZoom": "Clic para ver la imagen grande",
+    "onWithPlace": "Activado · carga #{{n}}",
+    "offTurnOn": "Apagado · clic para activar",
+    "workshopPage": "Ver en Explorar mods",
+    "issues": {
+      "goTo": "Ir a {{name}}",
+      "inHealth": "Ver en Diagnóstico"
+    },
+    "sections": {
+      "todo": "Qué hacer ({{count}})",
+      "allGood": "La revisión no encontró nada que hacer con este mod.",
+      "notes": "Notas",
+      "yours": "Tuyo",
+      "addNote": "Agregar una nota (solo para vos)",
+      "editNote": "Editar nota",
+      "groups": "Grupos",
+      "addGroup": "+ Agregar a un grupo",
+      "editGroups": "Cambiar",
+      "profiles": "Perfiles",
+      "activeProfile": "El perfil activo",
+      "session": "Última sesión",
+      "logged": "En el registro",
+      "loadTime": "Tiempo de carga",
+      "gameTime": "Tiempo de juego",
+      "deps": "Dependencias",
+      "needs": "Necesita",
+      "neededBy": "Lo necesitan",
+      "andMore": "y {{count}} más",
+      "none": "ninguno",
+      "more": "Ver todo",
+      "less": "Ver menos",
+      "javaShared": "· {{count}} clase(s) que también cambia otro mod"
+    },
     "java": {
       "title": "Clases que cambia su Java ({{count}})",
       "how": "Declaradas en su jar ({{jar}}, paquete {{package}}) como parches de ZombieBuddy; leídas sin ejecutarlo.",
@@ -2190,10 +2334,10 @@
       "definitionsTitle": "Mods que definen lo mismo",
       "definitionsLine_one": "Dos de tus mods activos definen distinto lo mismo.",
       "definitionsLine_other": "En {{count}} casos, tus mods activos definen distinto lo mismo.",
-      "definitionsBody": "No rompe nada: el juego usa la versión del mod que carga último. Si preferís la del otro, o combinar las dos, decidilo en Salud de mods o en el Merger.",
+      "definitionsBody": "No rompe nada: el juego usa la versión del mod que carga último. Si preferís la del otro, o combinar las dos, decidilo en Diagnóstico o en el Merger.",
       "wins": "gana {{winner}} sobre {{losers}}",
       "dontShowDefinitions": "No avisarme de definiciones repetidas al iniciar",
-      "goToHealth": "Ver en Salud de mods",
+      "goToHealth": "Ver en Diagnóstico",
       "openTitle": "Paquete abierto (desactivado)",
       "unmergedTitle": "Mods en conflicto sin fusionar",
       "unmergedLine_one": "{{count}} archivo que comparten tus mods activos no está fusionado.",
@@ -2292,6 +2436,8 @@
       }
     },
     "header": {
+      "performance": "Ver cómo rinde",
+      "performanceTitle": "Abre Diagnóstico > Servidor: memoria, CPU, si ya arrancó y qué dice su registro",
       "title": "Servidores y dedicado",
       "online": "EN LÍNEA (PID: {{pid}})",
       "offline": "DESCONECTADO",
@@ -2428,9 +2574,9 @@
     },
     "mpTest": {
       "title": "Prueba multijugador en esta PC",
-      "what": "Arranca este servidor sin Steam y abre uno o dos juegos conectados a él, para probar mods en multijugador sin otra PC. Cada juego muestra la ventana de conexión del servidor: escribí un nombre de cuenta y una contraseña (un nombre nuevo crea la cuenta).",
+      "what": "Arranca este servidor y abre uno o dos juegos conectados a él, para probar mods en multijugador sin otra PC. Con 1 jugador va con Steam, como un servidor real (baja los mods del Workshop); con 2 va sin Steam, porque dos juegos en una PC no pueden usar la misma cuenta de Steam. Cada juego muestra la ventana de conexión del servidor: escribí un nombre de cuenta y una contraseña (un nombre nuevo crea la cuenta).",
       "touches": "El jugador 2 usa una carpeta Zomboid propia ({{dir}}): sus opciones, partidas y logs no se mezclan con los tuyos. \"Preparar jugador 2\" copia ahí los mods del servidor (con la marca del Studio, se recopian cuando cambian); la primera vez puede ocupar varios GB.",
-      "player2List": "No tiene lista de mods ni Mod Health propios: al conectarse carga la lista del server. Sus archivos son copias de los tuyos, así que lo que arreglás en tus mods (copia compatible, paquete de parches) le llega cuando lo actualizás.",
+      "player2List": "No tiene lista de mods ni Diagnóstico propios: al conectarse carga la lista del server. Sus archivos son copias de los tuyos, así que lo que arreglás en tus mods (copia compatible, paquete de parches) le llega cuando lo actualizás.",
       "openSecondDir": "Abrir la carpeta del jugador 2",
       "players": "Jugadores",
       "serverMemory": "Memoria del servidor",
@@ -2473,7 +2619,11 @@
         "fatal": "Sin él, {{addons}} tiraron el servidor al arrancar.",
         "fatalGame": "Sin él, {{addons}} tiraron el juego al arrancar.",
         "addons": "Sin él, {{addons}} dejaron de andar.",
-        "what": "Salud de mods lo muestra con un botón para apagarlo junto con los mods que lo usan, hasta que el autor lo arregle."
+        "what": "Diagnóstico lo muestra con un botón para apagarlo junto con los mods que lo usan, hasta que el autor lo arregle.",
+        "denied": "ZombieBuddy dejó afuera {{mod}}: tiene guardado «no permitir» para esta versión de su Java, así que no cargó y su ventana ya no pregunta.",
+        "unapproved": "ZombieBuddy dejó afuera {{mod}}: esta versión de su Java nunca se permitió en esta PC, y un servidor no puede preguntar.",
+        "whatDenied": "Para usarlo, cerrá el juego y mantené Shift mientras carga: ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. El Studio no toca esa decisión por vos.",
+        "whatUnapproved": "Abrí el juego una vez con {{mod}} prendido y permitilo en la ventana de ZombieBuddy; después el servidor lo carga."
       },
       "phase": {
         "waiting_for_server": "Esperando a que el servidor termine de arrancar (con muchos mods tarda varios minutos); después se abren los juegos.",
@@ -2674,7 +2824,7 @@
     },
     "drafts": {
       "title": "Borradores de traducción",
-      "intro": "Tu mod muestra sus textos en el idioma en que los escribiste. Marcá los idiomas que quieras agregar y apretá el botón: el Studio escribe un borrador de cada texto que a ese idioma le falta, traducido por el mismo servicio que traduce las descripciones de mods (Configuración > Traducción), en la carpeta <code>Translate/&lt;LANG&gt;/</code> del propio mod. Lo que ya está se deja como está. Un borrador es un punto de partida para un traductor, no una traducción: leelo antes de publicar.",
+      "intro": "Tu mod muestra sus textos en el idioma en que los escribiste. Marcá los idiomas que quieras agregar y apretá el botón: el Studio escribe un borrador de cada texto que a ese idioma le falta, traducido por el mismo servicio que traduce las descripciones de mods (Configuración > La app > Traducción), en la carpeta <code>Translate/&lt;LANG&gt;/</code> del propio mod. Lo que ya está se deja como está. Un borrador es un punto de partida para un traductor, no una traducción: leelo antes de publicar.",
       "pickFirst": "Elegí un mod arriba.",
       "source": "Escrito en {{lang}} ({{name}}): {{keys}} textos en {{count}} archivos.",
       "b41": "tablas .txt de Build 41: los borradores se escriben igual",
@@ -2760,6 +2910,8 @@
   },
   "monitor": {
     "console": {
+      "performance": "Ver cómo rinde el juego",
+      "performanceTitle": "Abre Diagnóstico > Juego > En vivo: memoria, CPU y en qué pantalla está",
       "header1": "[PZ Monitor Center] Monitor de la sesión del cliente en tiempo real listo.",
       "header2": "[PZ Monitor Center] Iniciá el juego (el botón de inicio de arriba, o desde Steam) y su salida en vivo se ve acá.",
       "serverHeader1": "[PZ Monitor Center] Monitor del servidor dedicado listo.",
@@ -2768,8 +2920,8 @@
       "serverTab": "🖥️ Servidor dedicado (en vivo)",
       "onDisk": "console.txt (en disco)",
       "emptyLog": "(El archivo de log está vacío)",
-      "title": "Centro de monitoreo y diagnóstico de errores",
-      "subtitle": "Monitoreo en tiempo real, visor de logs con pestañas y reparación automática de excepciones de Java/Lua.",
+      "title": "Centro de monitoreo",
+      "subtitle": "La consola del juego y del servidor mientras corren, y los logs de sesiones anteriores. A la derecha, una tarjeta por cada error o aviso que nombra un mod, con lo que hay que hacer.",
       "logsFolder": "📁 Carpeta de logs",
       "logsFolderTitle": "Abre la carpeta de logs (console.txt y la subcarpeta Logs/) en el Explorador de Windows",
       "spamFilterTitle": "Filtra u oculta el spam de traducciones faltantes",
@@ -2824,7 +2976,7 @@
       "mdFilter": "Markdown (.md)",
       "savedTo": "Guardado en {{path}}",
       "reportCopied": "Informe copiado al portapapeles",
-      "heading": "DIAGNÓSTICO",
+      "heading": "ERRORES Y AVISOS",
       "fromGameLog": "Estas tarjetas son del log de tu juego, no de «{{log}}», que es lo que ves a la izquierda.",
       "fromOtherLog": "Tarjetas de «{{log}}»: lo que ese log mostró desde que el Studio lo empezó a leer. Las del juego están en su pestaña.",
       "exceptionsBadge": "{{count}} excepción(es)",
@@ -2888,13 +3040,13 @@
       "packageCopyStale": "{{mod}} cambió este archivo el {{modDate}}; la copia del paquete es del {{copyDate}}. El juego lee la copia, así que el cambio del mod nunca corre, y la copia puede llamar a cosas que la versión nueva ya no tiene. Quitá la copia, o parcheá la versión nueva.",
       "packageCopyOrphan": "Hoy ningún mod de tu lista trae este archivo (la copia es del {{copyDate}}): vino de un mod apagado o que ya no está. Quitá la copia salvo que sea un parche tuyo.",
       "rewriteTitle": "Reescribe el require en todos los archivos de este mod que piden {{module}}, a la ruta que el módulo tiene ahora, y los publica en el paquete en el lugar. El mod sigue activo; relanzá el juego después.",
-      "patchFileTitle": "Abre {{file}} de este mod en el Merger para parchearlo. El mod sigue activo; el paquete carga último, así que el juego lee tu copia de ese archivo.",
-      "patchAnyTitle": "Abre este mod en el Merger para que elijas un archivo a parchear. El mod sigue activo; el paquete carga último.",
+      "patchFileTitle": "Abre {{file}} de este mod en el Fusionador para que corrijas el código vos. El Studio no sabe arreglar este error solo: sin un cambio en el código, Guardar no guarda nada. Lo que guardes va al paquete, que carga último; el mod sigue activo.",
+      "patchAnyTitle": "Abre este mod en el Fusionador para que elijas un archivo y corrijas el código vos. El Studio no sabe arreglar este error solo. El mod sigue activo; el paquete carga último.",
       "fixing": "Arreglando…",
       "fixPathIn": "Arreglar la ruta en {{file}}",
       "fixPath": "Arreglar la ruta",
-      "patchFile": "Parchear {{file}}",
-      "patchAFile": "Parchear un archivo suyo",
+      "patchFile": "Editar {{file}} (avanzado)",
+      "patchAFile": "Editar un archivo suyo (avanzado)",
       "switchOffTitle": "Apaga {{mod}} en la Lista de mods, para ver si es la causa",
       "switchOff": "Apagarlo",
       "openMergerTitle": "El parche de compatibilidad de Build 42 viaja dentro de un paquete de parches: armá uno en el Merger",
@@ -2969,10 +3121,10 @@
       "load_after_order": "{{mod}} pide cargar después de {{other}}, pero {{other}} viene más abajo en la lista",
       "load_before_order": "{{mod}} pide cargar antes de {{other}}, pero {{other}} viene más arriba en la lista",
       "incompatible": "{{mod}} está marcado como incompatible con {{other}}, y los dos están activados",
-      "workshop_update_pending": "Steam tiene una versión más nueva de {{mod}}{{published}} que todavía no se descargó. Dejá que Steam la descargue (reiniciá Steam si se trabó): los servidores rechazan a los jugadores cuyas versiones de mods no coinciden (\"Workshop item version is different than the server's\").",
+      "workshop_update_pending": "Steam tiene una versión nueva de {{mod}}{{published}} que todavía no bajó. Mientras tanto no se rompe nada: el juego usa la versión que tenés. Steam suele bajarla cuando cerrás el juego; si después sigue esperando, reiniciá Steam. Importa en un servidor: los servidores rechazan a los jugadores con versiones de mods distintas (\"Workshop item version is different than the server's\").",
       "compatible_copy": "{{mod}} usa tu copia arreglada ({{changes}}) en lugar del original del Workshop, que en tu versión no carga. No hay nada que hacer. Sirve cuando el juego se inicia desde el Studio (desde Steam hace falta la opción de lanzamiento -modfolders mods,workshop,steam). Cuando el autor lo actualice, \"Volver al original\" quita la copia.",
       "compatible_copy_unneeded": "{{mod}} corre desde una copia compatible que hizo el Studio en Zomboid/mods, pero el original del Workshop ya carga tal cual en la {{build}}. La copia mantiene los archivos viejos y esconde las actualizaciones del autor: volvé al original.",
-      "shadowed_copy": "Otra copia de {{mod}} en {{ignored}} queda ignorada: el juego usa la de {{used}}",
+      "shadowed_copy": "Otra copia de {{mod}} en {{ignored}} se ignora: el juego usa la de {{used}}. No hay nada que hacer.",
       "security_executable": "{{mod}} trae {{count}} archivo(s) de programa: {{files}}{{more}}. Un programa dentro de un mod corre con tus permisos, fuera del Lua del juego; dejá el mod solo si confiás en su autor. Nada de esto dice que el archivo sea dañino.",
       "security_script": "{{mod}} trae {{count}} script(s): {{files}}{{more}}. Un script dentro de la carpeta de un mod corre solo si lo ejecutás vos (suelen ser ayudas de compilación del autor); no hay nada que hacer salvo que los abras.",
       "security_java": "{{mod}} trae código Java que puede {{rules}} ({{where}}{{more}}). Build 42 ejecuta el Java de un mod con tus permisos, a través de ZombieBuddy, que pregunta antes de cargar un jar nuevo. Muchos mods lo hacen por buenas razones; dejá el mod solo si confiás en su autor.",
@@ -3002,6 +3154,9 @@
       "package_file_orphan": "{{package}} tiene {{path}} (copiado el {{copyDate}}) y ningún mod de esta lista trae ese archivo. Se carga igual. Si es un parche tuyo está bien ahí; si vino de un mod que está apagado o ya no está, sacalo.",
       "server_mod_not_installed": "Mods= tiene {{entry}}, que no está instalado en esta máquina. Si el servidor tampoco lo tiene, no va a cargar.",
       "server_item_missing": "{{mod}} está en Mods= pero su id del Workshop {{item}} no está en WorkshopItems=, así que el servidor nunca lo descarga y el mod falta en el juego.",
+      "server_item_unreachable_copy": "WorkshopItems= tiene {{item}} ({{mods}}), que un servidor con Steam no puede descargar (ya no es público: lo borraron, lo hicieron privado u oculto, o Steam lo negó). Por ese ítem el servidor se cae al arrancar. Cuando el Studio lo arranca con Steam, lo saca de WorkshopItems= y el servidor usa la copia de Zomboid/mods.",
+      "server_item_unreachable_will_copy": "WorkshopItems= tiene {{item}} ({{mods}}), que un servidor con Steam no puede descargar (ya no es público: lo borraron, lo hicieron privado u oculto, o Steam lo negó). Por ese ítem el servidor se cae al arrancar. Cuando el Studio lo arranca con Steam, copia {{mods}} desde la carpeta del Workshop de esta PC a Zomboid/mods y saca el ítem de WorkshopItems=.",
+      "server_item_unreachable_lost": "WorkshopItems= tiene {{item}}, que un servidor con Steam no puede descargar (ya no es público: lo borraron, lo hicieron privado u oculto, o Steam lo negó), y esta PC tampoco lo tiene. Por ese ítem el servidor se cae al arrancar. Cuando el Studio lo arranca con Steam, lo saca de WorkshopItems=; sus mods van a faltar.",
       "server_mod_not_from_workshop": "{{mod}} no viene del Workshop, así que el servidor no lo puede descargar: copiá su carpeta en el Zomboid/mods del servidor.",
       "server_mod_not_for_build": "La build instalada acá no puede cargar {{mod}} ({{entry}}).",
       "server_map_missing": "{{mod}} agrega los mapas {{maps}}, que no están en Map=. El mod carga, el mapa no.",
@@ -3034,17 +3189,42 @@
       "zb_excluded_signature_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): su firma (.zbs) no coincide con la clave que su autor muestra en Steam, así que su Java no cargó. Lo tiene que arreglar su autor; mientras tanto apagalo junto con los mods que lo usan ({{users}}), o esperá su actualización.",
       "zb_excluded_other_fatal_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): su Java no cargó. Sin él, {{addons}} tiraron el servidor al arrancar. Lo tiene que arreglar su autor; mientras tanto apagalo junto con los mods que lo usan ({{users}}), o esperá su actualización.",
       "zb_excluded_other_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): su Java no cargó. Lo tiene que arreglar su autor; mientras tanto apagalo junto con los mods que lo usan ({{users}}), o esperá su actualización.",
+      "zb_excluded_denied_fatal_game": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de juego ({{when}}): tiene guardado «no permitir» para esta versión de su Java (o se lo negó en su ventana), así que no cargó y su ventana ya no pregunta. Sin él, {{addons}} tiraron el juego al arrancar. Para usarlo: cerrá el juego y mantené Shift mientras carga; ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_denied_addons_game": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de juego ({{when}}): tiene guardado «no permitir» para esta versión de su Java (o se lo negó en su ventana), así que no cargó y su ventana ya no pregunta. Sin él, {{addons}} dejaron de andar. Para usarlo: cerrá el juego y mantené Shift mientras carga; ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_denied_game": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de juego ({{when}}): tiene guardado «no permitir» para esta versión de su Java (o se lo negó en su ventana), así que no cargó y su ventana ya no pregunta. Para usarlo: cerrá el juego y mantené Shift mientras carga; ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_unapproved_fatal_game": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de juego ({{when}}): esta versión de su Java nunca se permitió en esta PC, y un servidor no puede preguntar. Sin él, {{addons}} tiraron el juego al arrancar. Abrí el juego una vez con el mod prendido y permitilo en la ventana de ZombieBuddy; después el servidor lo carga. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_unapproved_game": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de juego ({{when}}): esta versión de su Java nunca se permitió en esta PC, y un servidor no puede preguntar. Abrí el juego una vez con el mod prendido y permitilo en la ventana de ZombieBuddy; después el servidor lo carga. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_denied_fatal_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): tiene guardado «no permitir» para esta versión de su Java (o se lo negó en su ventana), así que no cargó y su ventana ya no pregunta. Sin él, {{addons}} tiraron el servidor al arrancar. Para usarlo: cerrá el juego y mantené Shift mientras carga; ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_denied_addons_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): tiene guardado «no permitir» para esta versión de su Java (o se lo negó en su ventana), así que no cargó y su ventana ya no pregunta. Sin él, {{addons}} dejaron de andar. Para usarlo: cerrá el juego y mantené Shift mientras carga; ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_denied_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): tiene guardado «no permitir» para esta versión de su Java (o se lo negó en su ventana), así que no cargó y su ventana ya no pregunta. Para usarlo: cerrá el juego y mantené Shift mientras carga; ZombieBuddy vuelve a mostrar su ventana y ahí permití {{mod}}. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_unapproved_fatal_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): esta versión de su Java nunca se permitió en esta PC, y un servidor no puede preguntar. Sin él, {{addons}} tiraron el servidor al arrancar. Abrí el juego una vez con el mod prendido y permitilo en la ventana de ZombieBuddy; después el servidor lo carga. Si no, apagalo junto con los mods que lo usan ({{users}}).",
+      "zb_excluded_unapproved_server": "ZombieBuddy dejó afuera {{mod}} en tu última sesión de servidor ({{when}}): esta versión de su Java nunca se permitió en esta PC, y un servidor no puede preguntar. Abrí el juego una vez con el mod prendido y permitilo en la ventana de ZombieBuddy; después el servidor lo carga. Si no, apagalo junto con los mods que lo usan ({{users}}).",
       "workshop_copy_renamed": "{{mod}} corre desde una copia en Zomboid/mods ({{folder}}) de la versión de antes de que el autor le cambiara el id: el ítem {{item}} del Workshop ahora trae {{renamed}} ({{version}}). Tus juegos siguen cargando la copia vieja. Usá la nueva: tu lista pasa a nombrarla, y la copia vieja ya no se usa.",
       "workshop_copy_stale": "{{mod}}: su copia en Zomboid/mods es más vieja que el ítem {{item}} del Workshop, que se actualizó después. Tus juegos y un servidor sin Steam siguen cargando la copia vieja. Copiala de nuevo.",
       "workshop_copy_stale_server": "{{mod}}: su copia en Zomboid/mods es más vieja que el ítem {{item}} del Workshop, que se actualizó después. Tus juegos y el servidor {{servers}} siguen cargando la copia vieja. Copiala de nuevo.",
       "workshop_copy_kept": "{{mod}} corre desde la copia del Studio en Zomboid/mods (para un servidor sin Steam), al día con el ítem {{item}} del Workshop. También le gana al Workshop en tus juegos; el Studio avisa cuando el ítem se actualice.",
       "workshop_copy_kept_server": "{{mod}} corre desde la copia del Studio en Zomboid/mods, al día con el ítem {{item}} del Workshop; la usa el servidor {{servers}}. También le gana al Workshop en tus juegos; el Studio avisa cuando el ítem se actualice.",
-      "compatible_copy_unneeded_server": "{{mod}} corre desde una copia compatible del Studio en Zomboid/mods, y el original del Workshop ya carga tal cual en la {{build}}. Pero el servidor {{servers}} la lista, y un servidor sin Steam solo lee Zomboid/mods: la copia se queda mientras ese servidor la use.",
+      "compatible_copy_unneeded_server": "{{mod}} corre desde una copia compatible del Studio en Zomboid/mods, y el original del Workshop ahora carga tal cual en {{build}}. Pero el servidor {{servers}} lo usa, y un servidor sin Steam solo lee Zomboid/mods: la copia queda mientras ese servidor lo use. No hay nada que hacer ahora.",
       "compatible_copy_server": "{{mod}} corre desde una copia compatible que hizo el Studio en Zomboid/mods ({{changes}}). El servidor {{servers}} la lista, y un servidor sin Steam solo lee Zomboid/mods: la copia se queda mientras ese servidor la use.",
       "api_missing": "{{mod}} llama a {{count}} cosas que esta versión del juego no tiene, por nombre: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve.{{tail}}",
       "api_missing_one": "{{mod}} llama a algo que esta versión del juego no tiene, por nombre: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve.{{tail}}"
     },
     "fragments": {
+      "lua_no_impl": "llamó a {{name}} del juego con algo que no acepta",
+      "lua_given": "un {{given}}",
+      "lua_given_value": "un valor",
+      "lua_no_impl_long": "llamó a {{name}} del juego con {{given}}, que esa función no acepta: o el mod le pasó algo equivocado, o la función cambió en una actualización del juego",
+      "lua_concat": "unió texto con un valor que no existe",
+      "lua_concat_long": "intentó unir texto con un valor que no existe (nil)",
+      "lua_index": "usó {{name}} de algo que no existe",
+      "lua_index_long": "pidió {{name}} de algo que no existe (nil)",
+      "lua_call": "llamó a {{name}}, que no existe",
+      "lua_call_long": "llamó a {{name}}, una función que no existe: una actualización del juego la cambió de nombre o la quitó, o es de un mod que no está cargado",
+      "lua_arith": "hizo una cuenta con un valor que no existe",
+      "lua_arith_long": "hizo una cuenta con un valor que no existe (nil)",
+      "lua_compare": "comparó un valor que no existe",
+      "lua_compare_long": "comparó un valor que no existe (nil)",
+      "lua_place": ", en {{place}}",
       "beside_others": ", junto a {{others}}",
       "and_more": " y {{more}} más",
       "and_more_classes": " y {{more}} clases más",
@@ -3084,6 +3264,9 @@
       "shim_off": "; el parche del shim para esto está apagado",
       "require_path": "; requiere \"{{from}}\", que en Build 42 está en \"{{to}}\" (una copia compatible lo reescribe; Corregir la ruta en el Centro de monitoreo publica ese único archivo)",
       "copy_fixes": "; una copia compatible lo arregla",
+      "disable_fixes": "; apagalo hasta que su autor lo actualice",
+      "replace_fixes": "; usá {{to}} en su lugar",
+      "none_known": ". No hay nada que hacer salvo que lo veas pasar acá; cuando ya no pase, el botón lo oculta",
       "pkg_missing_one": "{{missingN}} mod está activado en este perfil y el paquete nunca lo vio ({{missingList}}{{missingMore}})",
       "pkg_missing_other": "{{missingN}} mods están activados en este perfil y el paquete nunca los vio ({{missingList}}{{missingMore}})",
       "pkg_extra_one": "{{extraN}} mod que fusionó está apagado acá, y sus archivos fusionados siguen en el paquete ({{extraList}}{{extraMore}})",
@@ -3115,14 +3298,31 @@
       "fc_manual": "Cambian las mismas líneas de forma distinta: elegí en el Fusionador de mods.",
       "a_file": "un archivo",
       "api_more_names": " y {{moreNames}} más",
-      "api_tail_java": " Este mod trae Java, que puede darle a Lua nombres que esta revisión no ve: puede que no sea nada.",
-      "api_tail_errors": " El log de la última sesión tiene {{exceptions}} errores de este mod: el Monitor los muestra.",
+      "api_tail_java": " Este mod trae Java, que puede darle a Lua nombres que esta revisión no ve: puede que no sea nada. No hay nada que hacer salvo que veas fallar este mod en el juego.",
+      "api_tail_none": " No hay nada que hacer ahora: el log no tiene errores de este mod. Si algo de este mod deja de andar, apagalo o avisale a su autor; el arreglo va en el archivo del propio mod, el Studio no puede hacerlo.",
+      "api_tail_errors": " El log de la última sesión tiene {{exceptions}} errores de este mod: el Monitor los muestra. Qué hacer: apagá el mod, o dejalo y esperá que su autor lo actualice; el Studio no puede arreglarlo.",
       "text_whose_mod_one": "Está en los archivos de traducción de {{mod}}.",
       "text_whose_mod_many": "Están en los archivos de traducción de {{mod}}.",
       "text_whose_none_one": "El Studio no lo encontró en los textos de los mods que tenés activados; puede ser del propio juego.",
-      "text_whose_none_many": "El Studio no los encontró en los textos de los mods que tenés activados; pueden ser del propio juego."
+      "text_whose_none_many": "El Studio no los encontró en los textos de los mods que tenés activados; pueden ser del propio juego.",
+      "none_in_jars": "ninguno en los jars cargados"
     },
     "monitor": {
+      "java_mod_error_zb_main": {
+        "title": "ZombieBuddy no pudo correr el código de arranque de {{mod}}",
+        "explanation": "ZombieBuddy arrancó el Java de {{mod}} (su main) y ese código falló; ZombieBuddy siguió y cargó sus parches. En un servidor dedicado es esperable para un mod que dibuja la imagen (un servidor no dibuja nada). En el juego quiere decir que puede faltar lo que {{mod}} prepara al arrancar.",
+        "action": "En un servidor dedicado no hay nada que hacer. En el juego, si {{mod}} no anda, actualizalo; su página del Workshop suele decir qué versión del juego necesita."
+      },
+      "mod_named_exception_lua": {
+        "title": "{{mod}}: {{lua}}",
+        "explanation": "{{mod}} {{luaLong}}{{place}}. Lo que estaba haciendo en ese momento se cortó; el juego siguió. Lo que dijo el juego: {{words}}",
+        "action": "Si algo de {{mod}} no anda en el juego, esta es la causa probable. Es un error en el código del propio mod: avisale a su autor (\"Guardar informe\" escribe la nota, con el archivo y la línea). Apagar {{mod}} te dice si es la causa."
+      },
+      "mod_named_warning_recursive_require": {
+        "title": "Los archivos de {{mod}} se piden entre sí en un círculo",
+        "explanation": "{{mod}} pidió {{file}} (require) mientras ese archivo todavía se estaba cargando: dos de sus archivos se piden entre sí. El juego lo carga una vez y saltea la repetición, así que normalmente no falta nada.",
+        "action": "No hay que hacer nada salvo que falte algo de {{mod}} en el juego; en ese caso, avisale a su autor (\"Guardar informe\" escribe la nota)."
+      },
       "door_npc": {
         "title": "El código de puertas del juego se encontró con un jugador que no existe (B42)",
         "explanation": "El Java del juego para las puertas (IsoDoor.ToggleDoorActual) le preguntó a un jugador que no existe si era el local. Pasa cuando abre una puerta algo que no es un jugador. El código que falla es del propio juego.",
@@ -3156,7 +3356,7 @@
       "windows_low_memory": {
         "title": "El juego se cerró mientras Windows estaba sin memoria",
         "explanation": "A las {{when}} Windows avisó que la PC entera estaba sin memoria: {{charge}} de {{limit}} GB comprometidos (RAM {{ram}} GB más el archivo de paginación); el juego tenía {{game}} GB{{others}}. El juego se cayó instantes después. El límite que se agotó es el de la PC, no el heap de Java del juego (-Xmx).",
-        "action": "Un archivo de paginación más grande (Windows > Sistema > Acerca de > Configuración avanzada del sistema > Rendimiento > Memoria virtual: administrado por el sistema, o 16 a 32 GB), cerrar navegadores y otros programas grandes antes de jugar, y menos mods Java pesados. Salud > Rendimiento > Memoria guarda los últimos 14 días."
+        "action": "Un archivo de paginación más grande (Windows > Sistema > Acerca de > Configuración avanzada del sistema > Rendimiento > Memoria virtual: administrado por el sistema, o 16 a 32 GB), cerrar navegadores y otros programas grandes antes de jugar, y menos mods Java pesados. Diagnóstico > Juego > Memoria guarda los últimos 14 días."
       },
       "ui_draw_reload": {
         "title": "Una ventana corrió antes de que existiera la clase en la que se basa",
@@ -3171,7 +3371,7 @@
       "java_mod_error": {
         "title": "{{mod}} escribió en el log un error propio",
         "explanation": "{{mod}} escribió esta línea él mismo: \"{{what}}\". Atrapó el error y siguió.",
-        "action": "La línea dice qué hizo el mod al respecto, si hizo algo. Un paquete de fusión o el shim no pueden cambiar código Java; \"Guardar informe\" arma un texto para su autor."
+        "action": "No hay que hacer nada: el mod lo resolvió solo, y la línea dice cómo. Si lo que nombra la línea falta en el juego, \"Guardar informe\" arma un texto para su autor (el Studio no puede cambiar el Java de un mod)."
       },
       "java_npe": {
         "title": "Java se encontró con un valor que faltaba (NullPointerException)",
@@ -3195,6 +3395,11 @@
         "title": "El juego nombró a {{mod}} en esta línea",
         "action": "El juego nombró a {{mod}} acá y siguió. No hay nada que hacer salvo que algo de ese mod ande mal en el juego; en ese caso, esta es la línea a mirar."
       },
+      "mod_named_warning_require": {
+        "title": "{{mod}} pidió un archivo que no está",
+        "explanation": "{{mod}} pidió el archivo {{file}} (require), y el juego no lo encontró ni en sus propios archivos ni en ningún mod activado. Muchas veces es una parte pensada para otro mod que no tenés (un archivo de compatibilidad), y el resto de {{mod}} anda.",
+        "action": "No hay que hacer nada salvo que falte algo de {{mod}} en el juego; en ese caso su página del Workshop puede nombrar un mod que necesita sin ponerlo como requerido."
+      },
       "connection_lost": {
         "title": "La conexión con el servidor ya no estaba al entrar",
         "explanation": "Mientras entrabas, el juego quiso usar su conexión con el servidor (para avisar de un mod faltante, en el caso visto) y la conexión ya estaba cerrada. Es código del propio juego, no de un mod.",
@@ -3216,17 +3421,17 @@
       "windows_low_memory_nogame": {
         "title": "El juego se cerró mientras Windows estaba sin memoria",
         "explanation": "A las {{when}} Windows avisó que la PC entera estaba sin memoria: {{charge}} de {{limit}} GB comprometidos (RAM {{ram}} GB más el archivo de paginación){{others}}. El juego se cayó instantes después. El límite que se agotó es el de la PC, no el heap de Java del juego (-Xmx).",
-        "action": "Un archivo de paginación más grande (Windows > Sistema > Acerca de > Configuración avanzada del sistema > Rendimiento > Memoria virtual: administrado por el sistema, o 16 a 32 GB), cerrar navegadores y otros programas grandes antes de jugar, y menos mods Java pesados. Salud > Rendimiento > Memoria guarda los últimos 14 días."
+        "action": "Un archivo de paginación más grande (Windows > Sistema > Acerca de > Configuración avanzada del sistema > Rendimiento > Memoria virtual: administrado por el sistema, o 16 a 32 GB), cerrar navegadores y otros programas grandes antes de jugar, y menos mods Java pesados. Diagnóstico > Juego > Memoria guarda los últimos 14 días."
       },
       "java_out_of_memory": {
         "title": "El Java del juego no pudo conseguir más memoria",
         "explanation": "Java pidió memoria y no había (OutOfMemoryError). Este no es el límite del heap de Java: es memoria por fuera, que se acaba cuando la PC misma anda corta. Después de esto el juego suele cerrarse o dejar de responder.",
-        "action": "Cerrá otros programas grandes antes de jugar. Salud > Rendimiento > Memoria muestra lo que tenía la PC; subir el límite de Java no ayuda con este."
+        "action": "Cerrá otros programas grandes antes de jugar. Diagnóstico > Juego > Memoria muestra lo que tenía la PC; subir el límite de Java no ayuda con este."
       },
       "java_out_of_memory_heap": {
         "title": "El Java del juego se quedó sin la memoria que tenía asignada",
         "explanation": "Java informó \"Java heap space\": el juego usó toda la memoria que su Java tiene permitida (el límite -Xmx). Después de esto el juego suele cerrarse o dejar de responder.",
-        "action": "Salud > Rendimiento > Memoria muestra el límite, lo que tiene la PC, y te deja subirlo para el próximo arranque."
+        "action": "Diagnóstico > Juego > Memoria muestra el límite, lo que tiene la PC, y te deja subirlo para el próximo arranque."
       },
       "translator_text_many": {
         "title": "{{count}} textos tienen un % que el juego no puede formatear",
@@ -3237,6 +3442,41 @@
         "title": "{{count}} textos tienen un hueco para un valor y no les pasaron ninguno",
         "explanation": "{{count}} textos traducidos tienen un hueco para un valor (%1, %s) y el código que los pidió no pasó ninguno. El juego muestra cada texto con el hueco tal cual y sigue. Los textos: {{keys}}{{more}}. {{whose}}",
         "action": "No hay que hacer nada para jugar. \"Guardar informe\" dice la primera clave y, si la trae un mod, qué mod y qué archivo."
+      },
+      "java_patch_failed": {
+        "title": "Un parche Java a {{short}} no se pudo aplicar",
+        "explanation": "Un cambio Java de un mod a {{short}}, que es del juego, ya no encaja: el método que cambia ahora es distinto, casi siempre después de una actualización (ZombieBuddy dijo: \"{{why}}\"). Ese cambio falta en el juego; el juego en sí sigue andando. Mods con un cambio a ese método: {{suspects}}. Los cambios de otros mods a {{short}} que venían después también pueden faltar.",
+        "action": "No hay que hacer nada para jugar. Si lo que hace el mod nombrado te importa, dejalo y esperá que su autor lo actualice (\"Guardar informe\" le arma el aviso); si no, apagalo y se aplican los cambios de los otros mods a esta clase. Si no se nombra ningún mod, el Studio no pudo saber cuál de esos es."
+      },
+      "java_patch_failed_mod": {
+        "title": "Un parche Java a {{short}} no se pudo aplicar",
+        "explanation": "Un cambio Java de un mod a {{short}}, que es código de otro mod, ya no encaja: el método que cambia ahora es distinto, casi siempre después de una actualización (ZombieBuddy dijo: \"{{why}}\"). Ese cambio falta en el juego; el juego en sí sigue andando. Mods con un cambio a ese método: {{suspects}}. Los cambios de otros mods a {{short}} que venían después también pueden faltar.",
+        "action": "No hay que hacer nada para jugar. Si lo que hace el mod nombrado te importa, dejalo y esperá que su autor lo actualice (\"Guardar informe\" le arma el aviso); si no, apagalo y se aplican los cambios de los otros mods a esta clase. Si no se nombra ningún mod, el Studio no pudo saber cuál de esos es."
+      },
+      "java_mod_turned_off": {
+        "title": "{{mod}} se apagó solo",
+        "explanation": "{{mod}} escribió \"{{what}}\" (en el log firma como [{{tag}}]): dejó de hacer lo suyo por el resto de esta sesión. El juego sigue sin él.",
+        "action": "Si pasa en cada sesión, no anda con lo que tenés instalado ahora, casi siempre después de una actualización del juego o del mod sobre el que se apoya. Apagalo hasta que su autor lo actualice; su página del Workshop muchas veces ya lo dice."
+      },
+      "java_shader_failed": {
+        "title": "Un shader de {{mod}} no compiló",
+        "explanation": "{{mod}} no pudo armar un shader; la línea dice por qué. Lo que dibuja ese shader falta.",
+        "action": "Un nombre que un shader espera y nadie define suele darlo un complemento de ese mod. Si otra tarjeta dice que un complemento se apagó solo en esta sesión, ese es el que hay que apagar o actualizar."
+      },
+      "java_shader_failed_undefined": {
+        "title": "Un shader de {{mod}} no compiló",
+        "explanation": "{{mod}} no pudo armar un shader: usa \"{{name}}\", que no estaba definido cuando compiló. Lo que dibuja ese shader falta.",
+        "action": "Un nombre que un shader espera y nadie define suele darlo un complemento de ese mod. Si otra tarjeta dice que un complemento se apagó solo en esta sesión, ese es el que hay que apagar o actualizar."
+      },
+      "java_shader_failed_addon": {
+        "title": "Un shader de {{mod}} no compiló",
+        "explanation": "{{mod}} no pudo armar un shader: usa \"{{name}}\", que no estaba definido cuando compiló. Hay código de shader que usa \"{{name}}\" en el jar de {{addon}} (un complemento que agrega cosas a los shaders de {{mod}}), así que lo más probable es que venga de ahí, quizás hecho para otra versión de {{mod}}. Lo que dibuja ese shader falta.",
+        "action": "El juego no se rompe; esa parte de la imagen (muchas veces la iluminación) falta o se ve mal. Si te molesta, apagá {{addon}} o actualizalo, y fijate si esta tarjeta desaparece; {{mod}} anda sin él."
+      },
+      "java_addon_incompatible": {
+        "title": "{{mod}} no encaja con esta versión de {{host}}",
+        "explanation": "{{host}} dice que su addon [{{tag}}] no encaja: \"{{what}}\". Los shaders que ese addon cambia no se arman, y {{host}} puede apagarse solo por eso (lo dice otra tarjeta).",
+        "action": "Apagá el addon hasta que su autor lo actualice para esta versión de {{host}}; {{host}} anda sin él."
       }
     },
     "validate": {
@@ -3292,6 +3532,11 @@
     "showLess": "ver menos"
   },
   "saves": {
+    "reading": "Leyendo tus partidas y sus copias… (la primera vez después de abrir la app tarda unos segundos)",
+    "noSaves": "No hay partidas en Zomboid/Saves",
+    "noSavesBody": "Cuando empieces una partida (un jugador o un servidor al que te unas), aparece acá con cuánto ocupa, qué mods usa y sus copias. El Studio hace una copia al salir de ella y antes de cargarla con mods que cambiaron, así que vas a poder volver atrás si un mod la rompe.",
+    "count_one": "{{count}} partida",
+    "count_other": "{{count}} partidas",
     "title": "Partidas",
     "blurb": "PZ Mod Studio hace una copia de una partida cuando salís de ella, antes de cargarla con mods que cambiaron desde su última sesión y antes de cambiar su lista de mods. Cada copia es un zip que se vuelve a leer después de escribirlo. Se guardan las {{keep}} copias automáticas más nuevas de cada partida; las que hacés o fijás quedan hasta que las borres.",
     "openFolder": "Abrir carpeta de copias",
@@ -3484,8 +3729,10 @@
     "onlyThis": "Solo {{name}}"
   },
   "whatsNew": {
-    "renamedCopy": "En esta actualización el autor le cambió el id a {{now}}, pero tu lista dice {{old}} y tenés una copia vieja en Zomboid/mods con ese id: el juego carga esa copia, la versión de antes. Salud de mods tiene el botón para pasar a la nueva.",
-    "renamed": "En esta actualización el autor le cambió el id: tu lista todavía dice {{old}}, y ahora el mod se llama {{now}}. El juego no lo va a cargar hasta que cambies esa línea: Salud de mods tiene el botón para hacerlo.",
+    "more": "Ver toda la nota",
+    "less": "Ver menos",
+    "renamedCopy": "En esta actualización el autor le cambió el id a {{now}}, pero tu lista dice {{old}} y tenés una copia vieja en Zomboid/mods con ese id: el juego carga esa copia, la versión de antes. Diagnóstico tiene el botón para pasar a la nueva.",
+    "renamed": "En esta actualización el autor le cambió el id: tu lista todavía dice {{old}}, y ahora el mod se llama {{now}}. El juego no lo va a cargar hasta que cambies esa línea: Diagnóstico tiene el botón para hacerlo.",
     "seen": {
       "one": "Marcar como visto",
       "oneTitle": "Sigue en esta página, atenuado, y deja de contar en el número del menú. La próxima actualización de este mod vuelve a aparecer como nueva.",
@@ -3530,6 +3777,13 @@
     }
   },
   "maps": {
+    "blurbShort": "Dónde pone sus celdas cada mod de mapa sobre el mundo del juego, y dónde dos se pelean.",
+    "howToRead": "Cómo leer el mapa",
+    "count_one": "{{count}} mod de mapa",
+    "count_other": "{{count}} mods de mapa",
+    "actNow": "Hay que hacer algo: chocan en tu próxima partida",
+    "ifLine_one": "{{count}} choque posible si prendés mods que hoy están apagados: nada que hacer ahora",
+    "ifLine_other": "{{count}} choques posibles si prendés mods que hoy están apagados: nada que hacer ahora",
     "title": "Mapas",
     "blurb": "Todas las celdas del mundo, sobre el mapa del juego: el mundo del juego (contorno gris) y las celdas de cada mod de mapa instalado. Las celdas de un mod sobre el mundo del juego reemplazan lo que había. Dos mods de mapa con celdas en común se pelean por ellas (rojo): lo que uno construyó ahí desaparece, salvo que uno se apoye en el otro (su map.info lo nombra en lots=). Una celda son 256 x 256 casillas.",
     "refresh": "Actualizar",
@@ -3563,6 +3817,9 @@
     "turnOff": "Desactivar"
   },
   "join": {
+    "blurb_PUBLIC": "Buscá un servidor público y unite con los mods que usa.",
+    "blurb_MINE": "Los servidores que guardaste o a los que te uniste, también privados por dirección.",
+    "blurb_HOST": "Hospedá tu propio servidor dedicado en esta PC.",
     "tabJoin": "Unirse a un servidor",
     "tabHost": "Alojar un servidor",
     "source_public": "Servidores públicos",
@@ -3863,7 +4120,7 @@
       "staging": "Descargas a medio instalar",
       "studioLogs": "Registros del Studio",
       "gameArchive": "Código del juego de cada build (para comparar después de una actualización)",
-      "profilePhotos": "Fotos de perfiles (Mod Health; se borran desde Ajustes)",
+      "profilePhotos": "Fotos de perfiles (Diagnóstico; se borran desde Ajustes)",
       "gameLogs": "Registros del juego (Zomboid/Logs)"
     },
     "how": "Un mod se considera en uso si lo tiene un perfil (prendido o como parte del perfil), la lista activa del juego, la lista de mods de una partida (mods.txt) o lo cargó un servidor guardado la última vez que entraste. Con el juego abierto no se manda nada a la Papelera.",
@@ -3928,18 +4185,18 @@
         "title": "Lista de mods",
         "body": "Tus mods instalados: prendelos, apagalos y ordenalos. Cada cambio se guarda al instante en el perfil activo y en la lista del juego.",
         "points": [
-          "Cada problema que encuentra Salud de mods aparece como etiqueta en la fila, con el arreglo al lado.",
+          "Cada problema que encuentra Diagnóstico aparece como etiqueta en la fila, con el arreglo al lado.",
           "«Ordenar dependencias» pone cada mod después de lo que necesita, como lo hace el juego.",
           "Filtros, grupos, notas, clic derecho y deshacer para listas grandes."
         ]
       },
       "health": {
-        "title": "Salud de mods",
-        "body": "Revisa tu lista activa con las mismas reglas que el juego, antes de que el juego falle.",
+        "title": "Diagnóstico",
+        "body": "Lo que la app sabe de tus mods, del juego y del server, en tres partes, con el Doctor en la portada para cuando no sabés por dónde empezar.",
         "points": [
-          "Problemas: requisitos que faltan o están apagados, orden equivocado, mods que tu build no carga, pares incompatibles. Muchos se arreglan con un botón.",
+          "Mods: revisa tu lista con las mismas reglas que el juego. Problemas: requisitos que faltan o están apagados, orden equivocado, mods que tu build no carga, pares incompatibles. Muchos se arreglan con un botón.",
           "Conflictos: dos mods que traen el mismo archivo o ítem; se fusionan o elegís cuál.",
-          "Rendimiento: memoria del juego y qué mods frenan la partida. Disco: cuánto ocupa cada mod y cuáles no usa nada."
+          "Juego: lo que usa ahora (memoria, CPU, en qué pantalla está), su límite de memoria, cuánto tarda en arrancar, los frames y el disco. Servidor: el server que corre en esta PC y, durante un test multiplayer, sus jugadores."
         ]
       },
       "monitor": {
@@ -3987,12 +4244,12 @@
         "body": "Cuando dos mods cambian el mismo archivo, el juego usa uno solo. Acá los combinás, o parcheás un error en un archivo de un mod, sin tocar el mod.",
         "points": [
           "Tus decisiones van a un paquete propio que carga último, así el juego lee tu versión.",
-          "Los casos seguros se fusionan solos desde Salud de mods; acá venís para el resto."
+          "Los casos seguros se fusionan solos desde Diagnóstico; acá venís para el resto."
         ]
       },
       "servers": {
         "title": "Servidores",
-        "body": "Dos lados: Unirse a un servidor y Alojar uno propio.",
+        "body": "Tres pestañas: Servidores públicos, Mis servidores y Alojar un servidor propio.",
         "points": [
           "Unirse: buscá servidores, mirá qué mods cargan y entrá; hacé un perfil con los mods del servidor.",
           "Alojar: corré un servidor dedicado desde esta PC con tus mods sincronizados, jugadores, ajustes rápidos y Discord."
@@ -4028,8 +4285,8 @@
         "title": "Si te trabás",
         "body": "Tocá «?» abajo a la derecha (o F1) en cualquier pantalla para ver su página de ayuda. Esta bienvenida también se abre desde ahí.",
         "points": [
-          "Las tarjetas del Monitor y las filas de Salud de mods tienen «Copiar para un asistente»: pegalo en cualquier chat de IA y tiene todo lo necesario.",
-          "Empezá por Salud de mods: si está limpia, tu lista carga."
+          "Las tarjetas del Monitor y las filas de Diagnóstico tienen «Copiar para un asistente»: pegalo en cualquier chat de IA y tiene todo lo necesario.",
+          "Empezá por Diagnóstico: si está limpia, tu lista carga."
         ]
       }
     }
@@ -4086,9 +4343,9 @@
     },
     "merger": {
       "what": "Cuando dos mods traen el mismo archivo, el juego usa uno solo y lo del otro se pierde. Acá se arma un paquete que combina los dos.",
-      "who": "Solo si Salud de mods te manda acá (pestaña Conflictos) o querés corregir un archivo a mano. Si solo jugás y Salud de mods no marca conflictos, no lo necesitás.",
+      "who": "Solo si Diagnóstico te manda acá (pestaña Conflictos) o querés corregir un archivo a mano. Si solo jugás y Diagnóstico no marca conflictos, no lo necesitás.",
       "touches": "Crea un mod del Studio (Z_PZModStudio_…) en Zomboid/mods que carga último y gana. Los mods originales no se tocan: apagar o borrar el paquete lo deshace.",
-      "flow": "Lista de mods → etiqueta de conflicto → Salud de mods, pestaña Conflictos → \"Fusionar automáticamente\" (lo hace solo) o \"Abrir en el Fusionador\" (elegís vos, acá)."
+      "flow": "Lista de mods → etiqueta de conflicto → Diagnóstico, pestaña Conflictos → \"Fusionar automáticamente\" (lo hace solo) o \"Abrir en el Fusionador\" (elegís vos, acá)."
     },
     "developer": {
       "what": "Herramientas para quien hace mods: revisar los archivos de un mod, ver si usa cosas que tu versión del juego no tiene, probarlo solo, traducirlo y subirlo al Workshop.",
@@ -4116,11 +4373,11 @@
     "toLists": "cada lista elige cuáles de esos mods carga y en qué orden",
     "profile": {
       "title": "Lista de tu perfil",
-      "text": "default.txt. Acá van los arreglos de lista: encender, apagar, ordenar (Mod List y Mod Health)."
+      "text": "default.txt. Acá van los arreglos de lista: encender, apagar, ordenar (Lista de mods y Diagnóstico)."
     },
     "server": {
       "title": "Lista de cada server",
-      "text": "La línea Mods= de su .ini. Se cambia en Servidores; Mod Health la puede revisar."
+      "text": "La línea Mods= de su .ini. Se cambia en Servidores; Diagnóstico la puede revisar."
     },
     "toGames": "quién carga qué lista",
     "single": {
@@ -4147,13 +4404,13 @@
     "cpuReading": "midiendo la CPU…",
     "nothingRunning": "Ni el juego ni un server del Studio están abiertos. Cuando arranquen, acá y arriba se ve cuánta memoria y CPU usan.",
     "high": "A la PC le queda poca memoria libre. Si el juego se traba, cerrá programas (navegador, otro juego) o bajale la memoria al server.",
-    "nearFull": "A la PC casi no le queda memoria libre: Windows puede cerrar el juego. Cerrá programas, o bajale la memoria al juego o al server en Rendimiento → Memoria.",
+    "nearFull": "A la PC casi no le queda memoria libre: Windows puede cerrar el juego. Cerrá programas, o bajale la memoria al juego o al server en Diagnóstico > Juego > Memoria.",
     "javaLimit": " (su límite de Java es {{max}} GB; el proceso usa más: texturas, mapas, la máquina virtual)"
   },
   "photos": {
     "title": "Fotos de este perfil:",
     "take": "Sacar foto",
-    "takeTitle": "Guarda cómo está el perfil ahora: sus mods (encendidos, orden, versión de cada uno) y lo que Mod Health encuentra. Después podés compararla para ver qué cambió.",
+    "takeTitle": "Guarda cómo está el perfil ahora: sus mods (encendidos, orden, versión de cada uno) y lo que Diagnóstico encuentra. Después podés compararla para ver qué cambió.",
     "labelAsk": "Nombre de la foto (por ejemplo: antes de actualizar):",
     "labelDefault": "Foto del {{when}}",
     "taken": "Foto guardada: {{mods}} mods encendidos, {{findings}} avisos.",
@@ -4219,7 +4476,7 @@
     "goMonitor": "Ver el log en el Monitor",
     "skip": "Saltear este paso",
     "memory": "El juego se quedó sin memoria ({{oom}} sesión(es) con el error de memoria, {{low}} vez/veces que a Windows se le acabó con el juego abierto). Revisá la memoria del juego y cerrá programas.",
-    "goPerformance": "Ir a Rendimiento",
+    "goPerformance": "Ver la memoria del juego",
     "unknown": "Con lo que veo no sé qué lo causa: tu lista no tiene nada que rompa y el log no nombra a ningún mod. Lo más seguro es buscar el culpable partiendo la lista a la mitad, o pasarle lo que sé a alguien.",
     "hunt": "Buscar el mod que lo causa",
     "copy": "Copiar lo que sé",
@@ -4227,7 +4484,7 @@
     "playAndComeBack": "Abrí el juego y probá. Cuando vuelvas: ¿anduvo?",
     "itWorks": "Ya anda",
     "stillBroken": "Sigue fallando: revisar de nuevo",
-    "slow": "Para la lentitud, Rendimiento muestra qué usa el juego ahora, los frames y qué mods consumen más tiempo.",
+    "slow": "Para la lentitud: Diagnóstico > Juego muestra qué usa el juego ahora, su memoria y los frames; Diagnóstico > Mods > Tiempo por mod, qué mods se llevan más tiempo.",
     "mod": "La Auditoría muestra cada mod con su veredicto y por qué; el Monitor, lo que dijo el log de ese mod.",
     "goAudit": "Ir a la Auditoría",
     "other": "Copiá un resumen de lo que el Studio sabe de tu lista y de la última sesión, para pegarlo donde pidas ayuda.",

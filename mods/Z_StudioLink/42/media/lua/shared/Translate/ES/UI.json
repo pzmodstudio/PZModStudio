@@ -245,5 +245,13 @@
     "UI_StudioLink_appliedOff": "Se desactivaron ({1}):",
     "UI_StudioLink_appliedOrder": "Cambió el orden de carga.",
     "UI_StudioLink_appliedUndo": "Deshacer",
-    "UI_StudioLink_appliedOk": "OK"
+    "UI_StudioLink_appliedOk": "OK",
+    "UI_StudioLink_offTitle": "Esta partida carga {1} mod(s) que tu perfil tiene apagados",
+    "UI_StudioLink_offWhy": "\"{1}\" guarda su propia lista de mods, y el juego la carga con esa lista, no con el perfil. Estos están prendidos en ella y apagados en \"{2}\":",
+    "UI_StudioLink_offHow": "Sacarlos: PZ Mod Studio hace un backup de la partida, los saca de su lista y la carga. Cargarla así: se cargan con ella esta vez.",
+    "UI_StudioLink_offKeep": "Cargarla así",
+    "UI_StudioLink_offDrop": "Sacarlos y cargar",
+    "UI_StudioLink_offNeedsApp": "Sacar mods de una partida necesita PZ Mod Studio abierto: hace el backup y cambia su lista.",
+    "UI_StudioLink_offWorking": "PZ Mod Studio está haciendo un backup de \"{1}\" y sacando esos mods de su lista.",
+    "UI_StudioLink_offFailed": "No se pudieron sacar los mods: {1}"
 }

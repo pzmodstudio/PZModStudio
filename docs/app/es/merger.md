@@ -20,7 +20,7 @@ Cuando no hay ningún paquete abierto, ves la lista **Paquetes de fusión**. Cad
 - El ícono de descarga lo guarda como archivo `.pzmerge` para compartirlo; el ícono de carpeta abre su carpeta en el Explorador de Windows.
 - **Paquetes de otros perfiles** muestra los paquetes de otros perfiles; **Solo "nombre"** vuelve a los del perfil activo.
 
-La barra de arriba tiene **Cargar paquete (.pzmerge)** para importar un paquete que te mandaron, y **➕ Paquete nuevo** para crear uno (un nombre, una descripción opcional y después **Crear paquete**). Los mods propios del Studio (el Puente IPC en vivo y el Studio Link) aparecen marcados como **Sistema**: podés ver sus archivos pero no editarlos, renombrarlos ni borrarlos.
+La barra de arriba tiene **Cargar paquete (.pzmerge)** para importar un paquete que te mandaron, y **Paquete nuevo** para crear uno (un nombre, una descripción opcional y después **Crear paquete**). Si el perfil activo no tiene paquetes de fusión, la pantalla lo dice y explica cuándo hace falta uno, con un botón para ver los de otros perfiles. Los mods propios del Studio (el Puente IPC en vivo y el Studio Link) no son paquetes de fusión: quedan abajo, plegados en **Mods del Studio**, y podés ver sus archivos pero no editarlos, renombrarlos ni borrarlos.
 
 ## Trabajar dentro de un paquete
 
@@ -53,13 +53,13 @@ A la izquierda, **Conflictos del VFS** lista cada archivo que choca con su tipo 
 
 Usá **Parchear un archivo de un mod** cuando un mod tiene un bug y no hay nada que fusionar. Elegí el mod, después el archivo Lua o de script, editalo y apretá **✓ Guardar la fusión de este archivo**. Tu copia va al paquete y el juego la lee en vez de la del mod, solo para ese archivo; el mod sigue activo y el resto queda intacto. Guardar una copia sin cambios se rechaza, porque solo congelaría el archivo en la versión de hoy.
 
-El Centro de monitoreo y Salud de mods te pueden mandar acá directo: se abre el paquete correcto y el archivo que nombró el error se abre en el editor, a veces con el arreglo ya aplicado.
+El Centro de monitoreo y Diagnóstico te pueden mandar acá directo: se abre el paquete correcto y el archivo que nombró el error se abre en el editor, a veces con el arreglo ya aplicado.
 
 ## Paquetes empaquetados y publicar en el lugar
 
 Un paquete empaquetado es de solo lectura: sus archivos quedan ocultos detrás de un resumen hasta que apretás **🔓 Desfusionar / Abrir para editar** (o **Desempaquetar para editar**) y confirmás. Desempaquetar saca los archivos publicados del juego hasta que publiques de nuevo.
 
-Un archivo propio de un mod abierto para parchear es la excepción: en un paquete empaquetado, guardarlo lo **publica en el lugar**. Todo lo que tiene el paquete se publica de nuevo con tu archivo al lado, el paquete sigue empaquetado y el juego lee el archivo nuevo la próxima vez que arranca. Cuando Salud de mods o el Centro de monitoreo te mandan a un archivo de un paquete empaquetado, ese archivo se muestra sin desempaquetar.
+Un archivo propio de un mod abierto para parchear es la excepción: en un paquete empaquetado, guardarlo lo **publica en el lugar**. Todo lo que tiene el paquete se publica de nuevo con tu archivo al lado, el paquete sigue empaquetado y el juego lee el archivo nuevo la próxima vez que arranca. Cuando Diagnóstico o el Centro de monitoreo te mandan a un archivo de un paquete empaquetado, ese archivo se muestra sin desempaquetar.
 
 ## Compartir paquetes
 

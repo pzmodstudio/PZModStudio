@@ -1,5 +1,9 @@
 //! A multiplayer test on one PC: the Studio's dedicated server and one or two games joined to it.
 //!
+//! One player: the test runs with Steam, like a real server (the Workshop's mods downloaded, not
+//! only `Zomboid/mods`), the game joined at this PC's LAN address (a Steam client refuses
+//! 127.0.0.1). Two players: without Steam, as below.
+//!
 //! What a NoSteam test needs, learned by doing it by hand (KnoxLives, November 2026):
 //! - Two games on one PC cannot both be Steam clients of one account, so the test runs without
 //!   Steam: the server with `-nosteam`, the games with `-nosteam +connect 127.0.0.1:<port>`.
@@ -512,10 +516,10 @@ pub fn memory_needed(server_gb: u32, players: u32, game_xmx_mb: u64) -> u64 {
 /// (`Lua/PZModStudio_MpLogin.txt`): once the connect window shows this address, the Link fills
 /// it in, connects, and empties the file. (The game's own way, its saved server list, never fills
 /// the window with +connect: it compares the saved port, a number, with the given one, text.)
-pub fn write_login(zomboid: &Path, port: u16, username: &str, password: &str) -> Result<(), String> {
+pub fn write_login(zomboid: &Path, ip: &str, port: u16, username: &str, password: &str) -> Result<(), String> {
     let dir = zomboid.join("Lua");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let text = format!("ip=127.0.0.1\nport={}\nuser={}\npassword={}\nconnect=1\n", port, username, password);
+    let text = format!("ip={}\nport={}\nuser={}\npassword={}\nconnect=1\n", ip, port, username, password);
     std::fs::write(dir.join("PZModStudio_MpLogin.txt"), text).map_err(|e| format!("Cannot write the login file: {}", e))
 }
 
@@ -552,8 +556,8 @@ pub fn test_account(server: &str, slot: u32, admin_password: Option<&str>) -> Op
     Some((format!("jugador{}", slot), password))
 }
 
-/// Launches one game joined to `address` without Steam; player 2 with its own Zomboid folder.
-pub fn launch_player(pz_install_dir: &Path, primary: &Path, slot: u32, address: &str) -> Result<u32, String> {
+/// Launches one game joined to `address`, without Steam unless `steam`; player 2 with its own Zomboid folder.
+pub fn launch_player(pz_install_dir: &Path, primary: &Path, slot: u32, address: &str, steam: bool) -> Result<u32, String> {
     let exe = pz_install_dir.join("ProjectZomboid64.exe");
     if !exe.is_file() {
         return Err(format!("ProjectZomboid64.exe not found at {}", exe.display()));
@@ -565,7 +569,10 @@ pub fn launch_player(pz_install_dir: &Path, primary: &Path, slot: u32, address: 
     if slot == 2 {
         cmd.arg(format!("-cachedir={}", dir.to_string_lossy().replace('\\', "/")));
     }
-    cmd.args(["-nosteam", "+connect", address, "-modfolders", "mods,workshop,steam"]);
+    if !steam {
+        cmd.arg("-nosteam");
+    }
+    cmd.args(["+connect", address, "-modfolders", "mods,workshop,steam"]);
     cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     let child = cmd.spawn().map_err(|e| format!("Could not start the game: {}", e))?;
     Ok(child.id())
@@ -666,6 +673,16 @@ struct TestSettings {
     server: String,
     port: u16,
     automation: MpAutomation,
+    /// The server and the game with Steam (a test of one player).
+    #[serde(default)]
+    steam: bool,
+    /// Where the games join: this PC's LAN address with Steam, 127.0.0.1 without.
+    #[serde(default = "loopback")]
+    host: String,
+}
+
+fn loopback() -> String {
+    "127.0.0.1".to_string()
 }
 
 fn settings_file(primary: &Path) -> PathBuf {
@@ -681,10 +698,10 @@ fn launch_one(pz_install_dir: &Path, primary: &Path, settings: &TestSettings, sl
     if settings.automation.login {
         // The account the Studio Link fills in and connects with, for this player.
         if let Some((user, password)) = &account {
-            let _ = write_login(&dir, settings.port, user, password);
+            let _ = write_login(&dir, &settings.host, settings.port, user, password);
         }
     }
-    let game_pid = launch_player(pz_install_dir, primary, slot, &format!("127.0.0.1:{}", settings.port))?;
+    let game_pid = launch_player(pz_install_dir, primary, slot, &format!("{}:{}", settings.host, settings.port), settings.steam)?;
     Ok(Watched { slot, pid: game_pid, dir, clicks: 0, user: account.map(|(u, _)| u), made_admin: false })
 }
 
@@ -752,7 +769,7 @@ fn closed_by_error(dir: &Path) -> bool {
     tail.contains("OutOfMemoryError") || tail.contains("uncaughtException")
 }
 
-/// Starts the test: the server without Steam, then, once its log says SERVER STARTED, the games
+/// Starts the test: the server (with Steam for one player, without for two), then, once its log says SERVER STARTED, the games
 /// (15 s apart), watched until each is in the world (`watch_games`). The phase and what each game
 /// is doing are kept for `status`.
 pub fn start(pz_install_dir: PathBuf, primary: PathBuf, server: String, memory_gb: u32, players: u32, admin_password: Option<String>, auto: MpAutomation) -> Result<u32, String> {
@@ -767,7 +784,15 @@ pub fn start(pz_install_dir: PathBuf, primary: PathBuf, server: String, memory_g
     if auto.character != "manual" || auto.spawn {
         ensure_link_on_server(&ini)?;
     }
-    let settings = TestSettings { server: server.clone(), port, automation: auto };
+    // One player: with Steam, as the player plays. Two games on one PC cannot both be Steam
+    // clients of one account, so two players go without.
+    let steam = players.clamp(1, 2) == 1;
+    let host = if steam {
+        crate::mcp::server_tools::lan_address().ok_or("With Steam the game joins at this PC's network address, and none was found (no network?).")?
+    } else {
+        loopback()
+    };
+    let settings = TestSettings { server: server.clone(), port, automation: auto, steam, host };
     let _ = std::fs::write(settings_file(&primary), serde_json::to_string_pretty(&settings).unwrap_or_default());
     let admin_for_player = admin_password.clone();
     let pid = super::launch_dedicated_server(
@@ -775,7 +800,7 @@ pub fn start(pz_install_dir: PathBuf, primary: PathBuf, server: String, memory_g
         primary.to_string_lossy().to_string(),
         server,
         Some(memory_gb),
-        Some(true),
+        Some(!steam),
         admin_password,
     )?;
     set_phase(&primary, "waiting_for_server");
@@ -871,7 +896,7 @@ mod tests {
     fn the_login_is_left_where_the_link_reads_it() {
         let dir = std::env::temp_dir().join(format!("pzms-mplogin-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        write_login(&dir, 16261, "jugador2", "pw").unwrap();
+        write_login(&dir, "127.0.0.1", 16261, "jugador2", "pw").unwrap();
         let text = std::fs::read_to_string(dir.join("Lua").join("PZModStudio_MpLogin.txt")).unwrap();
         assert_eq!(text, "ip=127.0.0.1\nport=16261\nuser=jugador2\npassword=pw\nconnect=1\n");
         let _ = std::fs::remove_dir_all(&dir);

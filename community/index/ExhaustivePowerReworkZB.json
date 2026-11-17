@@ -1,0 +1,30 @@
+{
+  "id": "ExhaustivePowerReworkZB",
+  "name": "Exhaustive Power Rework - ZombieBuddy",
+  "workshop_id": "3786970737",
+  "builds": [
+    "42"
+  ],
+  "requires": [
+    "ExhaustivePowerRework",
+    "ZombieBuddy"
+  ],
+  "incompatible": [],
+  "load_after": [],
+  "issues": [
+    {
+      "title": "1.1.7 loaded after Viewpoint 0.1.7: the game closes while it loads the mods",
+      "note": "With Viewpoint 0.1.7 (2026-11-15) loaded first, the game class zombie.SandboxOptions is already loaded when this addon's Java patches it (getWaterShutModifier, doesPowerGridExist), so ZombieBuddy (2.3.4) re-patches it and starts it before Lua exists: NullPointerException ('thread is null'), ExceptionInInitializerError, then 'GameThread exited'. It worked on 42.22.2 with Viewpoint 0.1.6 (2026-11-12). Loaded before Viewpoint, the game started and loaded a save once (2026-11-16); Viewpoint then switched itself off in that session, but because of Viewpoint - Light Fix, which fails at start with Viewpoint 0.1.7 whatever this addon does. Exhaustive Power Rework itself does not need this addon: switching it off is the sure fix; loading it before Viewpoint was seen to work once.",
+      "fix": {
+        "kind": "disable_mod"
+      },
+      "build": "42.22",
+      "date": "2026-11-16",
+      "source": "PZ Mod Studio, seen three times in console.txt on 42.22.2 with ZombieBuddy 2.3.4 when loaded after Viewpoint; one session loaded before it started (2026-11-16)",
+      "status": "verified",
+      "mod_versions": [
+        "1.1.7"
+      ]
+    }
+  ]
+}

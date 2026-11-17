@@ -5,7 +5,8 @@ The Monitor shows the game's log as it is written and turns each error into a ca
 ## What you see
 
 - On the left, the log viewer, with one tab per log.
-- On the right, **DIAGNOSTICS**: the error cards, and above them the **Find the mod that does it** panel.
+- On the right, **ERRORS AND WARNINGS**: the error cards, and above them the **Find the mod that does it** panel.
+- At the top, **See how the game runs** opens Diagnostics > Game > Live: memory, CPU and which screen the game is on.
 - At the top, **📁 Logs Folder** opens the folder with `console.txt` and the `Logs` subfolder in Windows Explorer.
 - Next to it, the spam filter button. While it reads **Spam Filter: ACTIVE** it hides the lines about missing translations; press it to switch to **Filter: SHOW ALL**.
 

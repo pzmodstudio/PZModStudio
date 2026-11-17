@@ -74,7 +74,7 @@ pub fn tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "mp_test_start".to_string(),
-            description: "Starts a multiplayer test on this PC: the server <name> without Steam (as server_start with nosteam), then, once its log says SERVER STARTED, one or two games joined to it at 127.0.0.1 (-nosteam +connect, windowed): player 1 with the player's Zomboid folder, player 2 with Zomboid2 (run mp_test_prepare first). Each game opens on the server's connect window, where an account name and password are typed (a new name makes an account). In multiplayer each game loads the server's mod list, not the player's profile. Refused while the game or a Studio server already runs. Poll mp_test_status.".to_string(),
+            description: "Starts a multiplayer test on this PC: the server <name>, then, once its log says SERVER STARTED, one or two games joined to it (windowed). players 1: with Steam (server_start without nosteam; Workshop items it cannot download are left out first), the game joined at this PC's LAN address (a Steam client refuses 127.0.0.1). players 2: without Steam (-nosteam, joined at 127.0.0.1), since two games on one PC cannot share a Steam account: player 1 with the player's Zomboid folder, player 2 with Zomboid2 (run mp_test_prepare first). Each game opens on the server's connect window, where an account name and password are typed (a new name makes an account). In multiplayer each game loads the server's mod list, not the player's profile. Refused while the game or a Studio server already runs. Poll mp_test_status.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -257,6 +257,9 @@ fn start(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String>
         "admin_password": password_source,
         "mods": report.mods,
         "will_not_load": will_not_load,
+        // Items a server with Steam cannot download (removed, private, hidden): taken out of
+        // WorkshopItems= before the start, their mods run from a copy in Zomboid/mods.
+        "left_out_of_workshop_items": server_manager::LAST_LEFT_OUT.lock().map(|l| serde_json::to_value(&*l).unwrap_or_default()).unwrap_or_default(),
         "log": zomboid.join("server-console.txt").to_string_lossy(),
         "next": "Poll server_status until started is true, then server_join.",
     }))

@@ -6,6 +6,7 @@ import {
   CatalogModSummary, InstallResult, ModOrigin, NexusCategory, NexusMod, NexusSort, WorkshopInstallState, WorkshopItem, WorkshopLookup, WorkshopSort,
   AppInstance,
   RequiredChain,
+  profileMembers,
 } from '../../types';
 import { SubscribeRequirements } from './SubscribeRequirements';
 import { appLanguage, translateErrorText } from '../../utils/language';
@@ -24,6 +25,10 @@ import { tHtml } from '../../i18n/html';
 
 interface BrowseModuleProps {
   paths: StudioPathsUI;
+  /** The installed mods are still being read (the app's first check): My mods says so instead of "none". */
+  catalogLoading?: boolean;
+  /** Opens the Mod List on an installed mod (the detail's "Show in the Mod List"). */
+  onShowInModList?: (modId: string) => void;
   /** Workshop item to open the detail view on (set when the Mod List sends the user here). */
   focusWorkshopId?: string | null;
   onFocusHandled?: () => void;
@@ -184,14 +189,15 @@ const workshopCard = (
   state: WorkshopInstallState | undefined,
   onOpen: (t: DetailTarget) => void,
   menu?: (e: React.MouseEvent, item: WorkshopItem, installed: boolean) => void,
-  translated?: { title: string; summary: string }
+  translated?: { title: string; summary: string },
+  extraChips?: React.ReactNode
 ) => (
   <ModCard
     key={item.workshop_id}
     image={item.preview_url}
     title={item.found ? translated?.title || item.title : i18next.t('browse.card.item', { id: item.workshop_id })}
     subtitle={item.found ? i18next.t('browse.card.updated', { date: formatUnixDate(item.time_updated) }) : i18next.t('browse.card.notPublic')}
-    chips={<>{installedIds.length > 0 && <InstalledChip />}<UpdateChips state={state} />{item.found && <BuildChips builds={item.builds} source={i18next.t('browse.card.workshopSource')} />}</>}
+    chips={<>{installedIds.length > 0 && <InstalledChip />}<UpdateChips state={state} />{item.found && <BuildChips builds={item.builds} source={i18next.t('browse.card.workshopSource')} />}{extraChips}</>}
     summary={translated?.summary ?? item.summary}
     hover={item.found ? cardHover(item) : null}
     stats={item.found && (
@@ -744,6 +750,25 @@ type MineStatus = 'all' | 'new' | 'pending';
 const localLabel = (m: CatalogModSummary) =>
   m.origin?.kind === 'nexus' ? i18next.t('browse.mine.labels.nexus') : m.origin?.kind === 'compat' ? i18next.t('browse.mine.labels.compat') : m.source.kind === 'workshop_upload' ? i18next.t('browse.mine.labels.upload') : i18next.t('browse.mine.labels.local');
 
+/**
+ * Which profiles hold a mod, on a My mods card: the active one first (green), "+N" for the others,
+ * every name on hover; "No profile" when none does (subscribed from Steam's website, say).
+ */
+const ProfilesChip: React.FC<{ names: string[]; active: string | null }> = ({ names, active }) => {
+  if (names.length === 0) return <Chip className="border-slate-700 text-slate-500" title={i18next.t('browse.mine.noProfileTitle')}>{i18next.t('browse.mine.noProfile')}</Chip>;
+  const sorted = [...names].sort((a, b) => Number(b === active) - Number(a === active));
+  const inActive = active !== null && names.includes(active);
+  return (
+    <Chip className={inActive ? 'border-emerald-700/70 text-emerald-300' : 'border-violet-700/60 text-violet-300'} title={i18next.t('browse.mine.profilesTitle', { names: sorted.join(', ') })}>
+      <span className="inline-flex items-center gap-1 max-w-[150px]">
+        <Layers className="w-3 h-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">{sorted[0]}</span>
+        {sorted.length > 1 && <span className="shrink-0">+{sorted.length - 1}</span>}
+      </span>
+    </Chip>
+  );
+};
+
 const MyModsTab: React.FC<{
   catalog: CatalogModSummary[];
   installedByItem: Map<string, string[]>;
@@ -752,7 +777,20 @@ const MyModsTab: React.FC<{
   steamReady: boolean;
   onSubscribe: (ids: string[], subscribe: boolean) => Promise<void>;
   keep: KeepActions;
-}> = ({ catalog, installedByItem, stateByItem, onOpen, steamReady, onSubscribe, keep }) => {
+  catalogLoading?: boolean;
+  /** The player's profiles, to say which hold each mod and to filter by one. */
+  profiles: AppInstance[];
+  activeProfileName: string | null;
+}> = ({ catalog, installedByItem, stateByItem, onOpen, steamReady, onSubscribe, keep, catalogLoading = false, profiles, activeProfileName }) => {
+  /** mod id -> the names of the profiles that hold it (on or off). */
+  const profilesByMod = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const pr of profiles) for (const id of profileMembers(pr)) map.set(id, [...(map.get(id) ?? []), pr.name]);
+    return map;
+  }, [profiles]);
+  const profilesOf = (modIds: string[]) => [...new Set(modIds.flatMap((id) => profilesByMod.get(id) ?? []))];
+  /** 'all', 'none' (in no profile), or a profile's name. */
+  const [profileFilter, setProfileFilter] = useState<string>('all');
   const showContextMenu = useContextMenu();
   const [details, setDetails] = useState<WorkshopItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -813,6 +851,10 @@ const MyModsTab: React.FC<{
       if (status === 'new' && !(r.kind === 'workshop' && r.state?.updated_since_last_play)) return false;
       if (status === 'pending' && !(r.kind === 'workshop' && r.state?.update_pending)) return false;
       if (category && !(r.kind === 'workshop' && r.item.tags.includes(category))) return false;
+      if (profileFilter !== 'all') {
+        const holders = profilesOf(r.kind === 'workshop' ? r.modIds : [r.mod.id]);
+        if (profileFilter === 'none' ? holders.length > 0 : !holders.includes(profileFilter)) return false;
+      }
       if (!q) return true;
       const hay = r.kind === 'workshop' ? `${r.item.title} ${r.modIds.join(' ')} ${r.item.workshop_id}` : `${r.mod.name} ${r.mod.id}`;
       return hay.toLowerCase().includes(q);
@@ -820,7 +862,8 @@ const MyModsTab: React.FC<{
     const name = (r: MineRow) => (r.kind === 'workshop' ? r.item.title : r.mod.name).toLowerCase();
     const time = (r: MineRow) => (r.kind === 'workshop' ? r.item.time_updated ?? 0 : 0);
     return list.sort((a, b) => (sort === 'name' ? name(a).localeCompare(name(b)) : time(b) - time(a) || name(a).localeCompare(name(b))));
-  }, [rows, text, source, status, category, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, text, source, status, category, sort, profileFilter, profilesByMod]);
 
   const mineMenu = (e: React.MouseEvent, item: WorkshopItem) =>
     showContextMenu(e, [
@@ -840,7 +883,7 @@ const MyModsTab: React.FC<{
 
   useEffect(() => {
     setPage(1);
-  }, [text, source, status, category, sort]);
+  }, [text, source, status, category, sort, profileFilter]);
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const statusChip = (value: MineStatus, label: string, n: number, cls: string) =>
@@ -865,6 +908,15 @@ const MyModsTab: React.FC<{
           <option value="nexus">{i18next.t('browse.mine.nexus', { count: counts.nexus })}</option>
           <option value="local">{i18next.t('browse.mine.local', { count: counts.local })}</option>
         </select>
+        {profiles.length > 0 && (
+          <select value={profileFilter} onChange={(e) => setProfileFilter(e.target.value)} aria-label={i18next.t('browse.mine.profileFilter')} className={selectClass}>
+            <option value="all">{i18next.t('browse.mine.allProfiles')}</option>
+            {profiles.map((pr) => (
+              <option key={pr.id} value={pr.name}>{pr.name}{pr.name === activeProfileName ? ` (${i18next.t('browse.mine.activeMark')})` : ''}</option>
+            ))}
+            <option value="none">{i18next.t('browse.mine.noProfile')}</option>
+          </select>
+        )}
         <select value={sort} onChange={(e) => setSort(e.target.value as 'updated' | 'name')} aria-label={i18next.t('browse.workshop.sort')} className={selectClass}>
           <option value="updated">{i18next.t('browse.mine.recentlyUpdated')}</option>
           <option value="name">{i18next.t('browse.mine.name')}</option>
@@ -882,12 +934,26 @@ const MyModsTab: React.FC<{
         <span>{i18next.t('browse.mine.count', { shown: filtered.length, total: rows.length })}</span>
         <span>{i18next.t('browse.workshop.page', { page, pages: pageCountOf(filtered.length) })}</span>
       </div>
-      {rows.length === 0 && !loading && <p className="text-xs text-slate-500">{i18next.t('browse.mine.none')}</p>}
+      {rows.length === 0 && catalogLoading && (
+        <div className="flex items-center gap-2 p-4 rounded-xl border border-slate-800 bg-slate-900/60 text-xs text-slate-300">
+          <Loader2 className="w-4 h-4 animate-spin text-slate-400" aria-hidden="true" />
+          {i18next.t('browse.mine.readingMods')}
+        </div>
+      )}
+      {rows.length === 0 && !loading && !catalogLoading && <p className="text-xs text-slate-500">{i18next.t('browse.mine.none')}</p>}
+      {/* Until Steam answers, a Workshop card has no picture, build, date or numbers: say it is coming instead. */}
+      {loading && details.length === 0 && installedByItem.size > 0 ? (
+        <div className="flex items-center gap-2 p-4 rounded-xl border border-slate-800 bg-slate-900/60 text-xs text-slate-300">
+          <Loader2 className="w-4 h-4 animate-spin text-slate-400" aria-hidden="true" />
+          {i18next.t('browse.mine.loadingSteam', { count: installedByItem.size })}
+        </div>
+      ) : (
+      <>
       <Pagination page={page} pageCount={pageCountOf(filtered.length)} onPage={setPage} />
       <CardGrid>
         {pageRows.map((r) => {
           // Every card here is already installed, so the Installed chip would say nothing.
-          if (r.kind === 'workshop') return workshopCard(r.item, [], r.state, onOpen, mineMenu);
+          if (r.kind === 'workshop') return workshopCard(r.item, [], r.state, onOpen, mineMenu, undefined, <ProfilesChip names={profilesOf(r.modIds)} active={activeProfileName} />);
           const nexusId = r.mod.origin?.kind === 'nexus' ? r.mod.origin.mod_id : null;
           return (
             <ModCard
@@ -895,7 +961,7 @@ const MyModsTab: React.FC<{
               image={null}
               title={r.mod.name}
               subtitle={<span className="font-mono">{r.mod.id}</span>}
-              chips={<Chip className={nexusId !== null ? 'border-orange-700/60 text-orange-300' : 'border-slate-600 text-slate-300'}>{localLabel(r.mod)}</Chip>}
+              chips={<><Chip className={nexusId !== null ? 'border-orange-700/60 text-orange-300' : 'border-slate-600 text-slate-300'}>{localLabel(r.mod)}</Chip><ProfilesChip names={profilesOf([r.mod.id])} active={activeProfileName} /></>}
               summary={r.mod.loadability.status !== 'loadable' ? i18next.t('browse.mine.notLoadable') : null}
               onOpen={nexusId !== null ? () => onOpen({ kind: 'nexus', modId: nexusId }) : undefined}
               onContextMenu={(e) => showContextMenu(e, keep.menuItems({ mod_id: r.mod.id, nexus_id: nexusId, name: r.mod.name, installedModIds: [r.mod.id] }).map((i, n) => ({ ...i, separatorBefore: n === 0 ? false : i.separatorBefore })))}
@@ -904,6 +970,8 @@ const MyModsTab: React.FC<{
         })}
       </CardGrid>
       <Pagination page={page} pageCount={pageCountOf(filtered.length)} onPage={setPage} />
+      </>
+      )}
     </div>
   );
 };
@@ -917,7 +985,7 @@ const TABS: { id: SourceTab; active: string }[] = [
   { id: 'lists', active: 'bg-amber-950/80 text-amber-200 border-amber-700' },
 ];
 
-export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onInstalled, onSubscribed, onUnsubscribed, focusWorkshopId, onFocusHandled, focusSearch, onSearchHandled, onMakeProfile, onCollectionProfile, activeProfileName = null, installedBuild = null, profiles = [], onProfilesChanged }) => {
+export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, onShowInModList, catalogLoading = false, catalog, onInstalled, onSubscribed, onUnsubscribed, focusWorkshopId, onFocusHandled, focusSearch, onSearchHandled, onMakeProfile, onCollectionProfile, activeProfileName = null, installedBuild = null, profiles = [], onProfilesChanged }) => {
   const { t } = useTranslation();
   const keep = useKeepActions(paths, profiles, onProfilesChanged);
   const [tab, setTab] = useState<SourceTab>('workshop');
@@ -1182,6 +1250,9 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
           {visited.has('mine') && (
             <MyModsTab
               catalog={catalog}
+              catalogLoading={catalogLoading}
+              profiles={profiles}
+              activeProfileName={activeProfileName}
               installedByItem={installedByItem}
               stateByItem={stateByItem}
               onOpen={openDetail}
@@ -1225,6 +1296,7 @@ export const BrowseModule: React.FC<BrowseModuleProps> = ({ paths, catalog, onIn
           onMakeProfile={onCollectionProfile ? (n, ids, c) => void collectionToProfile(n, ids, c) : onMakeProfile}
           installedBuild={installedBuild}
           keep={keep}
+          onShowInModList={onShowInModList ? (modId) => { closeDetail(); onShowInModList(modId); } : undefined}
         />
       )}
     </div>

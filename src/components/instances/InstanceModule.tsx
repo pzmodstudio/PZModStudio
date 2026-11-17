@@ -1,7 +1,7 @@
 import { freshProfile } from '../../utils/profiles';
 import { ChangePreview } from '../common/ChangePreview';
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, Check, Trash2, Zap, FolderArchive, RefreshCw, Edit3, Share2, X, Save, Loader2, Unplug } from 'lucide-react';
+import { Layers, ListOrdered, Plus, Check, Trash2, Zap, FolderArchive, RefreshCw, Edit3, Share2, X, Save, Loader2, Unplug } from 'lucide-react';
 import { ModInfo, StudioPathsUI, AppInstance } from '../../types';
 import { TauriService, explainError } from '../../services/tauri';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,8 @@ interface InstanceModuleProps {
   onProfileDeleted?: () => void;
   /** Takes the user to Browse Mods, for a profile that starts with nothing in it. */
   onGoToBrowse?: () => void;
+  /** Opens the Mod List (the active profile's mods). */
+  onGoToModList?: () => void;
   /** A profile was renamed or edited: the header and the other screens show it as it is now. */
   onProfilesChanged?: () => void;
   /** Mods were unsubscribed with a deleted profile: the list is scanned again. */
@@ -43,6 +45,7 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   onProfileActivated,
   onProfileDeleted,
   onGoToBrowse,
+  onGoToModList,
   onProfilesChanged,
   onRefreshMods,
 }) => {
@@ -50,6 +53,11 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   const changeRev = useChangeRevision();
   const [instances, setInstances] = useState<AppInstance[]>([]);
   const [newInstanceName, setNewInstanceName] = useState('');
+  /** The "new profile" form, folded away until asked for (open when there is no profile yet). */
+  const [showCreate, setShowCreate] = useState(false);
+  /** Where the new-profile window is: 1 name, 2 which mods, 3 check and create. */
+  const [createStep, setCreateStep] = useState(1);
+  const [profileCount, setProfileCount] = useState<number | null>(null);
   /**
    * A profile is a mod list, so making one asks which mods. The old form took whatever happened
    * to be switched on, which is right often enough to stay the default and wrong whenever the
@@ -331,6 +339,30 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
     });
   };
 
+  const formOpen = showCreate;
+  const openCreate = () => {
+    setCreateStep(1);
+    setShowCreate(true);
+  };
+  const closeCreate = () => setShowCreate(false);
+  /** How many mods the new profile starts with switched on, for the last step. */
+  const chosenCount =
+    newProfileMods === 'all' ? mods.length : newProfileMods === 'none' ? 0 : newProfileMods === 'pick' ? picked.size : activeMods.length;
+  useEffect(() => {
+    if (!formOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCreate();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [formOpen]);
+  // A profile was just made: the form folds away (the cards show it, with the status line).
+  useEffect(() => {
+    if (profileCount !== null && instances.length > profileCount) setShowCreate(false);
+    setProfileCount(instances.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instances.length]);
+
   return (
     <div className="space-y-6">
       {pendingActivation && (
@@ -347,22 +379,21 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
           onClose={() => setPendingActivation(null)}
         />
       )}
-      {/* Top Banner */}
-      <div className="p-5 bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border border-emerald-800/60 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Layers className="w-6 h-6 text-emerald-400" />
-            <h2 className="text-xl font-bold text-slate-100 tracking-tight">
-              {t('profiles.title')}
-            </h2>
-            {isLoading && <RefreshCw className="w-4 h-4 text-emerald-400 animate-spin ml-2" />}
-          </div>
-          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed" dangerouslySetInnerHTML={{ __html: tHtml('profiles.blurb') }} />
-        </div>
-
-        <span className="text-xs font-mono bg-emerald-950 text-emerald-300 border border-emerald-800 px-3 py-1.5 rounded-xl font-bold">
-          {t('profiles.saved', { count: instances.length })}
-        </span>
+      {/* Header: the screen's name, how many profiles, and the way to make a new one */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Layers className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
+        <h1 className="text-base font-bold text-slate-100">{t('profiles.title')}</h1>
+        <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-slate-700 text-slate-300">{t('profiles.saved', { count: instances.length })}</span>
+        {isLoading && <RefreshCw className="w-4 h-4 text-emerald-400 animate-spin" aria-hidden="true" />}
+        <span className="flex-1 min-w-[240px] text-[11px] text-slate-400" dangerouslySetInnerHTML={{ __html: tHtml('profiles.blurb') }} />
+        <button
+          type="button"
+          onClick={openCreate}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition bg-emerald-600 hover:bg-emerald-500 text-white"
+        >
+          <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+          {t('profiles.newProfile')}
+        </button>
       </div>
 
       {statusMessage && (
@@ -374,21 +405,51 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
         </div>
       )}
 
-      {/* Main Grid: Create Profile & Instance Cards */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left Column: Create New Profile */}
-        <div className="col-span-12 lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg">
-          <div className="border-b border-slate-800 pb-3 space-y-1">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-emerald-400" />
-              <span>{t('profiles.createTitle')}</span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              {t('profiles.createBlurb')}
-            </p>
-          </div>
+      {/* The new-profile form, when open; the profiles below, full width */}
+      <div className="flex flex-col gap-6">
+        {formOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6" onClick={closeCreate}>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('profiles.createTitle')}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xl max-h-full flex flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b border-slate-800">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                    {t('profiles.createTitle')}
+                  </h3>
+                  <p className="text-[11.5px] text-slate-400">{t('profiles.createBlurb')}</p>
+                </div>
+                <button type="button" onClick={closeCreate} aria-label={t('profiles.close')} className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 cursor-pointer">
+                  <X className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
 
-          <div className="space-y-3">
+              {/* The three steps, the one in front lit */}
+              <ol className="flex items-center gap-2 px-5 py-3 border-b border-slate-800 text-[11px]">
+                {[1, 2, 3].map((n) => (
+                  <li key={n} className="flex items-center gap-2">
+                    <span
+                      className={`w-5 h-5 rounded-full flex items-center justify-center font-bold ${
+                        createStep === n ? 'bg-emerald-600 text-white' : createStep > n ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {createStep > n ? <Check className="w-3 h-3" aria-hidden="true" /> : n}
+                    </span>
+                    <span className={createStep === n ? 'text-slate-100 font-bold' : 'text-slate-500'}>{t(`profiles.wizard.step${n}`)}</span>
+                    {n < 3 && <span className="w-6 h-px bg-slate-700" aria-hidden="true" />}
+                  </li>
+                ))}
+              </ol>
+
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
+                <p className="text-[11.5px] text-sky-200/90 bg-sky-950/30 border border-sky-900/50 rounded-lg px-3 py-2 leading-relaxed">{t(`profiles.wizard.hint${createStep}`)}</p>
+                {createStep === 1 && (
+                  <>
             <div>
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 {t('profiles.name')}
@@ -398,6 +459,10 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                 placeholder={t('profiles.namePlaceholder')}
                 value={newInstanceName}
                 onChange={(e) => setNewInstanceName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newInstanceName.trim()) setCreateStep(2);
+                }}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
               />
             </div>
@@ -415,6 +480,9 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
               />
             </div>
 
+                  </>
+                )}
+                {createStep === 2 && (
             <div>
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 {t('profiles.whichMods')}
@@ -511,22 +579,60 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
               )}
             </div>
 
-            <button
-              onClick={handleCreateInstance}
-              disabled={!newInstanceName.trim()}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-lg flex items-center justify-center gap-2 mt-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('profiles.createTitle')}</span>
-            </button>
-          </div>
-        </div>
+                )}
+                {createStep === 3 && (
+                  <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-xs">
+                    <dt className="text-slate-500">{t('profiles.name')}</dt>
+                    <dd className="text-slate-100 font-bold break-words">{newInstanceName.trim()}</dd>
+                    {newInstanceDesc.trim() && (
+                      <>
+                        <dt className="text-slate-500">{t('profiles.descriptionOptional')}</dt>
+                        <dd className="text-slate-300 break-words">{newInstanceDesc.trim()}</dd>
+                      </>
+                    )}
+                    <dt className="text-slate-500">{t('profiles.whichMods')}</dt>
+                    <dd className="text-slate-200">{t('profiles.wizard.modsOn', { count: chosenCount, total: mods.length })}</dd>
+                  </dl>
+                )}
+              </div>
 
-        {/* Right Column: Display Cards of All Saved Profiles */}
-        <div className="col-span-12 lg:col-span-8 space-y-4">
+              <div className="flex items-center gap-2 px-5 py-3 border-t border-slate-800 bg-slate-950/40">
+                {createStep > 1 && (
+                  <button type="button" onClick={() => setCreateStep(createStep - 1)} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer">
+                    {t('profiles.wizard.back')}
+                  </button>
+                )}
+                <div className="flex-1" />
+                {createStep < 3 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCreateStep(createStep + 1)}
+                    disabled={(createStep === 1 && !newInstanceName.trim()) || (createStep === 2 && newProfileMods === 'pick' && picked.size === 0)}
+                    className="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white cursor-pointer"
+                  >
+                    {t('profiles.wizard.next')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCreateInstance}
+                    disabled={!newInstanceName.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                    {t('profiles.wizard.create')}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4">
           {instances.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {instances.map((inst) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
+              {/* The active profile first: it is the one the game reads now. */}
+              {[...instances].sort((x, y) => Number(y.is_active) - Number(x.is_active)).map((inst) => (
                 <div
                   key={inst.id}
                   className={`p-4 rounded-2xl border transition flex flex-col justify-between space-y-4 shadow-lg ${
@@ -574,6 +680,16 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                    {inst.is_active && onGoToModList && (
+                      <button
+                        onClick={onGoToModList}
+                        className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-200 border border-emerald-800/70 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        title={t('profiles.seeModsTitle')}
+                      >
+                        <ListOrdered className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>{t('profiles.seeMods')}</span>
+                      </button>
+                    )}
                     {!inst.is_active && (
                       <button
                         onClick={() => handleActivateInstance(inst)}
@@ -625,6 +741,10 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                   {t('profiles.noneBlurb')}
                 </p>
               </div>
+              <button type="button" onClick={openCreate} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer">
+                <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                {t('profiles.newProfile')}
+              </button>
             </div>
           )}
         </div>

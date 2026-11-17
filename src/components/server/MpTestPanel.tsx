@@ -43,6 +43,81 @@ const since = (s: number) => {
 };
 
 /**
+ * One game or server process on this PC: role and state, memory against its Java limit, CPU, what
+ * its log says it is doing, its folder and log, its errors. The multiplayer test adds "Restart" for
+ * its games; Diagnóstico shows the same card for any game or server running.
+ */
+export const ProcessCard: React.FC<{ paths: StudioPathsUI; p: MpTestProcess; onRestart?: (slot: number) => void | Promise<void>; restarting?: number | null; testPlayer?: boolean }> = ({ paths, p, onRestart, restarting = null, testPlayer = true }) => {
+  const { t } = useTranslation();
+  const open = (pid: number, log: boolean) => void TauriService.mpTestOpen(paths, pid, log).catch((err) => reportBackendError('Opening', err));
+    // The process holds more than its Java heap (the JVM's own memory, native code), so the bar is
+    // measured against the heap plus a quarter: red only when it really runs out.
+    const pct = p.ram_max_mb ? Math.min(100, Math.round((p.ram_mb / (p.ram_max_mb * 1.25)) * 100)) : null;
+    const Icon = p.role === 'server' ? Server : User;
+    return (
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Icon className="w-4 h-4 text-purple-300 shrink-0" aria-hidden="true" />
+            <span className="text-sm font-bold text-slate-100 truncate">
+              {p.role === 'server' ? t('servers.mpTest.server', { name: p.name }) : t('servers.mpTest.player', { n: p.name })}
+            </span>
+            <span className="text-[10px] font-mono text-slate-500">PID {p.pid}</span>
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${STATE_STYLE[p.screen === 'in_game' ? 'in_game' : p.state] ?? STATE_STYLE.menu}`}>
+            {p.screen && p.screen !== 'launching' && p.screen !== 'menu' ? t(`servers.mpTest.screen.${p.screen}`, { defaultValue: p.screen }) : t(`servers.mpTest.state.${p.state}`, { defaultValue: p.state })}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
+          <div className="flex items-center gap-1.5">
+            <MemoryStick className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+            {p.ram_max_mb ? t('servers.mpTest.ramOf', { used: gb(p.ram_mb), max: gb(p.ram_max_mb) }) : t('servers.mpTest.ram', { used: gb(p.ram_mb) })}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+            {t('servers.mpTest.cpu', { pct: p.cpu_percent.toFixed(0) })}
+          </div>
+        </div>
+        {pct !== null && (
+          <div className="h-1.5 rounded bg-slate-800 overflow-hidden">
+            <div className={`h-full ${pct > 90 ? 'bg-red-500' : pct > 75 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+          </div>
+        )}
+        <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px]">
+          <div className="text-slate-500">{t('servers.mpTest.nowDoing', { time: since(p.uptime_s) })}</div>
+          <div className="font-mono text-slate-300 break-all line-clamp-2">{p.step ?? t('servers.mpTest.noLogYet')}</div>
+        </div>
+        <div className="text-[11px] text-slate-400 break-all">
+          <span className="text-slate-500">{t('servers.mpTest.folder')}</span> {p.zomboid_dir}
+        </div>
+        {p.role === 'player' && testPlayer && p.connect && <div className="text-[11px] text-amber-200/90">{t('servers.mpTest.usesServerList')}</div>}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => open(p.pid, false)} className="flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer">
+            <FolderOpen className="w-3 h-3" aria-hidden="true" /> {t('servers.mpTest.openFolder')}
+          </button>
+          <button type="button" onClick={() => open(p.pid, true)} className="flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer">
+            <FileText className="w-3 h-3" aria-hidden="true" /> {t('servers.mpTest.openLog')}
+          </button>
+          <span className={`text-[11px] ${p.errors > 0 ? 'text-red-300' : 'text-slate-500'}`}>{t('servers.mpTest.errors', { count: p.errors })}</span>
+          {p.connect && <span className="text-[11px] font-mono text-slate-500">→ {p.connect}</span>}
+          {onRestart && p.role === 'player' && (p.name === '1' || p.name === '2') && (
+            <button
+              type="button"
+              onClick={() => void onRestart(Number(p.name))}
+              disabled={restarting !== null}
+              title={t('servers.mpTest.restartTitle')}
+              className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer disabled:opacity-60"
+            >
+              {restarting === Number(p.name) ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : <RotateCcw className="w-3 h-3" aria-hidden="true" />}
+              {t('servers.mpTest.restart')}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+/**
  * A multiplayer test on this PC: the server without Steam and one or two games joined to it,
  * the second with a Zomboid folder of its own, and a card per process with what it uses, where
  * its files are and how far it got.
@@ -149,80 +224,13 @@ export const MpTestPanel: React.FC<MpTestPanelProps> = ({ paths, server }) => {
     }
   };
 
-  const open = (pid: number, log: boolean) => void TauriService.mpTestOpen(paths, pid, log).catch((err) => reportBackendError('Opening', err));
 
   const running = (status?.processes.length ?? 0) > 0;
   const needMb = memoryGb * 1024 + players * (status?.game_heap_mb ?? 6144);
   const short = status && !running && status.pc_free_mb > 0 && needMb > status.pc_free_mb;
   const needsPrepare = players === 2 && status && !status.second_dir_ready;
 
-  const card = (p: MpTestProcess) => {
-    // The process holds more than its Java heap (the JVM's own memory, native code), so the bar is
-    // measured against the heap plus a quarter: red only when it really runs out.
-    const pct = p.ram_max_mb ? Math.min(100, Math.round((p.ram_mb / (p.ram_max_mb * 1.25)) * 100)) : null;
-    const Icon = p.role === 'server' ? Server : User;
-    return (
-      <div key={p.pid} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Icon className="w-4 h-4 text-purple-300 shrink-0" aria-hidden="true" />
-            <span className="text-sm font-bold text-slate-100 truncate">
-              {p.role === 'server' ? t('servers.mpTest.server', { name: p.name }) : t('servers.mpTest.player', { n: p.name })}
-            </span>
-            <span className="text-[10px] font-mono text-slate-500">PID {p.pid}</span>
-          </div>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${STATE_STYLE[p.screen === 'in_game' ? 'in_game' : p.state] ?? STATE_STYLE.menu}`}>
-            {p.screen && p.screen !== 'launching' && p.screen !== 'menu' ? t(`servers.mpTest.screen.${p.screen}`, { defaultValue: p.screen }) : t(`servers.mpTest.state.${p.state}`, { defaultValue: p.state })}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
-          <div className="flex items-center gap-1.5">
-            <MemoryStick className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-            {p.ram_max_mb ? t('servers.mpTest.ramOf', { used: gb(p.ram_mb), max: gb(p.ram_max_mb) }) : t('servers.mpTest.ram', { used: gb(p.ram_mb) })}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-            {t('servers.mpTest.cpu', { pct: p.cpu_percent.toFixed(0) })}
-          </div>
-        </div>
-        {pct !== null && (
-          <div className="h-1.5 rounded bg-slate-800 overflow-hidden">
-            <div className={`h-full ${pct > 90 ? 'bg-red-500' : pct > 75 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
-          </div>
-        )}
-        <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px]">
-          <div className="text-slate-500">{t('servers.mpTest.nowDoing', { time: since(p.uptime_s) })}</div>
-          <div className="font-mono text-slate-300 break-all line-clamp-2">{p.step ?? t('servers.mpTest.noLogYet')}</div>
-        </div>
-        <div className="text-[11px] text-slate-400 break-all">
-          <span className="text-slate-500">{t('servers.mpTest.folder')}</span> {p.zomboid_dir}
-        </div>
-        {p.role === 'player' && <div className="text-[11px] text-amber-200/90">{t('servers.mpTest.usesServerList')}</div>}
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => open(p.pid, false)} className="flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer">
-            <FolderOpen className="w-3 h-3" aria-hidden="true" /> {t('servers.mpTest.openFolder')}
-          </button>
-          <button type="button" onClick={() => open(p.pid, true)} className="flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer">
-            <FileText className="w-3 h-3" aria-hidden="true" /> {t('servers.mpTest.openLog')}
-          </button>
-          <span className={`text-[11px] ${p.errors > 0 ? 'text-red-300' : 'text-slate-500'}`}>{t('servers.mpTest.errors', { count: p.errors })}</span>
-          {p.connect && <span className="text-[11px] font-mono text-slate-500">→ {p.connect}</span>}
-          {p.role === 'player' && (p.name === '1' || p.name === '2') && (
-            <button
-              type="button"
-              onClick={() => void restart(Number(p.name))}
-              disabled={restarting !== null}
-              title={t('servers.mpTest.restartTitle')}
-              className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer disabled:opacity-60"
-            >
-              {restarting === Number(p.name) ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : <RotateCcw className="w-3 h-3" aria-hidden="true" />}
-              {t('servers.mpTest.restart')}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
+  const card = (p: MpTestProcess) => <ProcessCard key={p.pid} paths={paths} p={p} onRestart={restart} restarting={restarting} />;
 
   const failedPhase = status?.phase?.startsWith('server_did_not_start') ?? false;
   useEffect(() => {

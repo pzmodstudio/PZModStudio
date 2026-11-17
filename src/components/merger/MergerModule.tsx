@@ -1406,6 +1406,15 @@ export const MergerModule: React.FC<MergerModuleProps> = ({
                               <span className="flex items-center gap-1 text-[10px] text-cyan-300 font-bold bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/80">
                                 <Sparkle className="w-3 h-3 text-cyan-400" /> {i18next.t('merger.workspace.autoMerged')}
                               </span>
+                            ) : c.competing_mods.length < 2 ? (
+                              // One mod's own file, opened to patch: nothing to review, only
+                              // not changed yet (Save keeps an edit, not an unchanged copy).
+                              <span
+                                className="flex items-center gap-1 text-[10px] text-slate-300 font-medium bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700"
+                                title={i18next.t('merger.workspace.notPatchedTitle')}
+                              >
+                                {i18next.t('merger.workspace.notPatched')}
+                              </span>
                             ) : (
                               <span className="flex items-center gap-1 text-[10px] text-amber-400 font-medium bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60">
                                 <AlertTriangle className="w-3 h-3 text-amber-400" /> {i18next.t('merger.workspace.needsReview')}

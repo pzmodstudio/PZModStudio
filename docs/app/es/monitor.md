@@ -5,7 +5,8 @@ El Centro de monitoreo muestra el log del juego a medida que se escribe y convie
 ## Qué ves
 
 - A la izquierda, el visor de logs, con una pestaña por log.
-- A la derecha, **DIAGNÓSTICO**: las tarjetas de error y, arriba de ellas, el panel **Encontrar el mod que lo causa**.
+- A la derecha, **ERRORES Y AVISOS**: las tarjetas de error y, arriba de ellas, el panel **Encontrar el mod que lo causa**.
+- Arriba, **Ver cómo rinde el juego** abre Diagnóstico > Juego > En vivo: la memoria, la CPU y en qué pantalla está el juego.
 - Arriba, **📁 Carpeta de logs** abre en el Explorador de Windows la carpeta con `console.txt` y la subcarpeta `Logs`.
 - Al lado, el botón del filtro de spam. Mientras dice **Filtro de spam: ACTIVO** oculta las líneas de traducciones faltantes; apretalo para pasar a **Filtro: MOSTRAR TODO**.
 

@@ -184,7 +184,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   onFocusHandled,
 }) => {
   const showContextMenu = useContextMenu();
-  const [selectedModId, setSelectedModId] = useState<string | null>(mods.length > 0 ? mods[0].mod_id : null);
+  // Nothing is picked on entering the screen: the inspector stays empty until a mod is clicked.
+  const [selectedModId, setSelectedModId] = useState<string | null>(null);
   const [highlightedModId, setHighlightedModId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const { t } = useTranslation();
@@ -491,8 +492,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       (m) => m.mod_id !== STUDIO_LINK_MOD_ID && (showEveryMod || inActiveProfile.has(m.mod_id) || m.enabled)
     );
   }, [mods, activeProfile, showEveryMod, inActiveProfile]);
-  /** The mod in the inspector: the one picked, else the first the list is about (none in an empty profile). */
-  const selectedMod = scopeMods.find((m) => m.mod_id === selectedModId) || scopeMods[0] || null;
+  /** The mod in the inspector: the one picked (none until one is). */
+  const selectedMod = scopeMods.find((m) => m.mod_id === selectedModId) ?? null;
   /** Workshop items installed in all, whichever profile: what Steam calls your subscribed items. */
   const libraryWorkshopItems = useMemo(
     () => new Set(mods.filter((m) => m.workshop_id && m.workshop_id !== '9999999999' && !m.mod_id.startsWith('Z_PZModStudio_')).map((m) => m.workshop_id)).size,
@@ -1519,6 +1520,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                       isFavorite={keep.isFavorite({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })}
                       note={meta.notes[mod.mod_id]}
                       groups={groupsByMod.get(mod.mod_id)}
+                      onEditNote={(m) => setMetaOf({ mods: [m], tab: 'note' })}
                       showEveryMod={showEveryMod}
                       activeProfile={activeProfile}
                       profilesByMod={profilesByMod}
@@ -2018,6 +2020,18 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           onFixLoadOrder={handleFixLoadOrderViolation}
           onToggleMod={handleToggleSingleMod}
           onOpenInBrowser={onOpenInBrowser}
+          issues={selectedMod ? issuesByMod.get(selectedMod.mod_id) ?? [] : []}
+          fixContext={{ paths, mods, onApplyList: triggerReorder, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote: showToast }}
+          catalogEntry={selectedMod ? catalogById?.get(selectedMod.mod_id) : undefined}
+          errorStat={selectedMod ? errorStats?.get(selectedMod.name) : undefined}
+          loadMs={selectedMod ? loadTimes?.get(selectedMod.mod_id) : undefined}
+          gameShare={selectedMod ? gameShares?.get(selectedMod.mod_id) : undefined}
+          profileNames={selectedMod ? profilesByMod.get(selectedMod.mod_id) ?? [] : []}
+          activeProfileName={activeProfile?.name}
+          note={selectedMod ? meta.notes[selectedMod.mod_id] : undefined}
+          groups={selectedMod ? groupsByMod.get(selectedMod.mod_id) ?? [] : []}
+          onEditNote={(m) => setMetaOf({ mods: [m], tab: 'note' })}
+          onEditGroups={(m) => setMetaOf({ mods: [m], tab: 'groups' })}
         />
       </div>
 

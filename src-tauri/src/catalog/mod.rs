@@ -610,11 +610,16 @@ pub fn add_api_issues(report: &mut HealthReport, catalog: &ModCatalog, reports: 
             if more_places > 0 { format!(" and {} more places", more_places) } else { String::new() },
         );
         if r.has_java {
-            message.push_str(" This mod ships Java, which can give Lua names this check cannot read: it may be nothing.");
+            message.push_str(" This mod ships Java, which can give Lua names this check cannot read: it may be nothing. Nothing to do unless you see this mod fail in the game.");
         } else if exceptions > 0 {
-            message.push_str(&format!(" The last session's log has {} errors from this mod: the Monitor shows them.", exceptions));
+            message.push_str(&format!(" The last session's log has {} errors from this mod: the Monitor shows them. What to do: switch the mod off, or keep it and wait for its author to update it; the Studio cannot mend it.", exceptions));
+        } else {
+            message.push_str(" Nothing to do now: no error from this mod is in the log. If something of this mod stops working, switch it off or tell its author; the mend goes in the mod's own file, the Studio cannot make it.");
         }
-        list.push(Severity::Warning, "api_missing", Some(&m.id), message, Vec::new());
+        // A warning only with the log behind it (errors from this mod, no Java to explain the
+        // name away); a by-name finding alone is information, as its row says.
+        let worth_doing = exceptions > 0 && !r.has_java;
+        list.push(if worth_doing { Severity::Warning } else { Severity::Info }, "api_missing", Some(&m.id), message, Vec::new());
         list.with(&[
             ("mod", &name),
             ("count", &names.len().to_string()),
@@ -628,11 +633,11 @@ pub fn add_api_issues(report: &mut HealthReport, catalog: &ModCatalog, reports: 
             ("moreKey", if more_places > 0 { "and_more_places" } else { "" }),
             ("variant", if one { "one" } else { "" }),
             ("exceptions", &exceptions.to_string()),
-            ("tailKey", if r.has_java { "api_tail_java" } else if exceptions > 0 { "api_tail_errors" } else { "" }),
+            ("tailKey", if r.has_java { "api_tail_java" } else if exceptions > 0 { "api_tail_errors" } else { "api_tail_none" }),
         ]);
         if let Some(last) = list.0.last_mut() {
             // Worth doing only with the log behind it; a by-name finding alone is worth knowing.
-            last.state = if exceptions > 0 && !r.has_java { IssueState::Recommended } else { IssueState::Info };
+            last.state = if worth_doing { IssueState::Recommended } else { IssueState::Info };
         }
     }
     if list.0.is_empty() {
@@ -654,7 +659,17 @@ fn guard_server_copies(report: &mut HealthReport, servers: &BTreeMap<String, Vec
         let Some(listed) = issue.mod_id.as_ref().and_then(|id| servers.get(id)) else { continue };
         let listed = listed.join(", ");
         issue.fixes.retain(|f| !matches!(f, SuggestedFix::RemoveCompatibleCopy { .. }));
-        issue.message.push_str(&format!(" The server {} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while it does.", listed));
+        if issue.code == "compatible_copy_unneeded" {
+            // Said whole: "go back to the original" and then "the copy stays" read as two orders.
+            let name = issue.params.get("mod").cloned().unwrap_or_default();
+            let build = issue.params.get("build").cloned().unwrap_or_default();
+            issue.message = format!(
+                "{} runs from a Studio compatible copy in Zomboid/mods, and the Workshop original now loads on {} as it is. But the server {} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it. Nothing to do now.",
+                name, build, listed
+            );
+        } else {
+            issue.message.push_str(&format!(" The server {} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while it does.", listed));
+        }
         if issue.code == "compatible_copy_unneeded" {
             issue.severity = Severity::Info;
             issue.state = IssueState::Info;
@@ -671,18 +686,45 @@ pub fn listed_by_a_server(user_zomboid_dir: &str, mod_id: &str) -> Option<String
 }
 
 /// Java mods on this list that ZombieBuddy left out of the last game or server session (a
-/// signature that did not verify), with the active mods that require them. Without its Java, an
+/// signature that did not verify, a "no" saved in its approvals, a jar never approved for a server),
+/// with the active mods that require them. Without its Java, an
 /// addon exposed to Lua takes the session down at boot; the player only saw "did not start".
 pub fn add_zb_exclusion_issues(report: &mut HealthReport, catalog: &ModCatalog, active: &[String], user_zomboid_dir: &str) {
     let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(user_zomboid_dir).into_iter().next() else { return };
     let on: Vec<String> = active.iter().map(|e| e.trim().rsplit('/').next().unwrap_or_default().trim_start_matches('\\').to_string()).collect();
+    // The newest log first: a mod a later session loaded is no longer left out, whatever an older
+    // log says (the server's from before the author's fix, the game's since).
+    let mut logs: Vec<(std::path::PathBuf, &str, std::time::SystemTime)> = [("console.txt", "game"), ("server-console.txt", "server")]
+        .into_iter()
+        .filter_map(|(file, place)| {
+            let path = z.join(file);
+            let t = fs::metadata(&path).ok()?.modified().ok()?;
+            Some((path, place, t))
+        })
+        .collect();
+    logs.sort_by(|a, b| b.2.cmp(&a.2));
+    // The folder a mod sits in (\mods\<folder>\), as ZombieBuddy's paths show it.
+    let folder_of = |m: &CatalogMod| -> String {
+        let root = Path::new(&m.root_dir);
+        let last = root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        if last == "common" || last.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            root.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+        } else {
+            last
+        }
+    };
     let mut seen: Vec<String> = Vec::new();
     let mut list = IssueList(Vec::new());
-    for (file, place) in [("console.txt", "game"), ("server-console.txt", "server")] {
-        let path = z.join(file);
+    for (path, place, modified) in logs {
         let Ok(text) = fs::read_to_string(&path) else { continue };
-        let when = fs::metadata(&path).ok().and_then(|m| m.modified().ok()).map(|t| chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default();
+        let when = chrono::DateTime::<chrono::Local>::from(modified).format("%Y-%m-%d %H:%M").to_string();
         let found = crate::zb_exclusions::analyze(&text, |_| Vec::new());
+        // Mods whose Java loaded in this session: older logs say nothing more about them.
+        for m in catalog.mods.iter().filter(|m| on.contains(&m.id) && m.shadowed_by.is_none()) {
+            if !seen.contains(&m.id) && !found.iter().any(|e| e.mod_id == m.id) && crate::zb_exclusions::java_loaded(&text, &folder_of(m)) {
+                seen.push(m.id.clone());
+            }
+        }
         for ex in found {
             if !on.contains(&ex.mod_id) || seen.contains(&ex.mod_id) {
                 continue;
@@ -696,7 +738,27 @@ pub fn add_zb_exclusion_issues(report: &mut HealthReport, catalog: &ModCatalog, 
                 .filter(|o| o.info.require.iter().any(|r| r.trim().trim_start_matches('\\') == m.id))
                 .collect();
             let user_names: Vec<String> = users.iter().map(|u| u.name.clone()).collect();
-            let why = if ex.kind == "signature" { "its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded" } else { "its Java never loaded" };
+            let why = match ex.kind.as_str() {
+                "signature" => "its signature (.zbs) does not match the key its author shows on Steam, so its Java never loaded",
+                "denied" => "ZombieBuddy has \"don't allow\" saved for this version of its Java (or it was denied in its window), so it did not load and the window no longer asks",
+                "unapproved" => "this version of its Java was never allowed on this PC, and a server cannot ask",
+                _ => "its Java never loaded",
+            };
+            let users_text = if user_names.is_empty() { "none on".to_string() } else { user_names.join(", ") };
+            let what = match ex.kind.as_str() {
+                "denied" => format!(
+                    "To use it: close the game and hold Shift while it loads; ZombieBuddy shows its window again, allow {} there. Otherwise switch it off along with the mods that use it ({}).",
+                    m.name, users_text
+                ),
+                "unapproved" => format!(
+                    "Start the game once with it on and allow it in ZombieBuddy's window; the server then loads it. Otherwise switch it off along with the mods that use it ({}).",
+                    users_text
+                ),
+                _ => format!(
+                    "Its author has to fix it; until then switch it off along with the mods that use it ({}), or wait for the author's update.",
+                    users_text
+                ),
+            };
             let crashed = if ex.fatal && !ex.addons.is_empty() {
                 format!(" Without it, {} took the {} down at boot.", ex.addons.join(", "), place)
             } else if !ex.addons.is_empty() {
@@ -711,8 +773,8 @@ pub fn add_zb_exclusion_issues(report: &mut HealthReport, catalog: &ModCatalog, 
                 "zb_excluded",
                 Some(&m.id),
                 format!(
-                    "ZombieBuddy left {} out of your last {} session ({}): {}.{} Its author has to fix it; until then switch it off along with the mods that use it ({}), or wait for the author's update.",
-                    m.name, place, when, why, crashed, if user_names.is_empty() { "none on".to_string() } else { user_names.join(", ") }
+                    "ZombieBuddy left {} out of your last {} session ({}): {}.{} {}",
+                    m.name, place, when, why, crashed, what
                 ),
                 fixes,
             );
@@ -723,6 +785,11 @@ pub fn add_zb_exclusion_issues(report: &mut HealthReport, catalog: &ModCatalog, 
                 ("addons", &ex.addons.join(", ")),
                 ("users", &user_names.join(", ")),
                 ("variant", match (ex.kind.as_str(), ex.fatal && !ex.addons.is_empty(), !ex.addons.is_empty()) {
+                    ("denied", true, _) => "denied_fatal",
+                    ("denied", false, true) => "denied_addons",
+                    ("denied", _, _) => "denied",
+                    ("unapproved", true, _) => "unapproved_fatal",
+                    ("unapproved", _, _) => "unapproved",
                     ("signature", true, _) => "signature_fatal",
                     ("signature", false, true) => "signature_addons",
                     ("signature", _, _) => "signature",
@@ -1915,10 +1982,23 @@ pub fn add_index_issues(
                     "require_path",
                 ),
                 IssueFix::CompatibleCopy => (Severity::Warning, vec![SuggestedFix::MakeCompatibleCopy { mod_id: id.clone() }], "; a compatible copy fixes it".to_string(), "copy_fixes"),
-                IssueFix::None => (Severity::Info, vec![], String::new(), ""),
+                IssueFix::DisableMod => (Severity::Error, vec![SuggestedFix::DisableMod { mod_id: id.clone() }], "; switch it off until its author updates it".to_string(), "disable_fixes"),
+                IssueFix::ReplaceMod { with } => (
+                    Severity::Warning,
+                    vec![SuggestedFix::ReplaceInList { entry: id.clone(), mod_id: with.clone() }],
+                    format!("; use {} in its place", name(with)),
+                    "replace_fixes",
+                ),
+                IssueFix::None => (
+                    Severity::Info,
+                    vec![],
+                    ". Nothing to do unless you see it happen here; once it no longer does, the button hides it".to_string(),
+                    "none_known",
+                ),
             };
             let (from, to) = match &issue.fix {
                 IssueFix::RequirePath { from, to } => (from.as_str(), to.as_str()),
+                IssueFix::ReplaceMod { with } => ("", with.as_str()),
                 _ => ("", ""),
             };
             let mut fixes = fixes;
@@ -2322,7 +2402,7 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             if state.update_pending {
                 let when = state.latest_time.and_then(|t| chrono::DateTime::from_timestamp(t as i64, 0)).map(|d| d.format("%Y-%m-%d").to_string());
                 list.push(Severity::Warning, "workshop_update_pending", Some(id),
-                    format!("Steam has a newer version of {}{} that is not downloaded yet. Let Steam download it (restart Steam if it is stuck): servers reject players whose mod versions differ (\"Workshop item version is different than the server's\").",
+                    format!("Steam has a newer version of {}{} that is not downloaded yet. Nothing breaks meanwhile: the game runs the version you have. Steam usually downloads it once the game is closed; if it still waits after that, restart Steam. It matters on a server: servers reject players whose mod versions differ (\"Workshop item version is different than the server's\").",
                         describe(m), when.as_ref().map(|w| format!(" (published {})", w)).unwrap_or_default()),
                     vec![SuggestedFix::KeepVersion { mod_id: m.id.clone() }, SuggestedFix::OpenWorkshopPage { workshop_id: workshop_id.clone() }]);
                 list.with(&[("mod", &name), ("date", when.as_deref().unwrap_or("")), ("publishedKey", if when.is_some() { "published" } else { "" })]);
@@ -2381,7 +2461,7 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         // A compatible copy shadows the Workshop original on purpose: its own row says so.
         for copy in catalog.mods.iter().filter(|c| !compat && c.id == m.id && c.shadowed_by.is_some()) {
             list.push(Severity::Info, "shadowed_copy", Some(id),
-                format!("Another copy of {} at {} is ignored: the game uses the one at {}", m.id, copy.root_dir, m.root_dir), vec![]);
+                format!("Another copy of {} at {} is ignored: the game uses the one at {}. Nothing to do.", m.id, copy.root_dir, m.root_dir), vec![]);
             list.with(&[("mod", &m.id), ("ignored", &copy.root_dir), ("used", &m.root_dir)]);
         }
     }
@@ -2702,7 +2782,7 @@ name=Off Noisy
         assert!(!remote.message.contains("broken"));
         assert!(remote.fixes.is_empty(), "nothing to press: the mend is in the mod's file");
         // By name alone it is worth knowing, not a thing to do.
-        assert_eq!((remote.severity, remote.state), (Severity::Warning, IssueState::Info));
+        assert_eq!((remote.severity, remote.state), (Severity::Info, IssueState::Info));
         let jar = &quiet[1];
         assert_eq!((jar.params["names"].as_str(), jar.params["variant"].as_str(), jar.params["tailKey"].as_str()), ("Events.OnGone", "one", "api_tail_java"));
         assert!(jar.message.contains("ships Java"), "{}", jar.message);
@@ -2711,7 +2791,7 @@ name=Off Noisy
         // may define the name stays worth knowing.
         let stat = |name: &str| crate::sandbox::ModErrorStat { mod_name: name.into(), exceptions: 20, lines: 80, ..Default::default() };
         let loud = rows(&[stat("TV Remote"), stat("With Java")]);
-        assert_eq!(loud[0].state, IssueState::Recommended);
+        assert_eq!((loud[0].severity, loud[0].state), (Severity::Warning, IssueState::Recommended));
         assert_eq!((loud[0].params["exceptions"].as_str(), loud[0].params["tailKey"].as_str()), ("20", "api_tail_errors"));
         assert_eq!(loud[1].state, IssueState::Info);
     }

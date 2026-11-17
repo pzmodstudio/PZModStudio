@@ -7,15 +7,27 @@ Your installed mods: which ones are on and the order the game loads them in. Eve
 - The header counts Workshop items, mods, mods **active**, and map, library and script mods. Red and amber counters (**Dependencies missing**, **Dependencies off**, **Incompatibility**, **List Order**) appear when there is a problem; click one to jump through those mods.
 - The toolbar: search, filters, groups, and the **Enable All** / **Disable All** buttons.
 - The list. The green bar on top (**LOADS FIRST**) is where libraries go; the amber bar at the bottom (**LOADS LAST**) is where a mod wins any file two mods share.
-- On the right, the inspector for the selected mod: its details, what it requires, and warnings with buttons (**Move After ...**, **Activate Library**, **Deactivate**).
+- On the right, the panel of the mod you picked (empty until you click one). More below, in **The panel on the right**.
 
-## Support the author
+## The panel on the right
 
-The inspector shows **Support the author** with the links its author put in the mod's changelog or in its Workshop description (Ko-fi, Patreon, Buy Me a Coffee...), opened in your browser, and, when the mod ships a changelog, **Latest in its changelog**, which opens its newest entry. The same buttons are on a Workshop item's page in Browse, installed or not.
+At the top, always in view: the mod's picture (click to see it full size), whether it is a map, library or script mod, where it comes from (Steam, compatible copy, local...), its name, ID, author and version, and the **Support the author** buttons with the links its author put in the changelog or on the Workshop (Ko-fi, Patreon...), opened in your browser. Below that, a button that switches it on or off and says where it loads, and **See in Explore Mods**.
+
+Then three tabs (the one you pick stays when you switch mods):
+
+- **Studio**: what the app knows about this mod in your list.
+  - **Notes**: your whole note (**Edit note**, or **Add a note**), your groups and the profiles it is in, the active one highlighted.
+  - **What to do**: every warning from the check with everything it says, whether you need to act, it is worth doing or it is only good to know, and its fix button. With nothing to do, it says so in green.
+  - **Last session**: the errors or warnings the game logged (with the last line), how long it took to load and its share of the game's time.
+  - **Dependencies**: what it needs and which mods need it; click one to go to its row.
+  - **Mod Metadata Details** (what its `mod.info` says, with **Latest in its changelog**) and **Classes its Java changes**, folded at the end.
+  - **What to do** and **Last session** fold with a click on their title, and stay as you left them.
+- **Workshop page**: the mod's page without leaving the app: pictures and videos, subscribers, favourites, size, dates, author, categories, the items it requires (green when you have it: click to go to its row; amber when not: it opens in Explore Mods) and the whole description with **Translate**. A mod that is not on the Workshop shows its own description here.
+- **Comments**: the comments on its Workshop page, newest first, with **Load more**. When the author's profile is private, Steam does not show them and the panel says so.
 
 ## The # column
 
-The number on each row is the mod's place among the mods that are **on**: the load order the game reads, and the same number the game shows. A mod that is off shows **—** and the **OFF** tag, because it has no place in the load order. Off mods keep their spot in the list, so switching one on usually puts it back where it was.
+The number on each row is the mod's place among the mods that are **on**: the load order the game reads, and the same number the game shows. A mod that is off shows **—** and is greyed out, because it has no place in the load order. Off mods keep their spot in the list, so switching one on usually puts it back where it was.
 
 ## Turning mods on and off
 
@@ -37,7 +49,7 @@ The number on each row is the mod's place among the mods that are **on**: the lo
 
 - The search box matches the name, the mod id, the Workshop id and your notes.
 - The filter buttons: **All**, **On**, **Off**, **Favourites**, **Updated**, **Problems**, **Maps**, **Libraries**, **Can't load**. Each shows its count.
-- Below them: **Sort: load order**, **Sort: name**, **Sort: newest installs** or **Sort: oldest installs** (by when each mod was installed: when its folder was made; for a Workshop one, the first download, which updates do not change; each row shows the date and mods not installed go last), the **Groups** menu, one of your groups, the source (**Steam Workshop**, **Your Workshop uploads**, **Installed by hand**, **Compatible copies**...), a tag (errors or warnings last session, slow to load, heavy on the game, a Mod Health problem) and **Profile's mods** / **All installed**.
+- Below them: **Sort: load order**, **Sort: name**, **Sort: newest installs** or **Sort: oldest installs** (by when each mod was installed: when its folder was made; for a Workshop one, the first download, which updates do not change; each row shows the date and mods not installed go last), the **Groups** menu, one of your groups, the source (**Steam Workshop**, **Your Workshop uploads**, **Installed by hand**, **Compatible copies**...), a tag (errors or warnings last session, slow to load, heavy on the game, a Diagnostics problem) and **Profile's mods** / **All installed**.
 - The game's Mods screen (Studio Link mod) has the same filters in the same order. Updated, Libraries, the group, the source and the tag need PZ Mod Studio; without it the game says so where they would be.
 - Dragging works sorted by name too: the mod goes to the place of the one you drop it on.
 - **clear filters** shows every mod again.
@@ -47,7 +59,7 @@ The number on each row is the mod's place among the mods that are **on**: the lo
 - The **Groups** menu lays the list out in folding sections: **Groups: none**, **Groups: author**, **Groups: category** or **Groups: mine**. Each heading shows how many are on, with **All on** / **All off**. In **Groups: mine**, a note button edits the group's note.
 - Right-click a mod and choose **Groups…** to tick the groups it is in, create a new one (**Add to it**), rename or delete one. A group left empty goes away. Groups never change the load order.
 - Picking one of your groups shows **Turn the group on** (with what its mods require) and **Turn the group off**.
-- Right-click and choose **Add a note…** to write a note on a mod. A note icon shows on its row.
+- Right-click and choose **Add a note…** to write a note on a mod (the panel on the right can too). Its row shows the start of the note beside the name: hover to read all of it, or click it to edit it.
 - Each profile has its own groups: a group belongs to the profile you made it in. Notes are about a mod and the same in every profile.
 - Notes and groups are yours only. The game shows them (the active profile's groups) on the Studio Link mod's Mods screen.
 
@@ -59,12 +71,20 @@ With a profile active, the list shows that profile's mods. The **Profile's mods*
 
 **Switch on/off**, **Add to the profile** / **Take out of the profile** (taken out also switches it off), **Move to the top**, **Move to the bottom**, **Open in Mod Browser** (**Search for it in Mod Browser** for a mod that is not installed), **Open its folder**, **Add a note…** (**Edit the note…** once it has one), **Groups…**, **Load-order rules…**, **Keep this version**, **Kept versions…**, **Favorite**, **Add to a list…**, **Add to a profile…**, **Copy the mod id** and **Unsubscribe from its Workshop item** (Steam deletes its files; other mods in the same item go too).
 
-- **Load-order rules…**: say a mod must load after another (things you found by playing). Auto-Sort follows the rule and Mod Health warns when the list breaks it. To pass your order on to someone else, export a preset: it carries the list in the order your rules gave it.
+- **Load-order rules…**: say a mod must load after another (things you found by playing). Auto-Sort follows the rule and Diagnostics warns when the list breaks it. To pass your order on to someone else, export a preset: it carries the list in the order your rules gave it.
 - **Keep this version** copies the mod as it is today to `Zomboid/PZModStudio_Snapshots`. **Kept versions…** lists the copies: **Use this version** puts one back as a local copy the game reads instead of the Workshop one.
 
 ## Row tags
 
-Tags on a row come from the last session and Mod Health: errors or warnings the game logged for the mod, how long it took to load (from 250 ms), its share of the game's time when you measured it in Mod Health (from 1 %, amber from 5 %), and problems such as **Needs a mod that is off** or **Loads too early**. Click a tag to go to the related mod or to Mod Health; the wrench button next to it applies the fix.
+A row shows only what asks for something, so the list stays readable:
+
+- Diagnostics warnings you need to act on or that are worth doing (such as **Needs a mod that is off** or **Loads too early**), with the wrench button beside them that applies the fix. Click the tag to go to the related mod or to Diagnostics.
+- The ones only good to know fold into one small tag with an **i** and how many; the panel on the right shows them all.
+- Errors or warnings the game logged for the mod last time, loading that took over 1 second, and its share of the game's time from 5 % (measured in Diagnostics > Mods > Time per mod).
+- Where it comes from, only when not Steam (**Local**, **Compat copy**...).
+- With **All installed**, a profiles icon with a number: **✓** when it is in the active profile (and **+N** when in others too), or how many profiles hold it. Hover for their names.
+
+Shorter loading times, the Steam origin and everything else are in the panel on the right.
 
 ## Earlier lists and presets
 

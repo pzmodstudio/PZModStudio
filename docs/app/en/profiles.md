@@ -4,12 +4,13 @@ A profile is a named mod list: which mods belong to it, which of them are on, an
 
 ## What you see
 
-- On the left, the **Create New Profile** form.
-- On the right, one card per saved profile. The active one has a green frame and the **Active** tag; the others say **Inactive**.
+- At the top, how many profiles you have saved and the **New profile** button, which opens a window that walks you through making one in three steps.
+- One card per saved profile, the active one first. The active one has a green frame, the **Active** tag and the **See its mods** button, which opens the Mod List; the others say **Inactive** and have **Activate (1-Click)**.
 - Each card shows its description, how many mods are on (**Active Mods**), the **Total** of mods in its order, and the build: **Build 41/42** when you set it by hand, or **Played on ...** with the build it was last played on from the Studio.
-- The counter at the top right says how many profiles you have saved.
 
 ## Creating a profile
+
+Press **New profile**: a window opens with three steps (**Name**, **Which mods**, **Check**), each with an explanation at the top. **Next** and **Back** move between them; Esc or the X closes it without making anything.
 
 1. Type a **Profile Name** (required) and, if you like, a **Description (Optional)**.
 2. Under **Which mods**, choose what the profile starts with:
@@ -17,7 +18,7 @@ A profile is a named mod list: which mods belong to it, which of them are on, an
    - **Everything installed**: every mod the Studio found.
    - **Pick them**: a list with a search box and **All** / **None** buttons; tick the mods you want.
    - **Nothing yet**: an empty profile. The Studio asks you to confirm, because switching to it turns every mod off. While a profile is active, a **Find mods in Browse Mods** button takes you there to subscribe first.
-3. Press **Create New Profile**.
+3. Under **Check** you see the name and how many mods start switched on. Press **Create and switch on**.
 
 The new profile is created and activated at once, and keeps the load order your list already has. If the Studio has not found any mods yet (game or Zomboid folder not set in App Settings), it refuses, so a profile does not switch all your mods off by mistake.
 

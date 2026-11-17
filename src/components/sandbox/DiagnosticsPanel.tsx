@@ -14,6 +14,8 @@ import { cardText } from '../../i18n/backendText';
 
 /** The game names a Studio package when it read the package's patched copy of a mod's file. */
 const STUDIO_PACKAGE_PREFIX = 'PZ Mod Studio Patch: ';
+/** Cards about a Java mod (its jar): nothing the Merger can patch. */
+const JAVA_MOD_CODES = new Set(['java_patch_failed', 'java_mod_turned_off', 'java_shader_failed', 'java_addon_incompatible', 'java_mod_error']);
 
 interface DiagnosticsPanelProps {
   paths: StudioPathsUI;
@@ -753,7 +755,10 @@ ${report}`);
                         modIdNamed(card.mod_name ?? modFromStack(card)) &&
                         /* A warning the Studio has no fix for gets no button: pressing one
                            led to saving an unchanged copy, which fixes nothing. */
-                        (!isWarning(card) || knownFix(card)) && (
+                        (!isWarning(card) || knownFix(card)) &&
+                        /* A Java mod's card (a patch not applied, a mod that switched itself off,
+                           its shaders): its jar is nothing the Merger can patch. */
+                        !JAVA_MOD_CODES.has(card.code ?? '') && (
                         <button
                           type="button"
                           onClick={() => {

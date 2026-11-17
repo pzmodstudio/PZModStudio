@@ -8,6 +8,12 @@
 //! sees only "the server did not start". Seen on 2026-11-16 with Viewpoint 0.1.7, whose jar was
 //! signed with a key its author's profile does not show.
 //!
+//! It also leaves a mod out by policy (`blocked by policy=prompt`): the player's approvals file
+//! (`~/.zombie_buddy/mod_approvals.json`) holds a saved "no" for that very jar, so its dialog never
+//! asks again. Seen on 2026-11-16: a "no" saved during Viewpoint's signature hours kept the fixed jar
+//! out, and its addons took the game down. ZombieBuddy shows the dialog again when Shift is held while
+//! the game loads; that file is the player's decision and the Studio never writes it.
+//!
 //! Read from a log's text; nothing here decides for the player.
 
 use serde::Serialize;
@@ -16,7 +22,9 @@ use serde::Serialize;
 pub struct ExcludedMod {
     /// The mod id ZombieBuddy names (`modId=`).
     pub mod_id: String,
-    /// "signature": the `.zbs` did not verify; "other": another reason, given in `reason`.
+    /// "signature": the `.zbs` did not verify; "denied": blocked by `policy=prompt` (a "no" saved for
+    /// this jar in ZombieBuddy's approvals, or given in its dialog); "unapproved": blocked by another
+    /// policy (`deny-new`, the Studio's servers: a jar never approved on this PC); "other": `reason`.
     pub kind: String,
     pub reason: String,
     /// Mods (by the tag they log under, or the class exposed to Lua) that failed for want of its classes.
@@ -59,15 +67,27 @@ pub fn analyze(log: &str, packages: impl Fn(&str) -> Vec<String>) -> Vec<Exclude
     for line in log.lines() {
         let Some(rest) = after(line, "[ZB] Excluded: ") else { continue };
         let Some(open) = rest.find(" (") else { continue };
-        let why = rest[open + 2..].trim_end().trim_end_matches(')');
+        // "(blocked by policy=prompt, modId=X)." ends with a full stop; "(invalid ZBS: ..., modId=X)" does not.
+        let why = rest[open + 2..].trim_end().trim_end_matches('.').trim_end_matches(')');
         if why.starts_with("loaded as Java agent") {
             continue; // ZombieBuddy itself
         }
-        let Some(id) = after(why, "modId=").map(|s| s.trim_end_matches(')').trim().to_string()) else { continue };
+        let Some(id) = after(why, "modId=").map(|s| s.split([')', ',']).next().unwrap_or_default().trim().to_string()) else { continue };
+        if id.is_empty() {
+            continue;
+        }
         if out.iter().any(|e| e.mod_id == id) {
             continue;
         }
-        let kind = if why.contains("invalid ZBS") { "signature" } else { "other" };
+        let kind = if why.contains("invalid ZBS") {
+            "signature"
+        } else if why.contains("blocked by policy=prompt") {
+            "denied"
+        } else if why.contains("blocked by policy") {
+            "unapproved"
+        } else {
+            "other"
+        };
         let reason = why.split(", modId=").next().unwrap_or(why).to_string();
         out.push(ExcludedMod { mod_id: id, kind: kind.to_string(), reason, addons: Vec::new(), fatal: false });
     }
@@ -96,6 +116,16 @@ pub fn analyze(log: &str, packages: impl Fn(&str) -> Vec<String>) -> Vec<Exclude
     out
 }
 
+/// Whether ZombieBuddy put a jar of the mod in folder `folder` (`...\mods\<folder>\...`) on the
+/// classpath in this log: its Java loaded in that session.
+pub fn java_loaded(log: &str, folder: &str) -> bool {
+    if folder.is_empty() {
+        return false;
+    }
+    let needle = format!("\\mods\\{}\\", folder.to_ascii_lowercase());
+    log.lines().filter_map(|l| after(l, "[ZB] added to classpath: ")).any(|p| p.to_ascii_lowercase().replace('/', "\\").contains(&needle))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,6 +150,24 @@ LOG  : General      f:0 st:5,729,660> Caused by: java.lang.ClassNotFoundExceptio
         assert_eq!((vp.mod_id.as_str(), vp.kind.as_str(), vp.fatal), ("Viewpoint", "signature", true));
         assert_eq!(vp.addons, vec!["ProjectFixit", "VVC Viewpoint", "VPTTracers"], "the class of another package is not counted");
         assert!(vp.reason.starts_with("invalid ZBS"));
+    }
+
+    #[test]
+    fn a_no_saved_in_zombiebuddy_is_told_apart() {
+        let log = "[16-11-26 10:30:28.728] LOG  : General      f:0> [ZB] Excluded: C:\\Users\\x\\Zomboid\\mods\\Viewpoint\\common\\mod.info (blocked by policy=prompt, modId=Viewpoint).\n\
+[16-11-26 10:30:29.000] LOG  : General      f:0> [ZB] Excluded: C:\\x\\Other\\mod.info (blocked by policy=deny-new, modId=Other).\n";
+        let found = analyze(log, |_| Vec::new());
+        let kinds: Vec<(&str, &str)> = found.iter().map(|e| (e.mod_id.as_str(), e.kind.as_str())).collect();
+        assert_eq!(kinds, vec![("Viewpoint", "denied"), ("Other", "unapproved")], "the full stop after the reason is not part of the id");
+        assert_eq!(found[0].reason, "blocked by policy=prompt");
+    }
+
+    #[test]
+    fn a_jar_on_the_classpath_is_a_java_that_loaded() {
+        let log = "LOG  : General      f:0> [ZB] added to classpath: C:\\Users\\x\\Zomboid\\mods\\Viewpoint\\42\\media\\java\\client\\Viewpoint.jar.\n";
+        assert!(java_loaded(log, "Viewpoint"));
+        assert!(!java_loaded(log, "ViewpointRTX"), "another folder that starts the same is not it");
+        assert!(!java_loaded(LOG, "Viewpoint"), "an excluded mod never reaches the classpath");
     }
 
     #[test]

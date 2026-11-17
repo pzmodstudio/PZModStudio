@@ -38,7 +38,7 @@ Cada fila muestra el nombre del mapa, el mod del que viene, cuántas celdas tien
 ## Choques
 
 - Un aviso **rojo** significa que dos mods de mapa comparten celdas y los dos están prendidos: en tu próxima partida uno reemplaza al otro ahí. Debajo, cada mod tiene un botón para verlo en la Lista de mods y un botón **Desactivar** que lo apaga (después de preguntarte).
-- Un aviso **ámbar** significa que chocarían si los dos estuvieran prendidos.
+- Lo que chocaría solo si prendieras mods que hoy están apagados se junta en una línea gris plegable (**N choques posibles si prendés mods que hoy están apagados: nada que hacer ahora**). Abrila para ver cada uno.
 - Un aviso de definición de casillas significa que dos mods usan el mismo número de definición de casillas. Si los dos están activos, sus casillas se pisan y aparecen paredes, pisos o muebles equivocados. Dejá activo solo uno. Debajo, cada mod tiene un botón para verlo en la Lista de mods, y **Desactivar** cuando hay más de uno activo.
 
 ## Otros mods de mapas

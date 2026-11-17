@@ -7,7 +7,7 @@ import { SourceBadge, sourceOf } from '../common/SourceBadge';
 import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
 import { RowHealthChips } from './RowHealth';
-import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Hash, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Hash, Layers, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
 
 /** Below this a mod's loading time is a few milliseconds of mod.info and translations: not worth a tag. */
 export const SLOW_LOAD_MS = 250;
@@ -38,6 +38,8 @@ export interface ModRowBodyProps {
   /** The player's note on it, and the groups they put it in. */
   note?: string;
   groups?: string[];
+  /** Opens the note editor on this mod (the note on the row is a button). */
+  onEditNote?: (mod: ModInfo) => void;
   /** Showing everything: say which profiles each mod belongs to. */
   showEveryMod: boolean;
   activeProfile: AppInstance | null;
@@ -88,6 +90,7 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   isFavorite = false,
   note,
   groups = [],
+  onEditNote,
   showEveryMod,
   activeProfile,
   profilesByMod,
@@ -175,13 +178,28 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
       <div className="flex items-center gap-1.5 min-w-0">
         <span
-          className={`truncate min-w-0 ${mod.enabled ? 'font-bold text-slate-100' : 'font-medium text-slate-400/80'}`}
+          className={`truncate min-w-0 ${note ? 'shrink max-w-[70%]' : ''} ${mod.enabled ? 'font-bold text-slate-100' : 'font-medium text-slate-400/80'}`}
           title={mod.name}
         >
           {mod.name}
         </span>
         {isFavorite && <Star className="w-3 h-3 shrink-0 text-amber-400 fill-amber-400" aria-label="In Favorites" />}
-        {note && <span title={note} className="shrink-0 inline-flex"><StickyNote className="w-3 h-3 text-sky-300" aria-label={note} /></span>}
+        {/* The player's own note, readable on the row: the start of it, the whole on hover. */}
+        {note && (
+          <Tip content={<TipBody title={t('modList.row.noteHead')} tone="sky" action={onEditNote ? t('modList.row.noteEdit') : undefined}><div className="whitespace-pre-wrap">{note}</div></TipBody>}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditNote?.(mod);
+              }}
+              className="min-w-0 max-w-full flex items-center gap-1 px-1.5 py-px rounded bg-sky-950/60 border border-sky-800/60 text-sky-200 text-[10.5px] italic hover:border-sky-500 cursor-pointer"
+            >
+              <StickyNote className="w-3 h-3 shrink-0 text-sky-300" aria-hidden="true" />
+              <span className="truncate">{note.split('\n')[0]}</span>
+            </button>
+          </Tip>
+        )}
         {groups.slice(0, 2).map((g) => (
           <span key={g} className="shrink-0 text-[9px] px-1.5 py-px rounded bg-violet-900/50 text-violet-200 border border-violet-700/50">{g}</span>
         ))}
@@ -202,7 +220,8 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
             left of the ones it has, so the same chips line up from row to row. */}
         <div className="flex flex-row-reverse flex-wrap items-center justify-start gap-1 max-w-[78%]">
           {/* A mod that is not installed came from nowhere yet: no origin to show ("Local" said it was on disk). */}
-          {!mod.not_installed && <SourceBadge modId={mod.mod_id} entry={entry} />}
+          {/* Steam is where most mods come from: only an origin worth noticing gets a tag (the inspector says every one). */}
+          {!mod.not_installed && source.kind !== 'steam' && <SourceBadge modId={mod.mod_id} entry={entry} />}
 
           {/* Every problem the health check found for this mod, with its fix. */}
           <RowHealthChips
@@ -264,7 +283,8 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
           {/* Its files' share of the loading screen last session, when it is worth a word. */}
           {(() => {
             const ms = loadTimes?.get(mod.mod_id);
-            if (ms === undefined || ms < SLOW_LOAD_MS) return null;
+            // Under a second is the inspector's to say; the row speaks up for a slow one.
+            if (ms === undefined || ms < 1000) return null;
             const slow = ms >= 1000;
             const time = ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`;
             return (
@@ -273,7 +293,7 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
                   <TipBody
                     title={t('modList.row.loadsInHead', { time })}
                     tone={slow ? 'amber' : 'slate'}
-                    footnote={<RichText text={t('modList.row.loadTimeHow', { min: SLOW_LOAD_MS })} foldAt={140} />}
+                    footnote={<RichText text={t('modList.row.loadTimeHow', { min: 1000 })} foldAt={140} />}
                   >
                     <RichText text={t('modList.row.loadTimeBody', { time: ms >= 1000 ? t('modList.row.seconds', { n: (ms / 1000).toFixed(1) }) : t('modList.row.millis', { n: ms }) })} />
                   </TipBody>
@@ -293,13 +313,13 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
           {/* What it cost the game while it ran, last time it was measured, when it is worth a word. */}
           {(() => {
             const pct = gameShares?.get(mod.mod_id);
-            if (pct === undefined || pct < SHOWN_SHARE) return null;
+            if (pct === undefined || pct < HEAVY_SHARE) return null;
             const heavy = pct >= HEAVY_SHARE;
             const shown = pct.toFixed(pct < 10 ? 1 : 0);
             return (
               <Tip
                 content={
-                  <TipBody title={t('modList.row.gameTimeHead', { pct: shown })} tone={heavy ? 'amber' : 'slate'} footnote={<RichText text={t('modList.row.gameTimeHow', { min: SHOWN_SHARE })} foldAt={140} />}>
+                  <TipBody title={t('modList.row.gameTimeHead', { pct: shown })} tone={heavy ? 'amber' : 'slate'} footnote={<RichText text={t('modList.row.gameTimeHow', { min: HEAVY_SHARE })} foldAt={140} />}>
                     <RichText text={t('modList.row.gameTimeBody', { pct: shown })} />
                   </TipBody>
                 }
@@ -315,26 +335,25 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
             );
           })()}
 
-          {/* Showing everything: say which profiles each mod belongs to. */}
+          {/* Showing everything: which profiles hold it, as an icon and a count (names on hover and in the inspector). */}
           {activeProfile && (showEveryMod || !inActiveProfile.has(mod.mod_id)) && (() => {
             const usedBy = profilesByMod.get(mod.mod_id) ?? [];
+            const here = inActiveProfile.has(mod.mod_id);
             const others = usedBy.filter((name) => name !== activeProfile.name);
-            if (inActiveProfile.has(mod.mod_id)) {
-              return (
-                <span
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-emerald-700/60 text-emerald-300 shrink-0"
-                  title={t('modList.row.inThisProfile') + (others.length ? t('modList.row.andIn', { names: others.join(', ') }) : '')}
-                >
-                  {t('modList.row.inProfile', { name: activeProfile.name })}
-                </span>
-              );
-            }
+            const title = here
+              ? t('modList.row.inThisProfile') + (others.length ? t('modList.row.andIn', { names: others.join(', ') }) : '')
+              : others.length
+              ? t('modList.row.usedBy', { names: others.join(', ') })
+              : t('modList.row.noProfileYet');
             return (
               <span
-                className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-700 text-slate-400 shrink-0"
-                title={others.length ? t('modList.row.usedBy', { names: others.join(', ') }) : t('modList.row.noProfileYet')}
+                className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
+                  here ? 'border-emerald-700/60 text-emerald-300 bg-emerald-950/30' : usedBy.length ? 'border-slate-700 text-slate-400' : 'border-slate-800 text-slate-600'
+                }`}
+                title={title}
               >
-                {others.length ? t('modList.row.inProfile', { name: others.join(', ') }) : t('modList.row.noProfile')}
+                <Layers className="w-3 h-3" aria-hidden="true" />
+                {here ? (others.length ? `✓ +${others.length}` : '✓') : usedBy.length ? usedBy.length : '0'}
               </span>
             );
           })()}
@@ -354,12 +373,6 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
                 {t('modList.row.notInstalled')}
               </span>
             </Tip>
-          )}
-
-          {!mod.enabled && (
-            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-900 text-slate-600 border border-slate-800 shrink-0">
-              {t('modList.row.off')}
-            </span>
           )}
 
           {isClosedPackage && (

@@ -13,7 +13,7 @@ The sidebar lists the screens under **Studio Modules**. Screens with a lock need
 - **Monitor Center**: launch the game and read its log, with one card per error and the mod it came from.
 - **Mod List**: switch mods on and off and set the load order, with filters, groups, notes and undo.
 - **What's new**: your Workshop mods updated since you last played, with their change notes and a warning when an update may break saves.
-- **Mod Health**: checks the active list like the game does: missing or disabled requirements, wrong order, incompatible mods, mods your build cannot load, with fixes.
+- **Diagnostics**: what the app knows about your mods (checked the way the game reads them: missing or switched-off requirements, wrong order, incompatible mods, mods your build cannot load, with fixes), the game (memory, CPU, start-up, frames, disk) and the server running on your PC, with the Doctor on the front page.
 - **Browse Mods**: search the Steam Workshop, subscribe, keep your own lists, and install mods downloaded from elsewhere.
 - **Maps**: every map mod's cells over the game's world, and where two map mods fight over the same cells.
 - **Mod Merger**: when two mods change the same file, combine them into a patch package that loads last.
@@ -48,13 +48,13 @@ The main menu's **MODS** button opens the Link's Mods screen instead of the game
 - groups by author or category, each mod's options (**Mod options**), the **Map order**, and **Undo** / **Redo**;
 - **Accept** saves to the list the game reads, as the game's own screen does. **The game's screen** opens the original one.
 
-With the app, the same screen also shows only the profile's mods (**Profile's mods** / **All installed**), Mod Health's warnings on each mod, mods updated since your last session, your notes and groups, and a button to add new mods that are in no profile. **Sync with PZ Mod Studio** takes in what the app changed, and **Open PZ Mod Studio** brings the app to the front.
+With the app, the same screen also shows only the profile's mods (**Profile's mods** / **All installed**), Diagnostics's warnings on each mod, mods updated since your last session, your notes and groups, and a button to add new mods that are in no profile. **Sync with PZ Mod Studio** takes in what the app changed, and **Open PZ Mod Studio** brings the app to the front.
 
 If another mod manager that owns the Mods screen is on, the Link asks which screen you want and leaves it to the other one if you say so.
 
 ### The card on the main menu
 
-When the app has run on this PC, a card on the main menu shows whether the app is open or closed, the active profile and its number of mods, Mod Health's errors and warnings, and **Continue: (save)** with what changed in its mods since its last session. If the app was never installed, the card instead invites you to get it, with **Download** (copies the download page's address) and **Hide**.
+When the app has run on this PC, a card on the main menu shows whether the app is open or closed, the active profile and its number of mods, Diagnostics's errors and warnings, and **Continue: (save)** with what changed in its mods since its last session. If the app was never installed, the card instead invites you to get it, with **Download** (copies the download page's address) and **Hide**.
 
 ### The error notice
 
@@ -65,4 +65,4 @@ When the game records a Lua error, a notice names the mod it came from (and whic
 - Without the app: the Link's Mods screen, the error notice (without **See in the Studio**), and the invitation card.
 - With a profile active, even while the app is closed: the Mods screen shows the profile as the app last left it; on the load screen each save is marked by whether its mods match the profile; a save that uses mods outside the profile does not load; a save with an empty mod list asks first.
 - Only while the app is open: backups of a save before it loads with changed mods and when you leave it, playing a save on a copy, adding new mods to the profile, **Sync**, **Open PZ Mod Studio** and **See in the Studio**.
-- Notes, groups, profiles and Mod Health are made in the app; the game only shows them.
+- Notes, groups, profiles and Diagnostics are made in the app; the game only shows them.

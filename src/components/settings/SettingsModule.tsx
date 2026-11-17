@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DiagnosticsCard } from './DiagnosticsCard';
-import { FolderOpen, CheckCircle, AlertTriangle, RefreshCw, HardDrive, Wrench, Bell, Bot, Copy, Check, Terminal, Radio, Code2, Layers, Info, Lightbulb, ExternalLink, Loader2, Languages } from 'lucide-react';
+import { Settings, FolderOpen, CheckCircle, AlertTriangle, RefreshCw, HardDrive, Wrench, Bell, Bot, Copy, Check, Terminal, Radio, Code2, Layers, Info, Lightbulb, ExternalLink, Loader2, Languages } from 'lucide-react';
 import { AppUpdateStatus, PolyfillSection, ShimPatch } from '../../types';
 import { TauriService } from '../../services/tauri';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,9 @@ const MCP_GUIDES: Record<string, { key: string; steps: number; tip?: 'cyan' | 'e
 /** "12 KB" / "1.3 MB". */
 const formatKb = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
+/** The tabs of the Settings screen. */
+type SettingsTab = 'PATHS' | 'ALERTS' | 'APP' | 'ADVANCED' | 'POLYFILLS' | 'MCP';
+
 export const SettingsModule: React.FC<SettingsModuleProps> = ({
   paths,
   onSavePaths,
@@ -66,7 +69,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   useEffect(() => {
     void (async () => setShimSections(await TauriService.polyfillSections()))();
   }, []);
-  const [activeSubTab, setActiveSubTab] = useState<'PATHS' | 'POLYFILLS' | 'MCP'>('PATHS');
+  const [activeSubTab, setActiveSubTab] = useState<SettingsTab>('PATHS');
   /**
    * The MCP server, the Claude Agent and the in-game bridge are for people building things on
    * top of the Studio. A player has no use for them and they only raise questions, so they stay
@@ -89,7 +92,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
     setShowAdvanced(on);
     localStorage.setItem('pz_show_advanced', String(on));
     window.dispatchEvent(new CustomEvent('pzms-advanced-changed', { detail: on }));
-    if (!on && activeSubTab === 'MCP') setActiveSubTab('PATHS');
+    if (!on && activeSubTab === 'MCP') setActiveSubTab('ADVANCED');
   };
   const [selectedMcpClient, setSelectedMcpClient] = useState<'ANTIGRAVITY' | 'CLAUDE' | 'CURSOR' | 'VSCODE_LOCAL' | 'OPENAI_CODEX'>('ANTIGRAVITY');
   const [copiedMcpConfig, setCopiedMcpConfig] = useState<boolean>(false);
@@ -367,56 +370,37 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   return (
     <div className="flex-1 flex flex-col bg-slate-950 text-slate-100 overflow-y-auto p-6 font-sans">
       <div className="max-w-6xl w-full space-y-6">
-        {/* Settings Header & Sub-Tab Navigation */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <HardDrive className="w-5 h-5 text-emerald-400" />
-              {t('settings.title')}
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              {t('settings.blurb')}
-            </p>
-          </div>
-
-          {/* Sub-Tab Selector Buttons */}
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-1 flex gap-1 text-xs">
+        {/* Header like the other screens, then the tabs side by side */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Settings className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
+          <h1 className="text-base font-bold text-slate-100">{t('settings.title')}</h1>
+          <span className="text-[11px] text-slate-400">{t('settings.blurb')}</span>
+        </div>
+        <div role="tablist" className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              ['PATHS', HardDrive, 'settings.tabPaths'],
+              ['ALERTS', Bell, 'settings.tabAlerts'],
+              ['APP', Layers, 'settings.tabApp'],
+              ['ADVANCED', Code2, 'settings.tabAdvanced'],
+              ['POLYFILLS', Wrench, 'settings.tabShim'],
+              ...(showAdvanced ? [['MCP', Bot, 'settings.tabMcp'] as const] : []),
+            ] as const
+          ).map(([id, Icon, label]) => (
             <button
-              onClick={() => setActiveSubTab('PATHS')}
-              className={`px-3 py-1.5 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'PATHS'
-                  ? 'bg-slate-800 text-emerald-400 font-bold border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={activeSubTab === id}
+              onClick={() => setActiveSubTab(id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border cursor-pointer transition ${
+                activeSubTab === id ? 'bg-sky-900/40 border-sky-600 text-sky-100' : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
               }`}
             >
-              <HardDrive className="w-3.5 h-3.5" />
-              {t('settings.tabPaths')}
+              <Icon className="w-4 h-4" aria-hidden="true" />
+              {t(label)}
             </button>
-            <button
-              onClick={() => setActiveSubTab('POLYFILLS')}
-              className={`px-3 py-1.5 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'POLYFILLS'
-                  ? 'bg-slate-800 text-emerald-400 font-bold border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Wrench className="w-3.5 h-3.5" />
-              {t('settings.tabShim')}
-            </button>
-            {showAdvanced && (
-            <button
-              onClick={() => setActiveSubTab('MCP')}
-              className={`px-3 py-1.5 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'MCP'
-                  ? 'bg-slate-800 text-cyan-400 font-bold border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Bot className="w-3.5 h-3.5 text-cyan-400" />
-              {t('settings.tabMcp')}
-            </button>
-            )}
-          </div>
+          ))}
         </div>
 
         {savedSuccess && (
@@ -574,6 +558,12 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* Alerts: which warnings the Studio shows */}
+        {activeSubTab === 'ALERTS' && (
+          <div className="space-y-4">
             {/* Card 5: Unified App Notification & Warning Preferences */}
             <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -688,6 +678,12 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* The app itself: how it starts, its window, language, updates */}
+        {activeSubTab === 'APP' && (
+          <div className="space-y-4">
             {/* Card 6: Startup Screen Behavior */}
             <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -792,7 +788,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
         )}
 
         {/* SUB-TAB 2: what the Build 42 compatibility shim covers */}
-        {activeSubTab === 'PATHS' && (
+        {activeSubTab === 'APP' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.language.title')}</div>
@@ -810,7 +806,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </div>
         )}
 
-        {activeSubTab === 'PATHS' && (
+        {activeSubTab === 'APP' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.rememberMode')}</div>
@@ -833,7 +829,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </div>
         )}
 
-        {activeSubTab === 'PATHS' && (
+        {activeSubTab === 'APP' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.modsScreen')}</div>
@@ -856,7 +852,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </div>
         )}
 
-        {activeSubTab === 'PATHS' && (
+        {activeSubTab === 'APP' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.updateCheck')}</div>
@@ -902,9 +898,9 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </div>
         )}
 
-        {activeSubTab === 'PATHS' && <DiagnosticsCard paths={paths} />}
+        {activeSubTab === 'ADVANCED' && <DiagnosticsCard paths={paths} />}
 
-        {activeSubTab === 'PATHS' && (
+        {activeSubTab === 'APP' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
@@ -959,7 +955,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </div>
         )}
 
-        {activeSubTab === 'PATHS' && (
+        {activeSubTab === 'ADVANCED' && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.developer')}</div>
@@ -982,7 +978,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </div>
         )}
 
-        {activeSubTab === 'PATHS' && showAdvanced && zbState?.known && (
+        {activeSubTab === 'ADVANCED' && showAdvanced && zbState?.known && (
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="text-xs font-bold text-slate-200">{t('settings.zbList')}</div>

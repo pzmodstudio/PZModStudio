@@ -245,5 +245,13 @@
     "UI_StudioLink_appliedOff": "Turned off ({1}):",
     "UI_StudioLink_appliedOrder": "The load order changed.",
     "UI_StudioLink_appliedUndo": "Undo",
-    "UI_StudioLink_appliedOk": "OK"
+    "UI_StudioLink_appliedOk": "OK",
+    "UI_StudioLink_offTitle": "This save loads {1} mod(s) your profile has off",
+    "UI_StudioLink_offWhy": "\"{1}\" keeps its own mod list, and the game loads it with that list, not the profile. These are on in it and switched off in \"{2}\":",
+    "UI_StudioLink_offHow": "Take them out: PZ Mod Studio backs the save up, takes them out of its list and loads it. Load it as it is: they load with it this time.",
+    "UI_StudioLink_offKeep": "Load as it is",
+    "UI_StudioLink_offDrop": "Take them out and load",
+    "UI_StudioLink_offNeedsApp": "Taking mods out of a save needs PZ Mod Studio open: it backs the save up and changes its list.",
+    "UI_StudioLink_offWorking": "PZ Mod Studio is backing up \"{1}\" and taking those mods out of its list.",
+    "UI_StudioLink_offFailed": "The mods could not be taken out: {1}"
 }

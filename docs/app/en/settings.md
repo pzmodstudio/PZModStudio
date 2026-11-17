@@ -4,9 +4,12 @@ App Settings is where you tell the Studio where your game and mods live, and cho
 
 ## What you see
 
-The screen has tabs at the top right:
+The screen has tabs at the top, side by side:
 
-- **Directory Paths**: folders and every general preference (most of this page).
+- **Directory Paths**: where the game, the Workshop, your Zomboid folder and the mod list are.
+- **Alerts**: which warnings the Studio shows you.
+- **The app**: how the Studio starts, its window and close button, the language, remembering how the game starts, the game's Mods screen, checking for new versions and translation.
+- **Advanced**: the app's diagnostics, developer features and, with them, the Java mods you allowed in ZombieBuddy.
 - **Build 42 fixes**: what the Build 42 compatibility shim covers, with a switch per mod it patches.
 - **MCP Agent Server**: only shown with **Developer features** on.
 

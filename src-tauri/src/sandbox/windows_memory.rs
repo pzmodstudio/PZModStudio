@@ -135,7 +135,7 @@ pub fn low_memory_card(e: &LowMemoryEvent) -> super::TranslatedErrorPayload {
             e.game_gb.map(|g| format!("; the game held {:.1} GB", g)).unwrap_or_default(),
             if others.is_empty() { String::new() } else { format!(", beside {}", others) }
         ),
-        recommended_action: "A bigger page file (Windows > System > About > Advanced system settings > Performance > Virtual memory: system managed, or 16 to 32 GB), closing browsers and other big programs before playing, and fewer memory-hungry Java mods. Health > Performance > Memory keeps the last 14 days.".to_string(),
+        recommended_action: "A bigger page file (Windows > System > About > Advanced system settings > Performance > Virtual memory: system managed, or 16 to 32 GB), closing browsers and other big programs before playing, and fewer memory-hungry Java mods. Diagnostics > Game > Memory keeps the last 14 days.".to_string(),
         polyfill_rule_id_suggestion: None,
         mod_name: None,
         severity: super::Severity::Exception,

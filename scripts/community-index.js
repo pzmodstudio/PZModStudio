@@ -26,7 +26,7 @@ const REPORTS = path.join(ROOT, 'reports');
 const REPORTER_FILE = /^[A-Za-z0-9_-]{1,64}\.json$/;
 
 const STATUSES = new Set(['verified', 'reported']);
-const FIX_KINDS = new Set(['shim_patch', 'require_path', 'compatible_copy', 'none']);
+const FIX_KINDS = new Set(['shim_patch', 'require_path', 'compatible_copy', 'disable_mod', 'replace_mod', 'none']);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const BUILD = /^\d{2}(\.\d+)?$/;
 
@@ -98,6 +98,7 @@ function problemsOf(registry, fileName, patches, reportDir) {
     if (!FIX_KINDS.has(fix.kind)) p.push(`${what}: fix.kind must be one of ${[...FIX_KINDS].join(', ')}`);
     if (fix.kind === 'shim_patch' && !patches.has(fix.name)) p.push(`${what}: the shim has no patch named "${fix.name}" (${[...patches].join(', ')})`);
     if (fix.kind === 'require_path' && !(str(fix.from) && str(fix.to))) p.push(`${what}: a require_path fix needs from and to`);
+    if (fix.kind === 'replace_mod' && !str(fix.with)) p.push(`${what}: a replace_mod fix needs with (the mod id to use instead)`);
     if ((fix.kind === 'require_path' || fix.kind === 'compatible_copy') && !str(issue.file)) p.push(`${what}: say which file, so the Studio knows when it is already fixed`);
     seen(what, issue);
   });

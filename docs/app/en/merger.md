@@ -20,7 +20,7 @@ When no package is open, you see the **Merge Packages** list. Each card shows th
 - The download icon saves it as a `.pzmerge` file to share; the folder icon opens its folder in Windows Explorer.
 - **Other profiles' packages** shows packages that belong to other profiles; **Only "name"** goes back to the active profile's.
 
-The top bar has **Load Package (.pzmerge)** to import a package someone sent you, and **➕ New Package** to create one (a name, an optional description, then **Create Package**). The Studio's own mods (the Live IPC Bridge and the Studio Link) appear marked **System**: you can see their files but not edit, rename or delete them.
+The top bar has **Load Package (.pzmerge)** to import a package someone sent you, and **New Package** to create one (a name, an optional description, then **Create Package**). When the active profile has no merge packages, the screen says so and explains when one is needed, with a button to see other profiles' packages. The Studio's own mods (the Live IPC Bridge and the Studio Link) are not merge packages: they sit below, folded under **Studio mods**, and you can see their files but not edit, rename or delete them.
 
 ## Working inside a package
 
@@ -53,13 +53,13 @@ On the left, **VFS Conflicts** lists each colliding file with its kind (Lua, **D
 
 Use **Patch a mod file** when one mod has a bug and there is nothing to merge. Pick the mod, then the Lua or script file, edit it and press **✓ Save Merge of this File**. Your copy goes in the package and the game reads it instead of the mod's, for that file only; the mod stays on and the rest of it is untouched. Saving a copy with no changes is refused, because it would only freeze the file at today's version.
 
-The Monitor and Mod Health can send you here directly: the right package opens and the file the error named opens in the editor, sometimes with the fix already applied.
+The Monitor and Diagnostics can send you here directly: the right package opens and the file the error named opens in the editor, sometimes with the fix already applied.
 
 ## Packaged packages and publishing in place
 
 A packaged package is read-only: its files stay hidden behind a summary until you press **🔓 Unmerge / Open to Edit** (or **Unpack to Edit**) and confirm. Unpacking takes the published files out of the game until you publish again.
 
-A mod's own file opened to patch is the exception: in a packaged package, its save **publishes in place**. Everything the package holds is published again with your file beside it, the package stays packaged, and the game reads the new file on its next launch. When Mod Health or the Monitor sends you to one file of a packaged package, that file is shown without unpacking it.
+A mod's own file opened to patch is the exception: in a packaged package, its save **publishes in place**. Everything the package holds is published again with your file beside it, the package stays packaged, and the game reads the new file on its next launch. When Diagnostics or the Monitor sends you to one file of a packaged package, that file is shown without unpacking it.
 
 ## Sharing packages
 

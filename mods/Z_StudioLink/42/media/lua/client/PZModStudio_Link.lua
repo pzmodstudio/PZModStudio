@@ -110,6 +110,14 @@ local TEXT = {
     badgeOutside = "{1} outside the profile",
     badgeOk = "profile mods",
     andMore = "...and {1} more",
+    offTitle = "This save loads {1} mod(s) your profile has off",
+    offWhy = "\"{1}\" keeps its own mod list, and the game loads it with that list, not the profile. These are on in it and switched off in \"{2}\":",
+    offHow = "Take them out: PZ Mod Studio backs the save up, takes them out of its list and loads it. Load it as it is: they load with it this time.",
+    offKeep = "Load as it is",
+    offDrop = "Take them out and load",
+    offNeedsApp = "Taking mods out of a save needs PZ Mod Studio open: it backs the save up and changes its list.",
+    offWorking = "PZ Mod Studio is backing up \"{1}\" and taking those mods out of its list.",
+    offFailed = "The mods could not be taken out: {1}",
     changesTitle = "What changed since its last session",
     changesWhen = "\"{1}\" was last played {2} ago. Since then:",
     changesRemoved = "Taken out of its mod list ({1})",
@@ -1882,15 +1890,83 @@ function Link.playOnCopy(world)
         end)
 end
 
+--- The mods of a save's own list that the profile has but keeps switched off: the save loads
+--- them anyway, which is not what a player who switched them off expects.
+function Link.offInProfile(activeMods, link)
+    local result = {}
+    if not activeMods or not link then return result end
+    local default = ActiveMods.getById("default")
+    if not default then return result end
+    local on = {}
+    local dm = default:getMods()
+    for i = 0, dm:size() - 1 do on[plainId(dm:get(i))] = true end
+    local mods = activeMods:getMods()
+    for i = 0, mods:size() - 1 do
+        local raw = mods:get(i)
+        local id = plainId(raw)
+        if (link.members[raw] or link.members[id]) and not on[id] and id ~= SELF_ID then
+            table.insert(result, id)
+        end
+    end
+    return result
+end
+
+--- "This save loads mods your profile has off": back, load it as it is, or take them out of
+--- the save first (the app backs the save up, then rewrites its list) and load it.
+function Link.showOff(world, off)
+    local args = Link.continueArgs or {}
+    local function again()
+        MainScreen.continueLatestSaveAux(args[1], args[2])
+    end
+    local lines = 0
+    local body = text("offWhy", world, Link.read() and Link.read().name or "") .. " <LINE> <LINE> <INDENT:16> "
+    for i, id in ipairs(off) do
+        if i > 10 then
+            body = body .. text("andMore", #off - 10) .. " <LINE> "
+            lines = lines + 1
+            break
+        end
+        body = body .. modName(id) .. (isMapMod(id) and ("  " .. text("mapTag")) or "") .. " <LINE> "
+        lines = lines + 1
+    end
+    body = body .. " <INDENT:0> <LINE> " .. text("offHow") .. " <LINE> "
+    local height = 150 + (lines + 4) * (getTextManager():getFontHeight(UIFont.Small) + 2)
+    WaitPanel.choose(text("offTitle", #off), body, height, {
+        { label = text("back") },
+        { label = text("offKeep"), onClick = function()
+            Link.offKept = world
+            again()
+        end },
+        { label = text("offDrop"), accept = true, onClick = function()
+            if not Link.appAlive() then
+                modal(" <RGB:1,0.75,0.3> " .. text("offNeedsApp") .. " <RGB:1,1,1> ", false, function() end)
+                return
+            end
+            askApp("dropmods", Link.saveId(world) .. "\t" .. table.concat(off, ";"), text("offTitle", #off), text("offWorking", world),
+                function() again() end,
+                function(msg) modal(" <RGB:1,0.75,0.3> " .. text("offFailed", msg) .. " <RGB:1,1,1> ", false, function() end) end)
+        end },
+    })
+end
+
 --- Before a save loads: what changed since its last session is shown first (load, play on a
 --- copy, or go back), and the save is backed up first when it is not backed up as it is.
 --- Returns true when it can load now.
 function Link.loadGate(world, saveInfo)
     if Link.isPassed(world) then return true end
+    local activeMods = saveInfo and saveInfo.activeMods
+    -- A save keeps its own mod list: mods switched off in the profile still load with it. Said
+    -- first, with the choice to take them out of the save (backed up) or load it as it is.
+    if Link.offKept ~= world then
+        local off = Link.offInProfile(activeMods, Link.read())
+        if #off > 0 then
+            Link.showOff(world, off)
+            return false
+        end
+    end
     local saves = Link.readSaves()
     if not saves then return true end
     local save = saves[Link.saveId(world)]
-    local activeMods = saveInfo and saveInfo.activeMods
     local changes = Link.sessionChanges(save, activeMods)
     local why = Link.backupWhy(save, activeMods)
     if not changes and not why then return true end

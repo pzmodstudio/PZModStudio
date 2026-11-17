@@ -90,6 +90,19 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
   // Seen ones go after the new ones, but only as the page loads: re-sorting on each mark moved the
   // next card under the pointer, and a second click marked it too.
   const seenAtLoad = useMemo(() => readSeen(), [data]);
+  /** Workshop id -> its picture, for the cards. */
+  const [pictures, setPictures] = useState<Map<string, string>>(new Map());
+  const pictureKey = (data?.items ?? []).filter((i) => !i.local).map((i) => i.workshop_id).sort().join(',');
+  useEffect(() => {
+    if (!pictureKey) return;
+    let cancelled = false;
+    TauriService.workshopDetails(pictureKey.split(','))
+      .then((found) => !cancelled && setPictures(new Map(found.filter((f) => f.preview_url).map((f) => [f.workshop_id, f.preview_url!]))))
+      .catch(() => undefined); // offline: the cards go without pictures
+    return () => {
+      cancelled = true;
+    };
+  }, [pictureKey]);
   const items = (data?.items ?? []).filter((i) => !onlyActive || i.active).map((item, n) => ({ item, n })).sort((a, b) => Number(seenAtLoad.has(updateKey(a.item))) - Number(seenAtLoad.has(updateKey(b.item))) || a.n - b.n).map((x) => x.item);
   const unseen = items.filter((i) => !isSeen(i));
   const unread = items.filter((i) => i.notes_error === 'later' || i.notes_error === 'busy').length;
@@ -117,11 +130,10 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><Newspaper className="w-5 h-5 text-emerald-400" />{t('whatsNew.title')}</h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-3xl">{t('whatsNew.blurb')}</p>
-        </div>
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Newspaper className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
+        <h1 className="text-base font-bold text-slate-100">{t('whatsNew.title')}</h1>
+        <span className="flex-1 min-w-[260px] text-[11px] text-slate-400 leading-relaxed">{t('whatsNew.blurb')}</span>
         <button onClick={() => void load()} disabled={reading} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50 cursor-pointer" aria-label={t('whatsNew.refresh')}>
           <RefreshCw className={`w-3.5 h-3.5 ${reading ? 'animate-spin' : ''}`} />
         </button>
@@ -171,6 +183,13 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
           return (
             <div key={item.workshop_id} className={`rounded-lg border bg-slate-900/70 p-4 border-slate-800 ${isSeen(item) ? 'opacity-60' : ''}`}>
               <div className="flex items-start gap-3">
+                <div className="w-16 h-16 shrink-0 rounded-lg border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center">
+                  {pictures.get(item.workshop_id) ? (
+                    <img src={pictures.get(item.workshop_id)} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  ) : (
+                    <Newspaper className="w-6 h-6 text-slate-600" aria-hidden="true" />
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-slate-100">{item.title}</div>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
@@ -227,19 +246,22 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
                 </div>
               )}
               <div className="mt-3 space-y-2">
-                {item.notes.map((n) => (
+                {item.notes.filter((n) => n.text.trim()).map((n) => (
                   <div key={n.at} className="border-l-2 border-slate-700 pl-3">
                     <div className="text-[10px] text-slate-500">{when(n.at)}</div>
-                    <div className="text-xs text-slate-300 whitespace-pre-wrap break-words line-clamp-6">{n.text || t('whatsNew.noText')}</div>
+                    <NoteText text={n.text} />
                   </div>
                 ))}
+                {item.notes.length > 0 && item.notes.every((n) => !n.text.trim()) && (
+                  <div className="text-[11px] text-slate-500">{t('whatsNew.noNotes')}</div>
+                )}
                 {item.changelog.length > 0 && (
                   <div className="space-y-1.5">
                     <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{t('whatsNew.ownChangelog', { file: item.changelog_file ?? '' })}</div>
                     {item.changelog.map((e, k) => (
                       <div key={`${e.title}-${k}`} className="border-l-2 border-sky-800/70 pl-3">
                         {e.title && <div className="text-[10px] text-sky-300/80">{e.title}</div>}
-                        <div className="text-xs text-slate-300 whitespace-pre-wrap break-words line-clamp-6">{e.text || t('whatsNew.noText')}</div>
+                        {e.text ? <NoteText text={e.text} /> : <div className="text-xs text-slate-500">{t('whatsNew.noText')}</div>}
                       </div>
                     ))}
                   </div>
@@ -261,6 +283,23 @@ export const WhatsNewModule: React.FC<WhatsNewModuleProps> = ({ paths }) => {
           );
         })}
       </div>
+    </div>
+  );
+};
+
+/** A change note: six lines, and the rest a click away when there is more. */
+const NoteText: React.FC<{ text: string }> = ({ text }) => {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const long = text.length > 420 || text.split('\n').length > 6;
+  return (
+    <div>
+      <div className={`text-xs text-slate-300 whitespace-pre-wrap break-words ${open ? '' : 'line-clamp-6'}`}>{text}</div>
+      {long && (
+        <button type="button" onClick={() => setOpen((o) => !o)} className="mt-0.5 text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer">
+          {open ? t('whatsNew.less') : t('whatsNew.more')}
+        </button>
+      )}
     </div>
   );
 };

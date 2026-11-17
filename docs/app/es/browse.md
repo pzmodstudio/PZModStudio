@@ -27,11 +27,13 @@ Las descargas de Nexus se hacen en el sitio de Nexus. En la vista de detalle de 
 
 ## Mis mods
 
-Todo lo que tenés instalado: suscripciones del Workshop, mods de Nexus y mods locales. Filtrá por nombre o id, elegí un **Origen**, ordená por **Actualizados hace poco** o **Nombre**, elegí una categoría, y usá las etiquetas **Nuevos desde la última partida** y **Actualización pendiente en Steam** para ver solo esos. Clic derecho en un mod del Workshop para **Desuscribirse**.
+Todo lo que tenés instalado: suscripciones del Workshop, mods de Nexus y mods locales. Filtrá por nombre o id, elegí un **Origen**, ordená por **Actualizados hace poco** o **Nombre**, elegí una categoría, y usá las etiquetas **Nuevos desde la última partida** y **Actualización pendiente en Steam** para ver solo esos. Cada tarjeta dice en qué perfiles está el mod (el activo primero, en verde; **+N** si está en más, con los nombres al pasar el mouse) o **Sin perfil**, y el filtro **Todos los perfiles** muestra solo los de un perfil o los que no están en ninguno. Clic derecho en un mod del Workshop para **Desuscribirse**. Mientras Steam manda las imágenes y los datos de tus ítems (unos segundos), la pestaña lo dice en vez de mostrar tarjetas vacías.
 
 ## La vista de detalle
 
-Hacer clic en una tarjeta abre una vista grande con imágenes, la descripción, información y requisitos. **Volver** regresa a la anterior, y Esc o la X la cierran.
+Hacer clic en una tarjeta abre una vista grande. Arriba, el título, el autor, la estrella de **Favoritos** y **Apoyar al autor** con los enlaces que dejó para eso, cuando los hay. Debajo, dos pestañas: **Página** (imágenes, videos y la descripción) y **Comentarios** (lo que dice la gente en su página del Workshop, los más nuevos primero, con **Cargar más**). A la derecha, los botones, la información y los requisitos. **Volver** regresa a la anterior, y Esc o la X la cierran.
+
+- **Ver en la Lista de mods**: en un mod que ya tenés instalado, abre la Lista de mods con ese mod elegido (para prenderlo o apagarlo, moverlo, o ver tu nota y lo que encontró Diagnóstico).
 
 - **Suscribirse** / **Desuscribirse**: se hace a través del cliente de Steam, así que Steam tiene que estar abierto. Steam descarga los archivos; el mod aparece en tu Lista de mods cuando termina. Sin Steam no hay botón para suscribirse, y **Abrir página del Workshop** dice **Abrir la página para suscribirse**.
 - **Ítems requeridos**: lo que el mod necesita del Workshop, marcado **Instalado** o **Falta**. Hacé clic en uno para abrirlo.
@@ -39,7 +41,6 @@ Hacer clic en una tarjeta abre una vista grande con imágenes, la descripción, 
 - La estrella del encabezado lo agrega a tus **Favoritos**.
 - **Traducir al ...** pone la descripción en el idioma de la app; **Ver original** vuelve a ella. El texto va a un servicio de traducción solo cuando lo apretás.
 - Un video entre las imágenes se reproduce en la vista. Si su autor no lo permite, **Ver en YouTube (navegador)** lo abre.
-- **Apoyar al autor** muestra los enlaces que dejó el autor para eso, cuando los hay.
 
 En una colección tenés **Suscribirse a los N que faltan** (o **Desuscribirse de todo** cuando ya los tenés todos), **Crear un perfil con esto** (un perfil con los mods de la colección que tenés instalados) y la lista de lo que te falta.
 

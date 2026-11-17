@@ -293,11 +293,11 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><Archive className="w-5 h-5 text-emerald-400" />{t('saves.title')}</h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-3xl">{t('saves.blurb', { keep: overview?.keep_automatic ?? 5 })}</p>
-        </div>
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Archive className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
+        <h1 className="text-base font-bold text-slate-100">{t('saves.title')}</h1>
+        {overview && <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-slate-700 text-slate-300">{t('saves.count', { count: allSaves.length })}</span>}
+        <p className="flex-1 min-w-[260px] text-[11px] text-slate-400 leading-relaxed">{t('saves.blurb', { keep: overview?.keep_automatic ?? 5 })}</p>
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => void TauriService.openBackupsFolder(paths)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer">
             <FolderOpen className="w-3.5 h-3.5" />{t('saves.openFolder')}
@@ -308,8 +308,16 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
         </div>
       </div>
 
+      {/* Until the first answer: say it is reading, not "0 B" and "could not read". */}
+      {!overview && (
+        <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 flex items-center gap-3 text-xs text-slate-300">
+          <Loader2 className="w-4 h-4 animate-spin text-slate-400 shrink-0" aria-hidden="true" />
+          {t('saves.reading')}
+        </div>
+      )}
+
       {/* The room on the disk, always in view. */}
-      <div className={`rounded-lg border px-4 py-3 flex items-center gap-3 text-xs ${lowSpace ? 'border-amber-600/60 bg-amber-950/30 text-amber-200' : 'border-slate-800 bg-slate-900/60 text-slate-300'}`}>
+      {overview && <div className={`rounded-lg border px-4 py-3 flex items-center gap-3 text-xs ${lowSpace ? 'border-amber-600/60 bg-amber-950/30 text-amber-200' : 'border-slate-800 bg-slate-900/60 text-slate-300'}`}>
         <HardDrive className="w-4 h-4 shrink-0" />
         <div className="flex-1 min-w-0">
           {free !== null
@@ -318,7 +326,7 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
           {lowSpace && <div className="mt-0.5 font-semibold">{t('saves.lowSpace', { size: formatBytes(biggest) })}</div>}
           <div className="text-[10px] text-slate-500 font-mono truncate mt-0.5" title={overview?.backup_dir}>{overview?.backup_dir}</div>
         </div>
-      </div>
+      </div>}
 
       {/* The bin: removed saves wait here; emptying it is the only thing that deletes a save. */}
       {removed.length > 0 && (
@@ -418,7 +426,13 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
       )}
 
       {overview && allSaves.length === 0 && (
-        <div className="p-8 text-center text-slate-500 text-xs">{t('saves.empty')}</div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-8 flex flex-col items-center gap-3 text-center">
+          <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center">
+            <Archive className="w-6 h-6 text-slate-500" aria-hidden="true" />
+          </div>
+          <div className="text-sm font-bold text-slate-200">{t('saves.noSaves')}</div>
+          <p className="max-w-lg text-xs text-slate-400 leading-relaxed">{t('saves.noSavesBody')}</p>
+        </div>
       )}
       {allSaves.length > 0 && shownSaves.length === 0 && activeProfile && (
         <div className="p-8 text-center text-slate-500 text-xs">{t('saves.noneForProfile', { name: activeProfile.name })}</div>
