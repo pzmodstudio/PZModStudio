@@ -1,8 +1,23 @@
 {
- "latest": "1.8.7",
- "count": 33,
- "built": "2026-11-16",
+ "latest": "1.9.0",
+ "count": 34,
+ "built": "2026-11-17",
  "releases": [
+  {
+   "version": "1.9.0",
+   "date": "2026-11-17",
+   "notes": [
+    "Diagnostics replaces Mod Health: your mods, the game and the server",
+    "Diagnostics: the Doctor on its front page, one step at a time",
+    "Diagnostics: what the game and your server use while they run",
+    "Mod List: the side panel in tabs, with the Workshop page and comments",
+    "Mod List: your notes readable on each row, fewer tags",
+    "Explore Mods: Page and Comments tabs, and which profile holds each mod",
+    "Profiles: a guided window to make a new profile",
+    "Monitor: a mod's Lua errors said in plain words, with file and line",
+    "Every screen: one tidy header and tabs side by side"
+   ]
+  },
   {
    "version": "1.8.7",
    "date": "2026-11-16",
@@ -120,21 +135,6 @@
    "date": "2026-10-29",
    "notes": [
     "Developer: Workshop publishing says when Steam has finished"
-   ]
-  },
-  {
-   "version": "1.7.12",
-   "date": "2026-10-29",
-   "notes": [
-    "Developer: a header with the mod being worked on, and a tab per tool",
-    "Developer picker: mods grouped by where they come from, no \"yours\"",
-    "Translation drafts: each language by name, missing and complete apart",
-    "Developer: the file check's verdict right under the picker, scrolled to",
-    "Publish: not other people's mods, and items can be taken off the list",
-    "Developer: publish a mod to the Steam Workshop from the Studio",
-    "Compatible copy: Build 41 recipes written as Build 42 craftRecipe blocks",
-    "Developer: a mod's Lua checked against the installed build",
-    "And 30 smaller fixes"
    ]
   }
  ]
