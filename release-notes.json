@@ -1,4 +1,10 @@
 {
+ "1.12.0": [
+  "Saves: mods you switched on in the profile can be added to a save, when it loads or from Saves",
+  "Simple Home: says when your last game went badly, and why",
+  "Link 1.21.0: offers the profile's new mods when a save loads; all seven translations installed",
+  "A new website"
+ ],
  "1.11.1": [
   "Servers: one button copies the Java mod loader's files into the dedicated server's folder"
  ],
