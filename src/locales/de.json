@@ -379,7 +379,8 @@
       "movedOldLeft": "Nach {{folder}} verschoben, aber der alte Ordner ließ sich nicht ganz entfernen: {{why}}",
       "drive": "{{disk}} hat {{free}} frei; das Studio lässt immer {{reserve}} (15 % des Laufwerks) frei.",
       "limited": "Begrenzt durch freien Platz auf {{disk}}: vorerst bis zu {{cap}} ({{free}} frei; das Studio lässt immer {{reserve}}, 15 % des Laufwerks, frei). Schaff etwas Platz oder wähle einen Ordner auf einem anderen Laufwerk.",
-      "limitedRound": "Die letzte Runde war durch freien Platz auf {{disk}} begrenzt."
+      "limitedRound": "Die letzte Runde war durch freien Platz auf {{disk}} begrenzt.",
+      "notDecided": "Aus, bis du die Frage oben im Fenster beantwortest: noch wird nichts aufbewahrt."
     }
   },
   "profiles": {
@@ -5357,5 +5358,13 @@
     },
     "doctorTitle": "Stimmt etwas nicht?",
     "doctorChatTitle": "Frag zu deinen Mods"
+  },
+  "keptOffer": {
+    "title": "Frühere Versionen deiner Mods aufbewahren?",
+    "body": "Steam behält nur die neueste Version einer Workshop-Mod. Das Studio kann die Version aufbewahren, mit der du spielst, damit sich ein Update, das deinen Spielstand kaputt macht, rückgängig machen lässt. Das würde etwa {{size}} auf {{disk}} belegen ({{free}} frei), nie mehr als {{cap}}.",
+    "yes": "Ja, auf {{disk}}",
+    "elsewhere": "Ja, in einem anderen Ordner…",
+    "no": "Nein, danke",
+    "noTitle": "Du kannst es später in den Einstellungen unter App einschalten."
   }
 }

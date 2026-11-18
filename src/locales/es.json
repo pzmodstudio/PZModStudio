@@ -379,7 +379,8 @@
       "movedOldLeft": "Movidas a {{folder}}, pero la carpeta vieja no se pudo borrar del todo: {{why}}",
       "drive": "{{disk}} tiene {{free}} libres; el Studio siempre deja {{reserve}} (el 15% del disco) libres.",
       "limited": "Limitado por el espacio libre en {{disk}}: hasta {{cap}} por ahora ({{free}} libres; el Studio siempre deja {{reserve}}, el 15% del disco, libres). Liberá espacio o elegí una carpeta en otro disco.",
-      "limitedRound": "La última pasada quedó limitada por el espacio libre en {{disk}}."
+      "limitedRound": "La última pasada quedó limitada por el espacio libre en {{disk}}.",
+      "notDecided": "Apagado hasta que respondas la pregunta de arriba de la ventana: todavía no se guarda nada."
     }
   },
   "profiles": {
@@ -5357,5 +5358,13 @@
     },
     "doctorTitle": "¿Algo anda mal?",
     "doctorChatTitle": "Preguntá sobre tus mods"
+  },
+  "keptOffer": {
+    "title": "¿Guardar las versiones anteriores de tus mods?",
+    "body": "Steam guarda solo la versión más nueva de un mod del Workshop. El Studio puede guardar la versión con la que jugás, así una actualización que rompe tu partida se deshace. Ocuparía unos {{size}} en {{disk}} ({{free}} libres), nunca más de {{cap}}.",
+    "yes": "Sí, en {{disk}}",
+    "elsewhere": "Sí, en otra carpeta…",
+    "no": "No, gracias",
+    "noTitle": "Lo podés prender después en Configuración, La app."
   }
 }

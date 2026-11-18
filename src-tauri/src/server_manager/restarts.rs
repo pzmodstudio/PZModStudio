@@ -45,7 +45,7 @@ pub struct Schedule {
     /// Restart (with the warnings) when a Workshop item of its WorkshopItems= is updated.
     pub on_mod_update: bool,
     pub mod_check_minutes: u32,
-    /// The language of the in-game messages: "en" or "es".
+    /// The language of the in-game messages: one of the app's seven (server_texts::LANGUAGES).
     pub language: String,
 }
 
@@ -81,9 +81,7 @@ impl Schedule {
         self.crash_limit = self.crash_limit.clamp(1, 20);
         self.crash_window_minutes = self.crash_window_minutes.clamp(1, 240);
         self.mod_check_minutes = self.mod_check_minutes.clamp(5, 24 * 60);
-        if self.language != "es" {
-            self.language = "en".into();
-        }
+        self.language = crate::server_texts::language(&self.language).to_string();
         self
     }
 
@@ -183,25 +181,18 @@ impl Pending {
     }
 }
 
-/// What the in-game messages say.
+/// What the in-game messages say, in the schedule's language (server_texts).
 pub fn game_message(lang: &str, what: &str, minutes: u32, reason: &str) -> String {
-    let es = lang == "es";
-    let why = match (reason, es) {
-        ("mod_update", false) => " (a mod was updated)",
-        ("mod_update", true) => " (se actualizó un mod)",
-        ("schedule", false) => " (scheduled)",
-        ("schedule", true) => " (programado)",
-        _ => "",
+    let why = match reason {
+        "mod_update" => crate::server_texts::text(lang, "game.why_mod_update", &[]),
+        "schedule" => crate::server_texts::text(lang, "game.why_schedule", &[]),
+        _ => String::new(),
     };
-    match (what, es) {
-        ("warn", false) if minutes == 1 => format!("Server restart in 1 minute{}. Find a safe place.", why),
-        ("warn", false) => format!("Server restart in {} minutes{}.", minutes, why),
-        ("warn", true) if minutes == 1 => format!("Reinicio del servidor en 1 minuto{}. Buscá un lugar seguro.", why),
-        ("warn", true) => format!("Reinicio del servidor en {} minutos{}.", minutes, why),
-        ("now", false) => "Server restarting now: the world is being saved. Back in a few minutes.".into(),
-        ("now", true) => "El servidor se reinicia ahora: se guarda el mundo. Volvé en unos minutos.".into(),
-        ("cancel", false) => "The server restart was called off.".into(),
-        (_, true) => "Se canceló el reinicio del servidor.".into(),
+    match what {
+        "warn" if minutes == 1 => crate::server_texts::text(lang, "game.warn_one", &[&why]),
+        "warn" => crate::server_texts::text(lang, "game.warn", &[&minutes.to_string(), &why]),
+        "now" => crate::server_texts::text(lang, "game.now", &[]),
+        "cancel" => crate::server_texts::text(lang, "game.cancel", &[]),
         _ => String::new(),
     }
 }
@@ -705,7 +696,7 @@ mod tests {
 
     #[test]
     fn a_schedule_is_kept_within_its_limits() {
-        let s = Schedule { times: vec!["6:00".into(), "25:00".into(), "06:00".into(), "x".into(), "23:59".into()], warn_minutes: vec![1, 30, 0, 500, 5, 30], crash_limit: 0, mod_check_minutes: 1, language: "fr".into(), ..Default::default() }.cleaned();
+        let s = Schedule { times: vec!["6:00".into(), "25:00".into(), "06:00".into(), "x".into(), "23:59".into()], warn_minutes: vec![1, 30, 0, 500, 5, 30], crash_limit: 0, mod_check_minutes: 1, language: "ja".into(), ..Default::default() }.cleaned();
         assert_eq!(s.times, ["06:00", "23:59"]);
         assert_eq!(s.warn_minutes, [30, 5, 1]);
         assert_eq!((s.crash_limit, s.mod_check_minutes, s.language.as_str()), (1, 5, "en"));
@@ -759,7 +750,7 @@ mod tests {
         assert_eq!(game_message("en", "warn", 30, "schedule"), "Server restart in 30 minutes (scheduled).");
         assert_eq!(game_message("es", "warn", 1, "mod_update"), "Reinicio del servidor en 1 minuto (se actualizó un mod). Buscá un lugar seguro.");
         for (what, m) in [("warn", 5), ("now", 0), ("cancel", 0)] {
-            for lang in ["en", "es"] {
+            for lang in crate::server_texts::LANGUAGES {
                 let text = game_message(lang, what, m, "manual");
                 assert!(!text.is_empty() && crate::discord_commands::servermsg_text(&text).as_deref() == Some(text.as_str()), "{}", text);
             }

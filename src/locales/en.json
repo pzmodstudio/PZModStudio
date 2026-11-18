@@ -379,7 +379,8 @@
       "movedOldLeft": "Moved to {{folder}}, but the old folder could not be removed completely: {{why}}",
       "drive": "{{disk}} has {{free}} free; the Studio always leaves {{reserve}} (15% of the drive) free.",
       "limited": "Limited by free space on {{disk}}: up to {{cap}} for now ({{free}} free; the Studio always leaves {{reserve}}, 15% of the drive, free). Free some space or choose a folder on another drive.",
-      "limitedRound": "The last round was limited by free space on {{disk}}."
+      "limitedRound": "The last round was limited by free space on {{disk}}.",
+      "notDecided": "Off until you answer the question at the top of the window: nothing is kept yet."
     }
   },
   "profiles": {
@@ -5357,5 +5358,13 @@
     },
     "doctorTitle": "Something wrong?",
     "doctorChatTitle": "Ask about your mods"
+  },
+  "keptOffer": {
+    "title": "Keep earlier versions of your mods?",
+    "body": "Steam keeps only the newest version of a Workshop mod. The Studio can keep the version you play with, so an update that breaks your save can be undone. It would use about {{size}} on {{disk}} ({{free}} free), never more than {{cap}}.",
+    "yes": "Yes, on {{disk}}",
+    "elsewhere": "Yes, in another folder…",
+    "no": "No, thanks",
+    "noTitle": "You can switch it on later in Settings, The app."
   }
 }

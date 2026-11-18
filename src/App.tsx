@@ -43,6 +43,7 @@ import { mergeLinks } from './components/common/SupportLinks';
 import { ContextMenuProvider } from './components/common/ContextMenu';
 import { SimpleHome } from './components/home/SimpleHome';
 import { SimpleOffer } from './components/layout/SimpleOffer';
+import { KeptVersionsOffer } from './components/layout/KeptVersionsOffer';
 import { useUiMode } from './hooks/useUiMode';
 import { readUiMode, tabAfterSwitch } from './utils/uiMode';
 
@@ -1343,6 +1344,8 @@ export const App: React.FC = () => {
       {!isInitializing && <UpdateNotice userZomboidDir={paths.user_zomboid_dir} />}
       {/* Once, for a player who used the Studio before Simple existed: try it? */}
       {!isInitializing && !welcomeOpen && <SimpleOffer />}
+      {/* Once, on a PC that has not decided: keep earlier versions of the mods, and where? */}
+      {!isInitializing && !welcomeOpen && <KeptVersionsOffer paths={paths} />}
       {/* The help of the screen in front: "?" in the corner, or F1. */}
       <HelpButton tab={activeTab} />
       <WelcomeTour

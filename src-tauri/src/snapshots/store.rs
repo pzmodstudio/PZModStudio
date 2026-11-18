@@ -247,6 +247,11 @@ impl Store {
             .unwrap_or_default()
     }
 
+    /// The player saved settings (Settings, the first-time question, or an agent).
+    pub fn has_settings(&self) -> bool {
+        self.root.join(SETTINGS_FILE).is_file()
+    }
+
     pub fn set_settings(&self, settings: &StoreSettings) -> Result<(), String> {
         fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
         let text = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;

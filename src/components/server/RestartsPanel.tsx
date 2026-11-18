@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
+import { currentLanguageCode } from '../../i18n';
 import { AlertTriangle, Check, Clock, Loader2, Plus, RotateCw, X } from 'lucide-react';
 import { RestartSchedule, RestartView, StudioPathsUI } from '../../types';
 import { TauriService, explainError } from '../../services/tauri';
@@ -53,7 +54,7 @@ export const RestartsPanel: React.FC<{ paths: StudioPathsUI; server: string }> =
   const save = async () => {
     setBusy(true);
     try {
-      const s = await TauriService.serverScheduleSave(paths, server, { ...draft, language: i18next.language.startsWith('es') ? 'es' : 'en' });
+      const s = await TauriService.serverScheduleSave(paths, server, { ...draft, language: currentLanguageCode() });
       setDraft(s);
       setNote({ ok: true, text: t('servers.restarts.saved') });
       await load();

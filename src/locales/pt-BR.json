@@ -384,7 +384,8 @@
       "movedOldLeft": "Movido para {{folder}}, mas a pasta antiga não pôde ser removida por completo: {{why}}",
       "drive": "{{disk}} tem {{free}} livres; o Studio sempre deixa {{reserve}} (15% do disco) livres.",
       "limited": "Limitado pelo espaço livre em {{disk}}: até {{cap}} por enquanto ({{free}} livres; o Studio sempre deixa {{reserve}}, 15% do disco, livres). Libere espaço ou escolha uma pasta em outro disco.",
-      "limitedRound": "A última rodada foi limitada pelo espaço livre em {{disk}}."
+      "limitedRound": "A última rodada foi limitada pelo espaço livre em {{disk}}.",
+      "notDecided": "Desligado até você responder a pergunta no topo da janela: nada é guardado ainda."
     }
   },
   "profiles": {
@@ -5512,5 +5513,13 @@
     },
     "doctorTitle": "Algo errado?",
     "doctorChatTitle": "Pergunte sobre seus mods"
+  },
+  "keptOffer": {
+    "title": "Guardar as versões anteriores dos seus mods?",
+    "body": "A Steam guarda só a versão mais nova de um mod da Oficina. O Studio pode guardar a versão com que você joga, assim uma atualização que quebra seu save pode ser desfeita. Usaria cerca de {{size}} em {{disk}} ({{free}} livres), nunca mais de {{cap}}.",
+    "yes": "Sim, em {{disk}}",
+    "elsewhere": "Sim, em outra pasta…",
+    "no": "Não, obrigado",
+    "noTitle": "Dá para ligar depois em Configurações, O app."
   }
 }

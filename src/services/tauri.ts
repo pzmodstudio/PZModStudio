@@ -1195,6 +1195,15 @@ export const TauriService = {
     }
   },
 
+  /** About how much the first round would keep, in bytes (0 when it cannot tell). */
+  keptVersionsEstimate: async (paths: StudioPathsUI): Promise<number> => {
+    try {
+      return await invoke<number>('kept_versions_estimate_cmd', { paths });
+    } catch {
+      return 0;
+    }
+  },
+
   setKeptVersionsSettings: async (paths: StudioPathsUI, enabled: boolean, capBytes: number): Promise<KeptVersionsSummary> => {
     try {
       return await invoke<KeptVersionsSummary>('set_kept_versions_settings_cmd', { paths, enabled, capBytes });

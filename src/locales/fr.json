@@ -384,7 +384,8 @@
       "movedOldLeft": "Déplacées vers {{folder}}, mais l'ancien dossier n'a pas pu être entièrement supprimé : {{why}}",
       "drive": "{{disk}} a {{free}} de libre ; le Studio laisse toujours {{reserve}} (15 % du disque) de libre.",
       "limited": "Limité par l'espace libre sur {{disk}} : jusqu'à {{cap}} pour l'instant ({{free}} de libre ; le Studio laisse toujours {{reserve}}, 15 % du disque, de libre). Libérez de l'espace ou choisissez un dossier sur un autre disque.",
-      "limitedRound": "La dernière passe a été limitée par l'espace libre sur {{disk}}."
+      "limitedRound": "La dernière passe a été limitée par l'espace libre sur {{disk}}.",
+      "notDecided": "Désactivé tant que vous n'avez pas répondu à la question en haut de la fenêtre : rien n'est encore gardé."
     }
   },
   "profiles": {
@@ -5512,5 +5513,13 @@
     },
     "doctorTitle": "Un souci ?",
     "doctorChatTitle": "Questions sur vos mods"
+  },
+  "keptOffer": {
+    "title": "Garder les versions précédentes de vos mods ?",
+    "body": "Steam ne garde que la version la plus récente d'un mod du Workshop. Le Studio peut garder la version avec laquelle vous jouez, pour annuler une mise à jour qui casse votre sauvegarde. Cela prendrait environ {{size}} sur {{disk}} ({{free}} libres), jamais plus de {{cap}}.",
+    "yes": "Oui, sur {{disk}}",
+    "elsewhere": "Oui, dans un autre dossier…",
+    "no": "Non merci",
+    "noTitle": "Vous pourrez l'activer plus tard dans Paramètres, L'app."
   }
 }

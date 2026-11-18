@@ -31,7 +31,9 @@ export const KeptVersionsCard: React.FC<{ paths: StudioPathsUI }> = ({ paths }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paths.user_zomboid_dir, changeRev]);
 
-  const enabled = summary?.settings.enabled ?? true;
+  // Off until the player decided (the first-time question): nothing is kept before.
+  const decided = summary?.decided ?? true;
+  const enabled = decided && (summary?.settings.enabled ?? true);
   const cap = summary?.settings.cap_bytes ?? DEFAULT_CAP;
   const status = summary?.status;
   const guard = summary?.guard;
@@ -153,7 +155,7 @@ export const KeptVersionsCard: React.FC<{ paths: StudioPathsUI }> = ({ paths }) 
             {status.errors.length > 0 && <div className="text-amber-300/90">{status.errors[0]}</div>}
           </div>
         ) : (
-          enabled && <div className="text-[11px] text-slate-500">{t('settings.keptVersions.notYet')}</div>
+          enabled ? <div className="text-[11px] text-slate-500">{t('settings.keptVersions.notYet')}</div> : !decided && <div className="text-[11px] text-slate-500">{t('settings.keptVersions.notDecided')}</div>
         )}
       </div>
       <button

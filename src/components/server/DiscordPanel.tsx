@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
-import i18next from 'i18next';
+import { currentLanguageCode } from '../../i18n';
 import { Check, Loader2, Send, Terminal, Trash2 } from 'lucide-react';
 import { DiscordCommandsStatus, DiscordSettings, StudioPathsUI } from '../../types';
 import { TauriService } from '../../services/tauri';
@@ -59,7 +59,7 @@ export const DiscordPanel: React.FC<{ paths: StudioPathsUI; server: string; file
   const save = async (next: DiscordSettings, newWebhook?: string) => {
     setBusy(true);
     try {
-      const v = await TauriService.discordSave(paths, server, { ...next, language: i18next.language.startsWith('es') ? 'es' : 'en' }, newWebhook);
+      const v = await TauriService.discordSave(paths, server, { ...next, language: currentLanguageCode() }, newWebhook);
       setSettings(v.settings);
       setHasWebhook(v.has_webhook);
       if (newWebhook !== undefined) setWebhook('');

@@ -379,7 +379,8 @@
       "movedOldLeft": "已移到 {{folder}}，但旧文件夹没能完全删除：{{why}}",
       "drive": "{{disk}} 有 {{free}} 可用；Studio 总会留出 {{reserve}}（磁盘的 15%）空闲。",
       "limited": "受 {{disk}} 可用空间限制：目前最多 {{cap}}（可用 {{free}}；Studio 总会留出 {{reserve}}，即磁盘的 15%）。请释放一些空间，或选择其他磁盘上的文件夹。",
-      "limitedRound": "上一轮受到了 {{disk}} 可用空间的限制。"
+      "limitedRound": "上一轮受到了 {{disk}} 可用空间的限制。",
+      "notDecided": "在你回答窗口顶部的问题之前保持关闭：目前还没有保存任何内容。"
     }
   },
   "profiles": {
@@ -5357,5 +5358,13 @@
     },
     "doctorTitle": "出问题了？",
     "doctorChatTitle": "询问你的模组"
+  },
+  "keptOffer": {
+    "title": "保留模组的旧版本吗？",
+    "body": "Steam 只保留创意工坊模组的最新版本。Studio 可以保留你正在玩的版本，这样一次弄坏存档的更新就能撤销。大约占用 {{disk}} 上的 {{size}}（剩余 {{free}}），最多不超过 {{cap}}。",
+    "yes": "是，存到 {{disk}}",
+    "elsewhere": "是，存到其他文件夹…",
+    "no": "不用了",
+    "noTitle": "之后可以在“设置”的“应用”中开启。"
   }
 }

@@ -1,4 +1,8 @@
 {
+ "1.12.1": [
+  "Servers: restart warnings and Discord messages in all seven languages",
+  "Earlier versions of mods: on a new PC the app asks first, with the size and the drive"
+ ],
  "1.12.0": [
   "Saves: mods you switched on in the profile can be added to a save, when it loads or from Saves",
   "Simple Home: says when your last game went badly, and why",

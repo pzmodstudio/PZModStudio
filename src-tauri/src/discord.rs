@@ -53,7 +53,7 @@ pub struct DiscordSettings {
     pub restarts: bool,
     #[serde(default = "yes")]
     pub updates: bool,
-    /// "en" or "es": the language of the messages (the Studio's when they were saved).
+    /// The language of the messages, one of the app's seven (the Studio's when they were saved).
     #[serde(default)]
     pub language: String,
     /// One message that says the server's state, edited as it changes.
@@ -212,64 +212,32 @@ fn send(webhook: &str, text: &str, edit: Option<&str>) -> Result<String, String>
 
 // ------------------------------------------------------------------ the messages
 
-/// One message in the settings' language (English, or Spanish), with `{n}` filled in.
+/// One message in the settings' language (server_texts), with `{n}` filled in.
 pub fn say(language: &str, key: &str, args: &[&str]) -> String {
-    let es = language.starts_with("es");
-    let template = match (key, es) {
-        ("test", false) => "✅ PZ Mod Studio is connected: news of **{0}** will show here.",
-        ("test", true) => "✅ PZ Mod Studio está conectado: las novedades de **{0}** se van a ver acá.",
-        ("up", false) => "🟢 **{0}** is up.",
-        ("up", true) => "🟢 **{0}** está en línea.",
-        ("restarted", false) => "🔄 **{0}** restarted and is up again.",
-        ("restarted", true) => "🔄 **{0}** se reinició y está en línea de nuevo.",
-        ("stopping", false) => "🔴 **{0}** was stopped from PZ Mod Studio.",
-        ("stopping", true) => "🔴 **{0}** se detuvo desde PZ Mod Studio.",
-        ("crashed", false) => "⚠️ **{0}** stopped without being asked (a crash, or closed outside PZ Mod Studio).",
-        ("crashed", true) => "⚠️ **{0}** se detuvo sin que se lo pidieran (un cierre inesperado, o se cerró fuera de PZ Mod Studio).",
-        ("joined", false) => "➡️ {0} joined ({1} online).",
-        ("joined", true) => "➡️ Entró {0} ({1} en línea).",
-        ("left", false) => "⬅️ {0} left ({1} online).",
-        ("left", true) => "⬅️ Salió {0} ({1} en línea).",
-        ("updates", false) => "📦 {0} of **{1}**'s Workshop mods were updated since it started: {2}. Players who have the new version cannot join until it restarts.",
-        ("updates", true) => "📦 {0} mod(s) del Workshop de **{1}** se actualizaron desde que arrancó: {2}. Quien tenga la versión nueva no puede entrar hasta que se reinicie.",
-        _ => key,
-    };
-    let mut out = template.to_string();
-    for (i, a) in args.iter().enumerate() {
-        out = out.replace(&format!("{{{}}}", i), a);
-    }
-    out
+    crate::server_texts::text(language, &format!("discord.{}", key), args)
 }
 
 /// The status message: up (since when, who is in) or down (since when).
 pub fn status_text(language: &str, server: &str, up: bool, since: Option<u64>, players: &[String]) -> String {
-    let es = language.starts_with("es");
     let at = since
         .and_then(|t| chrono::DateTime::from_timestamp(t as i64, 0))
         .map(|d| d.with_timezone(&chrono::Local).format("%d/%m %H:%M").to_string())
         .unwrap_or_default();
+    let t = |key: &str, args: &[&str]| crate::server_texts::text(language, key, args);
     if up {
-        let who = if players.is_empty() {
-            if es { "nadie conectado".to_string() } else { "nobody on".to_string() }
-        } else if es {
-            format!("{} en línea: {}", players.len(), names(language, players))
-        } else {
-            format!("{} online: {}", players.len(), names(language, players))
-        };
-        if es { format!("🟢 **{}** en línea desde {} · {}", server, at, who) } else { format!("🟢 **{}** up since {} · {}", server, at, who) }
-    } else if es {
-        format!("🔴 **{}** apagado desde {}", server, at)
+        let who = if players.is_empty() { t("status.nobody", &[]) } else { t("status.online", &[&players.len().to_string(), &names(language, players)]) };
+        t("status.up", &[server, &at, &who])
     } else {
-        format!("🔴 **{}** down since {}", server, at)
+        t("status.down", &[server, &at])
     }
 }
 
-/// "Ana, Beto and Carl" (or "Ana, Beto y Carl"); more than five are counted.
+/// "Ana, Beto and Carl" (or "Ana, Beto y Carl"...); more than five are counted.
 pub fn names(language: &str, list: &[String]) -> String {
-    let and = if language.starts_with("es") { " y " } else { " and " };
+    let and = crate::server_texts::text(language, "names.and", &[]);
     let mut shown: Vec<String> = list.iter().take(5).cloned().collect();
     if list.len() > 5 {
-        shown.push(if language.starts_with("es") { format!("{} más", list.len() - 5) } else { format!("{} more", list.len() - 5) });
+        shown.push(crate::server_texts::text(language, "names.more", &[&(list.len() - 5).to_string()]));
     }
     match shown.len() {
         0 => String::new(),

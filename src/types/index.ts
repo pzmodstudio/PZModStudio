@@ -405,6 +405,8 @@ export interface KeptVersionsSummary {
   } | null;
   /** Being moved now. */
   moving: boolean;
+  /** The player decided (yes, no, a folder); until then nothing is kept. */
+  decided: boolean;
 }
 
 /** A move of the kept-versions store to another folder. */

@@ -423,6 +423,17 @@ pub struct StoreSummary {
     pub guard: Option<DriveGuard>,
     /// It is being moved now.
     pub moving: bool,
+    /// The player decided about keeping versions (saved settings, chose a folder, or rounds ran
+    /// before this question existed). Until then nothing is kept in the background.
+    #[serde(default)]
+    pub decided: bool,
+}
+
+/// Whether the player decided about the store: settings saved, a folder chosen, or a round ran
+/// (a PC that kept versions before the first-time question existed is not asked again).
+pub fn decided(zomboid: &Path) -> bool {
+    let store = Store::at(zomboid);
+    store.has_settings() || store.status().is_some() || place::chosen_root(zomboid).is_some()
 }
 
 pub fn summary(user_zomboid_dir: &str) -> Result<StoreSummary, String> {
@@ -439,7 +450,25 @@ pub fn summary(user_zomboid_dir: &str) -> Result<StoreSummary, String> {
         folder_chosen: place::chosen_root(&zomboid).is_some(),
         guard,
         moving: place::moving(&zomboid),
+        decided: decided(&zomboid),
     })
+}
+
+/// About how much the first round would keep: Steam's size of the Workshop items the profiles
+/// use (each file is kept once, so the store holds about this much, at most its cap).
+pub fn estimate_bytes(paths: &crate::vfs::StudioPaths) -> u64 {
+    let steam = store::read_steam_items(Path::new(&paths.workshop_dir));
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let (used, _) = used_ids(&paths.user_zomboid_dir, &paths.mod_list_ini_path);
+    let mut items = HashSet::new();
+    for m in &catalog.mods {
+        if let ModSource::Workshop { workshop_id } = &m.source {
+            if used.contains(&m.id) {
+                items.insert(workshop_id.clone());
+            }
+        }
+    }
+    items.iter().filter_map(|id| steam.get(id)).map(|s| s.size).sum()
 }
 
 /// Changes the settings; a lower cap applies on the next round (the app's every few minutes). A
@@ -660,7 +689,8 @@ pub fn watch_in_background() {
         loop {
             let paths = crate::vfs::studio_paths();
             let key = round_key(&paths);
-            let enabled = zomboid_dir(&paths.user_zomboid_dir).map(|z| Store::at(&z).settings().enabled).unwrap_or(false);
+            // Nothing is kept before the player answered the first-time question (or decided otherwise).
+            let enabled = zomboid_dir(&paths.user_zomboid_dir).map(|z| decided(&z) && Store::at(&z).settings().enabled).unwrap_or(false);
             if enabled && last.as_ref() != Some(&key) && crate::sandbox::find_running_pz_pid().is_none() {
                 match keep_round(&paths, false) {
                     Ok(s) => {
@@ -723,6 +753,18 @@ mod tests {
         };
         fs::write(dest.join(MANIFEST), serde_json::to_string(&kept).unwrap()).unwrap();
         dest.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn nothing_is_kept_before_the_player_decides() {
+        let (_t, _src, z) = setup("decide");
+        let zp = Path::new(&z);
+        assert!(!decided(zp), "a new PC has not decided");
+        assert!(!summary(&z).unwrap().decided);
+        // "No, thanks" is a decision too: settings saved with it off.
+        set_settings(&z, false, 10 << 30).unwrap();
+        assert!(decided(zp));
+        assert!(!summary(&z).unwrap().settings.enabled);
     }
 
     #[test]

@@ -9,6 +9,7 @@ pub mod devtools;
 pub mod diagnostics;
 pub mod diff_engine;
 pub mod discord;
+pub mod server_texts;
 pub mod discord_commands;
 pub mod disk_usage;
 pub mod error_report;
@@ -817,6 +818,12 @@ fn back_to_workshop_version_cmd(paths: StudioPaths, mod_id: String) -> Result<St
         return Err(format!("The kept version of {} stays: the server {} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.", mod_id, servers));
     }
     snapshots::back_to_workshop(&catalog, &paths.user_zomboid_dir, &mod_id)
+}
+
+/// About how much the first round would keep (Steam's size of the Workshop items the profiles use).
+#[tauri::command(async)]
+fn kept_versions_estimate_cmd(paths: StudioPaths) -> u64 {
+    snapshots::estimate_bytes(&paths)
 }
 
 /// The kept-versions store: its settings and what its last round found.
@@ -2633,6 +2640,7 @@ pub fn run() {
             delete_kept_version_cmd,
             back_to_workshop_version_cmd,
             kept_versions_summary_cmd,
+            kept_versions_estimate_cmd,
             set_kept_versions_settings_cmd,
             set_kept_versions_folder_cmd,
             kept_versions_round_cmd,

@@ -103,7 +103,7 @@ fn available_tools() -> Vec<McpTool> {
                 "type": "object",
                 "properties": {
                     "page": { "type": "string", "description": "Page name, e.g. \"mod-list\" (omit to list the pages)" },
-                    "language": { "type": "string", "description": "\"en\" (default) or \"es\"" }
+                    "language": { "type": "string", "description": "en (default), es, pt-BR, fr, de, ru or zh-CN" }
                 }
             }),
         },

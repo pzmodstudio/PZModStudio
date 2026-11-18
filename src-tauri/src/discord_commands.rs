@@ -101,51 +101,7 @@ impl Countdown {
 }
 
 fn say(language: &str, key: &str, args: &[&str]) -> String {
-    let es = language.starts_with("es");
-    let t = match (key, es) {
-        ("help", false) => "Commands: `!status`, `!players`, `!restart [minutes]` (1-60, default 5), `!restart cancel`, `!save`, `!msg <text>`.",
-        ("help", true) => "Comandos: `!estado`, `!jugadores`, `!reiniciar [minutos]` (1-60, 5 si no decís), `!reiniciar cancelar`, `!guardar`, `!mensaje <texto>`. También en inglés: `!status`, `!players`, `!restart`, `!save`, `!msg`.",
-        ("noRole", false) => "Only members with the role **{0}** can use these commands.",
-        ("noRole", true) => "Solo los miembros con el rol **{0}** pueden usar estos comandos.",
-        ("down", false) => "🔴 **{0}** is not running.",
-        ("down", true) => "🔴 **{0}** no está en línea.",
-        ("up", false) => "🟢 **{0}** is up, {1} player(s) online.",
-        ("up", true) => "🟢 **{0}** está en línea, {1} jugador(es) conectado(s).",
-        ("players", false) => "Online on **{0}**: {1}",
-        ("players", true) => "En línea en **{0}**: {1}",
-        ("nobody", false) => "Nobody is on **{0}**.",
-        ("nobody", true) => "No hay nadie en **{0}**.",
-        ("restartAsked", false) => "🔄 **{0}** restarts in {1} minute(s); players are warned in the game. `!restart cancel` stops it.",
-        ("restartAsked", true) => "🔄 **{0}** se reinicia en {1} minuto(s); los jugadores reciben el aviso en el juego. `!reiniciar cancelar` lo detiene.",
-        ("restartCancelled", false) => "The restart of **{0}** was cancelled.",
-        ("restartCancelled", true) => "Se canceló el reinicio de **{0}**.",
-        ("noRestart", false) => "No restart is waiting.",
-        ("noRestart", true) => "No hay ningún reinicio esperando.",
-        ("restartNow", false) => "🔄 Restarting **{0}** now.",
-        ("restartNow", true) => "🔄 Reiniciando **{0}** ahora.",
-        ("restartStarted", false) => "🟢 **{0}** saved, stopped and is starting again (players can join once it has loaded).",
-        ("restartStarted", true) => "🟢 **{0}** guardó, se detuvo y está arrancando de nuevo (se puede entrar cuando termine de cargar).",
-        ("restartFailed", false) => "⚠️ **{0}** could not be started again: {1}",
-        ("restartFailed", true) => "⚠️ **{0}** no se pudo volver a iniciar: {1}",
-        ("saved", false) => "💾 **{0}** saved the world.",
-        ("saved", true) => "💾 **{0}** guardó el mundo.",
-        ("sent", false) => "Said in the game.",
-        ("sent", true) => "Dicho en el juego.",
-        ("noRcon", false) => "⚠️ **{0}** has no RCON password, so the Studio cannot talk to it. Stop it and start it again from the Studio: it sets one.",
-        ("noRcon", true) => "⚠️ **{0}** no tiene contraseña RCON, así que el Studio no puede hablarle. Detenelo y volvé a iniciarlo desde el Studio: le pone una.",
-        ("failed", false) => "⚠️ It did not work: {0}",
-        ("failed", true) => "⚠️ No funcionó: {0}",
-        ("gameWarn", false) => "The server restarts in {0} minute(s).",
-        ("gameWarn", true) => "El servidor se reinicia en {0} minuto(s).",
-        ("gameCancel", false) => "The restart was cancelled.",
-        ("gameCancel", true) => "Se canceló el reinicio.",
-        _ => key,
-    };
-    let mut out = t.to_string();
-    for (i, a) in args.iter().enumerate() {
-        out = out.replace(&format!("{{{}}}", i), a);
-    }
-    out
+    crate::server_texts::text(language, &format!("cmd.{}", key), args)
 }
 
 // ------------------------------------------------------------------ Discord

@@ -1,8 +1,16 @@
 {
- "latest": "1.12.0",
- "count": 39,
+ "latest": "1.12.1",
+ "count": 40,
  "built": "2026-11-18",
  "releases": [
+  {
+   "version": "1.12.1",
+   "date": "2026-11-18",
+   "notes": [
+    "Servers: restart warnings and Discord messages in all seven languages",
+    "Earlier versions of mods: on a new PC the app asks first, with the size and the drive"
+   ]
+  },
   {
    "version": "1.12.0",
    "date": "2026-11-18",
@@ -147,17 +155,6 @@
     "Mod List: better filter for mods outside any profile",
     "Mod Health: hand-made copies of Workshop mods",
     "Short guides on Mod Health, the Merger and the Developer page"
-   ]
-  },
-  {
-   "version": "1.8.2",
-   "date": "2026-11-08",
-   "notes": [
-    "Servers: host one with Java mods",
-    "Servers: NoSteam servers get copies of Workshop mods instead of links",
-    "Lua error notice: can be hidden and no longer covers the speed buttons",
-    "Explore: read a mod's Workshop comments before installing it",
-    "Steam downloads bar: no longer stuck at 100%"
    ]
   }
  ]
