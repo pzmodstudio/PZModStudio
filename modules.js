@@ -63,7 +63,7 @@ const MODULES = [
         'What mods could do beyond modding, as hints and never a verdict: programs shipped, Java that starts processes, Lua that runs commands, reaches the network or reads outside its folder.'
       ]],
       ['The Studio’s index', [
-        'Load-order rules, incompatible pairs and known issues with their fix come inside each version of the app; nothing is downloaded and nothing is sent. What this PC learns from its own logs is added to them.'
+        'Known issues of a few mods, checked in the game, come inside each version of the app (a small list for now); nothing is downloaded and nothing is sent. What this PC learns from its own logs, session after session, is added to it.'
       ]]
     ]
   },

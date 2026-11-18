@@ -1,4 +1,8 @@
 {
+ "1.12.3": [
+  "Game time measuring: asks first, backs up the save and waits for the game to close",
+  "Texts that say what the app really does, on Windows and Linux"
+ ],
  "1.12.2": [
   "Link 1.21.1: a save with mods outside your profile gets a clear question, not a game error",
   "Servers: the player list shows only what the log says (no made-up ping or health)",
