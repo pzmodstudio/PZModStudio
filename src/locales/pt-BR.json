@@ -4459,7 +4459,8 @@
     "showAll": "Mostrar todos os {{count}}",
     "showFewer": "Mostrar menos",
     "waiting": "Ainda sem números: inicie o jogo (reinicie se estava rodando) e eles chegam a cada 5 segundos.",
-    "how": "O % é a parcela do tempo real que o Lua do mod levou (60 FPS deixa 16,7 ms por quadro): os handlers de eventos dele, e o render / prerender / update das janelas, barras e ações cronometradas dele (com nome Class:render). Cada um conta só o próprio tempo: um render de mod que chama o do jogo conta sem a parte do jogo. Uma chamada única longa é um engasgo que você vê como travada. O relógio do jogo conta milissegundos inteiros, então um handler curto é medido pela média de muitas chamadas; dê um ou dois minutos. Pare de medir quando terminar: o profiler adiciona um pouco de tempo próprio a cada handler."
+    "how": "O % é a parcela do tempo real que o Lua do mod levou (60 FPS deixa 16,7 ms por quadro): os handlers de eventos dele, e o render / prerender / update das janelas, barras e ações cronometradas dele (com nome Class:render). Cada um conta só o próprio tempo: um render de mod que chama o do jogo conta sem a parte do jogo. Uma chamada única longa é um engasgo que você vê como travada. O relógio do jogo conta milissegundos inteiros, então um handler curto é medido pela média de muitas chamadas; dê um ou dois minutos. Pare de medir quando terminar: o profiler adiciona um pouco de tempo próprio a cada handler.",
+    "confirmOn": "Medir adiciona um mod pequeno do Studio primeiro na sua lista e no último save que você jogou, para carregar com ele. Antes é feito um backup desse save, e o jogo precisa estar fechado. Ao desligar, ele sai de novo. Continuar?"
   },
   "bootTime": {
     "title": "Início do jogo",

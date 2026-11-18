@@ -49,38 +49,36 @@ if (fs.existsSync(mcpExeSrc)) {
   process.exitCode = 1;
 }
 
-const readmeContent = `=============================================================================
-  🧟 PROJECT ZOMBOID MOD STUDIO — PORTABLE EDITION (STANDALONE) 🧟
-=============================================================================
+const readmeContent = `PZ Mod Studio - portable for Windows
+====================================
 
-Welcome to Project Zomboid Mod Studio!
+The free mod manager for Project Zomboid (Build 42) that tells you which mod
+broke your game. Nothing to install: this folder is the whole program.
 
-This version is 100% PORTABLE: no prior installation or configuration required.
+Start
+-----
+Run Project-Zomboid-Mod-Studio.exe. It finds your game, Steam Workshop and
+Zomboid folders by itself. Windows may show a SmartScreen notice the first
+time, only because the program has no paid code-signing certificate.
 
------------------------------------------------------------------------------
-🚀 USAGE INSTRUCTIONS:
------------------------------------------------------------------------------
-1. Run the executable file directly:
-   👉 "Project-Zomboid-Mod-Studio.exe"
+The other file
+--------------
+pz-mcp-server.exe is a console program for AI assistants (Claude Desktop,
+Cursor and others) to read your logs and mod list. A player can ignore it.
 
-2. It will not open extra console (CMD) windows and features a built-in
-   initial cinematic splash screen.
+Good to know
+------------
+- The backup before a save loads with changed mods is made by the app, so
+  keep it open (or in the tray) while you play.
+- It never edits your Workshop mods; a save is only changed when you say yes,
+  after a backup.
+- To stop using it: delete this folder. What it made is listed in the
+  README on https://github.com/pzmodstudio/PZModStudio ("How to stop using it").
 
-3. On launch, the application will automatically detect your Project Zomboid,
-   Steam Workshop, and mod profile directories.
+Also for Linux (AppImage or .deb, beta): https://github.com/pzmodstudio/PZModStudio/releases/latest
+Website: https://pzmodstudio.github.io/PZModStudio/
 
------------------------------------------------------------------------------
-🤖 AI AGENT INTEGRATION (MCP SERVER):
------------------------------------------------------------------------------
-If you use Claude Desktop, Antigravity, Cursor, or Windsurf, the included
-"pz-mcp-server.exe" binary allows your AI assistant to control the game,
-inspect live logs, sort load orders, and generate compatibility patches.
-
------------------------------------------------------------------------------
-System Requirements:
-- Windows 10 / Windows 11 (64-bit)
-- WebView2 Runtime (built-in by default on Windows 10/11)
-=============================================================================
+Needs Windows 10 or 11 (64-bit) with the WebView2 runtime (built into both).
 `;
 
 fs.writeFileSync(path.join(rootDir, 'README_PORTABLE.txt'), readmeContent, 'utf-8');

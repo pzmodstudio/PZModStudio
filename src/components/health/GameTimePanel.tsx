@@ -45,6 +45,7 @@ export const GameTimePanel: React.FC<GameTimePanelProps> = ({ paths, mods, onMod
 
   const toggle = async () => {
     if (!status) return;
+    if (!status.on && !window.confirm(t('gameTime.confirmOn'))) return;
     setBusy(true);
     try {
       setStatus(await TauriService.setProfiler(paths, !status.on));

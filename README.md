@@ -27,14 +27,14 @@ PZ Mod Studio reads the game's own log, names the mod behind each error in plain
 - **The mod behind every error.** Each error in the game's log becomes a card: which mod, what it means, whether the game carried on, and a report you can send its author.
 - **Your list checked the way the game loads it.** Missing or switched-off requirements, a wrong order, mods your build can't load, two mods replacing the same file or the same function. Each finding says whether you need to act, and offers the fix.
 - **The Doctor.** Ask "why did my game close?" or "what changed since yesterday?" in your language. It answers from what this PC saw in your own sessions, with the evidence. No AI, and nothing is sent anywhere.
-- **Saves you don't lose.** A backup before a save loads with changed mods; add the mods you switched on since, or play on a copy.
+- **Saves you don't lose.** A backup before a save loads with changed mods (made by the app, so keep it open while you play); add the mods you switched on since, or play on a copy.
 - **A way back from a bad update.** Steam keeps only the newest version of a Workshop mod. The app can keep the one you played with (it asks first, and says how much space it would use), so an update that breaks your save can be undone.
 - **Profiles.** Light, heavy and co-op mod lists side by side; the game's Mods screen follows the active one.
 - **Servers.** Install the official dedicated server, restart it on a schedule, after a crash or when a mod updates, with a Discord bot.
 - **Simple view** for new players: Play, your mods, and only what needs fixing.
 - **In 7 languages:** English, Español, Português (Brasil), Français, Deutsch, Русский, 简体中文.
 
-The free companion mod on the Workshop, **PZ Mod Studio Link**, shows the mod behind each Lua error inside the game and checks every save before it loads.
+The free companion mod on the Workshop, **PZ Mod Manager Studio Link**, shows the mod behind each Lua error inside the game and checks every save before it loads.
 
 <img src="site/img/error-notice.webp" alt="In the game: a notice naming the mod behind a Lua error" width="440">
 
@@ -44,7 +44,7 @@ The free companion mod on the Workshop, **PZ Mod Studio Link**, shows the mod be
 
 Windows may show a SmartScreen notice the first time, only because the program has no paid code-signing certificate. Each release has a `SHA256SUMS.txt` signed by the project, to check that the file is the one published here. The zip also holds `pz-mcp-server.exe`, a console program for AI assistants: a player can ignore it.
 
-**Linux:** from the same release, the `.AppImage` (make it executable and run it) or the `.deb` (`sudo apt install ./PZ-Mod-Studio-v*-linux-amd64.deb`). A few extras are Windows-only: updating the app in place (on Linux it opens the release page), subscribing through the Steam client, downloading SteamCMD (install it from your distribution), the Windows out-of-memory log and controlling the game's window for AI assistants.
+**Linux (beta: new, little used so far):** from the same release, the `.AppImage` (make it executable and run it) or the `.deb` (`sudo apt install ./PZ-Mod-Studio-v*-linux-amd64.deb`). A few extras are Windows-only: updating the app in place (on Linux it opens the release page), subscribing through the Steam client, downloading SteamCMD (install it from your distribution), the Windows out-of-memory log and controlling the game's window for AI assistants.
 
 ## Is it safe?
 
@@ -55,8 +55,8 @@ Windows may show a SmartScreen notice the first time, only because the program h
 ## How to stop using it
 
 1. Close the app and delete the folder you unzipped (on Linux, the AppImage, or `sudo apt remove project-zomboid-mod-studio`). Your mods and saves stay as they are, and the game keeps your current mod list.
-2. If you want to remove everything it made: in your `Zomboid` folder, the folders and files whose name starts with `PZModStudio_` (backups, logs, cache, kept versions), and in `Zomboid/mods` the folders `Z_PZModStudio_*` (patch packages) and `Z_StudioLink` (its local copy of the in-game mod). Copies of Workshop mods it made for you carry a `.pzms_workshop_copy.json` file inside. On Windows its settings are in `%APPDATA%\PZModStudio`, `%LOCALAPPDATA%\PZModStudio` and `%LOCALAPPDATA%\com.pzmodstudio.app`.
-3. Unsubscribe from PZ Mod Studio Link on the Workshop if you had it.
+2. If you want to remove everything it made: in your `Zomboid` folder, the folders and files whose name starts with `PZModStudio_` (backups, logs, cache, kept versions), and in `Zomboid/mods` the folders `Z_PZModStudio_*` (patch packages), `PZModStudio_Profiler` (the time measuring, when you used it) and `Z_StudioLink` (its local copy of the in-game mod). Copies of Workshop mods it made for you carry a `.pzms_workshop_copy.json` file inside. On Windows its settings are in `%APPDATA%\PZModStudio`, `%LOCALAPPDATA%\PZModStudio` and `%LOCALAPPDATA%\com.pzmodstudio.app`.
+3. Unsubscribe from PZ Mod Manager Studio Link on the Workshop if you had it.
 
 ## What is inside (for the curious)
 

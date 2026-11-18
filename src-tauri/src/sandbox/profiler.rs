@@ -12,6 +12,8 @@
 //! adds the profiler to both: default.txt for new games and the menu, and the save the player
 //! played last. Switching it off takes it out of default.txt and of every save that has it; the
 //! profiler keeps nothing in a save, so a save that still lists it loads the same either way.
+//! A save's list is only changed with the game closed, after a backup of that save (the app asks
+//! the player first; see GameTimePanel / LivePanel).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -273,6 +275,10 @@ fn saves_with_profiler(z_dir: &Path) -> Vec<String> {
 /// Switches measuring on or off (see the module's comment for where the profiler is listed).
 pub fn set_on(user_zomboid_dir: &str, workshop_dir: &str, on: bool) -> Result<ProfilerStatus, String> {
     let z_dir = zomboid_dir(user_zomboid_dir)?;
+    // The game reads both lists while it runs, and a save's list is the save: never while it is open.
+    if crate::sandbox::find_running_pz_pid().is_some() {
+        return Err("The game is running: switch the measuring on or off once it is closed.".to_string());
+    }
     let default_txt = z_dir.join("mods").join("default.txt");
     if on {
         install(&z_dir)?;
@@ -291,6 +297,9 @@ pub fn set_on(user_zomboid_dir: &str, workshop_dir: &str, on: bool) -> Result<Pr
         let text = std::fs::read_to_string(&path).map_err(|e| format!("Cannot read {}: {}", path.display(), e))?;
         let changed = with_profiler(&text, on);
         if changed != text {
+            // A save is only changed after a backup of it, as everywhere else in the Studio.
+            crate::save_backup::backup_save(&z_dir, &id, crate::save_backup::REASON_BEFORE_FIX, false)
+                .map_err(|e| format!("{} was not changed: its backup failed ({})", id, e))?;
             std::fs::write(&path, changed).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
         }
     }

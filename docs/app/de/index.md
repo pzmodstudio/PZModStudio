@@ -1,6 +1,6 @@
 # PZ Mod Studio
 
-PZ Mod Studio ist ein kostenloser Mod-Manager für Project Zomboid unter Windows. Er hält deine Mods in Profilen, sichert deine Spielstände, prüft deine Mod-Liste so, wie das Spiel sie liest, und hilft dir zu reparieren, was kaputtgeht. Drück auf jedem Bildschirm "?" für seine eigene Hilfeseite.
+PZ Mod Studio ist ein kostenloser Mod-Manager für Project Zomboid unter Windows und Linux. Er hält deine Mods in Profilen, sichert deine Spielstände, prüft deine Mod-Liste so, wie das Spiel sie liest, und hilft dir zu reparieren, was kaputtgeht. Drück auf jedem Bildschirm "?" für seine eigene Hilfeseite.
 
 Beim ersten Öffnen des Studios erscheint eine **Willkommen**-Tour: eine Karte unten rechts, die dich durch jeden Bildschirm führt, mit dem echten Bildschirm dahinter und seinem hervorgehobenen Knopf in der Seitenleiste, dazu das, was das Studio schon über deine Installation weiß (die gefundenen Ordner, deine Profile, die Probleme in deiner Liste). Weiter geht es mit **Weiter** oder den Pfeiltasten; das X schließt sie. Um sie noch einmal zu sehen, öffne die Hilfe ("?") und klick auf **Willkommenstour erneut zeigen**.
 

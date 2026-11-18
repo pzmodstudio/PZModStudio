@@ -4459,7 +4459,8 @@
     "showAll": "Tout afficher ({{count}})",
     "showFewer": "Afficher moins",
     "waiting": "Pas encore de chiffres : lancez le jeu (relancez-le s'il était ouvert) et ils arrivent toutes les 5 secondes.",
-    "how": "Le % est la part du temps réel prise par le Lua du mod (à 60 FPS, il reste 16,7 ms par image) : ses gestionnaires d'événements, et le render / prerender / update de ses fenêtres, barres et actions chronométrées (nommés Classe:render). Chacun ne compte que son propre temps : le render d'un mod qui appelle celui du jeu compte sans la part du jeu. Un seul appel long est une saccade que vous voyez comme un gel. L'horloge du jeu compte en millisecondes entières, donc un gestionnaire court est mesuré en moyenne sur beaucoup d'appels ; laissez-lui une minute ou deux. Arrêtez la mesure quand vous avez fini : le profileur ajoute un peu de temps à chaque gestionnaire."
+    "how": "Le % est la part du temps réel prise par le Lua du mod (à 60 FPS, il reste 16,7 ms par image) : ses gestionnaires d'événements, et le render / prerender / update de ses fenêtres, barres et actions chronométrées (nommés Classe:render). Chacun ne compte que son propre temps : le render d'un mod qui appelle celui du jeu compte sans la part du jeu. Un seul appel long est une saccade que vous voyez comme un gel. L'horloge du jeu compte en millisecondes entières, donc un gestionnaire court est mesuré en moyenne sur beaucoup d'appels ; laissez-lui une minute ou deux. Arrêtez la mesure quand vous avez fini : le profileur ajoute un peu de temps à chaque gestionnaire.",
+    "confirmOn": "Mesurer ajoute un petit mod du Studio en tête de votre liste et dans la dernière sauvegarde jouée, pour qu'elle le charge. Cette sauvegarde est copiée d'abord, et le jeu doit être fermé. Le désactiver le retire. Continuer ?"
   },
   "bootTime": {
     "title": "Démarrage du jeu",

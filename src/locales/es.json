@@ -4363,7 +4363,8 @@
     "showAll": "Ver los {{count}}",
     "showFewer": "Ver menos",
     "waiting": "Todavía no hay números: abrí el juego (reinicialo si ya estaba abierto) y llegan cada 5 segundos.",
-    "how": "El % es la parte del tiempo real que se llevó el Lua del mod (a 60 FPS hay 16,7 ms por cuadro): sus handlers de eventos y el render / prerender / update de sus ventanas, barras y acciones con tiempo (con nombre Clase:render). Cada uno cuenta solo su propio tiempo: el render de un mod que llama al del juego se cuenta sin la parte del juego. Una sola llamada larga es un tirón que se ve como un congelamiento. El reloj del juego cuenta milisegundos enteros, así que un handler corto se mide en promedio sobre muchas llamadas: dale uno o dos minutos. Dejá de medir cuando termines: el medidor le suma un poco de tiempo propio a cada handler."
+    "how": "El % es la parte del tiempo real que se llevó el Lua del mod (a 60 FPS hay 16,7 ms por cuadro): sus handlers de eventos y el render / prerender / update de sus ventanas, barras y acciones con tiempo (con nombre Clase:render). Cada uno cuenta solo su propio tiempo: el render de un mod que llama al del juego se cuenta sin la parte del juego. Una sola llamada larga es un tirón que se ve como un congelamiento. El reloj del juego cuenta milisegundos enteros, así que un handler corto se mide en promedio sobre muchas llamadas: dale uno o dos minutos. Dejá de medir cuando termines: el medidor le suma un poco de tiempo propio a cada handler.",
+    "confirmOn": "Medir agrega un mod chico del Studio primero en tu lista y en la última partida que jugaste, para que cargue con ella. Antes se hace una copia de esa partida, y el juego tiene que estar cerrado. Al apagarlo se saca de nuevo. ¿Seguimos?"
   },
   "bootTime": {
     "title": "Arranque del juego",

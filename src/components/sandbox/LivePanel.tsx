@@ -141,6 +141,7 @@ export const LivePanel: React.FC<LivePanelProps> = ({ paths, mods, errorCards, o
     localStorage.setItem(OPEN_KEY, String(next));
   };
   const turnOn = async () => {
+    if (!window.confirm(t('gameTime.confirmOn'))) return;
     setBusy(true);
     try {
       await TauriService.setProfiler(paths, true);

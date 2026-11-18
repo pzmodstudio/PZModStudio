@@ -4363,7 +4363,8 @@
     "showAll": "Show all {{count}}",
     "showFewer": "Show fewer",
     "waiting": "No numbers yet: start the game (restart it if it was running) and they arrive every 5 seconds.",
-    "how": "The % is the share of real time the mod's Lua took (60 FPS leaves 16.7 ms a frame): its event handlers, and the render / prerender / update of its windows, bars and timed actions (named Class:render). Each counts its own time only: a mod's render that calls the game's counts without the game's part. A long single call is a hitch you see as a freeze. The game's clock counts whole milliseconds, so a short handler is measured on average over many calls; give it a minute or two. Stop measuring when you are done: the profiler adds a little time of its own to every handler."
+    "how": "The % is the share of real time the mod's Lua took (60 FPS leaves 16.7 ms a frame): its event handlers, and the render / prerender / update of its windows, bars and timed actions (named Class:render). Each counts its own time only: a mod's render that calls the game's counts without the game's part. A long single call is a hitch you see as a freeze. The game's clock counts whole milliseconds, so a short handler is measured on average over many calls; give it a minute or two. Stop measuring when you are done: the profiler adds a little time of its own to every handler.",
+    "confirmOn": "Measuring adds a small mod of the Studio first in your mod list and in the save you played last, so it loads with it. That save is backed up first, and the game must be closed. Switching it off takes it out again. Go on?"
   },
   "bootTime": {
     "title": "Game start",

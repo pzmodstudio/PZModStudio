@@ -4363,7 +4363,8 @@
     "showAll": "Alle {{count}} zeigen",
     "showFewer": "Weniger zeigen",
     "waiting": "Noch keine Zahlen: Starte das Spiel (neu, falls es lief), dann kommen sie alle 5 Sekunden.",
-    "how": "Das % ist der Anteil der echten Zeit, den das Lua der Mod gebraucht hat (60 FPS lassen 16,7 ms pro Frame): ihre Event-Handler und das render / prerender / update ihrer Fenster, Leisten und Timed Actions (benannt Class:render). Jeder zählt nur seine eigene Zeit: Ein render einer Mod, das das des Spiels aufruft, zählt ohne den Teil des Spiels. Ein langer einzelner Aufruf ist ein Ruckler, den du als Einfrieren siehst. Die Uhr des Spiels zählt ganze Millisekunden, daher wird ein kurzer Handler im Schnitt über viele Aufrufe gemessen; gib ihm ein, zwei Minuten. Beende das Messen, wenn du fertig bist: Der Profiler fügt jedem Handler etwas eigene Zeit hinzu."
+    "how": "Das % ist der Anteil der echten Zeit, den das Lua der Mod gebraucht hat (60 FPS lassen 16,7 ms pro Frame): ihre Event-Handler und das render / prerender / update ihrer Fenster, Leisten und Timed Actions (benannt Class:render). Jeder zählt nur seine eigene Zeit: Ein render einer Mod, das das des Spiels aufruft, zählt ohne den Teil des Spiels. Ein langer einzelner Aufruf ist ein Ruckler, den du als Einfrieren siehst. Die Uhr des Spiels zählt ganze Millisekunden, daher wird ein kurzer Handler im Schnitt über viele Aufrufe gemessen; gib ihm ein, zwei Minuten. Beende das Messen, wenn du fertig bist: Der Profiler fügt jedem Handler etwas eigene Zeit hinzu.",
+    "confirmOn": "Messen fügt eine kleine Mod des Studios an den Anfang deiner Liste und in den zuletzt gespielten Spielstand ein, damit er sie lädt. Dieser Spielstand wird vorher gesichert, und das Spiel muss geschlossen sein. Ausschalten nimmt sie wieder heraus. Weiter?"
   },
   "bootTime": {
     "title": "Spielstart",
