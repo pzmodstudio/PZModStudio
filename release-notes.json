@@ -1,4 +1,9 @@
 {
+ "1.12.2": [
+  "Link 1.21.1: a save with mods outside your profile gets a clear question, not a game error",
+  "Servers: the player list shows only what the log says (no made-up ping or health)",
+  "A README for players, with how to stop using the app"
+ ],
  "1.12.1": [
   "Servers: restart warnings and Discord messages in all seven languages",
   "Earlier versions of mods: on a new PC the app asks first, with the size and the drive"
