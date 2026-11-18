@@ -1,4 +1,4 @@
-# 08 — Crash Diagnostics, VFS & 3-Way AST Merging
+# 08 — Crash Diagnostics, VFS & 3-Way Merging
 
 Diagnosing silent crashes, load order conflicts, and script collisions is one of the most demanding tasks in Project Zomboid development. This chapter outlines the error taxonomy of `console.txt`, the Virtual File System (VFS) collision model, and the 3-Way Abstract Syntax Tree (AST) merge engine.
 
@@ -61,26 +61,26 @@ Mod B: media/lua/client/ISUI/ISInventoryPane.lua  ─┘
 
 ---
 
-## 3. 3-Way AST Merge Engine in Rust
+## 3. 3-Way Merge Engine in Rust
 
-To resolve VFS collisions non-destructively without discarding changes from either mod, **PZ Mod Studio** executes a 3-Way Abstract Syntax Tree (AST) merge powered by the `full_moon` Lua parser:
+To resolve VFS collisions non-destructively without discarding changes from either mod, **PZ Mod Studio** runs a line-based 3-way merge (the way git merges text) of the game's own file and each mod's copy, with `similar`'s Patience diff (`src-tauri/src/diff_engine/lua.rs`). The `full_moon` Lua parser checks the result's syntax before it is saved; it does not merge by syntax tree.
 
 ```
            [Base Vanilla Script]
                      │
          ┌───────────┴───────────┐
          ▼                       ▼
-    [Mod A AST]             [Mod B AST]
+    [Mod A lines]           [Mod B lines]
          │                       │
          └───────────┬───────────┘
                      ▼
-       [3-Way AST Merge Engine (Rust)]
+        [3-Way line merge (Rust)]  ->  Lua syntax check (full_moon)
                      │
                      ▼
     [Z_PZModStudio_MasterPatch Unified Script]
 ```
 
-### Core Principles of the AST Merger:
-1. **Preservation of New Functions:** If Mod A adds `MyModA_Helper()` and Mod B adds `MyModB_Helper()`, both are cleanly inserted into the unified AST.
-2. **Orthogonal Block Merging:** If both mods edit the same base function, the engine verifies whether changes are orthogonal and weaves them sequentially while preserving `self` references and the return call chain.
+### Core Principles of the Merger:
+1. **Changes in different places merge by themselves:** if Mod A and Mod B change different lines of the same base file (Mod A adds `MyModA_Helper()`, Mod B adds `MyModB_Helper()`), both changes are kept.
+2. **The same lines changed by both are a conflict:** the merged file keeps mod A's version active and mod B's as a comment beside it, and the Merger marks the file as a conflict for the player to decide.
 3. **Master Patch Packaging (`Z_PZModStudio_MasterPatch`):** The merged resolution is automatically packaged into the user's mod folder with the `Z_` prefix to guarantee it loads at the end of the mod chain.

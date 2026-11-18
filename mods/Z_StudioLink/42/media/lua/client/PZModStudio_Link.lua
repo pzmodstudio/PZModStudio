@@ -39,8 +39,9 @@
 --   button for mods installed but in no profile at all (new subscriptions), which adds them to
 --   the profile; a mark on each mod Mod Health has something to say about, with the text on hover.
 -- - Load screen: on each save, whether its mods match the profile.
--- - Loading a save: one that uses mods outside the profile does not load; one whose mod list is
---   empty asks first, and can be given the profile's mods.
+-- - Loading a save: one that uses mods outside the profile asks first (back, load it anyway, or
+--   add them to the profile); one whose mod list is empty asks first, and can be given the
+--   profile's mods.
 -- Turning mods on or off here needs nothing from this mod: the game writes mods/default.txt and
 -- the Studio reads it. Without the Link file (no profile active in the Studio) the game's screens
 -- are left as they are.
@@ -115,8 +116,16 @@ local TEXT = {
     addFailed = "Not added",
     addFailedTip = "PZ Mod Studio could not add the mods: {1}",
     noAnswer = "PZ Mod Studio did not answer. Open it and the mods are added then.",
-    blocked = "This save uses mods that are not in the profile \"{1}\":",
-    howTo = "Switch to the profile you played it with in PZ Mod Studio, or add these mods to this profile.",
+    outsideTitle = "PZ Mod Studio: this save uses {1} mod(s) outside your profile",
+    outsideWhy = "\"{1}\" keeps its own mod list, and the game loads it with that list. These mods are in it and not in the profile \"{2}\":",
+    outsideHow = "Load it anyway: it loads with its own mod list, these mods included, and you are asked again next time. Add to profile: PZ Mod Studio adds them to \"{1}\", switched on, so the profile matches the save (new games with it get them too) and it loads without asking.",
+    outsideApp = "To play it with the profile it was made with, switch to that profile in PZ Mod Studio.",
+    outsideLoad = "Load it anyway",
+    outsideAdd = "Add to profile",
+    outsideNeedsApp = "Adding mods to the profile needs PZ Mod Studio open. Open it and try again, or load the save anyway.",
+    outsideWorking = "PZ Mod Studio is adding those mods to the profile \"{1}\".",
+    outsideFailed = "The mods could not be added to the profile: {1}",
+    emptyTitle = "PZ Mod Studio: this save's mod list is empty",
     empty = "This save's mod list is empty, while the profile \"{1}\" has {2} mods.",
     emptyWhy = "Loaded like this, the game would run it with no mods and drop every item that came from a mod. Yes gives it the profile's mods and loads it; No goes back.",
     badgeEmpty = "no mods",
@@ -279,8 +288,8 @@ local TEXT = {
     cardOpen = "open",
     cardClosed = "closed",
     cardProfile = "Profile: {1} ({2} mods)",
-    cardHealthOk = "Mod Health: no problems",
-    cardHealth = "Mod Health: {1} error(s), {2} warning(s)",
+    cardHealthOk = "Diagnostics: no problems",
+    cardHealth = "Diagnostics: {1} error(s), {2} warning(s)",
     cardContinue = "Continue: {1}",
     cardNoChanges = "same mods as its last session",
     cardChanges = "since its last session: {1} updated, {2} added, {3} taken out",
@@ -1534,17 +1543,25 @@ end
 
 -- ------------------------------------------------------------------ saves
 
---- Mods the save uses that are not in the profile.
-function Link.outsideProfile(activeMods, link)
+--- The ids of the mods the save uses that are not in the profile.
+function Link.outsideIds(activeMods, link)
     local result = {}
     if not activeMods then return result end
     local mods = activeMods:getMods()
     for i = 0, mods:size() - 1 do
         local id = mods:get(i)
-        if not link.members[id] then
-            local info = getModInfoByID(id)
-            table.insert(result, info and info:getName() or id)
-        end
+        local plain = string.gsub(tostring(id), "^\\", "")
+        if not (link.members[id] or link.members[plain]) then table.insert(result, plain) end
+    end
+    return result
+end
+
+--- The names of the mods the save uses that are not in the profile.
+function Link.outsideProfile(activeMods, link)
+    local result = {}
+    for _, id in ipairs(Link.outsideIds(activeMods, link)) do
+        local info = getModInfoByID(id)
+        table.insert(result, info and info:getName() or id)
     end
     return result
 end
@@ -1976,7 +1993,8 @@ function WaitPanel:prerender()
 end
 
 --- Sends a request to the app and waits for its answer with a panel: `onOk(text)` when it is
---- done, `onFail(text)` when it failed. Cancel stops waiting (the app still does it).
+--- done, `onFail(text)` when it failed. Cancel stops waiting (the app still does it). `arg` may
+--- be a list: one line each, under the same id (the app's "add" takes one mod per line).
 local function askApp(verb, arg, title, body, onOk, onFail)
     local writer = getFileWriter(REQUESTS_FILE, true, true)
     if not writer then
@@ -1985,7 +2003,10 @@ local function askApp(verb, arg, title, body, onOk, onFail)
     end
     Link.seq = (Link.seq or 0) + 1
     local id = tostring(now()) .. "-" .. tostring(Link.seq)
-    writer:write(id .. "\t" .. verb .. "\t" .. arg .. "\n")
+    local args = type(arg) == "table" and arg or { arg }
+    for _, one in ipairs(args) do
+        writer:write(id .. "\t" .. verb .. "\t" .. one .. "\n")
+    end
     writer:close()
     local wait = { id = id, at = now(), onOk = onOk, onFail = onFail }
     Link.backupWait = wait
@@ -2276,6 +2297,59 @@ function Link.showNew(world, new)
     })
 end
 
+--- "This save uses mods outside your profile": the Studio asking, in its own panel (not the
+--- game's "Error loading savefile": nothing is wrong with the save). Back; load it anyway, with
+--- its own list (the checks before a save loads, and its backup, go on as for any save); or have
+--- the app add them to the profile, switched on (its "addon" request: the profile then matches
+--- the save), and load it.
+function Link.showOutside(world, link, ids)
+    local args = Link.continueArgs or {}
+    local function again()
+        MainScreen.continueLatestSaveAux(args[1], args[2])
+    end
+    local lines = 0
+    local body = text("outsideWhy", world, link.name) .. " <LINE> <LINE> <INDENT:16> "
+    for i, id in ipairs(ids) do
+        if i > 10 then
+            body = body .. text("andMore", #ids - 10) .. " <LINE> "
+            lines = lines + 1
+            break
+        end
+        body = body .. " <RGB:1,0.75,0.3> " .. modName(id) .. " <RGB:1,1,1> <LINE> "
+        lines = lines + 1
+    end
+    body = body .. " <INDENT:0> <LINE> " .. text("outsideHow", link.name) .. " <LINE> <LINE> "
+        .. " <RGB:0.7,0.7,0.7> " .. text("outsideApp") .. " <RGB:1,1,1> <LINE> "
+    local height = 150 + (lines + 8) * (getTextManager():getFontHeight(UIFont.Small) + 2)
+    WaitPanel.choose(text("outsideTitle", #ids), body, height, {
+        -- Continue had copied the save's list into the next new game's list: the profile's again.
+        { label = text("back"), onClick = function() pcall(Link.stagingFromDefault, "back on the outside the profile question") end },
+        { label = text("outsideAdd"), onClick = function()
+            if not Link.appAlive() then
+                modal(" <RGB:1,0.75,0.3> " .. text("outsideNeedsApp") .. " <RGB:1,1,1> ", false, function() end)
+                pcall(Link.stagingFromDefault, "app closed on the outside the profile question")
+                return
+            end
+            askApp("addon", ids, text("outsideTitle", #ids), text("outsideWorking", link.name),
+                function()
+                    local added = {}
+                    for _, id in ipairs(ids) do added[id] = true end
+                    Link.outsideAdded = { world = world, ids = added }
+                    Link.outsideKept = world
+                    again()
+                end,
+                function(msg)
+                    modal(" <RGB:1,0.75,0.3> " .. text("outsideFailed", msg) .. " <RGB:1,1,1> ", false, function() end)
+                    pcall(Link.stagingFromDefault, "the outside mods were not added")
+                end)
+        end },
+        { label = text("outsideLoad"), accept = true, onClick = function()
+            Link.outsideKept = world
+            again()
+        end },
+    })
+end
+
 --- Before a save loads: what changed since its last session is shown first (load, play on a
 --- copy, or go back), and the save is backed up first when it is not backed up as it is.
 --- Returns true when it can load now.
@@ -2285,7 +2359,13 @@ function Link.loadGate(world, saveInfo)
     -- A save keeps its own mod list: mods switched off in the profile still load with it. Said
     -- first, with the choice to take them out of the save (backed up) or load it as it is.
     if Link.offKept ~= world then
-        local off = Link.offInProfile(activeMods, Link.read())
+        -- Mods the player has just added to the profile for this save are not asked about again
+        -- (the game's own list catches up with the profile a moment later).
+        local added = (Link.outsideAdded and Link.outsideAdded.world == world) and Link.outsideAdded.ids or {}
+        local off = {}
+        for _, id in ipairs(Link.offInProfile(activeMods, Link.read())) do
+            if not added[id] then table.insert(off, id) end
+        end
         if #off > 0 then
             Link.showOff(world, off)
             return false
@@ -2398,8 +2478,9 @@ function ServerConnectPopup:setServer(ip, port, passwordStr)
     end)
 end
 
--- The save check: the game's own one first, then the profile, with the game's own dialog, then
--- a backup when the save loads with changed mods.
+-- The save check: the game's own one first, then the profile (the Studio's own panel for mods
+-- outside it, the game's Yes/No dialog for an empty list), then a backup when the save loads
+-- with changed mods.
 local checkSaveFile = MainScreen.checkSaveFile
 function MainScreen.checkSaveFile(...)
     if not checkSaveFile(...) then return false end
@@ -2422,7 +2503,8 @@ function MainScreen.checkSaveFile(...)
     Link.fillEmpty = nil
     if status == "empty" then
         Link.askedEmpty = world
-        local body = " <H1> " .. getText("UI_mainscreen_ErrorLoadingSavefile") .. " <H2> <LINE> <LINE> "
+        -- The Studio asking, said as such: not the game's "Error loading savefile".
+        local body = " <H1> " .. text("emptyTitle") .. " <H2> <LINE> <LINE> "
         body = body .. getText("UI_mainscreen_SavefileName", world) .. " <LINE> <LINE> "
         body = body .. " <TEXT> <RED> " .. text("empty", link.name, profileSize(link)) .. " <RGB:1,1,1> <LINE> <LINE> "
         body = body .. text("emptyWhy") .. " <LINE> "
@@ -2431,20 +2513,10 @@ function MainScreen.checkSaveFile(...)
     end
 
     if status ~= "outside" then return Link.loadGate(world, saveInfo) end
-    local outside = Link.outsideProfile(saveInfo.activeMods, link)
-    local body = " <H1> " .. getText("UI_mainscreen_ErrorLoadingSavefile") .. " <H2> <LINE> <LINE> "
-    body = body .. getText("UI_mainscreen_SavefileName", world) .. " <LINE> <LINE> "
-    body = body .. " <TEXT> " .. text("blocked", link.name) .. " <LINE> <INDENT:20> <RED> "
-    -- A whole profile's worth of names would not fit on the screen.
-    for i, name in ipairs(outside) do
-        if i > 15 then
-            body = body .. text("andMore", #outside - 15) .. " <LINE> "
-            break
-        end
-        body = body .. name .. " <LINE> "
-    end
-    body = body .. " <INDENT:0> <RGB:1,1,1> <LINE> " .. text("howTo") .. " <LINE> "
-    MainScreen.displayCheckSavefileModal(body, true)
+    -- Answered already (Load it anyway, or added to the profile), or passed before the game
+    -- restarted its Lua to load it with its own list.
+    if Link.outsideKept == world or Link.isPassed(world) then return Link.loadGate(world, saveInfo) end
+    Link.showOutside(world, link, Link.outsideIds(saveInfo.activeMods, link))
     return false
 end
 

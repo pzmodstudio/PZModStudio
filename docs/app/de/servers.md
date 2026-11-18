@@ -80,7 +80,7 @@ Ist unter **Hosten & Starten** **NoSteam (LAN)** gewählt, listet es auch die Mo
 
 ## Spieler
 
-**Verbundene Spieler** listet, wer online ist, aus dem eigenen Log des Servers gelesen, mit Rolle, Ping, Gesundheit und Position. Während der Server läuft, spricht das Studio über RCON mit ihm (`RCONPassword` und `RCONPort` seiner `.ini`; ein Server, den das Studio ohne Passwort startet, bekommt eins):
+**Verbundene Spieler** listet, wer online ist, aus dem eigenen Log des Servers gelesen, mit Rolle, Steam-ID, wo er beigetreten ist und ob er gestorben ist (die Logs des Spiels enthalten weder Ping noch Gesundheit). Während der Server läuft, spricht das Studio über RCON mit ihm (`RCONPassword` und `RCONPort` seiner `.ini`; ein Server, den das Studio ohne Passwort startet, bekommt eins):
 
 - **Kicken** in der Zeile eines Spielers trennt ihn; er kann wieder beitreten. Du kannst einen Grund angeben, den er sieht.
 - **Bannen** sperrt ihn von diesem Server, mit optionalem Grund. Um einen Bann zurückzunehmen, nutze die Serverkonsole: `unbanuser "name"`.

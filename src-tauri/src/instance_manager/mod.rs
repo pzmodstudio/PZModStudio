@@ -193,6 +193,40 @@ pub fn add_members_to_active(z_dir: &std::path::Path, ids: &[String]) -> Result<
     Ok(Some(inst))
 }
 
+/// Mods a save uses that the active profile lacks, added to it switched on (the Link's "Add to
+/// profile" on a save with mods outside the profile): members, load order and the active list,
+/// and the game's list written as on a profile switch, so the profile now matches the save.
+pub fn add_members_to_active_on(z_dir: &std::path::Path, ids: &[String]) -> Result<Option<AppInstance>, String> {
+    let dir = z_dir.join("PZModStudio_Instances");
+    let Some((path, mut inst)) = find_active(&dir) else { return Ok(None) };
+    let mut members = inst.member_ids();
+    let mut changed = false;
+    for id in ids {
+        if !members.contains(id) {
+            members.push(id.clone());
+            changed = true;
+        }
+        if !inst.load_order.contains(id) {
+            inst.load_order.push(id.clone());
+            changed = true;
+        }
+        if !inst.active_mod_ids.contains(id) {
+            inst.active_mod_ids.push(id.clone());
+            changed = true;
+        }
+    }
+    if !changed {
+        return Ok(None);
+    }
+    inst.members = Some(members);
+    // The game's list first, as a profile switch does: if it cannot be written, the profile stays as it was.
+    let _ = std::fs::create_dir_all(z_dir.join("mods"));
+    crate::load_order::ini_parser::write_mod_list_ini(&z_dir.join("ModListData.ini").to_string_lossy(), &inst.active_mod_ids)?;
+    write_instance(&path, &inst)?;
+    apply_link(z_dir, &inst);
+    Ok(Some(inst))
+}
+
 /// The profile a server was joined with becomes what the server loaded: those mods in it and on,
 /// in the server's order and first in the load order (the ones the game had the player download
 /// too); any other mod it holds stays in it, off, as the server does not load it. `also_off`
@@ -709,6 +743,28 @@ mod build_tests {
         // The Link file names the other profile's mods, so the game can tell the new ones.
         let link = fs::read_to_string(z.join("Lua").join(crate::studio_link::LINK_FILE)).unwrap();
         assert!(link.contains("member=N\n") && link.contains("other=X\n") && link.contains("other=Y\n"), "{}", link);
+        let _ = fs::remove_dir_all(&z);
+    }
+
+    #[test]
+    fn a_saves_mods_added_to_the_profile_come_on_so_it_matches_the_save() {
+        let z = std::env::temp_dir().join(format!("pzms-profile-addon-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&z);
+        let dir = z.join("PZModStudio_Instances");
+        fs::create_dir_all(&dir).unwrap();
+        let active: AppInstance = serde_json::from_str(
+            r#"{"id":"a","name":"A","created_at":"","is_active":true,"active_mod_ids":["A"],"load_order":["A","B"],"members":["A","B"]}"#,
+        ).unwrap();
+        write_instance(&dir.join("a.json"), &active).unwrap();
+
+        // N is new; B was in the profile but off: both come on.
+        let after = add_members_to_active_on(&z, &ids(&["N", "B"])).unwrap().expect("changed");
+        assert_eq!(after.active_mod_ids, ids(&["A", "N", "B"]));
+        assert_eq!(after.member_ids(), ids(&["A", "B", "N"]));
+        // The game's list holds them too.
+        let list = fs::read_to_string(z.join("mods").join("default.txt")).unwrap_or_default() + &fs::read_to_string(z.join("ModListData.ini")).unwrap_or_default();
+        assert!(list.contains('N') && list.contains('B'), "{}", list);
+        assert!(add_members_to_active_on(&z, &ids(&["N"])).unwrap().is_none(), "asking again changes nothing");
         let _ = fs::remove_dir_all(&z);
     }
 

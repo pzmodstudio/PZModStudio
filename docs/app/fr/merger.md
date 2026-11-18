@@ -47,7 +47,7 @@ La barre du haut montre **← Retour à la liste**, un sélecteur **Paquet :** p
 4. Appuyez sur **✓ Enregistrer la fusion de ce fichier**. Le fichier devient **Résolu**.
 5. Quand chaque fichier est fait, appuyez sur **📦 Empaqueter et publier**.
 
-**Restaurer la fusion AST** remet la fusion automatique dans l'éditeur, et **Défusionner ce fichier** oublie la décision enregistrée pour ce fichier. Faites glisser la barre entre les panneaux pour les redimensionner.
+**Restaurer la fusion automatique** remet la fusion automatique dans l'éditeur, et **Défusionner ce fichier** oublie la décision enregistrée pour ce fichier. Faites glisser la barre entre les panneaux pour les redimensionner.
 
 ## Corriger un bug dans un mod
 

@@ -55,7 +55,7 @@ Project-Zomboid-Mod-Studio/
 │   │   ├── instances/                 # Profile and instance manager
 │   │   ├── layout/                    # Header, Sidebar, Splash screen
 │   │   ├── load_order/                # Mod List, dependency inspector, .pzpack presets
-│   │   ├── merger/                    # 3-Way AST Merge engine & Monaco Diff Editor
+│   │   ├── merger/                    # 3-Way merge engine & Monaco Diff Editor
 │   │   ├── sandbox/                   # Monitor Center, live log viewer, crash cards
 │   │   ├── server/                    # Dedicated server manager & live console
 │   │   └── settings/                  # Path configuration & polyfill toggles
@@ -85,7 +85,7 @@ Project-Zomboid-Mod-Studio/
 If you encounter a specific API break between B41 and B42 (e.g., changed function signatures, moved require paths, or uninitialized global tables), you can contribute a new rule in `src/data/default_rules.ts`.
 
 ### 2. 🔀 Merge Engine & AST Improvements
-Help refine the 3-Way AST parser (`src-tauri/src/diff_engine/lua.rs`) to handle complex table structures and edge-case Lua constructs.
+Help refine the 3-way merge (`src-tauri/src/diff_engine/lua.rs`): it merges by lines and checks Lua syntax with `full_moon`; merging by syntax tree is still to do.
 
 ### 3. 🌐 Internationalization / Translations
 Help translate the UI into other languages (Spanish, French, German, Russian, Portuguese, Chinese, etc.).

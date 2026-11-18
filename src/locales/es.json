@@ -2707,10 +2707,9 @@
       "fromLog": "Leído del log del servidor",
       "admin": "ADMIN",
       "player": "JUGADOR",
-      "god": "DIOS",
-      "ping": "Ping: {{ms}} ms",
-      "health": "Salud: {{pct}}%",
-      "coords": "Coords: ({{x}}, {{y}}, {{z}})",
+      "died": "MURIÓ",
+      "enteredAt": "Entró en ({{x}}, {{y}}, {{z}})",
+      "diedAt": "Murió en ({{x}}, {{y}}, {{z}})",
       "none": "No hay jugadores conectados ahora.",
       "listening": "El servidor está esperando conexiones.",
       "startHint": "Iniciá el servidor dedicado para administrar los jugadores en vivo."

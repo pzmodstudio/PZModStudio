@@ -456,6 +456,25 @@ fn handle_requests<R: tauri::Runtime>(app: &tauri::AppHandle<R>, z_dir: &Path, r
             });
         }
     }
+    // "Add to profile" on a save with mods outside the profile: added switched on.
+    let ons: Vec<&LinkRequest> = requests.iter().filter(|r| r.verb == "addon" && !r.arg.is_empty()).collect();
+    if !ons.is_empty() {
+        let ids: Vec<String> = ons.iter().map(|r| r.arg.trim().to_string()).collect();
+        let result = crate::instance_manager::add_members_to_active_on(z_dir, &ids);
+        match &result {
+            Ok(Some(profile)) => {
+                let _ = app.emit(PROFILE_CHANGED_EVENT, profile.clone());
+            }
+            Ok(None) => {}
+            Err(e) => crate::diagnostics::error(format!("[StudioLink] could not add the save's mods to the profile: {}", e)),
+        }
+        for r in &ons {
+            answers.push(match &result {
+                Ok(_) => (r.id.clone(), true, String::new()),
+                Err(e) => (r.id.clone(), false, e.clone()),
+            });
+        }
+    }
     for r in requests.iter().filter(|r| r.verb == "backup") {
         // "<mode>/<world>\t<reason>": answered when the backup is done, from its own thread.
         let (save, reason) = r.arg.split_once('\t').unwrap_or((r.arg.as_str(), ""));
@@ -519,7 +538,7 @@ fn handle_requests<R: tauri::Runtime>(app: &tauri::AppHandle<R>, z_dir: &Path, r
         }
         answers.push((r.id.clone(), true, String::new()));
     }
-    for r in requests.iter().filter(|r| !["add", "backup", "copy", "show", "dropmods", "addmods"].contains(&r.verb.as_str())) {
+    for r in requests.iter().filter(|r| !["add", "addon", "backup", "copy", "show", "dropmods", "addmods"].contains(&r.verb.as_str())) {
         answers.push((r.id.clone(), false, format!("This version of PZ Mod Studio does not know \"{}\".", r.verb)));
     }
     answers

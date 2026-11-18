@@ -1057,20 +1057,18 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
                                       {t('servers.players.player')}
                                     </span>
                                   )}
-                                  {p.is_godmode && (
-                                    <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">
-                                      {t('servers.players.god')}
+                                  {p.died && (
+                                    <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">
+                                      {t('servers.players.died')}
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-[10px] font-mono text-slate-400 flex items-center gap-3">
-                                  <span>{t('servers.players.ping', { ms: p.ping })}</span>
-                                  <span>•</span>
-                                  <span>{t('servers.players.health', { pct: Math.round(p.health * 100) })}</span>
+                                  {p.steam_id && <span>Steam {p.steam_id}</span>}
                                   {p.x !== 0 && (
                                     <>
-                                      <span>•</span>
-                                      <span>{t('servers.players.coords', { x: p.x, y: p.y, z: p.z })}</span>
+                                      {p.steam_id && <span>•</span>}
+                                      <span>{t(p.died ? 'servers.players.diedAt' : 'servers.players.enteredAt', { x: p.x, y: p.y, z: p.z })}</span>
                                     </>
                                   )}
                                 </div>

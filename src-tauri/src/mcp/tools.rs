@@ -384,7 +384,7 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "merge_lua_scripts".to_string(),
-            description: "Performs a 3-way AST merge on Lua scripts: Base (vanilla), Target A (Mod A), and Target B (Mod B), producing a unified, conflict-free script.".to_string(),
+            description: "Performs a line-based 3-way merge (like git) of Lua scripts: Base (vanilla), Target A (Mod A) and Target B (Mod B). Changes in different lines are combined; lines both changed come back as conflicts; the result's Lua syntax is checked with full_moon.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

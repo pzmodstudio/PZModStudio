@@ -80,7 +80,7 @@ Con **NoSteam (LAN)** elegido en **Host y lanzador**, además lista los mods que
 
 ## Jugadores
 
-**Jugadores conectados** lista quién está en línea, leído del log del propio servidor, con rol, ping, salud y posición. Mientras el servidor está en marcha, el Studio habla con él por RCON (el `RCONPassword` y el `RCONPort` de su `.ini`; un servidor que el Studio inicia sin contraseña recibe una):
+**Jugadores conectados** lista quién está en línea, leído del log del propio servidor, con rol, Steam id, dónde entró y si murió (los logs del juego no traen ping ni salud). Mientras el servidor está en marcha, el Studio habla con él por RCON (el `RCONPassword` y el `RCONPort` de su `.ini`; un servidor que el Studio inicia sin contraseña recibe una):
 
 - **Expulsar** en la fila de un jugador lo desconecta; puede volver a entrar. Podés dar un motivo, que el jugador ve.
 - **Banear** lo banea de este servidor, con un motivo opcional. Para quitar un baneo, usá la consola del servidor: `unbanuser "nombre"`.

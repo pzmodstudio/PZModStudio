@@ -177,7 +177,7 @@ Uses the `Z_ClaudeAgent` companion mod (source: `mods/Z_ClaudeAgent/`). Unlike t
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
 | `validate_lua_syntax` | `code` (string required) | Validates Lua syntax using the AST parser (`full_moon`), providing exact line and column numbers on error. |
-| `merge_lua_scripts` | `base`, `target_a`, `target_b` (strings required) | Performs a 3-way AST merge between a base script and two conflicting mod variants. |
+| `merge_lua_scripts` | `base`, `target_a`, `target_b` (strings required) | Performs a line-based 3-way merge (like git) between a base script and two mod variants; the result's Lua syntax is checked with full_moon, and lines both changed come back as conflicts. |
 | `list_merged_packages` | `user_zomboid_dir`, `mod_list_ini_path` (optional) | Lists all patch and merged packages (`Z_PZModStudio_*`) registered in the system. |
 | `get_master_patch_status` | `user_zomboid_dir`, `package_folder_name` (optional) | Queries the status of the `Z_PZModStudio_MasterPatch` package and saved resolutions. |
 | `save_draft_resolution` | `relative_path`, `resolved_content` (required)<br>`package_folder_name`, `status` (optional) | Saves a resolved code draft directly into the master patch package. |
@@ -254,7 +254,7 @@ For in-depth architectural details, refer to the [**Modular Technical Wiki**](do
 - **[05. Loot Distribution & Procedural Spawning](docs/05-loot-distribution-and-spawns.md):** `ItemPickerJava`, `ProceduralDistributions.lua`, and container APIs.
 - **[06. ModData Persistence, Networking & Security](docs/06-networking-moddata-and-security.md):** Persistence scopes, client-server sync, and CHAP anti-cheat attestation.
 - **[07. FMOD Audio, JSON Translations & 3D Z-Levels](docs/07-sound-translations-and-b42-space.md):** Sound scripts, mandatory JSON format (B42.15+), and Z-coordinates (-32 to +32).
-- **[08. Crash Diagnostics, VFS & 3-Way AST Merging](docs/08-crash-diagnostics-and-vfs.md):** `console.txt` error taxonomy and 3-way AST merge.
+- **[08. Crash Diagnostics, VFS & 3-Way Merging](docs/08-crash-diagnostics-and-vfs.md):** `console.txt` error taxonomy and the line-based 3-way merge.
 - **[09. Game Process Control & Live IPC Bridge](docs/09-game-control-and-ipc-bridge.md):** `ProjectZomboid64.exe` lifecycle control, live in-game execution and the Claude Agent protocol.
 
 ---

@@ -47,7 +47,7 @@ Links listet **VFS-Konflikte** jede kollidierende Datei mit ihrer Art (Lua, **DE
 4. Drück **✓ Merge dieser Datei speichern**. Die Datei wird **Geklärt**.
 5. Ist jede Datei erledigt, drück **📦 Packen & veröffentlichen**.
 
-**AST-Merge wiederherstellen** setzt die automatische Zusammenführung zurück in den Editor, und **Merge dieser Datei lösen** vergisst die gespeicherte Entscheidung für diese Datei. Zieh die Leiste zwischen den Feldern, um ihre Größe zu ändern.
+**Automatische Zusammenführung wiederherstellen** setzt die automatische Zusammenführung zurück in den Editor, und **Merge dieser Datei lösen** vergisst die gespeicherte Entscheidung für diese Datei. Zieh die Leiste zwischen den Feldern, um ihre Größe zu ändern.
 
 ## Einen Fehler in einer Mod patchen
 

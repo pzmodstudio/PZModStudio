@@ -80,7 +80,7 @@ With **NoSteam (LAN)** chosen on **Host & Launcher**, it also lists the mods tha
 
 ## Players
 
-**Connected Players** lists who is online, read from the server's own log, with role, ping, health and position. While the server runs, the Studio talks to it over RCON (the `RCONPassword` and `RCONPort` of its `.ini`; a server the Studio starts without a password gets one):
+**Connected Players** lists who is online, read from the server's own log, with role, Steam id, where they entered and whether they died (the game's logs carry no ping or health). While the server runs, the Studio talks to it over RCON (the `RCONPassword` and `RCONPort` of its `.ini`; a server the Studio starts without a password gets one):
 
 - **Kick** on a player's row disconnects them; they can join again. You can give a reason, which they see.
 - **Ban** bans them from this server, with an optional reason. To take a ban back, use the server console: `unbanuser "name"`.

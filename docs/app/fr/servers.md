@@ -80,7 +80,7 @@ Avec **NoSteam (LAN)** choisi dans **Hôte et lancement**, cela liste aussi les 
 
 ## Joueurs
 
-**Joueurs connectés** liste qui est en ligne, d'après le journal du serveur lui-même, avec rôle, ping, santé et position. Pendant que le serveur tourne, le Studio lui parle via RCON (le `RCONPassword` et le `RCONPort` de son `.ini` ; un serveur que le Studio lance sans mot de passe en reçoit un) :
+**Joueurs connectés** liste qui est en ligne, d'après le journal du serveur lui-même, avec rôle, Steam id, où il est entré et s'il est mort (les journaux du jeu n'ont ni ping ni santé). Pendant que le serveur tourne, le Studio lui parle via RCON (le `RCONPassword` et le `RCONPort` de son `.ini` ; un serveur que le Studio lance sans mot de passe en reçoit un) :
 
 - **Expulser** sur la ligne d'un joueur le déconnecte ; il peut rejoindre de nouveau. Vous pouvez donner une raison, qu'il voit.
 - **Bannir** le bannit de ce serveur, avec une raison facultative. Pour lever un bannissement, utilisez la console du serveur : `unbanuser "name"`.

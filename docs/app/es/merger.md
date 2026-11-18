@@ -47,7 +47,7 @@ A la izquierda, **Conflictos del VFS** lista cada archivo que choca con su tipo 
 4. Apretá **✓ Guardar la fusión de este archivo**. El archivo pasa a **Resuelto**.
 5. Cuando terminaste con todos los archivos, apretá **📦 Empaquetar y publicar**.
 
-**Restaurar fusión AST** vuelve a poner la fusión automática en el editor, y **Desfusionar este archivo** olvida la decisión guardada para ese archivo. Arrastrá la barra entre los paneles para cambiarles el tamaño.
+**Restaurar fusión automática** vuelve a poner la fusión automática en el editor, y **Desfusionar este archivo** olvida la decisión guardada para ese archivo. Arrastrá la barra entre los paneles para cambiarles el tamaño.
 
 ## Parchear un bug en un mod
 

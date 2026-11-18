@@ -47,7 +47,7 @@ On the left, **VFS Conflicts** lists each colliding file with its kind (Lua, **D
 4. Press **✓ Save Merge of this File**. The file becomes **Resolved**.
 5. When every file is done, press **📦 Package & Publish**.
 
-**Restore AST Merge** puts the automatic merge back in the editor, and **Unmerge this File** forgets the saved decision for that file. Drag the bar between the panels to resize them.
+**Restore the automatic merge** puts the automatic merge back in the editor, and **Unmerge this File** forgets the saved decision for that file. Drag the bar between the panels to resize them.
 
 ## Patching a bug in one mod
 

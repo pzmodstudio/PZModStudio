@@ -1,74 +1,71 @@
 <div align="center">
 
-<img src="assets/package-poster.png" alt="Project Zomboid Mod Studio Logo" width="160" />
+<img src="assets/package-poster.png" alt="PZ Mod Studio" width="160" />
 
-# 🧟 Project Zomboid Mod Studio (PZ Mod Studio)
+# PZ Mod Studio
 
-> **The ultimate desktop suite for managing, resolving conflicts, and ensuring mod compatibility in Project Zomboid (Build 42+ & legacy builds).**
+### More mods. Fewer crashes.
+
+**The free mod manager for Project Zomboid (Build 42) that tells you which mod broke your game.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](https://opensource.org/licenses/MIT)
-[![Tauri 2.0](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
-[![Rust](https://img.shields.io/badge/Rust-Stable-orange.svg)](https://www.rust-lang.org/)
-[![React 19](https://img.shields.io/badge/React-19-cyan.svg)](https://react.dev/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20%7C%20Linux-purple.svg)](https://github.com/pzmodstudio/PZModStudio/releases/latest)
 [![GitHub release](https://img.shields.io/github/v/release/pzmodstudio/PZModStudio?color=emerald)](https://github.com/pzmodstudio/PZModStudio/releases)
 
-[**Download (GitHub Releases)**](https://github.com/pzmodstudio/PZModStudio/releases/latest) • [**Website**](https://pzmodstudio.github.io/PZModStudio/) • [**itch.io**](https://pichu66.itch.io/pzmodstudio) • [**Technical Wiki (docs/)**](docs/INDEX.md) • [**AI Agent Guide (AGENTS.md)**](AGENTS.md)
+[**Download**](https://github.com/pzmodstudio/PZModStudio/releases/latest) • [**Website**](https://pzmodstudio.github.io/PZModStudio/) • [**itch.io**](https://pichu66.itch.io/pzmodstudio) • [**The in-game mod on the Steam Workshop**](https://steamcommunity.com/sharedfiles/filedetails/?id=3824256253)
 
 </div>
 
 ---
 
-## 🌟 Overview
+## What it does for you
 
-**Project Zomboid Mod Studio** is a free desktop application for **Windows and Linux**, in 7 languages (English, Español, Português (Brasil), Français, Deutsch, Русский, 简体中文), engineered to eliminate the most common headaches in modded Project Zomboid: **virtual file overwrites**, **broken load orders**, **B41-to-B42 compatibility breaks**, and **unreadable crash logs**.
+PZ Mod Studio reads the game's own log, names the mod behind each error in plain words and, when there is a fix, gives you the button for it. It also backs up your save before changed mods can ruin it.
 
-Unlike basic file combiners, PZ Mod Studio parses Lua scripts into a true **Abstract Syntax Tree (AST)** using the `full_moon` parser, performing a **3-Way Git-style merge** across Vanilla game files, Steam Workshop mods, and local additions. It packages all resolutions into an isolated synthetic mod (`Z_PZModStudio_MergedPatch`) that loads safely alongside your game.
+<img src="site/img/diagnostics.webp" alt="Diagnostics: every problem in your mod list, with what to do" width="720">
 
----
+- **The mod behind every error.** Each error in the game's log becomes a card: which mod, what it means, whether the game carried on, and a report you can send its author.
+- **Your list checked the way the game loads it.** Missing or switched-off requirements, a wrong order, mods your build can't load, two mods replacing the same file or the same function. Each finding says whether you need to act, and offers the fix.
+- **The Doctor.** Ask "why did my game close?" or "what changed since yesterday?" in your language. It answers from what this PC saw in your own sessions, with the evidence. No AI, and nothing is sent anywhere.
+- **Saves you don't lose.** A backup before a save loads with changed mods; add the mods you switched on since, or play on a copy.
+- **A way back from a bad update.** Steam keeps only the newest version of a Workshop mod. The app can keep the one you played with (it asks first, and says how much space it would use), so an update that breaks your save can be undone.
+- **Profiles.** Light, heavy and co-op mod lists side by side; the game's Mods screen follows the active one.
+- **Servers.** Install the official dedicated server, restart it on a schedule, after a crash or when a mod updates, with a Discord bot.
+- **Simple view** for new players: Play, your mods, and only what needs fixing.
+- **In 7 languages:** English, Español, Português (Brasil), Français, Deutsch, Русский, 简体中文.
 
-## 📸 Screenshots
+The free companion mod on the Workshop, **PZ Mod Studio Link**, shows the mod behind each Lua error inside the game and checks every save before it loads.
 
-The [website](https://pzmodstudio.github.io/PZModStudio/) has the videos (a tour of the app, the Link mod's Mods screen, the in-game error notice) and a page for each screen.
+<img src="site/img/error-notice.webp" alt="In the game: a notice naming the mod behind a Lua error" width="440">
 
-| | |
-| :---: | :---: |
-| <img src="site/img/mod-list.webp" alt="Mod List" width="440"><br>**Mod List**: the load order the way the game reads it | <img src="site/img/diagnostics.webp" alt="Diagnostics" width="440"><br>**Diagnostics**: every problem in the active list, with its fix, and the Doctor |
-| <img src="site/img/monitor.webp" alt="Monitor Center" width="440"><br>**Monitor**: each error as a card, with the mod named | <img src="site/img/browse.webp" alt="Browse Mods" width="440"><br>**Browse**: the Workshop inside the app |
-| <img src="site/img/error-notice.webp" alt="In-game error notice" width="440"><br>**The Link, in the game**: the mod behind a Lua error | <img src="site/img/save-check.webp" alt="In-game save check" width="440"><br>**The Link, in the game**: what changed before a save loads |
+## Install
 
----
+**Windows 10 / 11:** download `PZ-Mod-Studio-Portable-v*.zip` from the [latest release](https://github.com/pzmodstudio/PZModStudio/releases/latest) (or [itch.io](https://pichu66.itch.io/pzmodstudio)), unzip it anywhere and run `Project-Zomboid-Mod-Studio.exe`. Nothing is installed and no administrator rights are needed. It finds your game, Steam Workshop and Zomboid folders by itself.
 
-## ✨ Key Features
+Windows may show a SmartScreen notice the first time, only because the program has no paid code-signing certificate. Each release has a `SHA256SUMS.txt` signed by the project, to check that the file is the one published here. The zip also holds `pz-mcp-server.exe`, a console program for AI assistants: a player can ignore it.
 
-| Module | Core Capabilities |
-| :--- | :--- |
-| **📂 Mod Profiles** | Save and switch between unlimited mod configurations (Solo, B42 Vanilla+, Co-op Server) with **1-click activation** directly into `ModListData.ini`. |
-| **📋 Mod List Manager** | Auto-detects all Workshop and local mods. Sorts the load order the way the game reads it, health inspectors for missing/disabled dependencies, and shareable **`.pzpack` presets**. |
-| **🔀 3-Way AST Mod Merger** | Detects Virtual File System (VFS) collisions and performs automated AST merges on Lua code and `.txt` scripts. Includes an integrated **Monaco Diff Editor** (VS Code engine). |
-| **📊 Monitor Center & Diagnostics** | Streams live `console.txt` with noise filtering. Detects Java/Lua exceptions and generates **Crash Diagnostic Cards** with **1-click "Apply Fix" Polyfill rules**. |
-| **🖥️ Dedicated Server Runner** | Launch dedicated servers with configurable RAM and `-nosteam` support. Monitor live connected players (health, coordinates, ping), send broadcast messages, and run live console commands. |
-| **🤖 AI Agent Integration (MCP)** | Native **Model Context Protocol (MCP 2024-11-05)** server (`pz-mcp-server.exe`) enabling assistants (Claude Desktop, Cursor, Antigravity) to inspect logs, manage load orders, and run in-game live commands. |
+**Linux:** from the same release, the `.AppImage` (make it executable and run it) or the `.deb` (`sudo apt install ./PZ-Mod-Studio-v*-linux-amd64.deb`). A few extras are Windows-only: updating the app in place (on Linux it opens the release page), subscribing through the Steam client, downloading SteamCMD (install it from your distribution), the Windows out-of-memory log and controlling the game's window for AI assistants.
 
----
+## Is it safe?
 
-## 🚀 Quick Start
+- **Open source (MIT):** every line of the app and of the in-game mod is in this repository.
+- **No account, no telemetry, no ads.** It goes online only to browse the Workshop, translate a description when you ask, and look for a new version once a day (you can switch that off).
+- **It never edits your Workshop mods.** A fix is a separate mod folder you can delete; your mod list is backed up every time it changes; a save is only changed when you say yes, after a backup.
 
-### Windows 10 / 11 (portable)
+## How to stop using it
 
-No installer or administrative rights required:
+1. Close the app and delete the folder you unzipped (on Linux, the AppImage, or `sudo apt remove project-zomboid-mod-studio`). Your mods and saves stay as they are, and the game keeps your current mod list.
+2. If you want to remove everything it made: in your `Zomboid` folder, the folders and files whose name starts with `PZModStudio_` (backups, logs, cache, kept versions), and in `Zomboid/mods` the folders `Z_PZModStudio_*` (patch packages) and `Z_StudioLink` (its local copy of the in-game mod). Copies of Workshop mods it made for you carry a `.pzms_workshop_copy.json` file inside. On Windows its settings are in `%APPDATA%\PZModStudio`, `%LOCALAPPDATA%\PZModStudio` and `%LOCALAPPDATA%\com.pzmodstudio.app`.
+3. Unsubscribe from PZ Mod Studio Link on the Workshop if you had it.
 
-1. Download `PZ-Mod-Studio-Portable-v*.zip` from [**GitHub Releases**](https://github.com/pzmodstudio/PZModStudio/releases/latest) (or from [**itch.io**](https://pichu66.itch.io/pzmodstudio)) and extract it. It holds:
-   - **`Project-Zomboid-Mod-Studio.exe`** — The main desktop application (~17 MB).
-   - **`pz-mcp-server.exe`** — The standalone console MCP server for AI agents (~3 MB).
-2. Launch **`Project-Zomboid-Mod-Studio.exe`**.
-3. The studio will auto-detect your Project Zomboid, Steam Workshop, and user folders.
+## What is inside (for the curious)
 
-### Linux
-
-From the same release: `PZ-Mod-Studio-v*-linux-x86_64.AppImage` (make it executable and run it) or `PZ-Mod-Studio-v*-linux-amd64.deb` (`sudo apt install ./PZ-Mod-Studio-v*-linux-amd64.deb`). It finds Steam in its usual folders, the Flatpak's included. A few extras are Windows-only: updating the app in place (on Linux it opens the release page), subscribing through the Steam client, downloading SteamCMD (install it from your distribution), the Windows out-of-memory log and capturing the game's window. The MCP console server is `/usr/bin/pz-mcp-server` with the .deb, a separate `pz-mcp-server-v*-linux-x86_64` file, or the AppImage itself with `--mcp`.
+- **Merger:** when two mods replace the same file, it builds a small package that loads last with both changes, using a line-by-line three-way merge (like git's) of the game's file and each mod's; Lua is checked for syntax errors before it is saved. Your mods are not touched.
+- **Servers' player list:** names, roles, Steam ids, where a player entered and whether they died, read from the server's logs. The game's logs carry no ping or health, so the app shows none.
+- Built with Tauri 2 (Rust) and React. An MCP server lets AI assistants read your logs and mod list ([AGENTS.md](AGENTS.md)).
 
 ---
+
 
 ## 🛠️ Building from Source (Developers & Contributors)
 
@@ -124,7 +121,7 @@ The repository includes a comprehensive, modular 9-chapter wiki detailing Projec
 - [**05. Loot Distribution & Procedural Spawning**](docs/05-loot-distribution-and-spawns.md)
 - [**06. ModData Persistence, Networking & Security**](docs/06-networking-moddata-and-security.md)
 - [**07. FMOD Audio, JSON Translations & 3D Z-Levels**](docs/07-sound-translations-and-b42-space.md)
-- [**08. Crash Diagnostics, VFS & 3-Way AST Merging**](docs/08-crash-diagnostics-and-vfs.md)
+- [**08. Crash Diagnostics, VFS & 3-Way Merging**](docs/08-crash-diagnostics-and-vfs.md)
 - [**09. Game Process Control & Live IPC Bridge**](docs/09-game-control-and-ipc-bridge.md)
 
 See the [**Documentation Index**](docs/INDEX.md) for full details.

@@ -40,9 +40,9 @@ pub struct DedicatedServerStatus {
 pub struct ConnectedPlayer {
     pub username: String,
     pub role: String,
-    pub ping: u32,
-    pub health: f32,
-    pub is_godmode: bool,
+    /// The log said the player died (x, y, z are then where); the game logs no ping or health.
+    pub died: bool,
+    /// Where the player entered (or died): the log's coordinates, not a live position.
     pub x: i32,
     pub y: i32,
     pub z: i32,
@@ -1199,9 +1199,7 @@ pub fn get_connected_players(user_zomboid_dir: String) -> Result<Vec<ConnectedPl
                                 online_map.insert(username.clone(), ConnectedPlayer {
                                     username,
                                     role: "User".to_string(),
-                                    ping: 35,
-                                    health: 1.0,
-                                    is_godmode: false,
+                                    died: false,
                                     x,
                                     y,
                                     z,
@@ -1227,7 +1225,7 @@ pub fn get_connected_players(user_zomboid_dir: String) -> Result<Vec<ConnectedPl
                                 if let Some(died_pos) = line.find(" died at ") {
                                     let username = line[pos + 5..died_pos].trim().trim_matches('"');
                                     if let Some(player) = online_map.get_mut(username) {
-                                        player.health = 0.0;
+                                        player.died = true;
                                         if let Some(coord_start) = line.rfind('(') {
                                             if let Some(coord_end) = line[coord_start..].find(')') {
                                                 let coords_str = &line[coord_start + 1..coord_start + coord_end];
@@ -1281,9 +1279,7 @@ pub fn get_connected_players(user_zomboid_dir: String) -> Result<Vec<ConnectedPl
                                         online_map.insert(username.clone(), ConnectedPlayer {
                                             username,
                                             role: if !role.is_empty() && role != "null" { role } else { "User".to_string() },
-                                            ping: 35,
-                                            health: 1.0,
-                                            is_godmode: false,
+                                            died: false,
                                             x: 0,
                                             y: 0,
                                             z: 0,

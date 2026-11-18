@@ -47,7 +47,7 @@ A barra do topo mostra **← Voltar para a lista**, um seletor **Pacote:** para 
 4. Clique em **✓ Salvar a mescla deste arquivo**. O arquivo fica **Resolvido**.
 5. Quando todos os arquivos estiverem prontos, clique em **📦 Empacotar e publicar**.
 
-**Restaurar mescla AST** coloca a mescla automática de volta no editor, e **Desfazer mescla deste arquivo** esquece a decisão salva para aquele arquivo. Arraste a barra entre os painéis para mudar o tamanho deles.
+**Restaurar mesclagem automática** coloca a mescla automática de volta no editor, e **Desfazer mescla deste arquivo** esquece a decisão salva para aquele arquivo. Arraste a barra entre os painéis para mudar o tamanho deles.
 
 ## Corrigindo um bug em um mod
 

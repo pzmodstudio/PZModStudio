@@ -80,7 +80,7 @@ Com **NoSteam (LAN)** escolhido em **Hospedar e iniciar**, a checagem também li
 
 ## Jogadores
 
-**Jogadores conectados** lista quem está online, lido do próprio log do servidor, com cargo, ping, vida e posição. Enquanto o servidor roda, o Studio fala com ele por RCON (o `RCONPassword` e o `RCONPort` do `.ini` dele; um servidor que o Studio inicia sem senha ganha uma):
+**Jogadores conectados** lista quem está online, lido do próprio log do servidor, com cargo, Steam id, onde entrou e se morreu (os logs do jogo não trazem ping nem vida). Enquanto o servidor roda, o Studio fala com ele por RCON (o `RCONPassword` e o `RCONPort` do `.ini` dele; um servidor que o Studio inicia sem senha ganha uma):
 
 - **Expulsar** na linha de um jogador o desconecta; ele pode entrar de novo. Você pode dar um motivo, que ele vê.
 - **Banir** o bane deste servidor, com um motivo opcional. Para desfazer um banimento, use o console do servidor: `unbanuser "name"`.

@@ -1,8 +1,17 @@
 {
- "latest": "1.12.1",
- "count": 40,
+ "latest": "1.12.2",
+ "count": 41,
  "built": "2026-11-18",
  "releases": [
+  {
+   "version": "1.12.2",
+   "date": "2026-11-18",
+   "notes": [
+    "Link 1.21.1: a save with mods outside your profile gets a clear question, not a game error",
+    "Servers: the player list shows only what the log says (no made-up ping or health)",
+    "A README for players, with how to stop using the app"
+   ]
+  },
   {
    "version": "1.12.1",
    "date": "2026-11-18",
@@ -141,20 +150,6 @@
    "notes": [
     "Multiplayer test: player 2's mods checked more carefully",
     "Multiplayer test: a game that closed is no longer counted as joined"
-   ]
-  },
-  {
-   "version": "1.8.3",
-   "date": "2026-11-12",
-   "notes": [
-    "Multiplayer test on one PC: a server and one or two games joined to it",
-    "Multiplayer test: logs in, makes the character and enters the world by itself",
-    "Multiplayer test: restart one game alone, a console tab per game",
-    "Monitor: console tabs can be reordered",
-    "Merger: a package belongs to the profile it was built with",
-    "Mod List: better filter for mods outside any profile",
-    "Mod Health: hand-made copies of Workshop mods",
-    "Short guides on Mod Health, the Merger and the Developer page"
    ]
   }
  ]

@@ -629,9 +629,9 @@ export interface DedicatedServerStatus {
 export interface ConnectedPlayer {
   username: string;
   role: string;
-  ping: number;
-  health: number;
-  is_godmode: boolean;
+  /** The log said the player died (x, y, z are then where). The game logs no ping or health. */
+  died: boolean;
+  /** Where the player entered (or died), from the log: not a live position. */
   x: number;
   y: number;
   z: number;
