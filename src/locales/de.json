@@ -4009,6 +4009,18 @@
       "added": "\"{{world}}\" lädt jetzt {{count}} Karte(n) mehr; {{chunks}} leere Chunks verschoben. Backup: {{backup}}",
       "overListed": "{{count}} ihrer Zellen deckt auch eine schon geladene Karte ab: Was dort ist, bleibt, wie es ist."
     },
+    "profileMods": {
+      "line_one": "{{count}} in {{profile}} aktive Mod ist nicht in diesem Spielstand",
+      "line_other": "{{count}} in {{profile}} aktive Mods sind nicht in diesem Spielstand",
+      "title": "Ein Spielstand lädt mit seiner eigenen Modliste, nicht mit dem Profil. Eine Mod, die nach dem Erstellen des Spielstands im Profil aktiviert wurde, lädt erst mit ihm, wenn sie ihm hinzugefügt wird.",
+      "mapTitle": "Bringt Kartenbereiche, ohne die dieser Spielstand erstellt wurde: ihre Karten werden dem Spielstand ebenfalls hinzugefügt.",
+      "add": "Diesem Spielstand hinzufügen",
+      "addTitle": "Bei geschlossenem Spiel: zuerst eine Sicherung, dann kommen sie in die Liste des Spielstands, wo die Ladereihenfolge des Profils sie einordnet, und ihre Karten in seine Kartenliste.",
+      "confirm": "{{count}} Mod(s) zu „{{world}}“ hinzufügen? Zuerst wird eine Sicherung erstellt. Sie kommen in der Ladereihenfolge des Profils in seine Liste. Das Spiel muss geschlossen sein.",
+      "confirmMaps": "{{count}} davon bringen Kartenbereiche: ihre Karten werden ebenfalls hinzugefügt, und Gelände, das das Spiel dort schon leer erzeugt hat, kommt in den Sicherungsordner.",
+      "added": "„{{world}}“ lädt jetzt {{count}} Mod(s) mehr. Sicherung: {{backup}}",
+      "addedMaps": "„{{world}}“ lädt jetzt {{count}} Mod(s) und {{maps}} Karte(n) mehr; {{chunks}} leere Chunks verschoben. Sicherung: {{backup}}"
+    },
     "online": "Online",
     "showingProfile_one": "{{count}} Spielstand des Profils {{name}}",
     "showingProfile_other": "{{count}} Spielstände des Profils {{name}}",
@@ -5248,7 +5260,16 @@
       "noModsOn": "In diesem Profil ist noch keine Mod an: Das Spiel würde ohne Mods starten.",
       "noModsOnGo": "Mods einschalten",
       "gameOpen": "Das Spiel ist schon offen.",
-      "gameOpenLine": "Das Spiel ist offen. Beim ersten Mal mit neuen Mods dauert das Laden ein paar Minuten. Du kannst das Studio im Hintergrund offen lassen."
+      "gameOpenLine": "Das Spiel ist offen. Beim ersten Mal mit neuen Mods dauert das Laden ein paar Minuten. Du kannst das Studio im Hintergrund offen lassen.",
+      "lastBad": {
+        "title": "Dein letztes Spiel ({{when}}) ist schiefgelaufen",
+        "several": "Deine letzten {{bad}} von {{of}} Spielen mit dieser Liste sind schiefgelaufen",
+        "memory": "Dem PC ging bei offenem Spiel der Speicher aus. Schließe vor dem Spielen andere Programme (Browser, einen Server, andere Spiele).",
+        "java": "Das Spiel selbst ist abgestürzt (ein Java-Fehler), oft der Grafiktreiber oder der Speicher. Passiert es wieder, sieh dir die Details an.",
+        "noMenu": "Das Spiel hat sich vor seinem Menü geschlossen. Meist eine Mod, die auf dieser Version nicht lädt: die Prüfung unten nennt sie.",
+        "details": "Details ansehen",
+        "hide": "Verstanden"
+      }
     },
     "health": {
       "nothingToAct": "Nichts zu beheben: Deine Mods sind bereit zum Spielen.",

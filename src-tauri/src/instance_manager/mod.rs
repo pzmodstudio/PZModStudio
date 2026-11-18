@@ -299,6 +299,11 @@ pub fn active_memory(z_dir: &std::path::Path) -> Option<(Option<u64>, String)> {
     find_active(&z_dir.join("PZModStudio_Instances")).map(|(_, i)| (i.game_memory_mb, i.name))
 }
 
+/// The active profile's id, name and the mods it has on, in its load order.
+pub fn active_profile_on(z_dir: &std::path::Path) -> Option<(String, String, Vec<String>)> {
+    find_active(&z_dir.join("PZModStudio_Instances")).map(|(_, i)| (i.id, i.name, i.active_mod_ids))
+}
+
 /// The active profile's id and name, if one is active.
 pub fn active_profile(user_zomboid_dir: &str) -> Option<(String, String)> {
     find_active(&get_instances_dir(user_zomboid_dir)).map(|(_, i)| (i.id, i.name))

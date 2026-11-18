@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
-import { Archive, Car, CheckCircle2, ChevronDown, ChevronRight, FolderOpen, Globe, HardDrive, Loader2, Pencil, Pin, PinOff, RefreshCw, RotateCcw, ShieldAlert, Trash2, User } from 'lucide-react';
+import { Archive, Car, CirclePlus, CheckCircle2, ChevronDown, ChevronRight, FolderOpen, Globe, HardDrive, Loader2, Pencil, Pin, PinOff, RefreshCw, RotateCcw, ShieldAlert, Trash2, User } from 'lucide-react';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
-import { AppInstance, SaveBackupEntry, SaveMaps, SaveMissingMod, SaveSummary, SavesOverview, SessionDiff, SaveInside } from '../../types';
+import { AppInstance, SaveBackupEntry, SaveMaps, SaveMissingMod, SaveProfileMods, SaveSummary, SavesOverview, SessionDiff, SaveInside } from '../../types';
 import { formatBytes } from '../browse/common';
 import i18next from 'i18next';
 
@@ -38,6 +38,8 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
   const [diffs, setDiffs] = useState<Record<string, SessionDiff>>({});
   const [missing, setMissing] = useState<Record<string, SaveMissingMod[]>>({});
   const [maps, setMaps] = useState<Record<string, SaveMaps>>({});
+  /** The active profile's mods each save's own list lacks (it loads with that list, not the profile). */
+  const [profileMods, setProfileMods] = useState<Record<string, SaveProfileMods>>({});
   /** What each save holds (characters, vehicles), read when asked; 'loading' meanwhile. */
   const [inside, setInside] = useState<Record<string, SaveInside | 'loading' | { error: string }>>({});
   const [insideOpen, setInsideOpen] = useState<Record<string, boolean>>({});
@@ -81,17 +83,19 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
   const refresh = useCallback(async () => {
     if (!paths.user_zomboid_dir) return;
     setLoading(true);
-    const [next, sessions, list, absent, unloaded] = await Promise.all([
+    const [next, sessions, list, absent, unloaded, lacking] = await Promise.all([
       TauriService.savesOverview(paths),
       TauriService.saveSessionDiffs(paths),
       TauriService.listInstances(paths.user_zomboid_dir).catch(() => [] as AppInstance[]),
       TauriService.saveMissingMods(paths),
       TauriService.saveMissingMaps(paths),
+      TauriService.saveProfileMods(paths),
     ]);
     if (next) setOverview(next);
     setDiffs(sessions);
     setMissing(absent);
     setMaps(unloaded);
+    setProfileMods(lacking);
     setProfiles(list);
     setLoading(false);
   }, [paths]);
@@ -274,6 +278,23 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
     void run(`maps:${save.id}`, async () => {
       const out = await TauriService.saveAddMaps(paths, save.id);
       return t('saves.maps.added', { world: save.world, count: out.added.length, chunks: out.moved_chunks, backup: out.backup });
+    });
+  };
+
+  /** The profile's mods the save lacks, put in its own list in the profile's order (backup first). */
+  const addProfileMods = (save: SaveSummary) => {
+    const r = profileMods[save.id];
+    if (!r) return;
+    const ask = [
+      t('saves.profileMods.confirm', { count: r.mods.length, world: save.world }),
+      r.map_mods.length > 0 ? t('saves.profileMods.confirmMaps', { count: r.map_mods.length }) : '',
+    ].filter(Boolean).join('\n\n');
+    if (!window.confirm(ask)) return;
+    void run(`profile-mods:${save.id}`, async () => {
+      const out = await TauriService.saveAddProfileMods(paths, save.id);
+      return out.maps
+        ? t('saves.profileMods.addedMaps', { world: save.world, count: out.added.length, maps: out.maps.added.length, chunks: out.maps.moved_chunks, backup: out.backup })
+        : t('saves.profileMods.added', { world: save.world, count: out.added.length, backup: out.backup });
     });
   };
 
@@ -575,6 +596,33 @@ export const SavesModule: React.FC<SavesModuleProps> = ({ paths, onOpenWorkshopI
                           </button>
                         </div>
                         {over > 0 && <div className="text-[10px] text-slate-500 mt-0.5">{t('saves.maps.overListed', { count: over })}</div>}
+                      </div>
+                    );
+                  })()}
+                  {(profileMods[save.id]?.mods.length ?? 0) > 0 && (() => {
+                    const r = profileMods[save.id];
+                    return (
+                      <div className="mt-1 text-[11px] text-emerald-300">
+                        <span className="inline-flex items-center gap-1" title={t('saves.profileMods.title')}>
+                          <CirclePlus size={12} />
+                          {t('saves.profileMods.line', { count: r.mods.length, profile: r.profile_name })}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          {r.mods.map((id) => (
+                            <span key={id} title={r.map_mods.includes(id) ? t('saves.profileMods.mapTitle') : undefined} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-emerald-800/60 text-emerald-200">
+                              {r.map_mods.includes(id) && <Globe size={11} aria-hidden="true" />}
+                              {id}
+                            </span>
+                          ))}
+                          <button
+                            onClick={() => addProfileMods(save)}
+                            disabled={working !== null || save.busy}
+                            title={t('saves.profileMods.addTitle')}
+                            className="px-2 py-0.5 rounded-md bg-emerald-700/60 hover:bg-emerald-600/70 text-emerald-50 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            {t('saves.profileMods.add')}
+                          </button>
+                        </div>
                       </div>
                     );
                   })()}

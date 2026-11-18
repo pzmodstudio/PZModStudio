@@ -6,7 +6,7 @@ import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
 import { BrainMarkReport, BrainModHistory, BrainOnset, BrainOverview, BrainPeriodReport, BrainPrelaunch, BrainSuspect, DocHit, LearnedSummary, MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources, LiveSnapshot } from '../types';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, KeptVersionsSummary, KeptVersionsMoved, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod, ServerSettingsSchema, ServerSettingsValues, DedicatedView, DedicatedConfig, DedicatedInstallProgress, RestartView, RestartSchedule } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, KeptVersionsSummary, KeptVersionsMoved, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveProfileMods, SaveAddedProfileMods, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod, ServerSettingsSchema, ServerSettingsValues, DedicatedView, DedicatedConfig, DedicatedInstallProgress, RestartView, RestartSchedule } from '../types';
 
 /** A process holding a file Windows would not let the Studio touch. */
 export interface FileHolder {
@@ -2570,6 +2570,18 @@ export const TauriService = {
   /** Gives a save the maps its mods bring, after a backup. Throws with the reason (the game running, no room). */
   saveAddMaps: async (paths: StudioPathsUI, saveId: string): Promise<SaveMapsFix> => {
     return await invoke<SaveMapsFix>('save_add_maps_cmd', { paths, saveId });
+  },
+  /** For each save of the active profile (or of none): the profile's mods its own list lacks. */
+  saveProfileMods: async (paths: StudioPathsUI): Promise<Record<string, SaveProfileMods>> => {
+    try {
+      return await invoke<Record<string, SaveProfileMods>>('save_profile_mods_cmd', { paths });
+    } catch {
+      return {};
+    }
+  },
+  /** Adds the active profile's mods a save lacks to its list, after a backup. Throws with the reason (the game running). */
+  saveAddProfileMods: async (paths: StudioPathsUI, saveId: string): Promise<SaveAddedProfileMods> => {
+    return await invoke<SaveAddedProfileMods>('save_add_profile_mods_cmd', { paths, saveId });
   },
   saveSessionDiffs: async (paths: StudioPathsUI): Promise<Record<string, SessionDiff>> => {
     try {

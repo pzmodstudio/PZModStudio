@@ -1128,6 +1128,27 @@ fn save_add_maps_cmd(paths: StudioPaths, save_id: String) -> Result<save_backup:
     result
 }
 
+/// For each save of the active profile (or of none): the mods the profile has on that its own
+/// list lacks, and which of them bring map folders.
+#[tauri::command(async)]
+fn save_profile_mods_cmd(paths: StudioPaths) -> Result<std::collections::BTreeMap<String, save_backup::profile_mods::ProfileModsForSave>, String> {
+    let z = zomboid_dir_of(&paths)?;
+    let saved = vfs::studio_paths();
+    let cells = map_cells::map_cells(&saved.pz_install_dir, &saved.workshop_dir, &z);
+    Ok(studio_link::profile_mods_not_in_saves(&z, Some(&cells)))
+}
+
+/// Adds the active profile's mods a save lacks to its own list (in the profile's order, with the
+/// map folders they bring), after a backup. Refused while the game runs.
+#[tauri::command(async)]
+fn save_add_profile_mods_cmd(paths: StudioPaths, save_id: String) -> Result<save_backup::profile_mods::AddedToSave, String> {
+    let z = zomboid_dir_of(&paths)?;
+    if sandbox::find_running_pz_pid().is_some() {
+        return Err("Project Zomboid is running: close it first, the game writes the save while it runs.".to_string());
+    }
+    studio_link::add_profile_mods_to_save(&z, &save_id, None)
+}
+
 /// For each save with a recorded session: mods added, removed and updated since.
 #[tauri::command(async)]
 fn save_session_diffs_cmd(paths: StudioPaths) -> Result<std::collections::BTreeMap<String, studio_link::SessionDiff>, String> {
@@ -2536,6 +2557,8 @@ pub fn run() {
             save_missing_mods_cmd,
             save_missing_maps_cmd,
             save_add_maps_cmd,
+            save_profile_mods_cmd,
+            save_add_profile_mods_cmd,
             save_inside_cmd,
             scan_mod_security_cmd,
             java_patches_mod_cmd,

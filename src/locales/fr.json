@@ -4091,6 +4091,19 @@
       "added": "« {{world}} » charge maintenant {{count}} carte(s) de plus ; {{chunks}} chunks vides déplacés. Copie de secours : {{backup}}",
       "overListed": "{{count}} de leurs cellules sont aussi couvertes par une carte déjà chargée : ce qui s'y trouve reste tel quel."
     },
+    "profileMods": {
+      "line_one": "{{count}} mod activé dans {{profile}} n'est pas dans cette sauvegarde",
+      "line_many": "{{count}} mods activés dans {{profile}} ne sont pas dans cette sauvegarde",
+      "line_other": "{{count}} mods activés dans {{profile}} ne sont pas dans cette sauvegarde",
+      "title": "Une sauvegarde se charge avec sa propre liste de mods, pas avec le profil. Un mod activé dans le profil après la création de la sauvegarde ne se charge pas avec elle tant qu'il n'y est pas ajouté.",
+      "mapTitle": "Apporte des zones de carte avec lesquelles cette sauvegarde n'a pas été créée : ses cartes sont aussi ajoutées à la sauvegarde.",
+      "add": "Les ajouter à cette sauvegarde",
+      "addTitle": "Jeu fermé : d'abord une copie de secours, puis ils entrent dans la liste de la sauvegarde là où l'ordre de chargement du profil les place, et les cartes qu'ils apportent dans sa liste de cartes.",
+      "confirm": "Ajouter {{count}} mod(s) à « {{world}} » ? Une copie de secours est faite d'abord. Ils entrent dans sa liste dans l'ordre de chargement du profil. Le jeu doit être fermé.",
+      "confirmMaps": "{{count}} d'entre eux apportent des zones de carte : leurs cartes sont aussi ajoutées, et le terrain que le jeu a déjà généré vide là-bas part dans le dossier des copies.",
+      "added": "« {{world}} » charge maintenant {{count}} mod(s) de plus. Copie : {{backup}}",
+      "addedMaps": "« {{world}} » charge maintenant {{count}} mod(s) et {{maps}} carte(s) de plus ; {{chunks}} chunks vides déplacés. Copie : {{backup}}"
+    },
     "online": "En ligne",
     "showingProfile_one": "{{count}} sauvegarde du profil {{name}}",
     "showingProfile_other": "{{count}} sauvegardes du profil {{name}}",
@@ -5397,7 +5410,16 @@
       "noModsOn": "Aucun mod n'est encore activé dans ce profil : le jeu démarrerait sans mods.",
       "noModsOnGo": "Activer des mods",
       "gameOpen": "Le jeu est déjà ouvert.",
-      "gameOpenLine": "Le jeu est ouvert. La première fois avec de nouveaux mods, il met quelques minutes à charger. Vous pouvez laisser le Studio ouvert en arrière-plan."
+      "gameOpenLine": "Le jeu est ouvert. La première fois avec de nouveaux mods, il met quelques minutes à charger. Vous pouvez laisser le Studio ouvert en arrière-plan.",
+      "lastBad": {
+        "title": "Votre dernière partie ({{when}}) s'est mal passée",
+        "several": "Vos {{bad}} dernières parties sur {{of}} avec cette liste se sont mal passées",
+        "memory": "Le PC a manqué de mémoire avec le jeu ouvert. Fermez les autres programmes avant de jouer (navigateur, serveur, autres jeux).",
+        "java": "Le jeu lui-même a échoué (une erreur Java), souvent le pilote graphique ou la mémoire. Si ça recommence, voyez les détails.",
+        "noMenu": "Le jeu s'est fermé avant d'atteindre son menu. Souvent un mod qui ne se charge pas sur cette version : la vérification ci-dessous le nomme.",
+        "details": "Voir les détails",
+        "hide": "Compris"
+      }
     },
     "health": {
       "nothingToAct": "Rien à corriger : vos mods sont prêts pour jouer.",

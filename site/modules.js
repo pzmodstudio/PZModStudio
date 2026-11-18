@@ -26,43 +26,44 @@ const MODULES = [
         'Problem tags on each row (a missing requirement, loads too early, errors last session) with a wrench that applies the fix.',
         '<b>Earlier lists</b>: every list the Studio wrote is kept; pick one and go back to it.',
         '<b>Keep this version</b> copies a mod as it is today, so a Workshop update that breaks your save can be undone.',
-        'Your own load-order rules ("this loads after that") that Auto-Sort follows and Mod Health checks.'
+        'Your own load-order rules ("this loads after that") that Auto-Sort follows and Diagnostics checks.'
       ]]
     ]
   },
   {
-    id: 'health', name: 'Mod Health', color: '#f87171',
-    tagline: 'Every problem in your active list, each with a button to fix it.',
-    intro: 'Mod Health checks your active mods with the game\'s own rules and lists every problem, from the ones that stop the game to the ones only worth knowing. It runs again by itself whenever your list changes.',
+    id: 'health', name: 'Diagnostics', color: '#f87171',
+    tagline: 'Every problem in your mods, the game and your server, each with what to do.',
+    intro: 'Diagnostics checks your active mods the way the game reads them and lists every problem with a button to fix it. It also shows how the game and your server are doing, and opens on the Doctor, which answers "what is wrong?" from what this PC learned.',
     sections: [
       ['What it finds', [
-        'Mods not installed, mods your build cannot load, a broken <code>mod.info</code>.',
-        'Requirements that are missing or switched off, and mods in the wrong order.',
-        'Pairs of mods that say they do not work together, and the same mod listed twice.',
-        'Two mods giving the same file, item, recipe or translation: the game only uses one.',
-        'Workshop updates Steam has not downloaded yet, and mods that filled the console last time you played.'
+        'Mods your build cannot load, a broken <code>mod.info</code>, requirements that are missing or switched off, mods in the wrong order, pairs that do not go together.',
+        'Checked on the order the game really loads mods in, so it does not report what the game sorts out by itself.',
+        'Two mods giving the same file, item, recipe or text: the game only uses one.',
+        'Java mods a game update broke, functions one mod cuts off for another (checked in the running game), mods that filled the console last time you played.',
+        'Each row says if <b>you need to act</b>, if it is <b>worth doing</b>, only <b>good to know</b>, or <b>already fixed by the Studio</b>.'
       ]],
       ['Fixing', [
-        'Each row has its fix: switch a mod on or off, move it, take it out of the list, open it on the Workshop.',
         '<b>Fix N problems automatically</b> turns on what is missing and moves what loads too early. It never switches anything off, and the Mod List can undo it.',
-        '<b>Merge N files automatically</b> settles every file conflict without overlapping changes, in a patch package that loads last.',
+        '<b>Merge N files automatically</b> settles file conflicts without overlapping changes, in a patch package that loads last.',
         '<b>Make compatible copy</b> adapts a Workshop mod to your build in a local copy, and says what it changed.',
-        '<b>Copy for an assistant</b> on every row, to ask an AI what it means in plain words.'
+        '<b>Copy for an assistant</b> on every row, to ask any chat assistant what it means; nothing is sent from the Studio.'
       ]],
-      ['Performance', [
-        'How much memory the game may use, with a suggestion for your mod list and a warning when a recent session ran out. Each profile keeps its own value.',
-        'Game time per mod: a small profiler times every event handler of every mod while you play and adds it up per mod, with the costliest handlers and their file and line.',
-        'How long each stage of the game\'s start took, compared with earlier starts, and the frame times and hitches of the session.'
+      ['The Doctor', [
+        'A chat with no AI: ask "why did my game close?", "what changed?" or "which mod causes it?" in any of the app’s seven languages.',
+        'It answers from this PC’s own sessions: which mods go with the sessions that went wrong, what changed when an error began, whether a fix worked, real crashes told apart from closing the window.',
+        'It can hunt a problem by halves, and anything that changes something asks you first.'
+      ]],
+      ['The game and the server', [
+        'Live: memory against the Java limit, CPU, which screen the game is on and its errors; the same for the server running on this PC.',
+        'How much memory the game may use, with a suggestion for your list; each profile keeps its own value.',
+        'Time per mod: a small profiler times every event handler of every mod and adds it up per mod, with the costliest handlers by file and line.',
+        'Start-up stage by stage, frames and hitches, and disk: what each mod takes and which ones nothing uses.'
       ]],
       ['Security', [
         'What mods could do beyond modding, as hints and never a verdict: programs shipped, Java that starts processes, Lua that runs commands, reaches the network or reads outside its folder.'
       ]],
-      ['Disk', [
-        'How much each mod takes, and which ones nothing uses: no profile, no save, no server.',
-        'Unsubscribe from Workshop items or send local folders to the Recycle Bin, after asking. Leftover folders Steam forgot are found too.'
-      ]],
-      ['Community knowledge', [
-        'Once a day the Studio downloads shared load-order rules, incompatible pairs and known issues with their fix. They show up in the check alongside your own.'
+      ['The Studio’s index', [
+        'Load-order rules, incompatible pairs and known issues with their fix come inside each version of the app; nothing is downloaded and nothing is sent. What this PC learns from its own logs is added to them.'
       ]]
     ]
   },
@@ -93,6 +94,7 @@ const MODULES = [
     sections: [
       ['Steam Workshop', [
         'Search and sort by popularity, rating or date, filtered by build and category. Paste links, ids or a collection to see exactly those items.',
+        'Read a mod’s Workshop comments before you install it.',
         'Subscribe and unsubscribe from the Studio (through the Steam client).',
         'When a mod needs other Workshop items, the whole chain is listed and you subscribe to all of it at once.',
         'Collections: subscribe to the missing ones or make a profile from it.'
@@ -104,7 +106,6 @@ const MODULES = [
       ['Your mods and your lists', [
         'Everything you have installed, with chips for <b>New since last play</b> and <b>Update waiting in Steam</b>.',
         'Your own lists (Favorites is always there): subscribe to all the missing mods of a list, or make a profile from it.',
-        'Lists other players shared, each read by a person before it was published. Copy one to your lists, or share yours.'
       ]],
       ['The detail view', [
         'Pictures and videos, the description (translated into your language on request), requirements marked installed or missing, and what the community index knows: builds it runs on, mods it does not go with, known issues.',
@@ -126,7 +127,7 @@ const MODULES = [
       ]],
       ['Patching one mod', [
         'When one mod has a bug and there is nothing to merge, open its file, fix it, and save. The game reads your copy for that file only.',
-        'Mod Health and the Monitor can send you straight to the file an error named, sometimes with the fix already applied.'
+        'Diagnostics and the Monitor can send you straight to the file an error named, sometimes with the fix already applied.'
       ]],
       ['Packages', [
         'A package is a mod named <code>Z_PZModStudio_…</code>, put last in the load order so its copy wins.',
@@ -143,6 +144,7 @@ const MODULES = [
     sections: [
       ['The log', [
         'Live tabs for the game and for a dedicated server you run, plus any older log you open.',
+        'While the game runs, a Live panel: FPS, memory, CPU, Lua errors and, with the profiler on, the mods whose Lua takes the most time. The Link mod can draw the same numbers over the game.',
         'Search, and filters for errors, Lua and Java lines. A spam filter hides lines about missing translations.'
       ]],
       ['Error cards', [
@@ -232,11 +234,13 @@ const MODULES = [
       ['Joining', [
         'Search every public server through Steam, filtered by build, players, password and mods, and star the ones you like. Add private servers by address.',
         'See a server\'s build, whitelist, last wipe and mods, each marked installed or downloaded by the game.',
-        '<b>Join</b> starts the game on the server\'s connect window with the password and your username filled in. Passwords are kept in Windows\' credential store.',
+        '<b>Join</b> starts the game on the server\'s connect window with the password and your username filled in. Passwords are kept in Windows\' credential store (a private file on Linux).',
         'Make a profile with exactly the server\'s mods, in its order.'
       ]],
       ['Hosting', [
         'Create server configurations, set memory, admin password and Steam or LAN, and start, stop or restart the server.',
+        'Install the official dedicated server from Steam, on the branch your game is on, and run the server from it.',
+        'Restarts on a schedule, after a crash or when one of its Workshop mods updates, with warnings in the game chat first. They happen while the app is open.',
         '<b>Mods & Sync</b> writes your active mods into the three lines of the <code>.ini</code> that must agree (<code>Mods=</code>, <code>WorkshopItems=</code>, <code>Map=</code>), keeping every other setting.',
         'A multiplayer check that lists calls a mod makes on the client which the game routes through the server.',
         'Connected players with kick, ban and messages to everyone, and the main settings without opening the file.'
@@ -281,16 +285,15 @@ const MODULES = [
     intro: 'Where the Studio finds your game and mods, and how it behaves. Every change is saved as soon as you make it.',
     sections: [
       ['Folders', [
-        '<b>Auto-Detect Paths</b> finds the game, the Workshop folder and your <code>Zomboid</code> folder by itself. Steam, GOG and manual installs all work.'
+        '<b>Auto-Detect Paths</b> finds the game, the Workshop folder and your <code>Zomboid</code> folder by itself. Steam, GOG and manual installs all work. On Linux it finds Steam in its usual folders, the Flatpak’s too.'
       ]],
       ['Behaviour', [
-        'English or Spanish, the start screen, the window as you left it, and closing to the tray so the Studio keeps watching the game.',
+        'The language (English, Español, Português (Brasil), Français, Deutsch, Русский or 简体中文), the start screen, the window as you left it, and closing to the tray so the Studio keeps watching the game.',
         'Remember how the game starts, and what the game\'s Mods screen does when another mod manager is on.'
       ]],
-      ['Updates and community', [
-        'Checks for new versions; <b>Update now</b> downloads, checks the signature and replaces the app, or changes nothing if anything does not match.',
-        'The daily download of community rules and the mod index can be switched off. Nothing is ever sent.',
-        'Optionally connect GitHub to propose rules and lists to the community in one click.'
+      ['Updates and kept versions', [
+        'Checks for new versions; <b>Update now</b> downloads, checks the signature and replaces the app, or changes nothing if anything does not match. On Linux, <b>Download</b> opens the release page.',
+        'Earlier versions of mods: how much room the kept versions may take, and where they are kept.'
       ]],
       ['Translation', [
         'Translate mod descriptions and change notes into your language, with your own DeepL key or a free fallback.'
@@ -303,9 +306,9 @@ const MODULES = [
   }
 ];
 
-// Screenshots for the module pages, in site/img (captured from the app, v1.7.13).
+// Screenshots for the module pages, in site/img (captured from the app; Diagnostics from v1.11.1, the rest from v1.7.13).
 const SHOTS = {
-  'mod-list': ['mod-list', 'Mod List'], health: ['health', 'Mod Health: compatible copies the Studio made'], profiles: ['profiles', 'Profiles'],
+  'mod-list': ['mod-list', 'Mod List'], health: ['diagnostics', 'Diagnostics: the overview and the Doctor'], profiles: ['profiles', 'Profiles'],
   browse: ['browse', 'Browse Mods: the Workshop inside the app'], merger: ['merger', 'Mod Merger: the packages'],
   monitor: ['monitor', 'Monitor Center: an error as a card'], saves: ['saves', 'Saves'], 'whats-new': ['whats-new', "What's new"],
   maps: ['maps', 'Maps: map mods on the map of Knox Country'], servers: ['servers', 'Servers: public servers and what a server loads'],

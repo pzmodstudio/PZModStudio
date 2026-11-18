@@ -131,6 +131,15 @@ local TEXT = {
     offNeedsApp = "Taking mods out of a save needs PZ Mod Studio open: it backs the save up and changes its list.",
     offWorking = "PZ Mod Studio is backing up \"{1}\" and taking those mods out of its list.",
     offFailed = "The mods could not be taken out: {1}",
+    newTitle = "Your profile has {1} mod(s) this save does not load",
+    newWhy = "\"{1}\" keeps its own mod list and loads with it, not with the profile. Added to \"{2}\" since, these are not in it, so they would not load:",
+    newHow = "Add them: PZ Mod Studio backs the save up, adds them to its list in the profile's load order and loads it. Load without them: the save stays as it is.",
+    newMaps = "Mods marked (map) bring map areas this save was made without: their maps are added to the save too. Land the game already made empty in those areas goes to the backups, so the map is built there.",
+    newKeep = "Load without them",
+    newAdd = "Add them and load",
+    newNeedsApp = "Adding mods to a save needs PZ Mod Studio open: it backs the save up and changes its list.",
+    newWorking = "PZ Mod Studio is backing up \"{1}\" and adding those mods to its list.",
+    newFailed = "The mods could not be added: {1}",
     changesTitle = "What changed since its last session",
     changesWhen = "\"{1}\" was last played {2} ago. Since then:",
     changesRemoved = "Taken out of its mod list ({1})",
@@ -168,7 +177,7 @@ local TEXT = {
     screenChangeTip = "The game's Mods screen is drawn by {1}. Click to choose again: PZ Mod Studio's screen, or keep this one.",
     cardProfileClosed = "Profile: {1} ({2} mods), as PZ Mod Studio left it",
     inviteLine1 = "Mod profiles, a backup of each save before it loads,",
-    inviteLine2 = "Mod Health, maps and servers. Free, for Windows.",
+    inviteLine2 = "Diagnostics, maps and servers. Free, for Windows and Linux.",
     inviteDownload = "Download",
     inviteHide = "Hide",
     modsTitle = "Mods",
@@ -302,7 +311,7 @@ local TEXT = {
     errReportTimes = "Seen {1} time(s) in this session.",
     inviteCopied = "Link copied: paste it in your browser.",
     modsGetApp = "Get PZ Mod Studio",
-    modsGetAppTip = "Mod profiles, a backup of each save before it loads, Mod Health, maps and servers. Free, for Windows. Copies the download page's address.",
+    modsGetAppTip = "Mod profiles, a backup of each save before it loads, Diagnostics, maps and servers. Free, for Windows and Linux. Copies the download page's address.",
     modsGetAppCopied = "Download link copied: paste it in your browser (Ctrl+V). {1}",
     modsGetAppFailed = "The link could not be copied. Open it in your browser: {1}",
     modsState = "State:",
@@ -1288,6 +1297,7 @@ function Link.onGameStart()
     end)
     Link.writeGameState("ingame")
     Link.diary("start")
+    if Link.clearPass then pcall(Link.clearPass) end
 end
 Events.OnMainMenuEnter.Add(Link.onMainMenuEnter)
 Events.OnGameStart.Add(Link.onGameStart)
@@ -1752,6 +1762,9 @@ function Link.readSaves()
                 elseif key == "updatedmods" then
                     save.updatedmods = {}
                     for id in string.gmatch(value, "[^;]+") do table.insert(save.updatedmods, plainId(id)) end
+                elseif key == "notinsave" then
+                    save.notinsave = {}
+                    for id in string.gmatch(value, "[^;]+") do table.insert(save.notinsave, plainId(id)) end
                 end
             end
             result[fields[2]] = save
@@ -1789,6 +1802,14 @@ function Link.markPassed(world)
     local writer = getFileWriter(PASS_FILE, true, false)
     if not writer then return end
     writer:write(tostring(world) .. "\t" .. now() .. "\n")
+    writer:close()
+end
+
+--- A pass is for one load: once the game is in, the next load of the save is checked again.
+function Link.clearPass()
+    local writer = getFileWriter(PASS_FILE, true, false)
+    if not writer then return end
+    writer:write("")
     writer:close()
 end
 
@@ -2184,6 +2205,77 @@ function Link.showOff(world, off)
     })
 end
 
+--- The mods the app says the profile has on and this save lacks (the saves file's `notinsave`),
+--- still on in the game's list and still not in the save's: nothing when the app said nothing.
+function Link.profileNew(world, activeMods)
+    local result = {}
+    if not activeMods or activeMods:getMods():isEmpty() then return result end
+    local saves = Link.readSaves()
+    local save = saves and saves[Link.saveId(world)]
+    if not save or not save.notinsave then return result end
+    local default = ActiveMods.getById("default")
+    if not default then return result end
+    local on, inSave = {}, {}
+    local dm = default:getMods()
+    for i = 0, dm:size() - 1 do on[plainId(dm:get(i))] = true end
+    local mods = activeMods:getMods()
+    for i = 0, mods:size() - 1 do inSave[plainId(mods:get(i))] = true end
+    for _, id in ipairs(save.notinsave) do
+        if on[id] and not inSave[id] then table.insert(result, id) end
+    end
+    return result
+end
+
+--- "Your profile has mods this save does not load": back, load it without them, or have the app
+--- back the save up and add them to its list (in the profile's order, with their maps) and load.
+function Link.showNew(world, new)
+    local args = Link.continueArgs or {}
+    local function again()
+        MainScreen.continueLatestSaveAux(args[1], args[2])
+    end
+    local lines, maps = 0, 0
+    local link = Link.read()
+    local body = text("newWhy", world, link and link.name or "") .. " <LINE> <LINE> <INDENT:16> "
+    for i, id in ipairs(new) do
+        if i > 10 then
+            body = body .. text("andMore", #new - 10) .. " <LINE> "
+            lines = lines + 1
+            break
+        end
+        local map = isMapMod(id)
+        if map then maps = maps + 1 end
+        body = body .. " <RGB:0.5,0.9,0.55> " .. modName(id) .. (map and ("  " .. text("mapTag")) or "") .. " <RGB:1,1,1> <LINE> "
+        lines = lines + 1
+    end
+    body = body .. " <INDENT:0> <LINE> " .. text("newHow") .. " <LINE> "
+    if maps > 0 then
+        body = body .. " <LINE> <RGB:1,0.6,0.3> " .. text("newMaps") .. " <RGB:1,1,1> <LINE> "
+        lines = lines + 4
+    end
+    local height = 150 + (lines + 5) * (getTextManager():getFontHeight(UIFont.Small) + 2)
+    WaitPanel.choose(text("newTitle", #new), body, height, {
+        -- Continue had copied the save's list into the next new game's list: the profile's again.
+        { label = text("back"), onClick = function() pcall(Link.stagingFromDefault, "back on the new mods question") end },
+        { label = text("newKeep"), onClick = function()
+            Link.newKept = world
+            again()
+        end },
+        { label = text("newAdd"), accept = true, onClick = function()
+            if not Link.appAlive() then
+                modal(" <RGB:1,0.75,0.3> " .. text("newNeedsApp") .. " <RGB:1,1,1> ", false, function() end)
+                return
+            end
+            askApp("addmods", Link.saveId(world) .. "\t" .. table.concat(new, ";"), text("newTitle", #new), text("newWorking", world),
+                function()
+                    -- Backed up and changed with the player's yes: it loads now, with them.
+                    Link.markPassed(world)
+                    again()
+                end,
+                function(msg) modal(" <RGB:1,0.75,0.3> " .. text("newFailed", msg) .. " <RGB:1,1,1> ", false, function() end) end)
+        end },
+    })
+end
+
 --- Before a save loads: what changed since its last session is shown first (load, play on a
 --- copy, or go back), and the save is backed up first when it is not backed up as it is.
 --- Returns true when it can load now.
@@ -2199,12 +2291,28 @@ function Link.loadGate(world, saveInfo)
             return false
         end
     end
+    -- And mods switched on in the profile since are not in it: offered to be added (backed up).
+    if Link.newKept ~= world then
+        local new = Link.profileNew(world, activeMods)
+        if #new > 0 then
+            Link.showNew(world, new)
+            return false
+        end
+    end
     local saves = Link.readSaves()
-    if not saves then return true end
+    -- Loading with a list other than the game's own restarts Lua and comes back through here:
+    -- the answers given are not asked again.
+    if not saves then
+        Link.markPassed(world)
+        return true
+    end
     local save = saves[Link.saveId(world)]
     local changes = Link.sessionChanges(save, activeMods)
     local why = Link.backupWhy(save, activeMods)
-    if not changes and not why then return true end
+    if not changes and not why then
+        Link.markPassed(world)
+        return true
+    end
     local args = Link.continueArgs or {}
     local function load()
         Link.markPassed(world)

@@ -177,10 +177,28 @@ pub fn add_maps(user_zomboid_dir: &Path, pz_install_dir: &str, cells: &MapCells,
         return Err("Project Zomboid is running: close it first, the game writes the save while it runs.".to_string());
     }
     let save = save_dir(user_zomboid_dir, save_id)?;
-    let report = check_save(&save, pz_install_dir, cells).ok_or_else(|| format!("{} is missing no map of its mods.", save_id))?;
-    let (version, listed) = read_map_ver(&save).ok_or_else(|| "Cannot read the save's map_ver.bin.".to_string())?;
+    check_save(&save, pz_install_dir, cells).ok_or_else(|| format!("{} is missing no map of its mods.", save_id))?;
     let backup = backup_save(user_zomboid_dir, save_id, REASON_BEFORE_FIX, false)?;
+    fix_maps(user_zomboid_dir, pz_install_dir, cells, save_id, None, backup.entry.file)?.ok_or_else(|| format!("{} is missing no map of its mods.", save_id))
+}
 
+/// The same fix for the maps of `mods` only, on a save the caller has just backed up (`backup`:
+/// that zip's name) and that the game is not playing: None when those mods bring no map it misses.
+pub fn add_maps_of(user_zomboid_dir: &Path, pz_install_dir: &str, cells: &MapCells, save_id: &str, mods: &[String], backup: &str) -> Result<Option<SaveMapsFix>, String> {
+    fix_maps(user_zomboid_dir, pz_install_dir, cells, save_id, Some(mods), backup.to_string())
+}
+
+fn fix_maps(user_zomboid_dir: &Path, pz_install_dir: &str, cells: &MapCells, save_id: &str, only: Option<&[String]>, backup: String) -> Result<Option<SaveMapsFix>, String> {
+    let save = save_dir(user_zomboid_dir, save_id)?;
+    let Some(mut report) = check_save(&save, pz_install_dir, cells) else { return Ok(None) };
+    if let Some(only) = only {
+        let plain = |id: &String| crate::load_order::mod_info::sanitize_mod_id(id).rsplit(['/', '\\']).next().unwrap_or_default().to_string();
+        report.missing.retain(|m| only.iter().any(|id| plain(id) == m.mod_id));
+    }
+    if report.missing.is_empty() {
+        return Ok(None);
+    }
+    let (version, listed) = read_map_ver(&save).ok_or_else(|| "Cannot read the save's map_ver.bin.".to_string())?;
     let covered = covered_cells(pz_install_dir, cells, &listed);
     let mut own: BTreeSet<[i32; 2]> = BTreeSet::new();
     for miss in &report.missing {
@@ -213,7 +231,7 @@ pub fn add_maps(user_zomboid_dir: &Path, pz_install_dir: &str, cells: &MapCells,
     let mut new_list = added.clone();
     new_list.extend(listed.iter().cloned());
     write_map_ver(&save, version, &new_list)?;
-    Ok(SaveMapsFix { listed: new_list, added, moved_chunks: chunks.len(), chunks_dir, backup: backup.entry.file })
+    Ok(Some(SaveMapsFix { listed: new_list, added, moved_chunks: chunks.len(), chunks_dir, backup }))
 }
 
 /// Local time, in the form the backup zips use.

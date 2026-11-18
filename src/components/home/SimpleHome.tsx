@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Archive, CheckCircle2, Globe, Layers, ListOrdered, Loader2, Play, RotateCcw, Stethoscope } from 'lucide-react';
-import { ActiveTab, AppProfile, GameLaunchMode, HealthReport, LaunchTarget, ModInfo, SaveSummary, STUDIO_LINK_MOD_ID } from '../../types';
+import i18next from 'i18next';
+import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Globe, Layers, ListOrdered, Loader2, Play, RotateCcw, Stethoscope } from 'lucide-react';
+import { ActiveTab, AppProfile, BrainOverview, BrainSessionBrief, GameLaunchMode, HealthReport, LaunchTarget, ModInfo, SaveSummary, STUDIO_LINK_MOD_ID } from '../../types';
+import { sessionWentBadly } from '../../utils/brain';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { healthVerdict } from '../../utils/healthVerdict';
@@ -16,6 +18,9 @@ interface SimpleHomeProps {
   onPlay: (mode: GameLaunchMode, target: LaunchTarget) => void;
   onGo: (tab: ActiveTab) => void;
 }
+
+/** When the player hid the warning about a game that went badly (that game's start, unix s). */
+const HIDDEN_KEY = 'pz_simple_last_bad_hidden';
 
 /** The mode the header's launch button is on (the same rule), so both buttons start the game alike. */
 const launchMode = (): GameLaunchMode => launchModeFor('simple');
@@ -56,6 +61,38 @@ export const SimpleHome: React.FC<SimpleHomeProps> = ({ paths, profile, mods, re
       clearInterval(timer);
     };
   }, []);
+
+  // How the last game went, from this PC's sessions: a green "nothing to do" must not hide that it
+  // crashed. Asked again when the list changes; hidden by the player until a newer game.
+  const activeKey = mods.filter((m) => m.enabled).map((m) => m.mod_id).join(',');
+  const [overview, setOverview] = useState<BrainOverview | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void TauriService.brainOverview(paths, activeKey ? activeKey.split(',') : []).then((o) => alive && setOverview(o));
+    return () => {
+      alive = false;
+    };
+  }, [paths, activeKey]);
+  const [hiddenAt, setHiddenAt] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem(HIDDEN_KEY) || 0);
+    } catch {
+      return 0;
+    }
+  });
+  const lastGame = overview ? [overview.last_report?.brief, ...overview.recent].find((s) => s && s.kind === 'client' && !s.live) ?? null : null;
+  const lastBad = lastGame && sessionWentBadly(lastGame) && lastGame.started > hiddenAt ? lastGame : null;
+  const hideLastBad = () => {
+    if (!lastBad) return;
+    setHiddenAt(lastBad.started);
+    try {
+      localStorage.setItem(HIDDEN_KEY, String(lastBad.started));
+    } catch {
+      // nowhere to keep it: hidden for this session
+    }
+  };
+  const lastBadWhy = (s: BrainSessionBrief) =>
+    s.oom || s.crash === 'out_of_memory' ? t('simple.home.lastBad.memory') : s.crash === 'fatal' ? t('simple.home.lastBad.java') : t('simple.home.lastBad.noMenu');
 
   // The player's own mods: the Studio's packages and its Link (always on in a profile) do not count.
   const onCount = mods.filter((m) => m.enabled && !m.mod_id.startsWith('Z_PZModStudio_') && m.mod_id !== STUDIO_LINK_MOD_ID).length;
@@ -187,6 +224,29 @@ export const SimpleHome: React.FC<SimpleHomeProps> = ({ paths, profile, mods, re
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
             <Stethoscope className="w-3.5 h-3.5" aria-hidden="true" /> {t('simple.home.doctor')}
           </div>
+          {lastBad && (
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-700/60 bg-amber-950/25 px-3 py-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0" aria-hidden="true" />
+              <div className="flex-1 min-w-[220px]">
+                <div className="text-sm font-bold text-amber-100">
+                  {overview?.prelaunch
+                    ? t('simple.home.lastBad.several', { bad: overview.prelaunch.bad ?? overview.prelaunch.failed_to_start + overview.prelaunch.out_of_memory, of: overview.prelaunch.looked_at })
+                    : t('simple.home.lastBad.title', { when: new Date(lastBad.started * 1000).toLocaleString(i18next.language, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) })}
+                </div>
+                <div className="text-[11px] text-amber-100/80">{lastBadWhy(lastBad)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onGo('HEALTH')}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-700 hover:bg-amber-600 text-white cursor-pointer"
+              >
+                {t('simple.home.lastBad.details')}
+              </button>
+              <button type="button" onClick={hideLastBad} className="text-[11px] underline text-amber-200/80 hover:text-amber-100 cursor-pointer">
+                {t('simple.home.lastBad.hide')}
+              </button>
+            </div>
+          )}
           {doctor}
         </div>
 

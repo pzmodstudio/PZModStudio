@@ -4091,6 +4091,19 @@
       "added": "\"{{world}}\" agora carrega mais {{count}} mapa(s); {{chunks}} chunks vazios movidos. Backup: {{backup}}",
       "overListed": "{{count}} das células deles também são cobertas por um mapa já carregado: o que está lá fica como está."
     },
+    "profileMods": {
+      "line_one": "{{count}} mod ativado em {{profile}} não está neste save",
+      "line_many": "{{count}} mods ativados em {{profile}} não estão neste save",
+      "line_other": "{{count}} mods ativados em {{profile}} não estão neste save",
+      "title": "Um save carrega com a própria lista de mods, não com o perfil. Um mod ativado no perfil depois que o save foi criado não carrega com ele até ser adicionado ao save.",
+      "mapTitle": "Traz áreas de mapa com as quais este save não foi criado: os mapas dele também são adicionados ao save.",
+      "add": "Adicionar a este save",
+      "addTitle": "Com o jogo fechado: primeiro um backup, depois eles entram na lista do save onde a ordem de carregamento do perfil os coloca, e os mapas que trazem entram na lista de mapas dele.",
+      "confirm": "Adicionar {{count}} mod(s) a \"{{world}}\"? Um backup é feito antes. Eles entram na lista na ordem de carregamento do perfil. O jogo precisa estar fechado.",
+      "confirmMaps": "{{count}} deles trazem áreas de mapa: os mapas também são adicionados ao save, e o terreno que o jogo já gerou vazio ali vai para a pasta de backups.",
+      "added": "\"{{world}}\" agora carrega mais {{count}} mod(s). Backup: {{backup}}",
+      "addedMaps": "\"{{world}}\" agora carrega mais {{count}} mod(s) e {{maps}} mapa(s); {{chunks}} chunks vazios movidos. Backup: {{backup}}"
+    },
     "online": "Online",
     "showingProfile_one": "{{count}} save do perfil {{name}}",
     "showingProfile_many": "{{count}} saves do perfil {{name}}",
@@ -5397,7 +5410,16 @@
       "noModsOn": "Ainda não há mods ativados neste perfil: o jogo iniciaria sem mods.",
       "noModsOnGo": "Ativar mods",
       "gameOpen": "O jogo já está aberto.",
-      "gameOpenLine": "O jogo está aberto. Na primeira vez com mods novos ele leva alguns minutos para carregar. Você pode deixar o Studio aberto em segundo plano."
+      "gameOpenLine": "O jogo está aberto. Na primeira vez com mods novos ele leva alguns minutos para carregar. Você pode deixar o Studio aberto em segundo plano.",
+      "lastBad": {
+        "title": "Sua última partida ({{when}}) deu errado",
+        "several": "As últimas {{bad}} de {{of}} partidas com esta lista deram errado",
+        "memory": "O PC ficou sem memória com o jogo aberto. Feche outros programas antes de jogar (navegador, um servidor, outros jogos).",
+        "java": "O próprio jogo falhou (um erro de Java), muitas vezes o driver de vídeo ou a memória. Se acontecer de novo, veja os detalhes.",
+        "noMenu": "O jogo fechou antes de chegar ao menu. Quase sempre é um mod que não carrega nesta versão: a verificação abaixo diz qual.",
+        "details": "Ver detalhes",
+        "hide": "Entendi"
+      }
     },
     "health": {
       "nothingToAct": "Nada a corrigir: seus mods estão prontos para jogar.",

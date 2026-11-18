@@ -65,8 +65,16 @@ const LIVE_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/cli
 
 const UI_EN: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/EN/UI.json");
 const UI_ES: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/ES/UI.json");
+const UI_PTBR: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/PTBR/UI.json");
+const UI_FR: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/FR/UI.json");
+const UI_DE: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/DE/UI.json");
+const UI_RU: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/RU/UI.json");
+const UI_CN: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/CN/UI.json");
 
-fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 15] {
+/// The game's folder names of the Link's translations (the game reads Translate/<LANG>/UI.json).
+const LINK_LANGUAGES: [&str; 7] = ["EN", "ES", "PTBR", "FR", "DE", "RU", "CN"];
+
+fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 20] {
     let target = user_zomboid_dir.join("mods").join(LINK_MOD_ID);
     let lua = target.join("42").join("media").join("lua");
     let translate = lua.join("shared").join("Translate");
@@ -86,6 +94,11 @@ fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 15] {
         (lua.join("client").join("PZModStudio_Live.lua"), LIVE_LUA),
         (translate.join("EN").join("UI.json"), UI_EN),
         (translate.join("ES").join("UI.json"), UI_ES),
+        (translate.join("PTBR").join("UI.json"), UI_PTBR),
+        (translate.join("FR").join("UI.json"), UI_FR),
+        (translate.join("DE").join("UI.json"), UI_DE),
+        (translate.join("RU").join("UI.json"), UI_RU),
+        (translate.join("CN").join("UI.json"), UI_CN),
     ]
 }
 
@@ -142,7 +155,7 @@ pub fn install_link_mod(user_zomboid_dir: &Path) -> Result<(), String> {
         }
         let lua = local.join("42").join("media").join("lua");
         let translate = lua.join("shared").join("Translate");
-        for dir in [translate.join("EN"), translate.join("ES"), translate.clone(), lua.join("shared"), lua.join("client"), lua.clone(), local.join("42").join("media"), local.join("42"), local.join("common"), local.clone()] {
+        for dir in LINK_LANGUAGES.iter().map(|l| translate.join(l)).chain([translate.clone(), lua.join("shared"), lua.join("client"), lua.clone(), local.join("42").join("media"), local.join("42"), local.join("common"), local.clone()]) {
             let _ = std::fs::remove_dir(dir); // only when empty
         }
         return Ok(());
@@ -477,6 +490,26 @@ fn handle_requests<R: tauri::Runtime>(app: &tauri::AppHandle<R>, z_dir: &Path, r
             write_acks(&z_dir.join("Lua"), &[answer]);
         });
     }
+    for r in requests.iter().filter(|r| r.verb == "addmods") {
+        // "<mode>/<world>\t<id;id;...>": mods the active profile has on and the save's own list
+        // lacks. The save is backed up, then those of them still on in the profile join its list in
+        // the profile's order, with the map folders they bring. Answered "<mods>;<map folders>".
+        let (save, ids) = r.arg.split_once('\t').unwrap_or((r.arg.as_str(), ""));
+        let ids: Vec<String> = ids.split(';').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        let (app, z_dir, save, id) = (app.clone(), z_dir.to_path_buf(), save.trim().to_string(), r.id.clone());
+        thread::spawn(move || {
+            let result = add_profile_mods_to_save(&z_dir, &save, Some(&ids));
+            if let Err(e) = &result {
+                crate::diagnostics::error(format!("[StudioLink] could not add {} to {}: {}", ids.join(", "), save, e));
+            }
+            let _ = app.emit(SAVES_CHANGED_EVENT, &save);
+            let answer = match result {
+                Ok(out) => (id, true, format!("{};{}", out.added.len(), out.maps.map(|m| m.added.len()).unwrap_or(0))),
+                Err(e) => (id, false, e),
+            };
+            write_acks(&z_dir.join("Lua"), &[answer]);
+        });
+    }
     // "Open PZ Mod Studio" on the game's Mods screen: the window comes to the front.
     for r in requests.iter().filter(|r| r.verb == "show") {
         crate::window_prefs::bring_to_front(app);
@@ -486,7 +519,7 @@ fn handle_requests<R: tauri::Runtime>(app: &tauri::AppHandle<R>, z_dir: &Path, r
         }
         answers.push((r.id.clone(), true, String::new()));
     }
-    for r in requests.iter().filter(|r| !["add", "backup", "copy", "show", "dropmods"].contains(&r.verb.as_str())) {
+    for r in requests.iter().filter(|r| !["add", "backup", "copy", "show", "dropmods", "addmods"].contains(&r.verb.as_str())) {
         answers.push((r.id.clone(), false, format!("This version of PZ Mod Studio does not know \"{}\".", r.verb)));
     }
     answers
@@ -520,6 +553,38 @@ pub fn drop_mods_from_save(z_dir: &Path, save_id: &str, ids: &[String]) -> Resul
         std::fs::write(&path, out).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
     }
     Ok(dropped)
+}
+
+/// The active profile's mods that a save's own list lacks, added to it after a backup (only those
+/// of `only`, when given), with the map folders they bring; the saves file is written again.
+pub fn add_profile_mods_to_save(z_dir: &Path, save_id: &str, only: Option<&[String]>) -> Result<crate::save_backup::profile_mods::AddedToSave, String> {
+    if save_id.starts_with("Multiplayer/") {
+        return Err("A server's save loads the server's mods.".to_string());
+    }
+    let (_, _, on) = crate::instance_manager::active_profile_on(z_dir).ok_or_else(|| "No profile is active.".to_string())?;
+    let paths = crate::vfs::studio_paths();
+    let cells = crate::map_cells::map_cells(&paths.pz_install_dir, &paths.workshop_dir, z_dir);
+    let result = crate::save_backup::profile_mods::add_profile_mods(z_dir, &paths.pz_install_dir, Some(&cells), save_id, &on, only);
+    write_saves_file(z_dir);
+    result
+}
+
+/// For each save: the mods the active profile has on that its own list lacks. A save of another
+/// profile is left out (it is that profile's, not this one's to fill), and so is a server's.
+pub fn profile_mods_not_in_saves(z_dir: &Path, cells: Option<&crate::map_cells::MapCells>) -> std::collections::BTreeMap<String, crate::save_backup::profile_mods::ProfileModsForSave> {
+    let mut out = std::collections::BTreeMap::new();
+    let Some((pid, name, on)) = crate::instance_manager::active_profile_on(z_dir) else { return out };
+    let owners = save_profiles(z_dir);
+    for id in crate::save_backup::list_saves(z_dir) {
+        if id.starts_with("Multiplayer/") || owners.get(&id).is_some_and(|o| o != &pid) {
+            continue;
+        }
+        let dir = crate::save_backup::saves_dir(z_dir).join(&id);
+        if let Some(found) = crate::save_backup::profile_mods::for_save(&dir, &pid, &name, &on, cells) {
+            out.insert(id, found);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -716,13 +781,21 @@ pub fn saves_file_text(user_zomboid_dir: &Path) -> String {
     let by_mod = if paths.workshop_dir.is_empty() { Default::default() } else { workshop_ids_by_mod(Path::new(&paths.workshop_dir)) };
     let state = (!paths.workshop_dir.is_empty()).then(|| crate::workshop::local_state(&paths.workshop_dir)).flatten();
     let refs = save_references(user_zomboid_dir);
+    let active = crate::instance_manager::active_profile_on(user_zomboid_dir);
     let mut out = String::new();
     for id in crate::save_backup::list_saves(user_zomboid_dir) {
         let Some(summary) = crate::save_backup::summary(user_zomboid_dir, &id) else { continue };
+        // What the active profile has on and this save does not load (none for another profile's).
+        let not_in_save = match &active {
+            Some((pid, name, on)) if !id.starts_with("Multiplayer/") && owners.get(&id).is_none_or(|o| o == pid) => {
+                crate::save_backup::profile_mods::for_save(&crate::save_backup::saves_dir(user_zomboid_dir).join(&id), pid, name, on, None).map(|f| f.mods).unwrap_or_default()
+            }
+            _ => Vec::new(),
+        };
         let session = refs.get(&id);
         let updated = session.map(|s| updated_since(s, &by_mod, state.as_ref())).unwrap_or_default();
         out.push_str(&format!(
-            "save\t{}\tbacked={}\tbytes={}\tsession={}\tupdated={}\tupdatedmods={}\tmods={}\tprofile={}\tmodified={}\n",
+            "save\t{}\tbacked={}\tbytes={}\tsession={}\tupdated={}\tupdatedmods={}\tmods={}\tprofile={}\tmodified={}\tnotinsave={}\n",
             id,
             u8::from(summary.backed_up),
             summary.bytes,
@@ -731,7 +804,8 @@ pub fn saves_file_text(user_zomboid_dir: &Path) -> String {
             updated.join(";"),
             session.map(|s| s.mods.join(";")).unwrap_or_default(),
             owners.get(&id).map(String::as_str).unwrap_or(""),
-            summary.modified
+            summary.modified,
+            not_in_save.join(";")
         ));
     }
     out
@@ -1017,6 +1091,9 @@ pub fn watch_mod_list<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
         // The save the player is in, as the game file last said; backed up when they leave it.
         let mut playing: Option<String> = None;
         let mut saves_written = 0u64;
+        // The default.txt the saves file was last written for (it says what each save lacks of
+        // what the profile has on).
+        let mut saves_for_list: Option<SystemTime> = None;
         let mut ticks = 0u64;
         // A Link installed by an older Studio is brought up to this one's version at once, not
         // only when a profile is next applied.
@@ -1146,6 +1223,15 @@ pub fn watch_mod_list<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 
             let default_txt = z_dir.join("mods").join("default.txt");
             let Some(stamp) = modified(&default_txt) else { continue };
+            // A mod switched on or off: the saves file says within seconds what each save now
+            // lacks. Not in this round: the profile follows the list just below (a change made in
+            // the game) or right after it (one made in the app), and the file is written from it.
+            if saves_for_list != Some(stamp) {
+                saves_for_list = Some(stamp);
+                if saves_written != 0 {
+                    saves_written = now.saturating_sub(56);
+                }
+            }
             if mirrored != Some(stamp) && mirror_active_list(&z_dir) {
                 mirrored = Some(stamp);
             }
@@ -1542,6 +1628,40 @@ waiting=C
         assert!(record_save_reference(&z, &state).unwrap());
         let r = &save_references(&z)["Sandbox/W"];
         assert_eq!((r.profile.as_deref(), r.profile_name.as_deref()), (Some("inst_1"), Some("Main")));
+        let _ = std::fs::remove_dir_all(&z);
+    }
+
+    #[test]
+    fn a_save_is_offered_the_profiles_new_mods_unless_it_is_another_profiles() {
+        let z = temp("profile-new-mods");
+        let inst = z.join("PZModStudio_Instances");
+        std::fs::create_dir_all(&inst).unwrap();
+        std::fs::write(inst.join("inst_1.json"), r#"{"id":"inst_1","name":"Main","created_at":"0","is_active":true,"active_mod_ids":["A","New","B","Z_StudioLink"],"load_order":["A","New","B","Z_StudioLink"]}"#).unwrap();
+        std::fs::write(inst.join("inst_2.json"), r#"{"id":"inst_2","name":"Other","created_at":"0","is_active":false,"active_mod_ids":["A","B"],"load_order":["A","B"]}"#).unwrap();
+        for world in ["Mine", "Theirs", "Empty"] {
+            let dir = z.join("Saves").join("Sandbox").join(world);
+            std::fs::create_dir_all(&dir).unwrap();
+            let mods = if world == "Empty" { "" } else { "    mod = A,\n    mod = B,\n" };
+            std::fs::write(dir.join("mods.txt"), format!("VERSION = 1,\n\nmods\n{{\n{}}}\n\nmaps\n{{\n}}\n", mods)).unwrap();
+        }
+        // "Mine" was played with Main, "Theirs" with Other.
+        record_save_reference(&z, &parse_game_state("protocol=2\nstate=ingame\nsave=Sandbox/Mine\nmod=A\nmod=B\nat=5\n").unwrap()).unwrap();
+        let flip = |active: &str| {
+            for (id, name) in [("inst_1", "Main"), ("inst_2", "Other")] {
+                let path = inst.join(format!("{}.json", id));
+                let text = std::fs::read_to_string(&path).unwrap();
+                let text = text.replace(&format!(r#""name":"{}","created_at":"0","is_active":{}"#, name, id != active), &format!(r#""name":"{}","created_at":"0","is_active":{}"#, name, id == active));
+                std::fs::write(&path, text).unwrap();
+            }
+        };
+        flip("inst_2");
+        record_save_reference(&z, &parse_game_state("protocol=2\nstate=ingame\nsave=Sandbox/Theirs\nmod=A\nmod=B\nat=6\n").unwrap()).unwrap();
+        flip("inst_1");
+
+        let found = profile_mods_not_in_saves(&z, None);
+        assert_eq!(found.keys().cloned().collect::<Vec<_>>(), vec!["Sandbox/Mine".to_string()]);
+        assert_eq!(found["Sandbox/Mine"].mods, vec!["New".to_string()]);
+        assert_eq!(found["Sandbox/Mine"].profile_name, "Main");
         let _ = std::fs::remove_dir_all(&z);
     }
 

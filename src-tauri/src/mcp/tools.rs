@@ -792,6 +792,18 @@ fn available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "save_profile_mods".to_string(),
+            description: "Mods the active profile has on that a save does not load. In Build 42 a save loads with its own mod list (its mods.txt), not the profile, so a mod switched on after the save was made is not there when it loads. Without add: for each save of the active profile (or of no profile; a server's save and another profile's are left out), those mods in the profile's load order, with `map_mods`: the ones bringing map folders. With add: true and save_id: backs the save up, adds them to its list where the profile's order puts them (its own mods keep their places) and puts the map folders they bring in front of its map list (as save_mod_maps does). Refused while the game runs.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "save_id": { "type": "string", "description": "<mode>/<world>; required with add, otherwise narrows the report" },
+                    "add": { "type": "boolean", "description": "Add them to save_id (game closed)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
             name: "workshop_item".to_string(),
             description: "What the Steam Workshop says about one item (its id or its page link): title, author, the builds it is tagged for, when it was posted and last updated, subscribers and favourites, size, tags, the full description (Steam BBCode), screenshots, videos and the items the author lists as required; and `installed`: Steam's record on this PC (null when not subscribed). Read from Steam's public Web API and the item's public page, no key or login, cached and polite, the same as the app's Explore page. Read-only.".to_string(),
             input_schema: json!({
@@ -1238,6 +1250,7 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "workshop_comments" => handle_workshop_comments(args),
         "mp_check_mods" => handle_mp_check_mods(args),
         "save_mod_maps" => handle_save_mod_maps(args),
+        "save_profile_mods" => handle_save_profile_mods(args),
         "save_inside" => handle_save_inside(args),
         "scan_mod_security" => handle_scan_mod_security(args),
         "java_patches" => handle_java_patches(args),
@@ -2805,6 +2818,25 @@ fn handle_save_mod_maps(args: Value) -> ToolCallResult {
         "saves": saves,
         "note": "Each entry: `listed` (what the save loads, map_ver.bin), `missing` (folder, mod, cells, empty_chunks already generated bare, over_listed cells a loaded map covers too). Fix with fix: true and save_id, game closed."
     })))
+}
+
+fn handle_save_profile_mods(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let z = std::path::Path::new(&paths.user_zomboid_dir);
+    let save_id = args.get("save_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    if args.get("add").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let Some(id) = save_id else { return json_result::<Value>(Err("add needs save_id (<mode>/<world>).".to_string())) };
+        if crate::sandbox::find_running_pz_pid().is_some() {
+            return json_result::<Value>(Err("Project Zomboid is running: close it first, the game writes the save while it runs.".to_string()));
+        }
+        return json_result(crate::studio_link::add_profile_mods_to_save(z, &id, None).map(|r| json!(r)));
+    }
+    let cells = crate::map_cells::map_cells(&paths.pz_install_dir, &paths.workshop_dir, z);
+    let mut saves = crate::studio_link::profile_mods_not_in_saves(z, Some(&cells));
+    if let Some(id) = &save_id {
+        saves.retain(|k, _| k == id);
+    }
+    json_result(Ok(json!({ "saves": saves })))
 }
 
 fn handle_workshop_item(args: Value) -> ToolCallResult {

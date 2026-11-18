@@ -19,6 +19,7 @@
 
 pub mod inside;
 pub mod maps;
+pub mod profile_mods;
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};

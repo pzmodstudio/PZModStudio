@@ -10,7 +10,7 @@
 [![Tauri 2.0](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-Stable-orange.svg)](https://www.rust-lang.org/)
 [![React 19](https://img.shields.io/badge/React-19-cyan.svg)](https://react.dev/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-purple.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20%7C%20Linux-purple.svg)](https://github.com/pzmodstudio/PZModStudio/releases/latest)
 [![GitHub release](https://img.shields.io/github/v/release/pzmodstudio/PZModStudio?color=emerald)](https://github.com/pzmodstudio/PZModStudio/releases)
 
 [**Download (GitHub Releases)**](https://github.com/pzmodstudio/PZModStudio/releases/latest) • [**Website**](https://pzmodstudio.github.io/PZModStudio/) • [**itch.io**](https://pichu66.itch.io/pzmodstudio) • [**Technical Wiki (docs/)**](docs/INDEX.md) • [**AI Agent Guide (AGENTS.md)**](AGENTS.md)
@@ -21,7 +21,7 @@
 
 ## 🌟 Overview
 
-**Project Zomboid Mod Studio** is a portable desktop application (~17 MB) engineered to eliminate the most common headaches in modded Project Zomboid: **virtual file overwrites**, **broken load orders**, **B41-to-B42 compatibility breaks**, and **unreadable crash logs**.
+**Project Zomboid Mod Studio** is a free desktop application for **Windows and Linux**, in 7 languages (English, Español, Português (Brasil), Français, Deutsch, Русский, 简体中文), engineered to eliminate the most common headaches in modded Project Zomboid: **virtual file overwrites**, **broken load orders**, **B41-to-B42 compatibility breaks**, and **unreadable crash logs**.
 
 Unlike basic file combiners, PZ Mod Studio parses Lua scripts into a true **Abstract Syntax Tree (AST)** using the `full_moon` parser, performing a **3-Way Git-style merge** across Vanilla game files, Steam Workshop mods, and local additions. It packages all resolutions into an isolated synthetic mod (`Z_PZModStudio_MergedPatch`) that loads safely alongside your game.
 
@@ -33,7 +33,7 @@ The [website](https://pzmodstudio.github.io/PZModStudio/) has the videos (a tour
 
 | | |
 | :---: | :---: |
-| <img src="site/img/mod-list.webp" alt="Mod List" width="440"><br>**Mod List**: the load order the way the game reads it | <img src="site/img/health.webp" alt="Mod Health" width="440"><br>**Mod Health**: every problem in the active list, with its fix |
+| <img src="site/img/mod-list.webp" alt="Mod List" width="440"><br>**Mod List**: the load order the way the game reads it | <img src="site/img/diagnostics.webp" alt="Diagnostics" width="440"><br>**Diagnostics**: every problem in the active list, with its fix, and the Doctor |
 | <img src="site/img/monitor.webp" alt="Monitor Center" width="440"><br>**Monitor**: each error as a card, with the mod named | <img src="site/img/browse.webp" alt="Browse Mods" width="440"><br>**Browse**: the Workshop inside the app |
 | <img src="site/img/error-notice.webp" alt="In-game error notice" width="440"><br>**The Link, in the game**: the mod behind a Lua error | <img src="site/img/save-check.webp" alt="In-game save check" width="440"><br>**The Link, in the game**: what changed before a save loads |
 
@@ -52,7 +52,9 @@ The [website](https://pzmodstudio.github.io/PZModStudio/) has the videos (a tour
 
 ---
 
-## 🚀 Quick Start (Portable Edition)
+## 🚀 Quick Start
+
+### Windows 10 / 11 (portable)
 
 No installer or administrative rights required:
 
@@ -61,6 +63,10 @@ No installer or administrative rights required:
    - **`pz-mcp-server.exe`** — The standalone console MCP server for AI agents (~3 MB).
 2. Launch **`Project-Zomboid-Mod-Studio.exe`**.
 3. The studio will auto-detect your Project Zomboid, Steam Workshop, and user folders.
+
+### Linux
+
+From the same release: `PZ-Mod-Studio-v*-linux-x86_64.AppImage` (make it executable and run it) or `PZ-Mod-Studio-v*-linux-amd64.deb` (`sudo apt install ./PZ-Mod-Studio-v*-linux-amd64.deb`). It finds Steam in its usual folders, the Flatpak's included. A few extras are Windows-only: updating the app in place (on Linux it opens the release page), subscribing through the Steam client, downloading SteamCMD (install it from your distribution), the Windows out-of-memory log and capturing the game's window. The MCP console server is `/usr/bin/pz-mcp-server` with the .deb, a separate `pz-mcp-server-v*-linux-x86_64` file, or the AppImage itself with `--mcp`.
 
 ---
 

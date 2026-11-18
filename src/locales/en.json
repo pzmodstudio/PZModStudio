@@ -4009,6 +4009,18 @@
       "added": "\"{{world}}\" now loads {{count}} more map(s); {{chunks}} bare chunks moved. Backup: {{backup}}",
       "overListed": "{{count}} of their cells are also covered by a map already loaded: what is there stays as it is."
     },
+    "profileMods": {
+      "line_one": "{{count}} mod on in {{profile}} is not in this save",
+      "line_other": "{{count}} mods on in {{profile}} are not in this save",
+      "title": "A save loads with its own mod list, not the profile. A mod switched on in the profile after the save was made does not load with it until it is added to the save.",
+      "mapTitle": "Brings map areas this save was made without: its maps are added to the save too.",
+      "add": "Add them to this save",
+      "addTitle": "With the game closed: a backup first, then they join the save's list where the profile's load order puts them, and the maps they bring join its map list.",
+      "confirm": "Add {{count}} mod(s) to \"{{world}}\"? A backup is made first. They go into its list in the profile's load order. The game has to be closed.",
+      "confirmMaps": "{{count}} of them bring map areas: their maps are added to the save too, and land the game already made empty there goes to the backups folder.",
+      "added": "\"{{world}}\" now loads {{count}} more mod(s). Backup: {{backup}}",
+      "addedMaps": "\"{{world}}\" now loads {{count}} more mod(s) and {{maps}} more map(s); {{chunks}} bare chunks moved. Backup: {{backup}}"
+    },
     "online": "Online",
     "showingProfile_one": "{{count}} save of the profile {{name}}",
     "showingProfile_other": "{{count}} saves of the profile {{name}}",
@@ -5248,7 +5260,16 @@
       "noModsOn": "No mods are on in this profile yet: the game would start without mods.",
       "noModsOnGo": "Switch mods on",
       "gameOpen": "The game is already open.",
-      "gameOpenLine": "The game is open. The first time with new mods it takes a few minutes to load. You can leave the Studio open in the background."
+      "gameOpenLine": "The game is open. The first time with new mods it takes a few minutes to load. You can leave the Studio open in the background.",
+      "lastBad": {
+        "title": "Your last game ({{when}}) went badly",
+        "several": "Your last {{bad}} of {{of}} games with this list went badly",
+        "memory": "The PC ran out of memory with the game open. Close other programs before playing (browsers, a server, other games).",
+        "java": "The game itself failed (a Java error), often the graphics driver or memory. If it happens again, see the details.",
+        "noMenu": "The game closed before reaching its menu. Usually a mod that does not load on this version: the check below names it.",
+        "details": "See details",
+        "hide": "Got it"
+      }
     },
     "health": {
       "nothingToAct": "Nothing to fix: your mods are ready to play.",

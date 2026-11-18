@@ -1094,6 +1094,23 @@ export interface SaveMapsFix {
   backup: string;
 }
 
+/** Mods the active profile has on that a save's own list lacks (in the profile's load order). */
+export interface SaveProfileMods {
+  profile_id: string;
+  profile_name: string;
+  mods: string[];
+  /** Those of them that bring map folders. */
+  map_mods: string[];
+}
+
+/** What adding the profile's mods to a save did. */
+export interface SaveAddedProfileMods {
+  added: string[];
+  list: string[];
+  backup: string;
+  maps: SaveMapsFix | null;
+}
+
 export interface SaveSummary {
   /** <mode>/<world> */
   id: string;
