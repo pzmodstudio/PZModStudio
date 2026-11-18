@@ -1,4 +1,20 @@
 {
+ "1.10.0": [
+  "Simple view for beginners: a Home screen with Play and what to fix first",
+  "Profiles: each keeps its own saves, game options and mod settings",
+  "Culprit hunt: likely suspects first, pairs, problems that come and go, an answer",
+  "Diagnostics: errors put on the right mod 99.7% of the time, far fewer false alarms",
+  "Diagnostics: functions two mods change, checked in the running game",
+  "Diagnostics: Java mods a game update broke, tiledef numbers two mods share",
+  "Diagnostics: files written in the game folder while the game ran",
+  "Servers: every server and sandbox option can be edited",
+  "Explore Mods: search the Workshop through Steam",
+  "Link 1.19.0: every error of a session, kept on disk, with Copy all",
+  "Link: names the mod when joining a server fails; checks before hosting",
+  "Link: updated mods show their change notes; Copy server lines",
+  "Auto-Sort says why it moved each mod; Java crashes said in plain words",
+  "Doctor: a diary of each game, Mark this moment, a card in the game menu"
+ ],
  "1.9.1": [
   "Diagnostics: free up space - clear the app cache, remove player 2's folder",
   "Mod index reviewed on 42.22: only problems seen in the game stay",

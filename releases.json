@@ -1,8 +1,28 @@
 {
- "latest": "1.9.1",
- "count": 35,
- "built": "2026-11-17",
+ "latest": "1.10.0",
+ "count": 36,
+ "built": "2026-11-18",
  "releases": [
+  {
+   "version": "1.10.0",
+   "date": "2026-11-18",
+   "notes": [
+    "Simple view for beginners: a Home screen with Play and what to fix first",
+    "Profiles: each keeps its own saves, game options and mod settings",
+    "Culprit hunt: likely suspects first, pairs, problems that come and go, an answer",
+    "Diagnostics: errors put on the right mod 99.7% of the time, far fewer false alarms",
+    "Diagnostics: functions two mods change, checked in the running game",
+    "Diagnostics: Java mods a game update broke, tiledef numbers two mods share",
+    "Diagnostics: files written in the game folder while the game ran",
+    "Servers: every server and sandbox option can be edited",
+    "Explore Mods: search the Workshop through Steam",
+    "Link 1.19.0: every error of a session, kept on disk, with Copy all",
+    "Link: names the mod when joining a server fails; checks before hosting",
+    "Link: updated mods show their change notes; Copy server lines",
+    "Auto-Sort says why it moved each mod; Java crashes said in plain words",
+    "Doctor: a diary of each game, Mark this moment, a card in the game menu"
+   ]
+  },
   {
    "version": "1.9.1",
    "date": "2026-11-17",
@@ -132,14 +152,6 @@
     "Settings: Connect with GitHub works again, for sharing a rule or what you know about a mod",
     "Link 1.18.2: the website's address in the mod's description",
     "Packages: the card shows the whole description"
-   ]
-  },
-  {
-   "version": "1.7.14",
-   "date": "2026-10-29",
-   "notes": [
-    "Help: every page checked against the screens and brought up to date",
-    "Developer: no New mod button in the header, the tab is enough"
    ]
   }
  ]
