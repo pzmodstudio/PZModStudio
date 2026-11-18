@@ -35,6 +35,11 @@ pub struct GameApi {
     /// simple names, the game Lua's top-level definitions, Lua's own.
     pub globals: BTreeSet<String>,
     pub events: BTreeSet<String>,
+    /// The methods each game Lua file calls (path under media/lua, lowercase). A mod's copy of a
+    /// game file at the same path calls them too; when the build no longer has one, that is the
+    /// game's own leftover, not the mod's doing.
+    #[serde(default)]
+    pub lua_calls: BTreeMap<String, BTreeSet<String>>,
     pub class_files: usize,
     pub lua_files: usize,
 }
@@ -273,8 +278,9 @@ const KEYWORDS: &[&str] = &[
 ];
 
 /// Bumped when what the game API holds changes (v2: Kahlua's own `newrandom` and string/random
-/// methods), so an API kept by an older Studio is read again instead of reused.
-const GAME_API_VERSION: u32 = 2;
+/// methods; v4: the methods each game Lua file calls), so an API kept by an older Studio is read
+/// again instead of reused.
+const GAME_API_VERSION: u32 = 4;
 
 /// The game API cache key: the jar's size and date, and the version of what is kept.
 fn game_api_key(jar: &Path) -> Option<String> {
@@ -401,6 +407,11 @@ pub struct Defs {
     pub locals: BTreeSet<String>,
     /// `LuaEventManager.AddEvent("X")`.
     pub events: BTreeSet<String>,
+    /// Names set to whether another mod is on (`local fh = getActivatedMods():contains("X")`,
+    /// `M.HAS_X = getActivatedMods():contains("X")`): code that runs only when they are true calls
+    /// that mod's names, which exist then.
+    #[serde(default)]
+    pub mod_flags: BTreeSet<String>,
 }
 
 impl Defs {
@@ -409,6 +420,7 @@ impl Defs {
         self.methods.extend(other.methods.iter().cloned());
         self.locals.extend(other.locals.iter().cloned());
         self.events.extend(other.events.iter().cloned());
+        self.mod_flags.extend(other.mod_flags.iter().cloned());
     }
 }
 
@@ -495,6 +507,23 @@ pub fn definitions(raw: &str) -> Defs {
         }
     }
     let text = blank_comments_and_strings(raw);
+    // `name = getActivatedMods():contains(...)` (a field too): a flag for another mod being on.
+    for (at, _) in text.match_indices("getActivatedMods") {
+        let call: String = text[at..].chars().take(48).filter(|c| !c.is_whitespace()).collect();
+        if !call.starts_with("getActivatedMods():contains(") {
+            continue;
+        }
+        let line_start = text[..at].rfind('\n').map(|p| p + 1).unwrap_or(0);
+        let before = &text[line_start..at];
+        let Some(eq) = before.rfind('=') else { continue };
+        if before[..eq].ends_with(['=', '~', '<', '>']) || before[eq + 1..].contains('(') {
+            continue;
+        }
+        let name: String = before[..eq].trim_end().chars().rev().take_while(|c| is_ident(*c)).collect::<Vec<_>>().into_iter().rev().collect();
+        if !name.is_empty() && !KEYWORDS.contains(&name.as_str()) {
+            d.mod_flags.insert(name);
+        }
+    }
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
     while i < chars.len() {
@@ -637,6 +666,91 @@ pub struct Call {
     /// `foo and foo()`, `if obj.foo then obj:foo()`): the author knows it may be missing.
     #[serde(default)]
     pub guarded: bool,
+    /// What must be true for the call to run, from the `if`s around it (the branch it is in) and
+    /// an `x and` before it: `g:name` (a global), `m:name` (the last part of `a.b.name`) for
+    /// conditions that only test names exist; `version` when one compares the game's version;
+    /// `activated` when one asks `getActivatedMods()`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub when: Vec<String>,
+    /// The names an `if` before this `else` tested (`if obj.newWay then ... else obj:oldWay()`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unless: Vec<String>,
+}
+
+/// An open block while reading calls: an `if` (with the test of the branch being read and the
+/// tests of the branches before it) or any other (`function`, `do`, `repeat`).
+struct Block {
+    is_if: bool,
+    test: String,
+    before: Vec<String>,
+}
+
+/// The tokens of one `if` test (see `Call::when`): `version` / `activated` always; and, for a
+/// test that is a chain of `and`s (no `or`), each part that only checks a name exists (`a.b`, not
+/// `not a`, a comparison or a call): all of them must be there for the branch to run.
+fn test_tokens(test: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let lower = test.to_lowercase();
+    if ["gameversion", "getversion", "versionnumber", "getmajor", "isb41", "isb42", "build41", "build42"].iter().any(|w| lower.contains(w)) {
+        out.push("version".to_string());
+    }
+    if test.contains("getActivatedMods") {
+        out.push("activated".to_string());
+    }
+    out.extend(name_tests(test).into_iter().flatten());
+    out
+}
+
+/// The parts of an `and` chain that only test a name (`g:name`, `m:last` for `a.b.last`), each
+/// None when it does something else; empty for a test with `or`.
+fn name_tests(test: &str) -> Vec<Option<String>> {
+    let padded = format!(" {} ", test.split_whitespace().collect::<Vec<_>>().join(" "));
+    if padded.contains(" or ") {
+        return Vec::new();
+    }
+    padded
+        .split(" and ")
+        .map(|part| {
+            let part = part.trim().trim_start_matches('(').trim_end_matches(')').trim();
+            let is_path = !part.is_empty() && part.chars().all(|c| is_ident(c) || c == '.') && part.split('.').all(|w| !w.is_empty() && !KEYWORDS.contains(&w) && !w.starts_with(|c: char| c.is_ascii_digit()));
+            is_path.then(|| match part.rsplit_once('.') {
+                Some((_, last)) => format!("m:{}", last),
+                None => format!("g:{}", part),
+            })
+        })
+        .collect()
+}
+
+/// An `else` branch's view of the test before it: `version`, or the names when the whole test is
+/// name checks (`if w.newWay then ... else`), as one entry: the branch is dead when all exist.
+fn else_tokens(test: &str) -> Vec<String> {
+    let mut out: Vec<String> = test_tokens(test).into_iter().filter(|t| t == "version").collect();
+    let parts = name_tests(test);
+    if !parts.is_empty() && parts.iter().all(|p| p.is_some()) {
+        out.push(parts.into_iter().flatten().collect::<Vec<_>>().join(" "));
+    }
+    out
+}
+
+/// The test an `x and` before position `i` on its line puts on the call (`fh and fhKey()`).
+fn inline_test(chars: &[char], i: usize) -> Option<String> {
+    let line_start = chars[..i].iter().rposition(|&c| c == '\n').map(|p| p + 1).unwrap_or(0);
+    let before: String = chars[line_start..i].iter().collect();
+    let at = before.rfind(" and ")?;
+    let mut test = before[..at].trim();
+    for lead in ["if ", "elseif ", "while ", "return "] {
+        if let Some(rest) = test.strip_prefix(lead) {
+            test = rest.trim();
+        }
+    }
+    if let Some(eq) = test.rfind('=') {
+        if !test[..eq].ends_with(['=', '~', '<', '>']) && !test[eq + 1..].starts_with('=') {
+            test = test[eq + 1..].trim();
+        }
+    }
+    // `local x = (flag and f())`: the bracket opens the test.
+    let test = test.trim_start_matches('(').trim();
+    (!test.is_empty()).then(|| test.to_string())
 }
 
 /// Where a call cannot fail the script: from the `function` given to `pcall(`/`xpcall(` to the
@@ -692,6 +806,29 @@ pub fn calls(raw: &str) -> Vec<Call> {
     let mut bare: BTreeSet<(&str, String)> = BTreeSet::new();
     let mut line = 1u32;
     let mut i = 0;
+    // The blocks open here, and where the test of the `if`/`elseif` being read began.
+    let mut blocks: Vec<Block> = Vec::new();
+    let mut test_from: Option<usize> = None;
+    let mut loop_do = 0usize;
+    // The tests a call at `at` runs under.
+    let tests_at = |blocks: &[Block], at: usize| -> (Vec<String>, Vec<String>) {
+        let mut when: Vec<String> = Vec::new();
+        let mut unless: Vec<String> = Vec::new();
+        for b in blocks.iter().filter(|b| b.is_if) {
+            when.extend(test_tokens(&b.test));
+            for t in &b.before {
+                unless.extend(else_tokens(t));
+            }
+        }
+        if let Some(t) = inline_test(&chars, at) {
+            when.extend(test_tokens(&t));
+        }
+        when.sort();
+        when.dedup();
+        unless.sort();
+        unless.dedup();
+        (when, unless)
+    };
     while i < chars.len() {
         let c = chars[i];
         if c == '\n' {
@@ -705,6 +842,45 @@ pub fn calls(raw: &str) -> Vec<Call> {
         }
         let (word, end) = ident_at(&chars, i);
         let prev = if i > 0 { chars[i - 1] } else { ' ' };
+        if prev != '.' && prev != ':' {
+            let block = |is_if: bool| Block { is_if, test: String::new(), before: Vec::new() };
+            match word.as_str() {
+                "if" => {
+                    blocks.push(block(true));
+                    test_from = Some(end);
+                }
+                "elseif" | "else" => {
+                    if let Some(b) = blocks.last_mut().filter(|b| b.is_if) {
+                        let t = std::mem::take(&mut b.test);
+                        b.before.push(t);
+                    }
+                    if word == "elseif" {
+                        test_from = Some(end);
+                    }
+                }
+                "then" => {
+                    if let (Some(from), Some(b)) = (test_from.take(), blocks.last_mut()) {
+                        b.test = chars[from..i].iter().collect();
+                    }
+                }
+                "while" | "for" => {
+                    blocks.push(block(false));
+                    loop_do += 1;
+                }
+                "do" => {
+                    if loop_do > 0 {
+                        loop_do -= 1;
+                    } else {
+                        blocks.push(block(false));
+                    }
+                }
+                "function" | "repeat" => blocks.push(block(false)),
+                "end" | "until" => {
+                    blocks.pop();
+                }
+                _ => {}
+            }
+        }
         if word == "Events" && chars.get(end) == Some(&'.') && prev != '.' {
             let (ev, e2) = ident_at(&chars, end + 1);
             // `Events.X.Add(f)` is a call; `Events.X` or `Events.X.Add` not called is a mention,
@@ -713,7 +889,8 @@ pub fn calls(raw: &str) -> Vec<Call> {
             if !ev.is_empty() && chars.get(e2) == Some(&'.') {
                 let (op, e3) = ident_at(&chars, e2 + 1);
                 if (op == "Add" || op == "Remove") && chars.get(skip_ws(&chars, e3)) == Some(&'(') {
-                    out.push(Call { kind: "event".into(), name: ev.clone(), line, guarded: false });
+                    let (when, unless) = tests_at(&blocks, i);
+                    out.push(Call { kind: "event".into(), name: ev.clone(), line, guarded: false, when, unless });
                     called = true;
                 }
             }
@@ -728,9 +905,11 @@ pub fn calls(raw: &str) -> Vec<Call> {
         if called && !KEYWORDS.contains(&word.as_str()) {
             let guarded = in_pcall(i);
             if prev == ':' {
-                out.push(Call { kind: "method".into(), name: word, line, guarded });
+                let (when, unless) = tests_at(&blocks, i);
+                out.push(Call { kind: "method".into(), name: word, line, guarded, when, unless });
             } else if prev != '.' && word_before(&chars, i).as_deref() != Some("function") {
-                out.push(Call { kind: "global".into(), name: word, line, guarded });
+                let (when, unless) = tests_at(&blocks, i);
+                out.push(Call { kind: "global".into(), name: word, line, guarded, when, unless });
             }
         } else if !called && !KEYWORDS.contains(&word.as_str()) && word_before(&chars, i).as_deref() != Some("function") && word_before(&chars, i).as_deref() != Some("local") {
             // A bare mention: `if foo then`, `type(foo)`, `foo and foo()`, `obj.foo` before
@@ -835,9 +1014,11 @@ pub fn game_api(pz_install_dir: &Path, user_zomboid_dir: &Path) -> Result<GameAp
     if stdlib.is_file() {
         files.push(stdlib);
     }
+    let lua_root = pz_install_dir.join("media").join("lua");
     for f in files {
         let Ok(text) = std::fs::read_to_string(&f) else { continue };
         api.lua_files += 1;
+        let rel = f.strip_prefix(&lua_root).map(|r| r.to_string_lossy().replace('\\', "/").to_lowercase()).unwrap_or_default();
         let d = definitions(&text);
         api.globals.extend(d.globals);
         api.methods.extend(d.methods);
@@ -846,6 +1027,8 @@ pub fn game_api(pz_install_dir: &Path, user_zomboid_dir: &Path) -> Result<GameAp
         for c in calls(&text) {
             if c.kind == "event" {
                 api.events.insert(c.name);
+            } else if c.kind == "method" && !rel.is_empty() {
+                api.lua_calls.entry(rel.clone()).or_default().insert(c.name);
             }
         }
     }
@@ -958,10 +1141,152 @@ fn mod_jars(root: &Path) -> Vec<PathBuf> {
     out
 }
 
+/// The function a line starts defining (`function A.b(`, `local function f(`, `A.b = function(`):
+/// the last part of its name.
+fn function_defined_on(line: &str) -> Option<String> {
+    let t = line.trim_start();
+    let t = t.strip_prefix("local ").map(str::trim_start).unwrap_or(t);
+    let path = if let Some(rest) = t.strip_prefix("function ") {
+        rest.split('(').next()?.trim()
+    } else {
+        let (lhs, rhs) = t.split_once('=')?;
+        if !rhs.trim_start().starts_with("function") || rhs.starts_with('=') {
+            return None;
+        }
+        lhs.trim()
+    };
+    let last = path.rsplit(['.', ':']).next()?.trim();
+    (!last.is_empty() && last.chars().all(is_ident) && !KEYWORDS.contains(&last)).then(|| last.to_string())
+}
+
+/// A line that sets one name (`x = ...`, `local x = ...`, `T.x = ...`, `T['k'] = ...`, strings
+/// already blanked): the name set (`x`; a table indexed by a key is the table) and the value.
+fn single_assignment(line: &str) -> Option<(String, &str)> {
+    let t = line.trim_start();
+    let t = t.strip_prefix("local ").map(str::trim_start).unwrap_or(t);
+    let eq = t.find('=')?;
+    let (lhs, rhs) = (&t[..eq], &t[eq + 1..]);
+    if rhs.starts_with('=') || lhs.ends_with(['~', '<', '>', '=']) || lhs.contains([',', '(']) {
+        return None;
+    }
+    let mut lhs = lhs.trim_end();
+    while lhs.ends_with(']') {
+        lhs = lhs[..lhs.rfind('[')?].trim_end();
+    }
+    if !lhs.chars().all(|c| is_ident(c) || c == '.' || c == ':') {
+        return None;
+    }
+    let name = lhs.rsplit(['.', ':']).next()?;
+    (!name.is_empty() && !KEYWORDS.contains(&name) && !name.starts_with(|c: char| c.is_ascii_digit())).then(|| (name.to_string(), rhs))
+}
+
+/// Flags for another mod being on that the mod sets through its own check rather than straight
+/// from `getActivatedMods():contains(...)`: a function of the mod that asks `getActivatedMods()`
+/// (its body taken up to the first `end` at the start of a line, or the next function), a name
+/// set from a call to one, and a name set from a value that holds such a flag (one table of
+/// cached answers read into a local: `T['x'] = T['x'] or M.hasMod('x')`, then
+/// `local on = T and T['x']`). `texts` are the mod's files with comments and strings blanked;
+/// `known` the flags already found. Returns the new ones.
+fn derived_mod_flags(texts: &[String], known: &BTreeSet<String>) -> BTreeSet<String> {
+    let mut checks: BTreeSet<String> = BTreeSet::new();
+    for text in texts {
+        let mut current: Option<String> = None;
+        for line in text.lines() {
+            if let Some(name) = function_defined_on(line) {
+                current = Some(name);
+            }
+            if line.contains("getActivatedMods") {
+                if let Some(name) = &current {
+                    checks.insert(name.clone());
+                }
+            }
+            if line.starts_with("end") && !line[3..].starts_with(is_ident) {
+                current = None;
+            }
+        }
+    }
+    let mut flags = known.clone();
+    let mut found: BTreeSet<String> = BTreeSet::new();
+    // Whether a value says only whether a mod is on: made of flags, calls to a check (whatever
+    // their arguments), the name being set and `and` / `or` / `not`, with at least one flag or
+    // check. Anything else in it (another name, a table) makes it a value of its own, not a flag.
+    let only_flags = |value: &str, name: &str, flags: &BTreeSet<String>| -> bool {
+        let chars: Vec<char> = value.chars().collect();
+        let mut i = 0;
+        let mut any = false;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '{' {
+                return false;
+            }
+            if !is_ident_start(c) || (i > 0 && is_ident(chars[i - 1])) {
+                i += 1;
+                continue;
+            }
+            let (word, end) = ident_at(&chars, i);
+            let next = skip_ws(&chars, end);
+            i = end;
+            // `T = T or check()`: the name keeps its own answer.
+            if KEYWORDS.contains(&word.as_str()) || word == name {
+                continue;
+            }
+            match chars.get(next) {
+                // `Utils.hasMod`: the path to what is read or called.
+                Some('.') | Some(':') => continue,
+                Some('(') if checks.contains(&word) => {
+                    any = true;
+                    let mut depth = 0usize;
+                    let mut k = next;
+                    while k < chars.len() {
+                        match chars[k] {
+                            '(' => depth += 1,
+                            ')' => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                        k += 1;
+                    }
+                    i = k + 1;
+                }
+                Some('(') => return false,
+                _ if flags.contains(&word) => any = true,
+                _ => return false,
+            }
+        }
+        any
+    };
+    // A few rounds: a cached answer, then the local read from it.
+    for _ in 0..3 {
+        let mut grew = false;
+        for text in texts {
+            for line in text.lines() {
+                let Some((name, value)) = single_assignment(line) else { continue };
+                if flags.contains(&name) || value.trim_start().starts_with("function") {
+                    continue;
+                }
+                if only_flags(value, &name, &flags) {
+                    flags.insert(name.clone());
+                    found.insert(name);
+                    grew = true;
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    found
+}
+
 /// Bumped when what `read_mod` keeps changes, so older caches are read again (v4: calls inside
 /// `pcall(function() ... end)` and `x.f == nil` checks are guarded; a `common/` copy the version
-/// folder replaces is not read).
-const MOD_CACHE_VERSION: u32 = 4;
+/// folder replaces is not read; v6: the tests a call runs under, and the mod's flags for other
+/// mods being on; v7: flags set through the mod's own check of whether a mod is on).
+const MOD_CACHE_VERSION: u32 = 7;
 
 pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version: Option<u32>) -> ModLua {
     let (fp, _) = crate::security::fingerprint(root);
@@ -973,6 +1298,7 @@ pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version
         }
     }
     let mut m = ModLua { fingerprint: fp, ..Default::default() };
+    let mut blanked: Vec<String> = Vec::new();
     for f in mod_lua_files(root, game_version) {
         let Ok(text) = std::fs::read_to_string(&f) else { continue };
         let rel = f.strip_prefix(root).unwrap_or(&f).to_string_lossy().replace('\\', "/");
@@ -981,6 +1307,11 @@ pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version
         if !c.is_empty() {
             m.calls.insert(rel, c);
         }
+        blanked.push(blank_comments_and_strings(&text));
+    }
+    if blanked.iter().any(|t| t.contains("getActivatedMods")) {
+        let derived = derived_mod_flags(&blanked, &m.defs.mod_flags);
+        m.defs.mod_flags.extend(derived);
     }
     // The names the mod's own Java gives Lua (ZombieBuddy jars and the like).
     for jar in mod_jars(root) {
@@ -1075,16 +1406,42 @@ pub fn check(api: &GameApi, this: &ModLua, others: &Defs) -> ModApiReport {
     let known_global = |n: &str| api.globals.contains(n) || this.defs.globals.contains(n) || this.defs.locals.contains(n) || others.globals.contains(n) || this.defs.methods.contains(n);
     let known_method = |n: &str| api.methods.contains(n) || this.defs.methods.contains(n) || others.methods.contains(n) || this.defs.locals.contains(n) || this.defs.globals.contains(n);
     let known_event = |n: &str| api.events.contains(n) || this.defs.events.contains(n) || others.events.contains(n);
+    // Whether the tests around a call let it run on this build with these mods (measured on two
+    // players' collections, 2026-11-18, each a call that never runs):
+    // - a test of the game's version (`if GameVersionNewerThan(42, 13) then ... else old() end`):
+    //   the author wrote each branch for its own builds;
+    // - a test whether another mod is on (`fh and fhKey()`, `fh` set from
+    //   `getActivatedMods():contains("X")`): it runs when that mod is on, and then it has the name;
+    // - a test of a name nothing has (`if luajava then`, `if data.getPresetsCount then`): never true;
+    // - the `else` of a test of a name the game has (`if w.removeBrokenGlass then ... else
+    //   w:setShattered() end`): the old way, for builds without it.
+    let flag = |t: &str| t.split_once(':').is_some_and(|(_, n)| this.defs.mod_flags.contains(n) || others.mod_flags.contains(n));
+    let missing = |t: &str| match t.split_once(':') {
+        Some(("g", n)) => !known_global(n),
+        Some(("m", n)) => !known_method(n),
+        _ => false,
+    };
+    let in_game = |t: &str| match t.split_once(':') {
+        Some(("g", n)) => api.globals.contains(n),
+        Some(("m", n)) => api.methods.contains(n),
+        _ => false,
+    };
+    let tested_away = |c: &Call| {
+        c.when.iter().any(|t| t == "version" || t == "activated" || flag(t) || missing(t)) || c.unless.iter().any(|t| t == "version" || t.split(' ').all(|n| in_game(n)))
+    };
     let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
     for (file, calls) in &this.calls {
+        // A copy of a game file (same path under media/lua): what the game's own file calls too.
+        let game_file_calls = file.to_lowercase().split_once("media/lua/").and_then(|(_, rel)| api.lua_calls.get(rel));
         for c in calls {
             report.calls_checked += 1;
             let known = match c.kind.as_str() {
                 "global" => known_global(&c.name),
-                "method" => known_method(&c.name),
+                // A copy of a game file making a call the game's own file makes: the game's leftover.
+                "method" => known_method(&c.name) || game_file_calls.is_some_and(|g| g.contains(&c.name)),
                 _ => known_event(&c.name),
             };
-            if known || c.guarded || !seen.insert((file.clone(), format!("{}:{}", c.kind, c.name))) {
+            if known || c.guarded || tested_away(c) || !seen.insert((file.clone(), format!("{}:{}", c.kind, c.name))) {
                 continue;
             }
             let pool = match c.kind.as_str() {
@@ -1107,7 +1464,8 @@ pub fn check_mod(paths: &crate::vfs::StudioPaths, catalog: &crate::catalog::ModC
     let game = catalog.game_version_int();
     let this = read_mod(&z, mod_id, root, game);
     let mut others = Defs::default();
-    for entry in active {
+    // The mods the game really loads: a requirement that is off is loaded too, and gives names.
+    for entry in &crate::catalog::game_load_order(catalog, active) {
         let Some(m) = catalog.resolve(entry.trim()) else { continue };
         if m.id == mod_id {
             continue;
@@ -1126,7 +1484,8 @@ pub fn check_mods(paths: &crate::vfs::StudioPaths, catalog: &crate::catalog::Mod
     let z = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next().ok_or("No Zomboid folder.")?;
     let api = game_api(Path::new(&paths.pz_install_dir), &z)?;
     let game = catalog.game_version_int();
-    let pool: Vec<(String, String, ModLua)> = active
+    let loaded = crate::catalog::game_load_order(catalog, active);
+    let pool: Vec<(String, String, ModLua)> = loaded
         .iter()
         .chain(ids.iter())
         .filter_map(|e| catalog.resolve(e.trim()))
@@ -1194,7 +1553,9 @@ pub fn reports_within(pz_install_dir: &Path, cache_root: &Path, catalog: &crate:
     jar_key(&pz_install_dir.join("projectzomboid.jar"))?;
     let game = catalog.game_version_int();
     let mut mods: Vec<(String, PathBuf)> = Vec::new();
-    for entry in active {
+    // What the game loads: not a mod it leaves out (another build's, a requirement missing), and a
+    // requirement that is off, which it loads anyway (its names count, its calls are checked).
+    for entry in &crate::catalog::game_load_order(catalog, active) {
         let Some(m) = catalog.resolve(entry.trim()) else { continue };
         if !mods.iter().any(|(id, _)| *id == m.id) {
             mods.push((m.id.clone(), PathBuf::from(&m.root_dir)));
@@ -1411,6 +1772,80 @@ p:HasTrait(\"x\")";
         let this = ModLua { fingerprint: String::new(), defs: definitions(text), calls: [("a.lua".to_string(), calls(text))].into_iter().collect() };
         let names: Vec<String> = check(&api, &this, &Defs::default()).findings.iter().map(|f| f.name.clone()).collect();
         assert_eq!(names, vec!["HasTrait".to_string()], "only the name the build lacks is reported");
+    }
+
+    /// Measured on two players' collections (2026-11-18): calls that never run on 42.22 were
+    /// reported as missing from the build. Each shape is one found there, beside a real one that
+    /// must stay.
+    #[test]
+    fn a_call_its_tests_keep_from_running_is_not_reported() {
+        let mut api = GameApi::default();
+        api.globals.extend(["getActivatedMods", "getCore"].map(String::from));
+        api.methods.extend(["removeBrokenGlass", "getStats", "get", "contains", "getSecondaryHandItem"].map(String::from));
+        // The game's own ISInventoryPaneContextMenu still calls recipe:isOnlyOne().
+        api.lua_calls.entry("client/isui/isinventorypanecontextmenu.lua".into()).or_default().insert("isOnlyOne".into());
+        let main = "local fancyHandwork = getActivatedMods():contains(\"FancyHandwork\")
+if fancyHandwork and isFHModKeyDown() then end
+if AMMO.ON and ammoMakerAdd(1) then end
+if BAM.GameVersionNewerThanOrEqual(42, 13, 0) then
+    e = s:getStats():get(1)
+else
+    e = s:getStats():getEndurance()
+end
+if luajava then
+    local t = luajava.bindClass(\"java.awt.Toolkit\")
+    t:getDefaultToolkit()
+end
+if data and data.getPresetsCount then
+    local pf = data:getPresetChannel(1)
+end
+if self.window.removeBrokenGlass then
+    self.window:removeBrokenGlass()
+else
+    self.window:setShattered(false)
+end
+if recipe:isOnlyOne() then end
+if not stationName and data.getPresetsCount then
+    local pn = data:getPresetLabel(2)
+end
+local _fh = (fancyHandwork and isFHModKeyHeld())
+if self.window.removeBrokenGlass and self.window.notAThing then x = 1 else self.window:setBroken() end
+if fancyHandwork then x = 1 else stillGone() end
+player:getplayerObjNum()";
+        // Another file of the mod sets the flag on a table.
+        let support = "AMMO = {}\nAMMO.ON = getActivatedMods():contains(\"ammomaker\")\n";
+        let mut defs = definitions(main);
+        defs.absorb(&definitions(support));
+        assert!(defs.mod_flags.contains("fancyHandwork") && defs.mod_flags.contains("ON"), "{:?}", defs.mod_flags);
+        // The mod's copy of the game's file; its own file calling the same is the mod's call.
+        let copy = "42/media/lua/client/ISUI/ISInventoryPaneContextMenu.lua".to_string();
+        let own = "42/media/lua/client/Mine.lua".to_string();
+        let this = ModLua { fingerprint: String::new(), defs, calls: [(copy, calls(main)), (own, calls("item:isOnlyOne()"))].into_iter().collect() };
+        let names: Vec<String> = check(&api, &this, &Defs::default()).findings.iter().map(|f| f.name.clone()).collect();
+        // The else of a mod-is-on test runs without that mod: its call is still checked.
+        // The else of a test the game does not fully pass (notAThing) can run: checked.
+        assert_eq!(names, ["stillGone", "getplayerObjNum", "isOnlyOne", "setBroken"].map(String::from).to_vec());
+    }
+
+    #[test]
+    fn a_flag_set_through_the_mods_own_check_keeps_its_calls_from_being_reported() {
+        // One file has the check (it asks getActivatedMods), another caches its answer in a
+        // table and reads it into a local that guards the calls to the other mod.
+        let helper = "Utils = Utils or {}\nCache = Cache or {}\nUtils.hasMod = function(name)\n\tlocal all = getActivatedMods()\n\treturn all:contains(name)\nend\n\nlocal unrelated = getPlayer()\n";
+        let user = "Cache['mf'] = Cache['mf'] or (not Cache['mf_cached'] and Utils.hasMod('mf'))\nlocal mfOn = Cache and Cache['mf']\nlocal size = 3\nfunction draw()\n\tif enabled and mfOn then\n\t\tlocal _, all = MF.ISMoodle:getMoodleData()\n\tend\n\tif size then other:notThere() end\nend\n";
+        let texts: Vec<String> = [helper, user].iter().map(|t| blank_comments_and_strings(t)).collect();
+        let flags = derived_mod_flags(&texts, &BTreeSet::new());
+        assert!(flags.contains("Cache") && flags.contains("mfOn"), "{:?}", flags);
+        assert!(!flags.contains("size") && !flags.contains("unrelated") && !flags.contains("hasMod"), "{:?}", flags);
+
+        let mut api = GameApi::default();
+        api.globals.extend(["getActivatedMods", "getPlayer"].map(String::from));
+        let mut defs = definitions(helper);
+        defs.absorb(&definitions(user));
+        defs.mod_flags.extend(flags);
+        let this = ModLua { fingerprint: String::new(), defs, calls: [("a.lua".to_string(), calls(user))].into_iter().collect() };
+        let names: Vec<String> = check(&api, &this, &Defs::default()).findings.iter().map(|f| f.name.clone()).collect();
+        assert_eq!(names, vec!["notThere".to_string()], "the call guarded by the flag is left out, the other is not");
     }
 
     #[test]

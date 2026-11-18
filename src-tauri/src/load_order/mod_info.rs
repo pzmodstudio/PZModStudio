@@ -587,17 +587,17 @@ pub fn installed_jar_game_version() -> Option<u32> {
 }
 
 /// `GameVersion(major, minor)` as `zombie/core/Core` builds it in its static init, read from the
-/// jar; cached per jar size and date (one class out of the jar, read once per game update).
+/// jar; cached per jar path, size and date (one class out of the jar, read once per game update).
+/// A few jars are kept: the game's and a dedicated server's are asked for one after the other.
 pub fn jar_game_version(jar: &Path) -> Option<u32> {
     use std::sync::Mutex;
-    static CACHE: Mutex<Option<(PathBuf, u64, std::time::SystemTime, Option<u32>)>> = Mutex::new(None);
+    type Entry = (PathBuf, u64, std::time::SystemTime, Option<u32>);
+    static CACHE: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
     let meta = fs::metadata(jar).ok()?;
     let (len, modified) = (meta.len(), meta.modified().ok()?);
     if let Ok(cache) = CACHE.lock() {
-        if let Some((path, l, m, v)) = cache.as_ref() {
-            if path == jar && *l == len && *m == modified {
-                return *v;
-            }
+        if let Some((_, _, _, v)) = cache.iter().find(|(path, l, m, _)| path == jar && *l == len && *m == modified) {
+            return *v;
         }
     }
     let version = (|| {
@@ -608,7 +608,11 @@ pub fn jar_game_version(jar: &Path) -> Option<u32> {
         core_class_game_version(&bytes)
     })();
     if let Ok(mut cache) = CACHE.lock() {
-        *cache = Some((jar.to_path_buf(), len, modified, version));
+        cache.retain(|(path, ..)| path != jar);
+        if cache.len() >= 4 {
+            cache.remove(0);
+        }
+        cache.push((jar.to_path_buf(), len, modified, version));
     }
     version
 }

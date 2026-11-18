@@ -5,8 +5,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
-import { BrainMarkReport, BrainModHistory, BrainOnset, BrainOverview, BrainPeriodReport, BrainPrelaunch, BrainSuspect, DocHit, LearnedSummary, MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources } from '../types';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod, ServerSettingsSchema, ServerSettingsValues } from '../types';
+import { BrainMarkReport, BrainModHistory, BrainOnset, BrainOverview, BrainPeriodReport, BrainPrelaunch, BrainSuspect, DocHit, LearnedSummary, MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources, LiveSnapshot } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, KeptVersionsSummary, KeptVersionsMoved, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod, ServerSettingsSchema, ServerSettingsValues, DedicatedView, DedicatedConfig, DedicatedInstallProgress, RestartView, RestartSchedule } from '../types';
 
 /** A process holding a file Windows would not let the Studio touch. */
 export interface FileHolder {
@@ -219,6 +219,12 @@ const SAID: [RegExp, string][] = [
   [/^Steam has no public item with this id/, 'noWorkshopItem'],
   [/^Steam refused the request/, 'steamRefused'],
   [/^The package is in use and could not be replaced/, 'packageInUse'],
+  // Isolated profiles: moved only while no game or server runs
+  [/^Close Project Zomboid first \(process (?<pid>\d+)\): the saves, game options and mod settings of isolated profiles/, 'profilesCloseGame'],
+  [/^The Project Zomboid server "(?<name>.+?)" is running \(process (?<pid>\d+)\)\. Stop it first/s, 'profilesStopServer'],
+  [/^A Project Zomboid server is running \(process (?<pid>\d+)\)\. Stop it first/, 'profilesStopAnyServer'],
+  [/^"(?<set>.+)" is not a saves set$/s, 'profilesNotASet'],
+  [/^Switch to a profile that is not isolated first/, 'profilesSwitchFirst'],
   // Files and folders, last: other texts start the same way
   [/^(?<what>.+) is not there any more\.$/s, 'notThereAnyMore'],
   [/^(?<what>.+) is not there\.$/s, 'notThere'],
@@ -229,6 +235,12 @@ const SAID: [RegExp, string][] = [
   [/^Cannot open (?<what>.+?): (?<why>.+)$/s, 'cannotOpen'],
   [/^Cannot back up (?<what>.+?): (?<why>.+)$/s, 'cannotBackUp'],
   [/^Cannot delete (?<what>.+?): (?<why>.+)$/s, 'cannotDelete'],
+  [/^Cannot make (?<what>.+?): (?<why>.+)$/s, 'cannotMake'],
+  [/^Cannot move (?!the )(?<what>.+?) to (?<to>.+?): (?<why>.+)$/s, 'cannotMoveTo'],
+  [/^Cannot move (?!the )(?<what>(?:(?! away \().)+?): (?<why>.+)$/s, 'cannotMove'],
+  [/^Cannot keep (?<what>.+?) in (?<to>.+?): (?<why>.+)$/s, 'cannotKeep'],
+  [/^Cannot copy (?<what>.+?): (?<why>.+)$/s, 'cannotCopy'],
+  [/^Cannot put the copy in (?<what>.+?): (?<why>.+)$/s, 'cannotPutCopy'],
 ];
 
 /** A text the backend wrote, in the chosen language when it is a known one; else as it came. */
@@ -1081,6 +1093,15 @@ export const TauriService = {
     }
   },
 
+  /** The game as it runs now, with the last minutes; null when it cannot be read. */
+  gameLive: async (paths: StudioPathsUI): Promise<LiveSnapshot | null> => {
+    try {
+      return await invoke<LiveSnapshot>('game_live_cmd', { paths });
+    } catch {
+      return null;
+    }
+  },
+
   /** Puts the profiler first in the mod list (and the last save's), or takes it out. */
   setProfiler: async (paths: StudioPathsUI, on: boolean): Promise<ProfilerStatus> => {
     try {
@@ -1111,7 +1132,8 @@ export const TauriService = {
       // The game's extra filters are a convenience; the app has them all.
     }
   },
-  writeLinkHealth: async (paths: StudioPathsUI, lines: [string, string, string][]): Promise<void> => {
+  /** Mod Health's warnings for the Link: severity, mod id, text, issue code (read since Link 1.19.2). */
+  writeLinkHealth: async (paths: StudioPathsUI, lines: [string, string, string, string][]): Promise<void> => {
     try {
       await invoke('write_link_health_cmd', { paths, lines });
     } catch {
@@ -1151,6 +1173,53 @@ export const TauriService = {
       await invoke('delete_kept_version_cmd', { paths, path });
     } catch (err) {
       reportBackendError('Deleting the kept version', err);
+      throw err;
+    }
+  },
+
+  /** The kept version in use as a local copy goes to the backups; the game reads the Workshop one again. */
+  backToWorkshopVersion: async (paths: StudioPathsUI, modId: string): Promise<string> => {
+    try {
+      return await invoke<string>('back_to_workshop_version_cmd', { paths, modId });
+    } catch (err) {
+      reportBackendError('Going back to the Workshop version', err);
+      throw err;
+    }
+  },
+
+  keptVersionsSummary: async (paths: StudioPathsUI): Promise<KeptVersionsSummary | null> => {
+    try {
+      return await invoke<KeptVersionsSummary>('kept_versions_summary_cmd', { paths });
+    } catch {
+      return null;
+    }
+  },
+
+  setKeptVersionsSettings: async (paths: StudioPathsUI, enabled: boolean, capBytes: number): Promise<KeptVersionsSummary> => {
+    try {
+      return await invoke<KeptVersionsSummary>('set_kept_versions_settings_cmd', { paths, enabled, capBytes });
+    } catch (err) {
+      reportBackendError('Saving the kept-versions settings', err);
+      throw err;
+    }
+  },
+
+  /** Moves the kept versions to another folder: copied, checked, then the old folder removed. */
+  setKeptVersionsFolder: async (paths: StudioPathsUI, folder: string): Promise<KeptVersionsMoved> => {
+    try {
+      return await invoke<KeptVersionsMoved>('set_kept_versions_folder_cmd', { paths, folder });
+    } catch (err) {
+      reportBackendError('Moving the kept versions', err);
+      throw err;
+    }
+  },
+
+  /** A round of keeping now: the installed version of every used Workshop mod. */
+  keptVersionsRound: async (paths: StudioPathsUI): Promise<KeptVersionsSummary> => {
+    try {
+      return await invoke<KeptVersionsSummary>('kept_versions_round_cmd', { paths });
+    } catch (err) {
+      reportBackendError('Keeping versions', err);
       throw err;
     }
   },
@@ -2158,6 +2227,40 @@ export const TauriService = {
     });
   },
 
+  /** The dedicated server program: what is installed, chosen and being installed. */
+  dedicatedServerView: async (): Promise<DedicatedView> => {
+    return await invoke('dedicated_server_view');
+  },
+
+  dedicatedServerSet: async (change: { source?: string; dir?: string; branch?: string; steamcmd?: string }): Promise<DedicatedConfig> => {
+    return await invoke('dedicated_server_set', change);
+  },
+
+  /** Installs or updates it with SteamCMD in the background (SteamCMD downloaded only with allowDownload). */
+  dedicatedServerInstall: async (
+    paths: StudioPathsUI,
+    request: { dir: string; branch: string; validate: boolean; allow_download: boolean }
+  ): Promise<DedicatedInstallProgress> => {
+    return await invoke('dedicated_server_install', { paths, request });
+  },
+
+  dedicatedServerCancel: async (): Promise<boolean> => {
+    return await invoke('dedicated_server_cancel');
+  },
+
+  serverRestartsView: async (paths: StudioPathsUI, server: string): Promise<RestartView> => {
+    return await invoke('server_restarts_view', { paths, server });
+  },
+
+  serverScheduleSave: async (paths: StudioPathsUI, server: string, schedule: RestartSchedule): Promise<RestartSchedule> => {
+    return await invoke('server_schedule_save', { paths, server, schedule });
+  },
+
+  /** "Restart now (warn players)", or `cancel` the one counting down. */
+  serverRestartRequest: async (paths: StudioPathsUI, warnMinutes: number, cancel = false): Promise<void> => {
+    return await invoke('server_restart_request', { paths, warnMinutes, cancel });
+  },
+
   stopDedicatedServer: async (userZomboidDir: string, pid?: number): Promise<boolean> => {
     return await invoke('stop_dedicated_server', { userZomboidDir, pid });
   },
@@ -2293,6 +2396,11 @@ export const TauriService = {
   /** The single-player worlds (mode/world) of a set of saves: "shared" or a profile's id. */
   profileSaves: async (paths: StudioPathsUI, set: string): Promise<string[]> => {
     return await invoke<string[]>('profile_saves_cmd', { paths, set });
+  },
+
+  /** What isolating profiles left shared because it was too big to copy: the same for every profile. */
+  profileLeftShared: async (paths: StudioPathsUI): Promise<{ rel: string; bytes: number; when: string; profile: string }[]> => {
+    return await invoke<{ rel: string; bytes: number; when: string; profile: string }[]>('profile_left_shared_cmd', { paths });
   },
 
   deleteInstance: async (userZomboidDir: string, instanceId: string): Promise<void> => {
@@ -2553,7 +2661,7 @@ export const TauriService = {
 const WRITES: Record<string, ChangeScope> = {
   // The installed mods, the packages, the game's active list.
   installMods: 'mods', installFromUrl: 'mods', makeCompatibleCopy: 'mods', removeCompatibleCopy: 'mods', removeLocalMod: 'mods', autoMergeConflicts: 'mods',
-  workshopSubscribe: 'mods', diskRecycle: 'mods', restoreKeptVersion: 'mods', createMod: 'mods',
+  workshopSubscribe: 'mods', diskRecycle: 'mods', restoreKeptVersion: 'mods', backToWorkshopVersion: 'mods', createMod: 'mods',
   createMergedPackage: 'mods', renameMergedPackage: 'mods', deleteMergedPackage: 'mods', togglePackageInModlist: 'mods',
   importMergedPackage: 'mods', publishFileIntoPackage: 'mods', removeFileFromPackage: 'mods', generateMasterPatch: 'mods', cleanMasterPatch: 'mods',
   restoreModListVersion: 'mods', bisectStart: 'mods', bisectAnswer: 'mods', bisectStop: 'mods', setProfiler: 'mods',
@@ -2562,7 +2670,7 @@ const WRITES: Record<string, ChangeScope> = {
   setGameMemory: 'profiles',
   // Lists a screen keeps.
   workshopUploadSaveMeta: 'other', workshopUploadPrepare: 'mods', workshopUploadRemove: 'mods', workshopPublish: 'other',
-  keepModVersion: 'other', deleteKeptVersion: 'other', addLoadRule: 'other', removeLoadRule: 'other',
+  keepModVersion: 'other', deleteKeptVersion: 'other', setKeptVersionsSettings: 'other', setKeptVersionsFolder: 'other', keptVersionsRound: 'other', addLoadRule: 'other', removeLoadRule: 'other',
   createModList: 'other', renameModList: 'other', deleteModList: 'other', addToModList: 'other', removeFromModList: 'other',
   dismissIndexIssue: 'other', restoreIndexIssues: 'other', setAppUpdateCheck: 'other', dismissAppUpdate: 'other',
   setModNote: 'other', setInModGroup: 'other', renameModGroup: 'other', setModGroupNote: 'other', deleteModGroup: 'other', setStudioNote: 'other',

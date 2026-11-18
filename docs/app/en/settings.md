@@ -8,12 +8,13 @@ The card at the top, **How much of the Studio to show**, picks one of two views.
 
 - **Simple** shows what you need to play with mods:
   - **Home**: the profile in use, **Play**, **Continue** (your last game with this profile, once you have one) and the check-up in one line: green when there is nothing to do, red with **See what to do** when something needs fixing first.
-  - **Profiles**, **Mod List** (on/off, order, Auto-Sort), **Browse Mods**, **Saves** and **Diagnostics**.
-  - **Diagnostics** lists only what you need to act on, each with one button. Optional suggestions (the game works without them) and what is only good to know or already fixed are counted under the list, not shown; **Show everything (Complete)** shows them.
+  - **Profiles**, **Mod List**, **Browse Mods**, **Saves** and **Diagnostics**.
+  - The **Mod List** lets you switch mods on and off, order them (by hand or with **Auto-Sort**), search, and filter by on, off and with a problem. Each mod is marked in red, in plain words, only for what needs fixing, with its button beside it. Groups, notes, presets, the other filters and load times stay in Complete.
+  - **Diagnostics** opens straight on what you need to act on, each with one button. Optional suggestions (the game works without them) and what is only good to know or already fixed are counted under the list, not shown; **Show everything (Complete)** shows them. **Fix N problem(s) automatically** counts and fixes only the rows of the list you see: the hidden suggestions are left alone.
   - Here, Settings keeps the **Directory Paths**, **Alerts** and **The app** tabs.
 - **Complete** is the whole Studio: every screen in the sidebar (Monitor Center, What's new, Maps, Mod Merger, Servers, Developer), every Diagnostics tab and every Settings tab.
 
-A new install starts in **Simple**, with a three-step welcome: where your game was found, make or choose a profile, play. If the Studio was already used on this PC, it starts in **Complete**, as it always looked. The choice is remembered on this PC.
+A new install starts in **Simple**, with a three-step welcome: where your game was found, make or choose a profile, play. If the Studio was already used on this PC, it starts in **Complete**, as it always looked, and the first time a line at the top offers to try Simple: **Try Simple** or **No, thanks**. It shows once, and never if you already chose a view. The choice is remembered on this PC.
 
 A link from another screen can still open a screen Simple hides (the Doctor's steps, for example); it shows in the sidebar while it is open.
 
@@ -57,7 +58,7 @@ Each has **Silence Warning** / **Restore Warning** (or **Silence Notification** 
 
 ## Language
 
-Pick **English** or **Español** under **Language**. A line missing in a language shows in English. The game's own messages (errors, warnings, the Monitor's log lines) stay as the game writes them.
+Pick the app's language under **Language**: English, Español, Português (Brasil), Français, Deutsch, Русский or 简体中文. A line missing in a language shows in English. The game's own messages (errors, warnings, the Monitor's log lines) stay as the game writes them.
 
 ## Game start and the game's Mods screen
 
@@ -67,6 +68,10 @@ Pick **English** or **Español** under **Language**. A line missing in a languag
 ## App updates
 
 - **Check for new versions of PZ Mod Studio**: at start and every 6 hours while it is open, the Studio asks GitHub which is the latest release. When there is a newer one, a bar under the header says so. **Update now** downloads the new version, checks the project signed it (the signature of `SHA256SUMS.txt` and the zip's SHA-256), puts it in place of yours and restarts the Studio; if anything does not match, nothing changes. **Download** opens the release page in your browser, and **Not now** hides the notice until the next version. When the Studio is installed in a folder it cannot write to (Program Files, for every user), update it with the installer from the page. Nothing is installed unless you ask, and nothing is sent. **Check now** asks at once. When GitHub does not answer, the Studio asks its itch.io page instead; then the notice offers only the download page, not **Update now**. Off, GitHub is not asked.
+
+## Earlier versions of mods
+
+- **Keep earlier versions of mods** (on at first): Steam keeps no old versions of a Workshop mod. The Studio keeps a copy of the installed version of every Workshop mod a profile uses, in `Zomboid/PZModStudio_Versions`, before Steam replaces it; the Mod List's **Versions…** puts one back. **Up to** sets the space it may take (10 GB at first; a limit you chose stays as you chose it); each file is kept once, so a version after an update costs only what changed. Past the limit, the oldest earlier versions go first, then copies of mods not in the active profile; versions kept by hand stay. Whatever the limit, the Studio never fills the drive: a round always leaves 15% of the drive's size free, and when that is what holds the store back the card says **Limited by free space on D:** (with the limit that applies for now). **Folder** shows where the copies are and how much they take; **Choose folder…** moves them, for example to another drive: every file is copied and checked against the original, and only then is the old folder removed (on the same drive it is just renamed). A folder that already has other files gets a `PZModStudio_Versions` folder inside it. Moving is refused while the game runs or a round is running, and for the root of a drive, Steam's Workshop folder, the game's folder, `Zomboid/mods` and `Zomboid/Saves`. The line below says how much is used and how many of your Workshop mods are covered; mods left without a copy for lack of room are named. **Keep now** runs a round at once (it also runs by itself a little after the Studio starts and whenever Steam updates something). Nothing is done while the game runs, and the Workshop folder is only read.
 
 ## Diagnostics
 
@@ -91,3 +96,7 @@ Only with **Developer features** on. Pick your AI client, press **Copy MCP JSON*
 ## Good to know
 
 - Folder, language, window and warning choices apply right away; nothing needs a restart except the shim switches, which the game reads on its next launch.
+
+## On Linux
+
+The Linux version (AppImage or .deb) finds Steam in its usual folders (`~/.local/share/Steam`, `~/.steam`, the Flatpak's) and the Zomboid folder in your home folder. Some things work only on Windows: updating the app in place (on Linux **Download** opens the release page), moving and capturing the game's window for an AI assistant (park, screenshots, clicks, keys), the Windows out-of-memory log, subscribing through the Steam client, and downloading SteamCMD (install it from your distribution). Saved keys and passwords are kept in a private file, `~/.config/PZModStudio/secrets.json`, instead of a credential store. For an AI client, the console server is `/usr/bin/pz-mcp-server` with the .deb; the AppImage serves MCP itself with `--mcp`.

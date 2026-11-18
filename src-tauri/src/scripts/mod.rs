@@ -603,7 +603,8 @@ pub fn script_definition_conflicts(
     let mut by_def: HashMap<String, Vec<Declaration>> = HashMap::new();
     let mut seen_mods = std::collections::HashSet::new();
 
-    for (position, entry) in active.iter().enumerate() {
+    // In the game's load order: each mod after what it requires, a requirement that is off loaded too.
+    for (position, entry) in crate::catalog::game_load_order(catalog, active).iter().enumerate() {
         if entry.starts_with("Z_PZModStudio_") || entry == "PZModStudioCarrier" {
             continue;
         }

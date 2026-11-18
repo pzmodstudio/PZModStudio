@@ -1,6 +1,7 @@
 // Publishes the current version as a GitHub release, from this PC (no Actions): packs the portable
-// zip from the root exes, writes and signs SHA256SUMS.txt, then creates the release v<version> (or
-// replaces the files of the one that exists) and uploads the three files.
+// zip from the root exes, adds the Linux files of this version from dist-local/linux, writes and
+// signs SHA256SUMS.txt, then creates the release v<version> (or replaces the files of the one that
+// exists) and uploads them.
 //   node scripts/publish-release.cjs [--repo owner/name] [--notes "text"]
 // The token is read from the file named by GH_TOKEN_FILE (default ~/.pz-github-token) and the
 // signing key from RELEASE_SIGNING_KEY_FILE (default ~/pz-release-signing-key-2026.pem).
@@ -32,6 +33,15 @@ for (const f of ['Project-Zomboid-Mod-Studio.exe', 'pz-mcp-server.exe', 'README_
 const zipName = `PZ-Mod-Studio-Portable-${tag}.zip`;
 execFileSync('powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${stage}\\*' -DestinationPath '${path.join(out, zipName)}' -Force`], { stdio: 'inherit' });
 
+// 1b. The Linux files of this version (AppImage, .deb, console server), when scripts/build-linux.cjs
+// made them in dist-local/linux; --no-linux leaves them out, --linux requires them.
+const linuxDir = path.join(root, 'dist-local', 'linux');
+const linuxFiles = process.argv.includes('--no-linux') || !fs.existsSync(linuxDir) ? [] : fs.readdirSync(linuxDir).filter((n) => n.includes(`-${tag}-linux`));
+if (process.argv.includes('--linux') && linuxFiles.length < 3) { console.error(`The Linux files of ${tag} are not in ${linuxDir}: run node scripts/build-linux.cjs first.`); process.exit(1); }
+for (const n of linuxFiles) fs.copyFileSync(path.join(linuxDir, n), path.join(out, n));
+const appImage = linuxFiles.find((n) => n.endsWith('.AppImage'));
+const deb = linuxFiles.find((n) => n.endsWith('.deb'));
+
 // 2. The sums and the project's signature of them.
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 const sums = fs.readdirSync(out).sort().map((n) => `${sha(path.join(out, n))}  ${n}`).join('\n') + '\n';
@@ -47,7 +57,8 @@ const api = async (method, url, body, headers = {}) => {
   let json = null; try { json = JSON.parse(text); } catch (e) { /* not JSON */ }
   return { status: res.status, json, text };
 };
-const notes = arg('--notes', `**Portable:** download \`${zipName}\`, extract it anywhere and run \`Project-Zomboid-Mod-Studio.exe\`.\nIt also contains \`pz-mcp-server.exe\` for AI agents (see AGENTS.md).\n\nCheck a download with \`SHA256SUMS.txt\` and \`SHA256SUMS.txt.sig\` (signed with \`keys/release-signing.pub.pem\`; \`node scripts/verify-release.cjs <folder>\`).`);
+const linuxNote = appImage ? `\n\n**Linux:** \`${appImage}\` (make it executable and run it) or \`${deb}\` (\`sudo apt install ./${deb}\`). The console MCP server for AI agents is in the .deb as \`/usr/bin/pz-mcp-server\`, and on its own as the \`-linux-x86_64\` file.` : '';
+const notes = arg('--notes', `**Portable (Windows):** download \`${zipName}\`, extract it anywhere and run \`Project-Zomboid-Mod-Studio.exe\`.\nIt also contains \`pz-mcp-server.exe\` for AI agents (see AGENTS.md).${linuxNote}\n\nCheck a download with \`SHA256SUMS.txt\` and \`SHA256SUMS.txt.sig\` (signed with \`keys/release-signing.pub.pem\`; \`node scripts/verify-release.cjs <folder>\`).`);
 
 (async () => {
   let rel = await api('GET', `https://api.github.com/repos/${repo}/releases/tags/${tag}`);
@@ -70,7 +81,7 @@ const notes = arg('--notes', `**Portable:** download \`${zipName}\`, extract it 
 
   for (const name of fs.readdirSync(out)) {
     const data = fs.readFileSync(path.join(out, name));
-    const type = name.endsWith('.zip') ? 'application/zip' : 'text/plain';
+    const type = name.endsWith('.zip') ? 'application/zip' : /\.(txt|sig)$/.test(name) ? 'text/plain' : 'application/octet-stream';
     const up = await api('POST', `https://uploads.github.com/repos/${repo}/releases/${rel.json.id}/assets?name=${encodeURIComponent(name)}`, data, { 'Content-Type': type, 'Content-Length': String(data.length) });
     if (up.status !== 201) { console.error('Upload of ' + name + ' failed:', up.status, up.json && up.json.message); process.exit(1); }
     console.log('Uploaded ' + name + ' (' + (data.length / 1048576).toFixed(1) + ' MB)');

@@ -4,9 +4,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use crate::load_order::mod_info::get_all_user_zomboid_dirs;
 
+pub mod dedicated;
 pub mod java_mods;
 pub mod mod_sync;
 pub mod mp_test;
+pub mod restarts;
 pub mod unreachable;
 mod rcon;
 
@@ -28,6 +30,10 @@ pub struct DedicatedServerStatus {
     /// Started without Steam (`-nosteam`): players join with `-nosteam` too.
     #[serde(default)]
     pub nosteam: Option<bool>,
+    /// The folder the server program runs from: the dedicated server's when it was started from
+    /// it, None for the game's own folder.
+    #[serde(default)]
+    pub program_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,6 +161,8 @@ pub fn check_server_mods(
     let mut report = mod_sync::check(&catalog, &content, &paths.pz_install_dir);
     let approvals = java_mods::approvals_path().map(|p| java_mods::read_approvals(&p)).unwrap_or_default();
     report.issues.extend(java_mods::java_issues(&catalog, &report.mods, &approvals));
+    let (program_dir, dedicated) = server_program_dir();
+    report.issues.extend(java_mods::agent_issue(&content, &program_dir, Path::new(&crate::vfs::trusted_install_dir()), dedicated));
     report.issues.extend(java_mods::copy_issues(&java_mods::copies_needed(&catalog, &report.mods, nosteam.unwrap_or(false))));
     if !nosteam.unwrap_or(false) {
         let log = fs::read_to_string(primary_dir(&paths.user_zomboid_dir).join("server-console.txt")).unwrap_or_default();
@@ -224,6 +232,15 @@ fn server_name_taken(server_dir: &Path, name: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// The folder the Studio's next server starts from, and whether it is the dedicated server's
+/// (else the game's).
+pub fn server_program_dir() -> (PathBuf, bool) {
+    match dedicated::chosen_server_dir() {
+        Some(d) => (d, true),
+        None => (PathBuf::from(crate::vfs::trusted_install_dir()), false),
+    }
+}
+
 fn primary_dir(user_zomboid_dir: &str) -> PathBuf {
     if !user_zomboid_dir.is_empty() {
         PathBuf::from(user_zomboid_dir)
@@ -234,14 +251,8 @@ fn primary_dir(user_zomboid_dir: &str) -> PathBuf {
     }
 }
 
-#[cfg(target_os = "windows")]
 pub(crate) fn server_pid_alive(pid: u32) -> bool {
     is_tracked_server_alive(pid)
-}
-
-#[cfg(not(target_os = "windows"))]
-pub(crate) fn server_pid_alive(_pid: u32) -> bool {
-    false
 }
 
 #[tauri::command]
@@ -400,9 +411,15 @@ pub fn launch_dedicated_server(
     nosteam: Option<bool>,
     admin_password: Option<String>,
 ) -> Result<u32, String> {
-    // The server is started from the game folder the Studio saved, not one the page names.
+    // The server is started from the game folder the Studio saved, not one the page names, or
+    // from the dedicated server program when the player chose it (Host & Launcher).
     let _ = pz_install_dir;
-    let pz_install_dir = crate::vfs::trusted_install_dir();
+    let dedicated_dir = dedicated::chosen_server_dir();
+    let dedicated_layout = dedicated_dir.as_deref().and_then(dedicated::layout);
+    let pz_install_dir = match &dedicated_dir {
+        Some(d) => d.to_string_lossy().to_string(),
+        None => crate::vfs::trusted_install_dir(),
+    };
     let install_path = Path::new(&pz_install_dir);
     if !install_path.exists() {
         return Err(format!("Install directory not found: {}", pz_install_dir));
@@ -469,19 +486,17 @@ pub fn launch_dedicated_server(
     // ZombieBuddy (B42 Java mods) only works with its native agent on the JVM's command line.
     // Without zbNative.dll the JVM would refuse to start at all ("Could not find agent library"),
     // so the server then starts without it, and says why its Java mods are missing.
-    let mut agent_arg = fs::read_to_string(&ini_path).ok().as_deref().and_then(java_mods::agent_arg_for);
-    if agent_arg.is_some() && !install_path.join("zbNative.dll").is_file() {
-        crate::diagnostics::error(format!(
-            "[Servers] {} lists ZombieBuddy but the game folder has no zbNative.dll: its Java mods will not load (start the game once with ZombieBuddy on).",
-            clean_name
-        ));
+    let ini_text = fs::read_to_string(&ini_path).unwrap_or_default();
+    let mut agent_arg = java_mods::agent_arg_for(&ini_text);
+    if let Some(missing) = java_mods::agent_issue(&ini_text, install_path, Path::new(&crate::vfs::trusted_install_dir()), dedicated_dir.is_some()) {
+        crate::diagnostics::error(format!("[Servers] {}: {}", clean_name, missing.message));
         agent_arg = None;
     }
 
-    let java_exe = install_path.join("jre64").join("bin").join("java.exe");
+    let java_exe = install_path.join("jre64").join("bin").join(crate::platform::JAVA_EXE);
     let pz_server_bat = install_path.join("ProjectZomboidServer.bat");
     let start_server_bat = install_path.join("StartServer64.bat");
-    let pz_exe = install_path.join("ProjectZomboid64.exe");
+    let pz_exe = install_path.join(crate::platform::GAME_EXE);
 
     let primary_user_dir = if !user_zomboid_dir.is_empty() {
         Path::new(&user_zomboid_dir).to_path_buf()
@@ -501,12 +516,45 @@ pub fn launch_dedicated_server(
         }
     }
 
-    #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-
+        // The dedicated server's own start script says its class path (it differs between builds).
+        let (java_exe, class_path, library_path) = match &dedicated_layout {
+            Some(l) => (l.java.clone(), l.classpath.clone(), l.library_path.clone()),
+            #[cfg(windows)]
+            None => (java_exe, "./;projectzomboid.jar".to_string(), "./natives/;./natives/win64/;./".to_string()),
+            // Linux: the game's ProjectZomboid64.json names its class path and native folders.
+            #[cfg(not(windows))]
+            None => {
+                let (cp, lib) = dedicated::linux_java_paths(install_path);
+                (java_exe, cp, lib)
+            }
+        };
+        // Started through a script when Java is not there: the .bat files on Windows,
+        // start-server.sh on Linux.
+        #[cfg(windows)]
+        let script = [pz_server_bat, start_server_bat].into_iter().find(|b| b.exists()).map(|bat| {
+            let mut c = Command::new("cmd.exe");
+            c.args(["/c".to_string(), bat.to_string_lossy().to_string()]);
+            c
+        });
+        #[cfg(not(windows))]
+        let script = {
+            let _ = (pz_server_bat, start_server_bat);
+            Some(install_path.join("start-server.sh")).filter(|s| s.is_file()).map(Command::new)
+        };
         let mut cmd = if java_exe.exists() {
             let mut c = Command::new(&java_exe);
+            #[cfg(not(windows))]
+            {
+                // The game's native libraries (Steam, LWJGL) are found the way start-server.sh finds them.
+                let dirs = library_path.split(':').filter(|d| !d.is_empty()).map(|d| install_path.join(d.trim_start_matches("./")).to_string_lossy().to_string());
+                let mut ld: Vec<String> = dirs.collect();
+                ld.push(install_path.join("jre64").join("lib").to_string_lossy().to_string());
+                if let Ok(old) = std::env::var("LD_LIBRARY_PATH") {
+                    ld.push(old);
+                }
+                c.env("LD_LIBRARY_PATH", ld.join(":"));
+            }
             if let Some(agent) = agent_arg {
                 // policy=deny-new: only jars approved on this PC load; the approval window would
                 // wait for good on a server, where no one sees it.
@@ -526,9 +574,9 @@ pub fn launch_dedicated_server(
             c.arg("-XX:-CreateCoredumpOnCrash");
             c.arg("-XX:-OmitStackTraceInFastThrow");
             c.arg(format!("-Xmx{}g", mem));
-            c.arg("-Djava.library.path=./natives/;./natives/win64/;./");
+            c.arg(format!("-Djava.library.path={}", library_path));
             c.arg("-cp");
-            c.arg("./;projectzomboid.jar");
+            c.arg(&class_path);
             c.arg("zombie.network.GameServer");
             c.arg("-servername");
             c.arg(&clean_name);
@@ -541,18 +589,10 @@ pub fn launch_dedicated_server(
                 c.arg("-nosteam");
             }
             c
-        } else if pz_server_bat.exists() {
-            let mut c = Command::new("cmd.exe");
-            let mut args = vec!["/c".to_string(), pz_server_bat.to_string_lossy().to_string(), "-servername".to_string(), clean_name.clone()];
-            if !clean_admin_pass.is_empty() {
-                args.push("-adminpassword".to_string());
-                args.push(clean_admin_pass.clone());
-            }
-            c.args(&args);
-            c
-        } else if start_server_bat.exists() {
-            let mut c = Command::new("cmd.exe");
-            let mut args = vec!["/c".to_string(), start_server_bat.to_string_lossy().to_string(), "-servername".to_string(), clean_name.clone()];
+        } else if dedicated_dir.is_some() {
+            return Err(format!("The dedicated server's folder has no jre64/bin/{}: update it (Validate) or start from the game's folder.", crate::platform::JAVA_EXE));
+        } else if let Some(mut c) = script {
+            let mut args = vec!["-servername".to_string(), clean_name.clone()];
             if !clean_admin_pass.is_empty() {
                 args.push("-adminpassword".to_string());
                 args.push(clean_admin_pass.clone());
@@ -569,11 +609,17 @@ pub fn launch_dedicated_server(
             c.args(&args);
             c
         } else {
-            return Err("Could not find java.exe, ProjectZomboidServer.bat, or ProjectZomboid64.exe in install directory.".to_string());
+            return Err(if cfg!(windows) {
+                "Could not find java.exe, ProjectZomboidServer.bat, or ProjectZomboid64.exe in install directory.".to_string()
+            } else {
+                "Could not find jre64/bin/java, start-server.sh, or ProjectZomboid64 in install directory.".to_string()
+            });
         };
 
         cmd.current_dir(install_path);
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW: runs 100% headless inside PZ Mod Studio!
+        crate::platform::no_window(&mut cmd); // CREATE_NO_WINDOW: runs 100% headless inside PZ Mod Studio!
+        #[cfg(not(windows))]
+        cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
 
         let child = cmd.spawn().map_err(|e| format!("Failed to spawn dedicated server: {}", e))?;
         let child_pid = child.id();
@@ -593,17 +639,13 @@ pub fn launch_dedicated_server(
                 .map(|d| d.as_secs())
                 .ok(),
             nosteam: Some(is_nosteam),
+            program_dir: dedicated_dir.as_ref().map(|d| d.to_string_lossy().to_string()),
         };
 
         let state_file = primary_user_dir.join("pz_server_state.json");
         let _ = fs::write(&state_file, serde_json::to_string_pretty(&state).unwrap_or_default());
 
-        return Ok(child_pid);
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Err("Dedicated server launcher currently implemented for Windows.".to_string())
+        Ok(child_pid)
     }
 }
 
@@ -612,31 +654,14 @@ pub fn launch_dedicated_server(
 /// belongs to one of these (PIDs are reused after a process exits).
 #[cfg(target_os = "windows")]
 const SERVER_PROCESS_IMAGES: &[&str] = &["java.exe", "cmd.exe", "projectzomboid64.exe"];
+/// Linux: java directly, the shell running start-server.sh, or the ProjectZomboid64 launcher.
+#[cfg(not(target_os = "windows"))]
+const SERVER_PROCESS_IMAGES: &[&str] = &["java", "bash", "sh", "dash", "projectzomboid64"];
 
-/// Returns the lowercase image name of a running process, or None if no process has that PID.
-#[cfg(target_os = "windows")]
-fn process_image_name(pid: u32) -> Option<String> {
-    use std::os::windows::process::CommandExt;
-    let output = Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
-        .creation_flags(0x08000000)
-        .output()
-        .ok()?;
-    let text = String::from_utf8_lossy(&output.stdout);
-    let line = text.lines().find(|l| l.starts_with('"'))?;
-    let mut cols = line.split(',').map(|c| c.trim_matches('"'));
-    let image = cols.next()?.to_lowercase();
-    let listed_pid = cols.next()?.parse::<u32>().ok()?;
-    (listed_pid == pid).then_some(image)
-}
-
-#[cfg(target_os = "windows")]
 fn is_tracked_server_alive(pid: u32) -> bool {
-    process_image_name(pid).is_some_and(|img| SERVER_PROCESS_IMAGES.contains(&img.as_str()))
+    crate::platform::process_image_name(pid).is_some_and(|img| SERVER_PROCESS_IMAGES.contains(&img.as_str()))
 }
 
-/// Sends "quit" to the server over RCON when its .ini has a password for it. True when sent.
-#[cfg(target_os = "windows")]
 /// One RCON command to a server this Studio runs (its .ini's RCONPort and RCONPassword).
 pub fn rcon_command(zomboid_dir: &Path, server_name: &str, command: &str) -> Result<(), String> {
     rcon_query(zomboid_dir, server_name, command).map(|_| ())
@@ -728,12 +753,11 @@ fn read_server_state(state_file: &Path) -> Option<DedicatedServerStatus> {
 /// Returns Ok(false) when there is no tracked server to stop.
 #[tauri::command(async)]
 pub fn stop_dedicated_server(user_zomboid_dir: String, _pid: Option<u32>) -> Result<bool, String> {
-    // Asked for: the Discord channel says "stopped", not "crashed".
+    // Asked for: the Discord channel says "stopped", not "crashed", and the restart watcher (in
+    // the app, whichever process asked) does not start it again.
     crate::discord::note_stop_asked();
-    #[cfg(target_os = "windows")]
+    restarts::note_stop_asked(&primary_dir(&user_zomboid_dir));
     {
-        use std::os::windows::process::CommandExt;
-
         let primary_user_dir = if !user_zomboid_dir.is_empty() {
             Path::new(&user_zomboid_dir).to_path_buf()
         } else if let Some(home) = dirs_next::home_dir() {
@@ -768,18 +792,11 @@ pub fn stop_dedicated_server(user_zomboid_dir: String, _pid: Option<u32>) -> Res
                 return Ok(true);
             }
 
-            // /T also ends the java.exe child when the server was started through the .bat
-            let output = Command::new("taskkill")
-                .args(["/F", "/T", "/PID", &pid.to_string()])
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .output()
-                .map_err(|e| format!("Failed to run taskkill: {}", e))?;
-            if !output.status.success() && is_tracked_server_alive(pid) {
-                return Err(format!(
-                    "Could not stop server process {}: {}",
-                    pid,
-                    String::from_utf8_lossy(&output.stderr).trim()
-                ));
+            // The tree also ends the java.exe child when the server was started through the .bat
+            if let Err(e) = crate::platform::kill(pid, true, true) {
+                if is_tracked_server_alive(pid) {
+                    return Err(format!("Could not stop server process {}: {}", pid, e));
+                }
             }
             stopped = true;
         }
@@ -789,11 +806,6 @@ pub fn stop_dedicated_server(user_zomboid_dir: String, _pid: Option<u32>) -> Res
         let _ = fs::remove_file(&state_file);
 
         Ok(stopped)
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Ok(false)
     }
 }
 
@@ -851,6 +863,7 @@ pub fn get_dedicated_server_status(user_zomboid_dir: String) -> Result<Dedicated
                 memory_gb: None,
                 start_timestamp: None,
                 nosteam: None,
+                program_dir: None,
             })
     } else {
         DedicatedServerStatus {
@@ -860,10 +873,10 @@ pub fn get_dedicated_server_status(user_zomboid_dir: String) -> Result<Dedicated
             memory_gb: None,
             start_timestamp: None,
             nosteam: None,
+            program_dir: None,
         }
     };
 
-    #[cfg(target_os = "windows")]
     {
         // Only the process this app launched counts; any other java.exe is not our server.
         let alive = state.pid.is_some_and(is_tracked_server_alive);
@@ -871,13 +884,12 @@ pub fn get_dedicated_server_status(user_zomboid_dir: String) -> Result<Dedicated
         // process: it is not running, and the process is ended so it frees its ports.
         if alive && server_gave_up(&primary_user_dir, state.start_timestamp) {
             if let Some(pid) = state.pid {
-                use std::os::windows::process::CommandExt;
                 crate::diagnostics::error(format!(
                     "[Servers] {} logged \"Server Terminated\" and stayed up: ending process {} (see server-console.txt for why it stopped)",
                     state.server_name.as_deref().unwrap_or("The server"),
                     pid
                 ));
-                let _ = Command::new("taskkill").args(["/F", "/T", "/PID", &pid.to_string()]).creation_flags(0x08000000).output();
+                let _ = crate::platform::kill(pid, true, true);
             }
         } else if alive {
             state.is_running = true;

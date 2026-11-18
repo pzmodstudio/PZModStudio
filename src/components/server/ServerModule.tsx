@@ -45,6 +45,8 @@ import { tHtml } from '../../i18n/html';
 import { DiscordPanel } from './DiscordPanel';
 import { MpTestPanel } from './MpTestPanel';
 import { ServerOptionsEditor } from './ServerOptionsEditor';
+import { RestartsPanel } from './RestartsPanel';
+import { DedicatedServerPanel } from './DedicatedServerPanel';
 
 interface ServerModuleProps {
   paths: StudioPathsUI;
@@ -53,7 +55,7 @@ interface ServerModuleProps {
   onShowPerformance?: () => void;
 }
 
-type ServerSubTab = 'HOST' | 'MODS' | 'PLAYERS' | 'SETTINGS' | 'OPTIONS' | 'DISCORD' | 'MPTEST';
+type ServerSubTab = 'HOST' | 'RESTARTS' | 'MODS' | 'PLAYERS' | 'SETTINGS' | 'OPTIONS' | 'DISCORD' | 'MPTEST';
 
 export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowPerformance }) => {
   const { t } = useTranslation();
@@ -609,6 +611,18 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
                   </button>
 
                   <button
+                    onClick={() => setActiveSubTab('RESTARTS')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      activeSubTab === 'RESTARTS'
+                        ? 'bg-purple-600 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    }`}
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span>{t('servers.tabs.restarts')}</span>
+                  </button>
+
+                  <button
                     onClick={() => setActiveSubTab('MODS')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                       activeSubTab === 'MODS'
@@ -769,6 +783,8 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
                         </div>
                       </div>
                     </div>
+
+                    <DedicatedServerPanel paths={paths} serverRunning={serverStatus.is_running} />
 
                     {listsZombieBuddy && (
                       <div className="p-3 bg-indigo-950/50 border border-indigo-700/60 rounded-xl text-[11px] leading-relaxed text-indigo-200 flex items-start gap-2.5">
@@ -1073,6 +1089,7 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
               {/* Sub-Tab 5: Quick Settings Editor */}
               {activeSubTab === 'OPTIONS' && <ServerOptionsEditor paths={paths} server={selectedServer.name} />}
 
+              {activeSubTab === 'RESTARTS' && <RestartsPanel paths={paths} server={selectedServer.name} />}
               {activeSubTab === 'DISCORD' && <DiscordPanel paths={paths} server={selectedServer.name} filePath={selectedServer.file_path} />}
 
               {developer && activeSubTab === 'MPTEST' && <MpTestPanel paths={paths} server={selectedServer.name} />}

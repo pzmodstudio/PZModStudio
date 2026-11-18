@@ -254,7 +254,7 @@ fn steam_bytes_written() -> Option<u64> {
 
 #[cfg(not(windows))]
 fn steam_running() -> bool {
-    true
+    crate::platform::processes().iter().any(|p| p.name == "steam" || p.name == "steamwebhelper")
 }
 
 #[cfg(not(windows))]

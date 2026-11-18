@@ -60,11 +60,13 @@ const CHECK_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/cl
 const JOIN_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Join.lua");
 const HOST_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Host.lua");
 const SETTINGS_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Settings.lua");
+const OVERWRITES_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Overwrites.lua");
+const LIVE_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Live.lua");
 
 const UI_EN: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/EN/UI.json");
 const UI_ES: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/ES/UI.json");
 
-fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 13] {
+fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 15] {
     let target = user_zomboid_dir.join("mods").join(LINK_MOD_ID);
     let lua = target.join("42").join("media").join("lua");
     let translate = lua.join("shared").join("Translate");
@@ -80,6 +82,8 @@ fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 13] {
         (lua.join("client").join("PZModStudio_Join.lua"), JOIN_LUA),
         (lua.join("client").join("PZModStudio_Host.lua"), HOST_LUA),
         (lua.join("client").join("PZModStudio_Settings.lua"), SETTINGS_LUA),
+        (lua.join("client").join("PZModStudio_Overwrites.lua"), OVERWRITES_LUA),
+        (lua.join("client").join("PZModStudio_Live.lua"), LIVE_LUA),
         (translate.join("EN").join("UI.json"), UI_EN),
         (translate.join("ES").join("UI.json"), UI_ES),
     ]
@@ -238,6 +242,8 @@ pub fn merge_game_order(previous: &[String], game_active: &[String]) -> Vec<Stri
 //                                               last ACKS_KEPT)
 //   PZModStudio_LinkGame.txt      game -> app   where the player is: state=menu|ingame, the save,
 //                                               its mods (written on entering the menu or a game)
+//   PZModStudio_LinkLive.txt      game -> app   the live overlay's numbers, PZModStudio_LinkMeter.txt
+//                                               app -> game the process's memory and CPU (crate::live)
 
 /// Bumped when one of the files above changes meaning. The Link mod says which one it speaks in
 /// the game file, the app in its own.
@@ -892,23 +898,35 @@ fn now_secs() -> u64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-/// Mod Health's warnings for the game's Mods screen, one per line: `<severity>\t<mod id>\t<text>`,
-/// written by the app (already in the player's language) after each check.
+/// Mod Health's warnings for the game's Mods screen, one per line, written by the app (already in
+/// the player's language) after each check: `<severity>\t<mod id>\t<text>` in this file, which
+/// every Link reads, and the same with `\t<issue code>` added in `HEALTH_CODES_FILE`, which a Link
+/// from 1.19.2 reads first. A Link before 1.19.2 takes the rest of the line as the text, so the
+/// code stays out of the file it reads.
 pub const HEALTH_FILE: &str = "PZModStudio_LinkHealth.txt";
+pub const HEALTH_CODES_FILE: &str = "PZModStudio_LinkHealth2.txt";
 
-pub fn write_health_file(user_zomboid_dir: &Path, lines: &[(String, String, String)]) -> Result<(), String> {
+pub fn write_health_file(user_zomboid_dir: &Path, lines: &[(String, String, String, String)]) -> Result<(), String> {
     let lua_dir = user_zomboid_dir.join("Lua");
     std::fs::create_dir_all(&lua_dir).map_err(|e| format!("Cannot create {}: {}", lua_dir.display(), e))?;
     let clean = |s: &str| s.replace(['\t', '\r', '\n'], " ");
-    let text: String = lines
-        .iter()
-        .map(|(severity, id, msg)| format!("{}\t{}\t{}\n", clean(severity), clean(id), clean(msg)))
-        .collect();
-    let path = lua_dir.join(HEALTH_FILE);
-    if std::fs::read_to_string(&path).is_ok_and(|now| now == text) {
-        return Ok(());
+    let mut plain = String::new();
+    let mut coded = String::new();
+    for (severity, id, msg, code) in lines {
+        let start = format!("{}\t{}\t{}", clean(severity), clean(id), clean(msg));
+        plain.push_str(&start);
+        plain.push('\n');
+        coded.push_str(&format!("{}\t{}\n", start, clean(code).trim()));
     }
-    crate::load_order::ini_parser::atomic_write(&path, text).map_err(|e| format!("Cannot write {}: {}", path.display(), e))
+    // The coded file first: a Link that reads it sees the new lines as soon as the plain one changes.
+    for (name, text) in [(HEALTH_CODES_FILE, coded), (HEALTH_FILE, plain)] {
+        let path = lua_dir.join(name);
+        if std::fs::read_to_string(&path).is_ok_and(|now| now == text) {
+            continue;
+        }
+        crate::load_order::ini_parser::atomic_write(&path, text).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
+    }
+    Ok(())
 }
 
 /// What the app's Doctor says first, for the main menu's card (the Link shows at most four lines):
@@ -1008,6 +1026,9 @@ pub fn watch_mod_list<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
         let mut game_since: Option<SystemTime> = None;
         // The game just closed: Windows' memory event, if any, lands a few seconds later.
         let mut crash_check: Option<u8> = None;
+        // The live reading (crate::live): every beat while the game runs, every 10 s otherwise.
+        let mut live_paths: Option<crate::vfs::StudioPaths> = None;
+        let mut game_live = false;
         loop {
             ticks += 1;
             thread::sleep(Duration::from_secs(2));
@@ -1018,6 +1039,7 @@ pub fn watch_mod_list<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
             let lua_dir = z_dir.join("Lua");
             if !link_checked {
                 link_checked = true;
+                crate::sandbox::profiler::refresh_install(&z_dir);
                 if link_needs_update(&z_dir) {
                     if let Err(e) = install_link_mod(&z_dir) {
                         crate::diagnostics::error(format!("[StudioLink] {}", e));
@@ -1036,6 +1058,15 @@ pub fn watch_mod_list<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
                 let second_lua = crate::server_manager::mp_test::second_dir(&z_dir).join("Lua");
                 if second_lua.is_dir() {
                     let _ = crate::load_order::ini_parser::atomic_write(second_lua.join(APP_FILE), app_file_text(now));
+                }
+            }
+
+            if game_live || ticks % 5 == 0 {
+                if live_paths.is_none() || ticks % 30 == 0 {
+                    live_paths = Some(crate::vfs::studio_paths());
+                }
+                if let Some(paths) = live_paths.as_ref() {
+                    game_live = crate::live::tick(paths);
                 }
             }
 
@@ -1413,6 +1444,21 @@ waiting=C
     }
 
     #[test]
+    fn health_lines_carry_the_issue_code_last() {
+        let z = std::env::temp_dir().join(format!("pzms-link-health-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&z);
+        std::fs::create_dir_all(&z).unwrap();
+        let line = |s: &str, id: &str, msg: &str, code: &str| (s.to_string(), id.to_string(), msg.to_string(), code.to_string());
+        write_health_file(&z, &[line("warning", "ModB", "A\tand B ship x.lua", "file_conflict"), line("error", "ModC", "Needs ModD", "")]).unwrap();
+        // A Link before 1.19.2 takes everything after the second tab as the text: no code there.
+        let plain = std::fs::read_to_string(z.join("Lua").join(HEALTH_FILE)).unwrap();
+        assert_eq!(plain, "warning\tModB\tA and B ship x.lua\nerror\tModC\tNeeds ModD\n");
+        let coded = std::fs::read_to_string(z.join("Lua").join(HEALTH_CODES_FILE)).unwrap();
+        assert_eq!(coded, "warning\tModB\tA and B ship x.lua\tfile_conflict\nerror\tModC\tNeeds ModD\t\n");
+        let _ = std::fs::remove_dir_all(&z);
+    }
+
+    #[test]
     fn versions_compare_as_numbers() {
         assert_eq!(mod_version("name=x\nmodversion=1.10.2\n"), vec![1, 10, 2]);
         assert!(mod_version("modversion=1.10.0") > mod_version("modversion=1.9.9"));
@@ -1443,7 +1489,7 @@ waiting=C
             }
             out
         };
-        for (file, source) in [("PZModStudio_Link.lua", CLIENT_LUA), ("PZModStudio_ModsScreen.lua", SCREEN_LUA), ("PZModStudio_Errors.lua", ERRORS_LUA), ("PZModStudio_Check.lua", CHECK_LUA), ("PZModStudio_Join.lua", JOIN_LUA), ("PZModStudio_Host.lua", HOST_LUA), ("PZModStudio_Settings.lua", SETTINGS_LUA)] {
+        for (file, source) in [("PZModStudio_Link.lua", CLIENT_LUA), ("PZModStudio_ModsScreen.lua", SCREEN_LUA), ("PZModStudio_Errors.lua", ERRORS_LUA), ("PZModStudio_Check.lua", CHECK_LUA), ("PZModStudio_Join.lua", JOIN_LUA), ("PZModStudio_Host.lua", HOST_LUA), ("PZModStudio_Settings.lua", SETTINGS_LUA), ("PZModStudio_Overwrites.lua", OVERWRITES_LUA)] {
             for missing in ["next(", "goto ", "//"] {
                 let used = source.lines().any(|l| code(l).contains(missing));
                 assert!(!used, "{} uses {}", file, missing);

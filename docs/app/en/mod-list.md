@@ -69,10 +69,20 @@ With a profile active, the list shows that profile's mods. The **Profile's mods*
 
 ## The right-click menu
 
-**Switch on/off**, **Add to the profile** / **Take out of the profile** (taken out also switches it off), **Move to the top**, **Move to the bottom**, **Open in Mod Browser** (**Search for it in Mod Browser** for a mod that is not installed), **Open its folder**, **Add a note…** (**Edit the note…** once it has one), **Groups…**, **Load-order rules…**, **Keep this version**, **Kept versions…**, **Favorite**, **Add to a list…**, **Add to a profile…**, **Copy the mod id** and **Unsubscribe from its Workshop item** (Steam deletes its files; other mods in the same item go too).
+**Switch on/off**, **Add to the profile** / **Take out of the profile** (taken out also switches it off), **Move to the top**, **Move to the bottom**, **Open in Mod Browser** (**Search for it in Mod Browser** for a mod that is not installed), **Open its folder**, **Add a note…** (**Edit the note…** once it has one), **Groups…**, **Load-order rules…**, **Keep this version**, **Versions…**, **Favorite**, **Add to a list…**, **Add to a profile…**, **Copy the mod id** and **Unsubscribe from its Workshop item** (Steam deletes its files; other mods in the same item go too).
 
 - **Load-order rules…**: say a mod must load after another (things you found by playing). Auto-Sort follows the rule and Diagnostics warns when the list breaks it. To pass your order on to someone else, export a preset: it carries the list in the order your rules gave it.
-- **Keep this version** copies the mod as it is today to `Zomboid/PZModStudio_Snapshots`. **Kept versions…** lists the copies: **Use this version** puts one back as a local copy the game reads instead of the Workshop one.
+## Going back to an earlier version
+
+Steam keeps no old versions of a Workshop mod: an update replaces its files, and there is no way to download the one before. So the Studio keeps a copy of the installed version of every Workshop mod a profile uses, by itself, before Steam replaces it. When an update breaks something, the version from before is already on this PC.
+
+- **Versions…** (right click; in Simple too) lists the kept versions of the mod: when each was kept, its modversion, when its author published it, and tags: **installed now** (the same files Steam has), **in use**, **kept by the Studio** or **kept by you**.
+- **Use this version** puts it in `Zomboid/mods` as a local copy the game reads instead of the Workshop one (when started from the Studio). The Workshop folder is not touched, so Steam does not undo it. Refused while the game runs.
+- **Back to the Workshop version** (in the same window, or the fix in Diagnostics, where the mod shows **Kept version in use**) moves the copy to the backups; the game reads the Workshop one again.
+- The mod's panel says when an earlier version is kept or one is in use, with a **Versions…** button.
+- **Keep this version** (Complete) keeps the mod as it is today by hand: the size limit never drops it.
+
+The copies live in `Zomboid/PZModStudio_Versions`, or in the folder chosen in Settings, App (**Choose folder…**, another drive for example). Each file is kept once, so a version after an update costs only what the update changed. The limit (10 GB at first; the drive is always left with 15% of its size free) and the switch are in Settings, App; past the limit the oldest earlier versions go first, then copies of mods not in the active profile. Copies made before (`Zomboid/PZModStudio_Snapshots`) are still listed.
 
 ## Row tags
 

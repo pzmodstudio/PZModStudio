@@ -7,10 +7,26 @@ El Centro de monitoreo muestra el log del juego a medida que se escribe y convie
 - A la izquierda, el visor de logs, con una pestaña por log.
 - A la derecha, **ERRORES Y AVISOS**: las tarjetas de error y, arriba de ellas, el panel **Encontrar el mod que lo causa**.
 - Arriba, **Ver cómo rinde el juego** abre Diagnóstico > Juego > En vivo: la memoria, la CPU y en qué pantalla está el juego.
+- Arriba del log, con el juego abierto (vista Completa), el panel **En vivo**: mirá más abajo.
 - Arriba, **📁 Carpeta de logs** abre en el Explorador de Windows la carpeta con `console.txt` y la subcarpeta `Logs`.
 - Al lado, el botón del filtro de spam. Mientras dice **Filtro de spam: ACTIVO** oculta las líneas de traducciones faltantes; apretalo para pasar a **Filtro: MOSTRAR TODO**.
 
 Si todavía no configuraste la carpeta del juego, la pantalla solo muestra **Configurar las rutas en Configuración**.
+
+## En vivo (con el juego abierto)
+
+En la vista Completa, mientras el juego está abierto, arriba del log aparece el panel **En vivo**. Su línea de título lo resume (FPS, memoria de Java, CPU, errores de Lua); un clic lo pliega. Se lee cada 2 segundos:
+
+- **FPS, últimos minutos**: una línea de los últimos 10 minutos (pasá el mouse por encima para leer un momento); la línea punteada es 30 FPS. Debajo, el cuadro promedio y el cuadro más largo de los últimos 10 segundos, la memoria que usa Java contra su límite, la memoria del proceso entero con lo que la PC tiene libre, y la CPU. Una segunda línea sigue la memoria.
+- **Tiempo de Lua ahora, por mod**: los 5 mods cuyo Lua tardó más en los últimos 10 segundos, en milisegundos por segundo de juego. Sale del perfilador del Studio. Con el perfilador apagado no se cronometra nada, y el panel lo dice con **Prenderlo para el próximo inicio**: el perfilador va primero en la lista de mods (y en la partida que jugaste última) y mide desde la próxima vez que abras el juego.
+- **Errores de Lua en esta sesión**: cuántos, y a qué mods culpó el juego, como los cuenta el Studio Link en el juego; debajo, las tarjetas de error más nuevas, marcadas **nuevo** cuando llegaron mientras mirabas.
+- Una última línea dice si el panel del Link se ve en el juego y cuánto cuesta su propio código.
+
+Los FPS, la memoria de Java y los errores los da el Studio Link (versión 1.20 o más nueva), cuando estás en una partida. El panel se va cuando el juego se cierra.
+
+### El panel en el juego
+
+El Studio Link puede mostrar los mismos números sobre el juego: FPS y tiempo de cuadro, memoria de Java contra su límite, CPU, los 5 mods con más tiempo de Lua en los últimos 10 segundos (con el perfilador prendido) y los errores de Lua de la sesión con los mods culpados. Abrilo desde el menú de pausa con **Panel en vivo**, o dale una tecla en **Opciones > Mods > PZ Mod Studio Link** del juego (no tiene ninguna hasta que elijas una, así nunca le quita una tecla al juego). Arrastralo adonde quieras; queda ahí y vuelve en la próxima partida. Su última línea dice cuánto cuesta él mismo, en milisegundos por segundo. El límite de memoria y la CPU se saben solo con PZ Mod Studio abierto.
 
 ## El visor de logs
 

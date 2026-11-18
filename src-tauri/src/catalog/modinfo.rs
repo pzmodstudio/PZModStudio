@@ -16,6 +16,12 @@ pub struct GameModInfo {
     pub category: Option<String>,
     pub url: Option<String>,
     pub require: Vec<String>,
+    /// `require=` entries with a space (or tab) around the id, as written: `require=A, B` has
+    /// " B". The game's mods screen trims them, but the loader (ZomboidFileSystem.
+    /// loadModAndRequired) looks the id up untrimmed, finds no mod called " B" and leaves the
+    /// mod out, with every mod that requires it. `require` holds them trimmed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub require_spaced: Vec<String>,
     pub incompatible: Vec<String>,
     pub load_after: Vec<String>,
     pub load_before: Vec<String>,
@@ -47,7 +53,8 @@ pub fn format_game_version(v: u32) -> String {
 }
 
 /// A list value: the game removes every backslash and splits on commas. Empty entries and
-/// surrounding spaces are dropped here (the game trims when it looks entries up).
+/// surrounding spaces are dropped here (the mods screen trims them; the loader does not: see
+/// `GameModInfo::require_spaced`).
 fn list_value(line: &str, key: &str) -> Vec<String> {
     line.replace(key, "")
         .replace('\\', "")
@@ -55,6 +62,18 @@ fn list_value(line: &str, key: &str) -> Vec<String> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+/// The entries of a list value that the game's loader cannot find: Java's `split(",")` keeps
+/// every entry but trailing empty ones, and an entry with whitespace around it is looked up as
+/// it is (an empty one is skipped).
+fn spaced_entries(line: &str, key: &str) -> Vec<String> {
+    let value = line.replace(key, "").replace('\\', "");
+    let mut entries: Vec<&str> = value.split(',').collect();
+    while entries.last().is_some_and(|e| e.is_empty()) {
+        entries.pop();
+    }
+    entries.into_iter().filter(|e| !e.is_empty() && e.trim() != *e).map(str::to_string).collect()
 }
 
 /// Lines the way Java's BufferedReader.readLine splits them (\r\n, \n or a lone \r).
@@ -79,6 +98,7 @@ pub fn parse_game_mod_info(text: &str) -> GameModInfo {
             info.description.push_str(&line.replace("description=", ""));
         } else if line.contains("require=") {
             info.require = list_value(line, "require=");
+            info.require_spaced = spaced_entries(line, "require=");
         } else if line.contains("incompatible=") {
             info.incompatible = list_value(line, "incompatible=");
         } else if line.contains("loadModAfter=") {
@@ -144,6 +164,8 @@ mod tests {
         assert_eq!(info.id.as_deref(), Some("MyMod"));
         assert_eq!(info.name.as_deref(), Some("My Mod"));
         assert_eq!(info.require, vec!["LibA", "LibB"]);
+        // " LibB" is looked up with its space by the game's loader: the mod does not load.
+        assert_eq!(info.require_spaced, vec![" LibB"]);
         assert_eq!(info.incompatible, vec!["Neat_Building"]);
         assert_eq!(info.load_after, vec!["Viewpoint"]);
         assert_eq!(info.version_min, Some(42_013));
@@ -152,6 +174,23 @@ mod tests {
         assert_eq!(info.version_max, Some(42_020));
         assert!(info.invalid_reason.is_none());
         assert!(info.fits_version(42_015) && !info.fits_version(42_021));
+    }
+
+    #[test]
+    fn a_require_with_a_space_around_an_id_is_kept_as_written() {
+        // Plain lists, a trailing comma and an empty entry in the middle load fine.
+        for ok in ["require=\\A,\\B\n","require=A,B,\n", "require=A,,B\n"] {
+            let info = parse_game_mod_info(ok);
+            assert_eq!(info.require, vec!["A", "B"], "{}", ok);
+            assert!(info.require_spaced.is_empty(), "{}", ok);
+        }
+        assert_eq!(parse_game_mod_info("require=\\A, \\B\n").require_spaced, vec![" B"]);
+        assert_eq!(parse_game_mod_info("require=A ,B\n").require_spaced, vec!["A "]);
+        assert_eq!(parse_game_mod_info("require= A\r\n").require_spaced, vec![" A"]);
+        // "A, " leaves an entry of one space: not empty, so the game looks it up too.
+        let trailing = parse_game_mod_info("require=A, \n");
+        assert_eq!(trailing.require, vec!["A"]);
+        assert_eq!(trailing.require_spaced, vec![" "]);
     }
 
     #[test]

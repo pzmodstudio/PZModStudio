@@ -5,7 +5,8 @@
 --                                       (on or off, in load order), other=<mod id> per mod
 --                                       another profile holds
 --   PZModStudio_LinkHealth.txt    app:  <severity>\t<mod id>\t<text> per Mod Health warning, in
---                                       the player's language
+--                                       the player's language (what a Link before 1.19.2 reads)
+--   PZModStudio_LinkHealth2.txt   app:  the same lines with \t<issue code> last (read first)
 --   PZModStudio_LinkApp.txt       app:  protocol, version, alive=<unix seconds>, every few
 --                                       seconds while it runs
 --   PZModStudio_LinkRequests.txt  this: <id>\t<verb>\t<argument> per request (add <mod id>;
@@ -29,6 +30,9 @@
 --                                       a game), mark (the player marked the moment from the
 --                                       pause menu). The app learns from it, even when it was
 --                                       closed while the game ran.
+--   PZModStudio_LinkLive.txt     this: the live overlay's numbers every 2 s in a game while the
+--   PZModStudio_LinkMeter.txt    app:  app runs / the game's memory, Java limit and CPU
+--   PZModStudio_LinkOverlay.txt  this: whether the overlay shows and where (PZModStudio_Live.lua)
 --
 -- What it does with them:
 -- - Mods screen: only the profile's mods ("Show all subscribed mods" brings the rest back); a
@@ -73,6 +77,8 @@ end
 local SELF_ID = "Z_StudioLink"
 local FILE = "PZModStudio_Link.txt"
 local HEALTH_FILE = "PZModStudio_LinkHealth.txt"
+-- The same lines with the issue code last (an app from 1.10.1); the plain file is for older Links.
+local HEALTH_CODES_FILE = "PZModStudio_LinkHealth2.txt"
 local REQUESTS_FILE = "PZModStudio_LinkRequests.txt"
 local STUDIO_PACKAGE = "^Z_PZModStudio_"
 
@@ -399,6 +405,43 @@ local TEXT = {
     modsUpdateBreaks = "This update may break a save in progress (a map mod, or its notes say so). Back up first, or try it on a copy.",
     modsUpdateRead = "Its notes mention things redone or taken out: worth reading before loading a save.",
     settingsServerPage = "Server",
+    modsOverridesTag = "Overrides",
+    modsOverriddenTag = "Overridden",
+    modsSumFiles = "{1} share files",
+    modsSumFilesChecking = "Checking shared files...",
+    modsFilesTip = "Mods that ship the same Lua file as another mod that is on. The game uses one copy of each file, the one of the mod that loads later: \"Overrides\" marks the mod whose copy is used, \"Overridden\" the mod whose copy is not. Often on purpose (a patch, a compatibility file); a problem when the copy not used was needed. As the game loaded the mods now: Accept checks again. With PZ Mod Studio open, the other files mods share (scripts, textures...) are marked too, as its Diagnostics found them.",
+    modsFilesHead = "Lua files another mod that is on also ships (one copy is used):",
+    modsFilesReplaces = "Its copy is used, not the one in {1} ({2} file(s)):",
+    modsFilesReplacedBy = "The copy in {1} is used, not this mod's ({2} file(s)):",
+    modsFilesWhy = "Often on purpose (a patch, a compatibility file). If something of the mod whose copy is not used stops working: the copy used is the one of the mod later in the load order.",
+    modsReload = "Reload mods",
+    modsReloadTip = "Reads the mod folders again, as when the game starts: a Workshop item you subscribed to, or that updated, while the game runs shows up without restarting. The game reloads its Lua, as after Accept (a few seconds).",
+    modsReloadPending = "Accept or undo the changes first: reloading the mods would lose them.",
+    modsReloaded = "Mods read again: {1} installed.",
+    modsReloadedMore = "Mods read again: {1} installed, {2} more than before.",
+    liveTitle = "PZ Mod Studio - live",
+    liveFps = "FPS {1}   frame {2} ms   longest {3} ms (10 s)",
+    liveMem = "Java memory {1} of {2} GB",
+    liveMemNoLimit = "Java memory {1} GB ({2} GB reserved)",
+    liveMemProcess = "Game memory {1} GB",
+    liveCpu = "CPU {1} of the PC",
+    liveNoApp = "Memory limit and CPU: with PZ Mod Studio open",
+    liveLuaOff1 = "Mods' Lua time: not measured (profiler off)",
+    liveLuaOff2 = "PZ Mod Studio, Monitor > Live, turns it on for the next start",
+    liveLuaWaiting = "Mods' Lua time: measuring, first numbers in a few seconds",
+    liveLuaTitle = "Lua time, last 10 s: {1} ms/s ({2})",
+    liveLuaNone = "  no mod's Lua ran",
+    liveGame = "(the game's own Lua)",
+    livePerSecond = "{1} ms/s",
+    liveErrors = "Lua errors this session: {1}",
+    liveErrorsNone = "Lua errors this session: none",
+    liveErrorGame = "(the game's own code)",
+    liveCost = "This overlay: {1} ms/s ({2})",
+    liveShow = "Live overlay",
+    liveHide = "Hide live overlay",
+    liveTip = "FPS, memory, the mods whose Lua takes the most time and this session's Lua errors, over the game. A key for it: Options > Mods > PZ Mod Studio Link.",
+    liveKeyName = "Show / hide the live overlay",
+    liveKeyTip = "FPS, memory, the mods whose Lua takes the most time and the session's Lua errors, over the game. No key by default: choose one the game does not use.",
 }
 
 local translated = {}
@@ -462,24 +505,51 @@ function Link.read()
     return data
 end
 
---- Mod Health's warnings, per mod id: { severity = "error"|"warning"|..., lines = {...} }.
+--- Mod Health's warnings, per mod id: { severity = "error"|"warning"|nil, lines = {...},
+--- problems = {...}, overrides = {...}, overridden = {...} }. A line is
+--- <severity>\t<mod id>\t<text>, and since Link 1.19.2 the app adds \t<issue code>: a file two
+--- mods ship (file_conflict) is said apart, as "Overrides" on the mod whose copy the game uses
+--- and "Overridden" (file_conflict_overridden) on each mod whose copy it does not, like the Lua
+--- files the Link finds itself; it is not counted as a problem. `lines` has every text (with
+--- those words in front), `problems` the rest, and `severity` is the worst of the rest.
+Link.FILE_CODES = { file_conflict = "overrides", file_conflict_overridden = "overridden" }
 function Link.readHealth()
     local result = {}
-    local file = getFileReader(HEALTH_FILE, false)
+    local file = getFileReader(HEALTH_CODES_FILE, false)
+    if not file then file = getFileReader(HEALTH_FILE, false) end
     if not file then return result end
     local line = file:readLine()
     while line ~= nil do
-        local severity, id, msg = string.match(line, "^([^\t]*)\t([^\t]+)\t(.*)$")
+        local severity, id, msg, code = string.match(line, "^([^\t]*)\t([^\t]+)\t([^\t]*)\t([^\t]*)$")
+        if not id then
+            severity, id, msg = string.match(line, "^([^\t]*)\t([^\t]+)\t(.*)$")
+            code = ""
+        end
         if id then
-            local entry = result[id] or { severity = severity, lines = {} }
-            if severity == "error" then entry.severity = "error" end
-            table.insert(entry.lines, msg)
+            local entry = result[id] or { lines = {}, problems = {}, overrides = {}, overridden = {} }
+            local side = Link.FILE_CODES[code]
+            if side == "overrides" then
+                table.insert(entry.overrides, msg)
+                table.insert(entry.lines, text("modsOverridesTag") .. ": " .. msg)
+            elseif side == "overridden" then
+                table.insert(entry.overridden, msg)
+                table.insert(entry.lines, text("modsOverriddenTag") .. ": " .. msg)
+            else
+                table.insert(entry.problems, msg)
+                table.insert(entry.lines, msg)
+                if severity == "error" or entry.severity == nil then entry.severity = severity end
+            end
             result[id] = entry
         end
         line = file:readLine()
     end
     file:close()
     return result
+end
+
+--- Whether Mod Health said something about the mod other than the files it shares.
+function Link.healthProblem(entry)
+    return entry ~= nil and #entry.problems > 0
 end
 
 --- Asks the Studio to add these mods to the active profile (switched off). Each request gets an
@@ -583,7 +653,7 @@ end
 --- What the app's files say now, as one text: when it changes, the screens read them again.
 function Link.appSignature()
     local parts = { Link.appAlive() and "alive" or "closed" }
-    for _, name in ipairs({ FILE, HEALTH_FILE, "PZModStudio_LinkMeta.txt", "PZModStudio_LinkUpdated.txt", "PZModStudio_LinkMods.txt" }) do
+    for _, name in ipairs({ FILE, HEALTH_CODES_FILE, HEALTH_FILE, "PZModStudio_LinkMeta.txt", "PZModStudio_LinkUpdated.txt", "PZModStudio_LinkMods.txt" }) do
         local file = getFileReader(name, false)
         if file then
             local line = file:readLine()
@@ -817,7 +887,8 @@ function Link.cardData()
         card.alive = Link.appAlive()
         local errors, warnings = 0, 0
         for _, entry in pairs(Link.readHealth()) do
-            if entry.severity == "error" then errors = errors + 1 elseif entry.severity == "warning" then warnings = warnings + 1 end
+            -- A file it shares counts once, on the mod whose copy is used, as Mod Health counts it.
+            if entry.severity == "error" then errors = errors + 1 elseif entry.severity == "warning" or (entry.severity == nil and #entry.overrides > 0) then warnings = warnings + 1 end
         end
         card.errors, card.warnings = errors, warnings
         -- What the app's Doctor says first (written by the app, in the player's language).

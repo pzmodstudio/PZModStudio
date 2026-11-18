@@ -124,6 +124,9 @@ pub fn install(version: &str) -> Result<PathBuf, String> {
     if !version.chars().all(|c| c.is_ascii_digit() || c == '.') || version.is_empty() {
         return Err(format!("\"{}\" is not a version.", version));
     }
+    if !cfg!(windows) {
+        return Err("The update in place is for the Windows app: download the new version from the release page.".to_string());
+    }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let dir = exe.parent().ok_or("The app's folder is not known.")?.to_path_buf();
     if !writable(&dir) {

@@ -7,8 +7,10 @@ description=[list]
 description=[*][b]A clearer Mods screen[/b]: search, filters (problems, maps, can't load...), a mod comes on with what it requires and goes off with what needs it, a load order you can drag, undo. The game's screen is one button away.
 description=[*][b]An error notice that names the mod[/b]: when Lua fails, which mod it was, which one called it, where. Copy report puts it on the clipboard for the mod's author, with the mod's id, version and Workshop item; every error of the session in one list, Copy all.
 description=[*][b]Errors kept on disk[/b]: each error goes to Zomboid/Lua/PZModStudio_LinkErrorLog.txt as it happens, so a crash or a disconnect does not lose it.
+description=[*][b]Shared files[/b]: when two mods you have on ship the same Lua file, only one copy runs. The Mods screen marks which mod overrides and which is overridden, and names the files.
+description=[*][b]Reload mods[/b]: a Workshop item you subscribe to while the game runs shows up on the Mods screen without restarting.
 description=[*][b]Server lines[/b]: the mods you have on, as a dedicated server's Mods=, WorkshopItems= and Map= lines in load order, ready to paste.
-description=[*][b]For mod authors[/b]: one call, PZModStudioLink.registerReport("YourModId", fn), adds your mod's own debug information to the reports players copy for you.
+description=[*][b]For mod authors[/b]: one call, PZModStudioLink.registerReport("YourModId", fn), adds your mod's own debug information to the reports players copy for you. Other mods' debug reports, the ones they already register for error tools, are included too.
 description=[/list]
 description=
 description=It is also the in-game side of [b]PZ Mod Studio[/b], a free, open-source program for Windows that manages your Build 42 mods: profiles, load order, error diagnosis, conflicts between mods, save backups and dedicated servers. With it, what the app knows shows up where you play: on the main menu, on the Mods screen and before a save loads. Both are free.

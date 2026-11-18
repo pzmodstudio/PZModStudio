@@ -189,9 +189,12 @@ mod tests {
         let base = Path::new("base");
         assert_eq!(safe_join(base, "media/lua/client/A.lua").unwrap(), base.join("media/lua/client/A.lua"));
         assert_eq!(safe_join(base, "./media/x.txt").unwrap(), base.join("./media/x.txt"));
-        for bad in ["", ".", "../x.lua", "media/../../x.lua", "/etc/passwd", "C:/Windows/x", "C:x", "\\\\server\\share\\x", "media/a.lua:stream"] {
+        for bad in ["", ".", "../x.lua", "media/../../x.lua", "/etc/passwd", "C:/Windows/x", "C:x", "media/a.lua:stream"] {
             assert!(safe_join(base, bad).is_err(), "accepted {:?}", bad);
         }
+        // A network path only means one on Windows (on Linux it is one odd file name in `base`).
+        #[cfg(windows)]
+        assert!(safe_join(base, "\\\\server\\share\\x").is_err());
         #[cfg(windows)]
         assert!(safe_join(base, "..\\..\\Startup\\evil.bat").is_err());
     }

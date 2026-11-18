@@ -135,15 +135,18 @@ fn process_counters(pid: u32) -> Option<(u64, u64)> {
 
 #[cfg(not(windows))]
 fn pc_memory() -> (u64, u64) {
-    (0, 0)
+    let (total, free) = crate::platform::memory_bytes();
+    (total / (1024 * 1024), free / (1024 * 1024))
 }
+/// On Linux the game is the ProjectZomboid64 launcher (or a Java running the game's main class),
+/// whatever name is asked for.
 #[cfg(not(windows))]
 fn processes_named(_exe: &str) -> Vec<u32> {
-    Vec::new()
+    crate::platform::game_pids()
 }
 #[cfg(not(windows))]
-fn process_counters(_pid: u32) -> Option<(u64, u64)> {
-    None
+fn process_counters(pid: u32) -> Option<(u64, u64)> {
+    crate::platform::process(pid).map(|p| (p.rss, p.cpu_100ns))
 }
 
 #[cfg(test)]

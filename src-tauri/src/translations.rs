@@ -181,7 +181,8 @@ pub fn translation_conflicts(catalog: &crate::catalog::ModCatalog, active: &[Str
     let game = catalog.game_version_int();
     let mut files = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for entry in active {
+    // The game reads them in its load order (requirements first, those that are off too): the last word wins.
+    for entry in &crate::catalog::game_load_order(catalog, active) {
         if entry.starts_with("Z_PZModStudio_") || entry == "PZModStudioCarrier" {
             continue;
         }

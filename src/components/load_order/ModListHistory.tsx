@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ModInfo, ModListVersion } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, explainError } from '../../services/tauri';
@@ -26,6 +26,17 @@ export const ModListHistory: React.FC<ModListHistoryProps> = ({ paths, mods, onR
   /** The name the list shows for a mod id, or the id when it is not installed any more. */
   const nameOfMod = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
 
+  // Escape closes the window, as every other window of the app.
+  const open = history !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && restoring === null) setHistory(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, restoring]);
+
   const openHistory = async () => {
     setHistory(await TauriService.modListHistory(paths));
   };
@@ -51,7 +62,9 @@ export const ModListHistory: React.FC<ModListHistoryProps> = ({ paths, mods, onR
     try {
       await TauriService.restoreModListVersion(paths, version.file);
       await onRefreshMods();
-      setHistory(await TauriService.modListHistory(paths));
+      // Done: the window goes, the message says which list is back (the list it replaced is
+      // now the newest earlier list, to undo it the same way).
+      setHistory(null);
       toast(t('dialogs.history.restored', { when: version.saved_at }), 4000);
     } catch (err) {
       alert(explainError(err));

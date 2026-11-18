@@ -46,6 +46,8 @@ El botón **MODS** del menú principal abre la pantalla de Mods del Link en vez 
 - prender y apagar mods junto con lo que requieren, varios a la vez con Ctrl o Shift;
 - el orden de carga: ordenado por él, subiendo y bajando, o arrastrando, nunca por encima de lo que un mod requiere;
 - grupos por autor o categoría, las opciones de cada mod (**Opciones del mod**), el **Orden de mapas**, y **Deshacer** / **Rehacer**;
+- **Archivos compartidos**: cuando dos mods prendidos traen el mismo archivo Lua, el juego corre una sola copia, la del mod que carga después. El mod cuya copia se usa se marca **Reemplaza**, el mod cuya copia no se usa **Reemplazado**; el botón del resumen **N comparten archivos** los muestra (su ayuda explica las marcas) y la ficha de cada mod nombra los archivos y el otro mod. Se revisa con los mods que el juego cargó, unos segundos después de que aparece el menú principal; solo se miran archivos Lua;
+- **Recargar mods** hace que el juego vuelva a leer sus carpetas de mods, así un objeto del Workshop al que te suscribiste (o que se actualizó) con el juego abierto aparece sin reiniciar; el juego recarga su Lua, como después de **Aceptar**;
 - **Líneas de servidor** copia los mods prendidos como las líneas `Mods=`, `WorkshopItems=` y `Map=` de un servidor dedicado, en orden de carga (cada mod después de lo que requiere, los mapas en el orden de mapas), para pegarlas sobre esas líneas del `.ini` del servidor en `Zomboid/Server`; los mods sin objeto del Workshop se nombran en una línea de comentario, para copiarlos a la carpeta de mods del servidor;
 - **Aceptar** guarda en la lista que lee el juego, igual que la pantalla original. **Pantalla del juego** abre la original.
 
@@ -63,7 +65,7 @@ Cuando el juego registra un error de Lua, un aviso nombra el mod del que vino (y
 
 Cada error se guarda también en `Zomboid/Lua/PZModStudio_LinkErrorLog.txt` al segundo de pasar, así un cierre inesperado, una desconexión o volver al menú no lo pierde: cada tipo una vez completo (mod, archivo:línea, mensaje, pila) y sus repeticiones contadas, bajo un encabezado con la fecha, la versión y si era el menú o qué partida, con una línea donde el juego volvió al menú principal o el servidor lo desconectó. El archivo guarda más o menos las últimas 3000 líneas. **Registro de errores** en la lista abre su carpeta y copia su ruta.
 
-Para autores de mods: `PZModStudioLink.registerReport("TuModId", fn)` (o `PZModStudioLinkReports["TuModId"] = fn` desde Lua que corre antes que el del Link) agrega tu propia información a los reportes. `fn(err)` devuelve un texto, una lista de líneas o una tabla de nombre = valor; solo corre cuando se arma un reporte, dentro de `pcall`. Su texto va en **Copiar todos**, y en **Copiar reporte** y el registro de errores para un error de tu mod.
+Para autores de mods: `PZModStudioLink.registerReport("TuModId", fn)` (o `PZModStudioLinkReports["TuModId"] = fn` desde Lua que corre antes que el del Link) agrega tu propia información a los reportes. `fn(err)` devuelve un texto, una lista de líneas o una tabla de nombre = valor; solo corre cuando se arma un reporte, dentro de `pcall`. Su texto va en **Copiar todos**, y en **Copiar reporte** y el registro de errores para un error de tu mod. Los reportes de depuración de otros mods, los que los mods ya registran para herramientas de errores, van a los mismos lugares con el nombre que les dio cada mod.
 
 El contador rojo **ERROR** propio del juego, abajo a la derecha, lo dibuja el Java del juego, que Lua no alcanza: el Link no puede ocultarlo.
 

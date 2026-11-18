@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActiveTab, HealthIssue, IssueState } from '../types';
-import { SIMPLE_TABS, UI_MODE_KEY, defaultUiMode, launchModeFor, readUiMode, simpleFindings, tabAfterSwitch, tabShown } from './uiMode';
+import { SIMPLE_OFFER_KEY, SIMPLE_TABS, UI_MODE_CHOSEN_KEY, UI_MODE_KEY, defaultUiMode, dismissSimpleOffer, fixShownIn, launchModeFor, readUiMode, shouldOfferSimple, simpleFindings, simpleRowIssues, tabAfterSwitch, tabShown } from './uiMode';
 
 /** A Storage over a Map, for the first-run decision. */
 const memoryStorage = (entries: Record<string, string> = {}): Storage => {
@@ -63,10 +63,12 @@ describe('the launch mode Play uses', () => {
     expect(launchModeFor('advanced', memoryStorage())).toBe('DEBUG_FULLSCREEN');
   });
 
-  it('keeps the mode the player picked, in either view', () => {
+  it('keeps the mode the player picked, without Debug in Simple', () => {
     const picked = memoryStorage({ pz_last_launch_mode: 'DEBUG_WINDOWED' });
-    expect(launchModeFor('simple', picked)).toBe('DEBUG_WINDOWED');
+    expect(launchModeFor('simple', picked)).toBe('NORMAL_WINDOWED');
     expect(launchModeFor('advanced', picked)).toBe('DEBUG_WINDOWED');
+    expect(launchModeFor('simple', memoryStorage({ pz_last_launch_mode: 'DEBUG_FULLSCREEN' }))).toBe('NORMAL_FULLSCREEN');
+    expect(launchModeFor('simple', memoryStorage({ pz_last_launch_mode: 'NORMAL_WINDOWED' }))).toBe('NORMAL_WINDOWED');
   });
 
   it('falls back to the default when remembering is off or the value is unknown', () => {
@@ -118,5 +120,43 @@ describe('Diagnostics in Simple', () => {
     const out = simpleFindings([issue('tip', 'recommended')], null, keyOf);
     expect(out.shown).toEqual([]);
     expect(out.optional).toBe(1);
+  });
+});
+
+describe('the offer to try Simple', () => {
+  it('shows once to a player who was put in Complete without choosing', () => {
+    // Used before Simple existed: decided Complete at boot, never chose.
+    const used = memoryStorage({ pz_welcome_done: '1' });
+    expect(readUiMode(used)).toBe('advanced');
+    expect(shouldOfferSimple(used)).toBe(true);
+    dismissSimpleOffer(used);
+    expect(used.getItem(SIMPLE_OFFER_KEY)).toBe('1');
+    expect(shouldOfferSimple(used)).toBe(false);
+  });
+
+  it('never shows on a new install, to a player who chose a mode, or without storage', () => {
+    const fresh = memoryStorage();
+    readUiMode(fresh);
+    expect(shouldOfferSimple(fresh)).toBe(false);
+    expect(shouldOfferSimple(memoryStorage({ [UI_MODE_KEY]: 'advanced', [UI_MODE_CHOSEN_KEY]: '1' }))).toBe(false);
+    expect(shouldOfferSimple(memoryStorage({ [UI_MODE_KEY]: 'simple' }))).toBe(false);
+    expect(shouldOfferSimple(null)).toBe(false);
+  });
+
+  it('its own keys never make a new install look used', () => {
+    expect(defaultUiMode([UI_MODE_CHOSEN_KEY, SIMPLE_OFFER_KEY, 'pz_language'])).toBe('simple');
+  });
+});
+
+describe('the Mod List in Simple', () => {
+  it('marks a row only for what needs acting on', () => {
+    const rows = [issue('broken', 'act'), issue('tip', 'recommended'), issue('know', 'info'), issue('fixed', 'handled')];
+    expect(simpleRowIssues(rows).map((i) => i.code)).toEqual(['broken']);
+  });
+
+  it('offers no fix that opens a Complete-only screen', () => {
+    expect(fixShownIn('simple', { action: 'open_in_merger', relative_path: 'media/lua/x.lua' })).toBe(false);
+    expect(fixShownIn('advanced', { action: 'open_in_merger', relative_path: 'media/lua/x.lua' })).toBe(true);
+    expect(fixShownIn('simple', { action: 'enable_mod', mod_id: 'a' })).toBe(true);
   });
 });

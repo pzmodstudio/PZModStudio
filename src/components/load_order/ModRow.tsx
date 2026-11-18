@@ -7,6 +7,7 @@ import { SourceBadge, sourceOf } from '../common/SourceBadge';
 import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
 import { RowHealthChips } from './RowHealth';
+import { useUiMode } from '../../hooks/useUiMode';
 import { ArrowDown, ArrowUp, Brain, Check, ChevronsDown, ChevronsUp, Hash, Layers, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
 
 /** Below this a mod's loading time is a few milliseconds of mod.info and translations: not worth a tag. */
@@ -87,12 +88,12 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   isBridge,
   catalogById,
   errorStats,
-  loadTimes,
-  gameShares,
+  loadTimes: allLoadTimes,
+  gameShares: allGameShares,
   isFavorite = false,
-  note,
-  studioNote,
-  groups = [],
+  note: ownNote,
+  studioNote: ownStudioNote,
+  groups: allGroups = [],
   onEditNote,
   showEveryMod,
   activeProfile,
@@ -118,6 +119,14 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   handleAssignPosition,
 }) => {
   const { t } = useTranslation();
+  // Simple: the name, its switch, its place and the problems to fix. Groups, notes, the id and the
+  // load and play times are Complete's (the mod's panel still shows a note the player wrote).
+  const simple = useUiMode()[0] === 'simple';
+  const loadTimes = simple ? undefined : allLoadTimes;
+  const gameShares = simple ? undefined : allGameShares;
+  const note = simple ? undefined : ownNote;
+  const studioNote = simple ? undefined : ownStudioNote;
+  const groups = simple ? [] : allGroups;
   const entry = catalogById?.get(mod.mod_id);
   const source = sourceOf(mod.mod_id, entry);
   // A compatible copy is meant to win over the Workshop original it was made from; its source
@@ -192,9 +201,11 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
 
       <div className="flex items-start gap-2 min-w-0">
         <div className={`text-[10px] font-mono flex items-center gap-2 min-w-[4rem] flex-1 pt-0.5 ${mod.enabled ? 'text-emerald-500/80' : 'text-slate-600'}`}>
-          <span className={`truncate ${note ? 'shrink-0 max-w-[45%]' : 'min-w-0'}`} title={mod.mod_id}>
-            ID: {mod.mod_id}
-          </span>
+          {!simple && (
+            <span className={`truncate ${note ? 'shrink-0 max-w-[45%]' : 'min-w-0'}`} title={mod.mod_id}>
+              ID: {mod.mod_id}
+            </span>
+          )}
           {showInstalled && mod.installed_at ? (
             <span className="shrink-0 text-sky-400/80" title={t('modList.row.installedTitle')}>
               {t('modList.row.installed', { when: new Date(mod.installed_at * 1000).toLocaleDateString(i18next.language) })}
@@ -231,7 +242,8 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
         <div className="flex flex-row-reverse flex-wrap items-center justify-start gap-1 max-w-[78%]">
           {/* A mod that is not installed came from nowhere yet: no origin to show ("Local" said it was on disk). */}
           {/* Steam is where most mods come from: only an origin worth noticing gets a tag (the inspector says every one). */}
-          {!mod.not_installed && source.kind !== 'steam' && <SourceBadge modId={mod.mod_id} entry={entry} />}
+          {/* Simple keeps where a mod came from to its panel: "Local" or "Compat. copy" asks nothing of a beginner. */}
+          {!simple && !mod.not_installed && source.kind !== 'steam' && <SourceBadge modId={mod.mod_id} entry={entry} />}
 
           {/* Every problem the health check found for this mod, with its fix. */}
           <RowHealthChips
@@ -346,9 +358,12 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
           })()}
 
           {/* Showing everything: which profiles hold it, as an icon and a count (names on hover and in the inspector). */}
-          {activeProfile && (showEveryMod || !inActiveProfile.has(mod.mod_id)) && (() => {
+          {/* Simple: only while showing every installed mod, where it tells which are in this profile. */}
+          {activeProfile && (showEveryMod || (!simple && !inActiveProfile.has(mod.mod_id))) && (() => {
             const usedBy = profilesByMod.get(mod.mod_id) ?? [];
             const here = inActiveProfile.has(mod.mod_id);
+            // Simple marks only what is in this profile: how many other profiles hold a mod asks nothing of a beginner.
+            if (simple && !here) return null;
             const others = usedBy.filter((name) => name !== activeProfile.name);
             const title = here
               ? t('modList.row.inThisProfile') + (others.length ? t('modList.row.andIn', { names: others.join(', ') }) : '')
@@ -363,7 +378,7 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
                 title={title}
               >
                 <Layers className="w-3 h-3" aria-hidden="true" />
-                {here ? (others.length ? `✓ +${others.length}` : '✓') : usedBy.length ? usedBy.length : '0'}
+                {here ? (others.length && !simple ? `✓ +${others.length}` : '✓') : usedBy.length ? usedBy.length : '0'}
               </span>
             );
           })()}

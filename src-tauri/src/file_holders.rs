@@ -171,10 +171,12 @@ fn process_exe_name(_pid: u32) -> Option<String> {
     None
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 
+    /// Windows paths (drive letters): the Restart Manager that uses them is Windows' own.
+    #[cfg(windows)]
     #[test]
     fn the_paths_an_error_names_are_found_with_their_spaces() {
         let dir = std::env::temp_dir().join(format!("pzms holders {}", std::process::id()));

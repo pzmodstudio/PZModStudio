@@ -13,7 +13,9 @@ import { ModPresets } from './ModPresets';
 import { ModListHistory } from './ModListHistory';
 import { ModInspector } from './ModInspector';
 import { ModRowBody } from './ModRow';
-import { MOD_FILTERS, MOD_SOURCES, ModFilterId, issuesByModOf, modTagsOf, tagLabel } from './modFacets';
+import { MOD_FILTERS, MOD_SOURCES, ModFilterId, SIMPLE_MOD_FILTERS, issuesByModOf, modTagsOf, tagLabel } from './modFacets';
+import { useUiMode } from '../../hooks/useUiMode';
+import { simpleRowIssues } from '../../utils/uiMode';
 import { useKeepActions } from '../common/keep';
 import { KeptVersions } from './KeptVersions';
 import { LoadRules } from './LoadRules';
@@ -189,6 +191,12 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   const [highlightedModId, setHighlightedModId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const { t } = useTranslation();
+  /**
+   * Simple: switch mods on and off, put them in order (by hand or Auto-Sort), search, and the
+   * problems in plain words. Groups, notes, list presets, origin/tag filters and sorting by name or
+   * date are Complete's; nothing is lost, it is all there again in Complete.
+   */
+  const simple = useUiMode()[0] === 'simple';
   const changeRev = useChangeRevision();
   const [assigningModId, setAssigningModId] = useState<string | null>(null);
   const [targetPosInput, setTargetPosInput] = useState<string>('');
@@ -363,7 +371,9 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       }
     };
 
-    for (const issue of healthIssues ?? []) {
+    // Simple counts only what needs acting on, the same rows its chips and Diagnostics show.
+    const counted = simple ? simpleRowIssues(healthIssues ?? []) : healthIssues ?? [];
+    for (const issue of counted) {
       const modId = issue.mod_id;
       if (!modId) continue;
       if (orderPending && ORDER_CODES.has(issue.code)) continue;
@@ -396,7 +406,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       missingUninstalledDependenciesMap: uninstalledDeps,
       loadOrderViolationsMap: violations,
     };
-  }, [healthIssues, mods, orderPending]);
+  }, [healthIssues, mods, orderPending, simple]);
 
   const [orderViolationCycleIdx, setOrderViolationCycleIdx] = useState(0);
   const [conflictCycleIdx, setConflictCycleIdx] = useState(0);
@@ -472,6 +482,15 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
    * which is how you add one to the profile you are in.
    */
   const [showEveryMod, setShowEveryMod] = useState<boolean>(false);
+  // Simple has no buttons for the other filters: whatever Complete left set goes back to "all".
+  useEffect(() => {
+    if (!simple) return;
+    setSourceFilter('all');
+    setTagFilter('all');
+    setGroupFilter('all');
+    setStateFilter((f) => (SIMPLE_MOD_FILTERS.includes(f) ? f : 'all'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simple]);
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const keep = useKeepActions(paths, profiles, onProfilesChanged, showToast);
@@ -698,10 +717,10 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   const tagOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const m of scopeMods) for (const tag of modTags.get(m.mod_id) ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    return [...counts.entries()].map(([id, count]) => ({ id, count, label: tagLabel(id) })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [modTags, scopeMods, t]);
+    return [...counts.entries()].map(([id, count]) => ({ id, count, label: tagLabel(id, simple ? 'simple' : 'advanced') })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [modTags, scopeMods, t, simple]);
 
-  const [sortBy, setSortByState] = useState<SortBy>(() => {
+  const [savedSortBy, setSortByState] = useState<SortBy>(() => {
     try {
       const saved = localStorage.getItem('pzms_sort_by') as SortBy | null;
       return saved && SORTS.includes(saved) ? saved : 'order';
@@ -709,6 +728,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       return 'order';
     }
   });
+  // Simple always shows the load order: "top loads first" is what its list says.
+  const sortBy: SortBy = simple ? 'order' : savedSortBy;
   const setSortBy = (v: SortBy) => {
     setSortByState(v);
     try { localStorage.setItem('pzms_sort_by', v); } catch { /* per-viewer convenience */ }
@@ -891,6 +912,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       disabled: !catalogById?.get(mod.mod_id)?.root_dir,
       disabledReason: t('modList.menu.noFolder'),
     },
+    // Notes, groups, load rules and keeping a version by hand are Complete's tools.
+    ...(simple ? [] : ([
     {
       label: meta.notes[mod.mod_id] ? t('modList.menu.editNote') : t('modList.menu.addNote'),
       icon: StickyNote,
@@ -920,9 +943,12 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
       disabled: !catalogById?.get(mod.mod_id)?.root_dir,
       disabledReason: t('modList.menu.noFolder'),
     },
+    ] as MenuItem[])),
+    // Going back after an update is for everyone: Simple has it too.
     {
       label: t('modList.menu.keptVersions'),
       icon: Archive,
+      separatorBefore: simple,
       onSelect: () => setKeptVersionsOf(mod),
     },
     ...(mod.mod_id.startsWith('Z_PZModStudio_') ? [] : keep.menuItems({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })),
@@ -975,11 +1001,14 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     ];
   };
 
-  /** Its place among the mods that are on (1-based): the number the game shows. */
+  /**
+   * Its place among the mods that are on (1-based), counting only the rows the list shows: the
+   * Studio Link is on but never a row, so it takes no number (the numbers have no gap).
+   */
   const activeRanks = useMemo(() => {
     const out = new Map<string, number>();
     let n = 0;
-    for (const m of mods) if (m.enabled) out.set(m.mod_id, ++n);
+    for (const m of mods) if (m.enabled && m.mod_id !== STUDIO_LINK_MOD_ID) out.set(m.mod_id, ++n);
     return out;
   }, [mods]);
 
@@ -994,7 +1023,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
 
     const newOrder = [...mods];
     const [movedMod] = newOrder.splice(currentIndex, 1);
-    const onIndexes = newOrder.map((m, i) => (m.enabled ? i : -1)).filter((i) => i >= 0);
+    const onIndexes = newOrder.map((m, i) => (m.enabled && m.mod_id !== STUDIO_LINK_MOD_ID ? i : -1)).filter((i) => i >= 0);
     const n = Math.max(1, targetPos);
     // Before the mod that is n-th on now, or after the last one that is on.
     const targetIndex = n <= onIndexes.length ? onIndexes[n - 1] : (onIndexes.length > 0 ? onIndexes[onIndexes.length - 1] + 1 : 0);
@@ -1125,7 +1154,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
         });
       }
     }
-    out.push({
+    if (!simple) out.push({
       label: t('modList.picked.groups', { count: list.length }),
       icon: Tags,
       separatorBefore: true,
@@ -1251,8 +1280,13 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     const byId = new Map(mods.map((m) => [m.mod_id, m]));
     const sorted = result.order.map((id) => byId.get(id)).filter((m): m is ModInfo => !!m);
     if (sorted.length !== mods.length) return; // list changed meanwhile; do nothing
-    setLastSortMoved(result.moved.length);
-    setLastSortReasons(result.reasons ?? []);
+    // Simple speaks of the mods that are on: a switched-off mod moving to make room changes
+    // nothing in the game, and a beginner with 20 mods on should not read of 200 moved.
+    const on = new Set(mods.filter((m) => m.enabled).map((m) => m.mod_id));
+    const onOrder = (ids: string[]) => ids.filter((id) => on.has(id)).join(' ');
+    const onMoved = onOrder(mods.map((m) => m.mod_id)) === onOrder(result.order) ? 0 : result.moved.filter((id) => on.has(id)).length;
+    setLastSortMoved(simple ? onMoved : result.moved.length);
+    setLastSortReasons(simple ? (result.reasons ?? []).filter((r) => on.has(r.mod_id) && on.has(r.other)) : result.reasons ?? []);
     if (result.moved.length > 0) {
       setOrderBeforeSort(mods);
       triggerReorder(sorted);
@@ -1421,7 +1455,9 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   const renderRow = (mod: ModInfo, inGroup?: string) => {
                 // The row's colour follows the worst thing the health check found for it.
                 const rowIssues = issuesByMod.get(mod.mod_id) ?? [];
-                const worstIssue = rowIssues.some((i) => i.severity === 'error') ? 'error' : rowIssues.some((i) => i.severity === 'warning') ? 'warning' : null;
+                // In Simple a row is coloured only for what its chips show (what needs acting on).
+                const framed = simple ? simpleRowIssues(rowIssues) : rowIssues;
+                const worstIssue = framed.some((i) => i.severity === 'error') ? 'error' : framed.some((i) => i.severity === 'warning') ? 'warning' : null;
                 const originalIndex = modIndexById.get(mod.mod_id) ?? -1;
                 const isSelected = mod.mod_id === selectedModId;
                 const isHighlighted = mod.mod_id === highlightedModId;
@@ -1615,11 +1651,13 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
         <div className="min-w-0">
           <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2 min-w-0">
             <ListOrdered className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span className="truncate">{t('modList.title')}</span>
-            <code className="text-[11px] font-mono font-normal text-slate-500 truncate">Zomboid/mods/default.txt</code>
+            <span className="truncate">{simple ? t('simple.modList.title') : t('modList.title')}</span>
+            {!simple && <code className="text-[11px] font-mono font-normal text-slate-500 truncate">Zomboid/mods/default.txt</code>}
           </h2>
+          {simple && <p className="mt-0.5 text-[11px] text-slate-400 max-w-2xl">{t('simple.modList.blurb')}</p>}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-400">
-            {headerStats.workshop !== libraryWorkshopItems ? (
+            {/* Simple: how many mods and how many are on; the Workshop item counts are Complete's. */}
+            {simple ? null : headerStats.workshop !== libraryWorkshopItems ? (
               <span title={t('modList.workshopInProfileTitle', { shown: headerStats.workshop, total: libraryWorkshopItems, name: activeProfile?.name ?? '' })}>
                 <b className="text-cyan-400">{headerStats.workshop}</b> {t('modList.statWorkshopOf', { total: libraryWorkshopItems })}
               </span>
@@ -1628,7 +1666,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                 <b className="text-cyan-400">{headerStats.workshop}</b> {t('modList.statWorkshop')}
               </span>
             )}
-            <span className="text-slate-700">|</span>
+            {!simple && <span className="text-slate-700">|</span>}
             <span>
               <b className="text-slate-200">{headerStats.total}</b> {t('modList.statMods')}
             </span>
@@ -1636,6 +1674,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             <span>
               <b className="text-emerald-400">{headerStats.active}</b> {t('modList.statActive')}
             </span>
+            {!simple && <>
             <span className="text-slate-700">|</span>
             <span className="flex items-center gap-1" title={t('modList.mapTitle')}>
               <MapPin className="w-3 h-3 text-amber-400" /> <b className="text-amber-400">{headerStats.mapCount}</b> {t('modList.map')}
@@ -1646,22 +1685,26 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             <span className="flex items-center gap-1" title={t('modList.scriptTitle')}>
               <ListOrdered className="w-3 h-3 text-cyan-400" /> <b className="text-cyan-400">{headerStats.scriptCount}</b> {t('modList.script')}
             </span>
-            {cycleButton(missingUninstalledModIds.length, missingUninstalledCycleIdx, handleCycleMissingUninstalled, t('modList.missing'), t('modList.cycleMissing'), 'red')}
-            {cycleButton(missingDepModIds.length, missingDepCycleIdx, handleCycleMissingDeps, t('modList.depsOff'), t('modList.cycleOff'), 'red')}
-            {cycleButton(conflictModIds.length, conflictCycleIdx, handleCycleConflicts, t('modList.incompatibility'), t('modList.cycleIncompatible'), 'amber')}
-            {cycleButton(orderViolationModIds.length, orderViolationCycleIdx, handleCycleOrderViolations, t('modList.listOrder'), t('modList.cycleOrder'), 'amber')}
+            </>}
+            {/* Simple says the same four in plain words, with what to do in the tip. */}
+            {cycleButton(missingUninstalledModIds.length, missingUninstalledCycleIdx, handleCycleMissingUninstalled, simple ? t('simple.modList.missing') : t('modList.missing'), simple ? t('simple.modList.missingTitle') : t('modList.cycleMissing'), 'red')}
+            {cycleButton(missingDepModIds.length, missingDepCycleIdx, handleCycleMissingDeps, simple ? t('simple.modList.depsOff') : t('modList.depsOff'), simple ? t('simple.modList.depsOffTitle') : t('modList.cycleOff'), 'red')}
+            {cycleButton(conflictModIds.length, conflictCycleIdx, handleCycleConflicts, simple ? t('simple.modList.incompatible') : t('modList.incompatibility'), simple ? t('simple.modList.incompatibleTitle') : t('modList.cycleIncompatible'), 'amber')}
+            {cycleButton(orderViolationModIds.length, orderViolationCycleIdx, handleCycleOrderViolations, simple ? t('simple.modList.order') : t('modList.listOrder'), simple ? t('simple.modList.orderTitle') : t('modList.cycleOrder'), 'amber')}
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <ModPresets
-            paths={paths}
-            mods={mods}
-            onApplyPresetLoadOrder={onApplyPresetLoadOrder}
-            onReorder={triggerReorder}
-            onOpenInBrowser={onOpenInBrowser}
-            toast={showToast}
-          />
+          {!simple && (
+            <ModPresets
+              paths={paths}
+              mods={mods}
+              onApplyPresetLoadOrder={onApplyPresetLoadOrder}
+              onReorder={triggerReorder}
+              onOpenInBrowser={onOpenInBrowser}
+              toast={showToast}
+            />
+          )}
           <ModListHistory paths={paths} mods={mods} onRefreshMods={onRefreshMods} toast={showToast} />
           <button
             onClick={handleRefresh}
@@ -1674,10 +1717,11 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           </button>
           <button
             onClick={handleAutoSortDependencies}
+            title={simple ? t('simple.modList.autoSortTitle') : undefined}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-lg shadow transition cursor-pointer"
           >
             <Wand2 className="w-4 h-4" />
-            {t('modList.autoSort')}
+            {simple ? t('simple.modList.autoSort') : t('modList.autoSort')}
           </button>
           <KeptVersions paths={paths} mod={keptVersionsOf} onClose={() => setKeptVersionsOf(null)} onModsChanged={onRefreshMods} toast={showToast} />
           {keep.node}
@@ -1722,7 +1766,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
 
         <Filter className="w-3.5 h-3.5 text-slate-500 ml-1" aria-hidden="true" />
         <div role="group" aria-label={t('modList.filterLabel')} title={t('modList.filterTitle')} className="flex flex-wrap items-center rounded-md border border-slate-800 bg-slate-950 overflow-hidden text-xs">
-          {MOD_FILTERS.map((id, i) => (
+          {(simple ? SIMPLE_MOD_FILTERS : MOD_FILTERS).map((id, i) => (
             <React.Fragment key={id}>
               {i > 0 && <span className="w-px self-stretch bg-slate-800" />}
               <button
@@ -1743,7 +1787,8 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             {t('modList.clearFilters')}
           </button>
         )}
-        <div className="basis-full h-0" aria-hidden="true" />
+        {!simple && <div className="basis-full h-0" aria-hidden="true" />}
+        {!simple && <>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortBy)}
@@ -1816,6 +1861,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             </option>
           ))}
         </select>
+        </>}
         {activeProfile && (
           <button
             type="button"
@@ -1887,7 +1933,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
             <div className="w-9 shrink-0 text-right">#</div>
             <div className="w-8 shrink-0 text-center">{t('modList.colActive')}</div>
             <div className="flex-1 min-w-0 pl-8">
-              {t('modList.colName')}
+              {simple ? t('simple.modList.colName') : t('modList.colName')}
               {filteredMods.length !== scopeMods.length && (
                 <span className="ml-2 normal-case tracking-normal font-normal text-cyan-400">
                   {t('modList.showingCount', { shown: filteredMods.length, total: scopeMods.length })}
@@ -1904,7 +1950,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                 className="flex-1 min-w-0"
                 title={orphanMods.map((m) => m.name).join('\n')}
               >
-                {t('modList.orphans.text', { count: orphanMods.length, name: activeProfile.name })}
+                {t(simple ? 'simple.modList.orphans' : 'modList.orphans.text', { count: orphanMods.length, name: activeProfile.name })}
               </span>
               <button
                 onClick={() => void addOrphansToProfile()}
@@ -1949,7 +1995,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           <div className="bg-emerald-950/40 border-b border-emerald-800/40 px-4 py-1.5 flex items-center justify-between text-[11px] font-mono text-emerald-400">
             <span className="flex items-center gap-1.5 font-bold">
               <ArrowUpCircle className="w-3.5 h-3.5" />
-              {t('modList.loadsFirst')}
+              {simple ? t('simple.modList.loadsFirst') : t('modList.loadsFirst')}
             </span>
             <span className="text-[10px] text-emerald-500/80">{t('modList.position', { n: 1 })}</span>
           </div>
@@ -1982,14 +2028,14 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                 )}
               </div>
             ) : (
-              groupBy === 'none' ? filteredMods.map((m) => renderRow(m)) : renderGrouped()
+              groupBy === 'none' || simple ? filteredMods.map((m) => renderRow(m)) : renderGrouped()
             )}
           </div>
 
           <div className="bg-amber-950/40 border-t border-amber-800/40 px-4 py-1.5 flex items-center justify-between text-[11px] font-mono text-amber-400">
             <span className="flex items-center gap-1.5 font-bold">
               <ArrowDownCircle className="w-3.5 h-3.5" />
-              {t('modList.loadsLast')}
+              {simple ? t('simple.modList.loadsLast') : t('modList.loadsLast')}
             </span>
             <span className="text-[10px] text-amber-500/80">{t('modList.position', { n: Math.max(activeRanks.size, 1) })}</span>
           </div>
@@ -2022,6 +2068,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           onJumpToMod={handleJumpToMod}
           onJumpToDependency={handleJumpToDependency}
           onFixLoadOrder={handleFixLoadOrderViolation}
+          onOpenVersions={setKeptVersionsOf}
           onToggleMod={handleToggleSingleMod}
           onOpenInBrowser={onOpenInBrowser}
           issues={selectedMod ? issuesByMod.get(selectedMod.mod_id) ?? [] : []}
@@ -2066,7 +2113,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                     const name = (id: string) => mods.find((m) => m.mod_id === id)?.name || id;
                     return (
                       <li key={`${r.mod_id}-${r.other}-${n}`} className="leading-snug">
-                        {t(`modList.sortReason.${r.kind}`, { mod: name(r.mod_id), other: name(r.other) })}
+                        {t(`${simple ? 'simple.' : ''}modList.sortReason.${r.kind}`, { mod: name(r.mod_id), other: name(r.other) })}
                       </li>
                     );
                   })}
@@ -2076,11 +2123,15 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
               </div>
             )}
 
-            <ul className="text-xs text-slate-300 space-y-2 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 font-sans leading-relaxed">
-              <li dangerouslySetInnerHTML={{ __html: tHtml('modList.sortRule1') }} />
-              <li>{t('modList.sortRule2')}</li>
-              <li className="text-amber-300">{t('modList.sortRule3')}</li>
-            </ul>
+            {simple ? (
+              <p className="text-xs text-slate-300 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 leading-relaxed">{t('simple.modList.sortRule')}</p>
+            ) : (
+              <ul className="text-xs text-slate-300 space-y-2 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 font-sans leading-relaxed">
+                <li dangerouslySetInnerHTML={{ __html: tHtml('modList.sortRule1') }} />
+                <li>{t('modList.sortRule2')}</li>
+                <li className="text-amber-300">{t('modList.sortRule3')}</li>
+              </ul>
+            )}
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-4">
               <label className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 cursor-pointer select-none">

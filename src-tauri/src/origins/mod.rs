@@ -73,7 +73,22 @@ pub fn record(zomboid_dir: &Path, folders: &[String], origin: &ModOrigin) -> Res
     for folder in folders {
         all.insert(folder.clone(), OriginRecord { origin: origin.clone(), installed_at: installed_at.clone() });
     }
-    let text = serde_json::to_string_pretty(&all).map_err(|e| e.to_string())?;
+    save(zomboid_dir, &all)
+}
+
+/// Changes records in place (e.g. a kept version's store moved to another folder): `change` gets
+/// each folder and its record and says whether it changed it. Written only when one did.
+pub fn update(zomboid_dir: &Path, mut change: impl FnMut(&str, &mut OriginRecord) -> bool) -> Result<(), String> {
+    let mut all = load(zomboid_dir);
+    let mut changed = false;
+    for (folder, record) in all.iter_mut() {
+        changed |= change(folder, record);
+    }
+    if changed { save(zomboid_dir, &all) } else { Ok(()) }
+}
+
+fn save(zomboid_dir: &Path, all: &BTreeMap<String, OriginRecord>) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(all).map_err(|e| e.to_string())?;
     let path = origins_path(zomboid_dir);
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, text).map_err(|e| format!("Cannot write {}: {}", tmp.display(), e))?;

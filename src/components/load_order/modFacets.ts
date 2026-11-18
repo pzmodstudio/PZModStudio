@@ -3,6 +3,7 @@ import { AuthorLink, CatalogModSummary, HealthIssue, ModErrorStat, ModInfo } fro
 import { sourceOf } from '../common/SourceBadge';
 import { HEAVY_SHARE, SLOW_LOAD_MS } from './ModRow';
 import { labelFor, rowIssueCodes } from './RowHealth';
+import type { UiMode } from '../../utils/uiMode';
 
 /**
  * What the Mod List can be narrowed to, in the order both the app and the game's Mods screen
@@ -10,6 +11,8 @@ import { labelFor, rowIssueCodes } from './RowHealth';
  */
 export const MOD_FILTERS = ['all', 'enabled', 'disabled', 'favourites', 'updated', 'problems', 'maps', 'libraries', 'unloadable'] as const;
 export type ModFilterId = (typeof MOD_FILTERS)[number];
+/** The filters Simple offers: on, off and the ones with a problem. */
+export const SIMPLE_MOD_FILTERS: ModFilterId[] = ['all', 'enabled', 'disabled', 'problems'];
 
 /** Where a mod came from, in the order the origin filter lists them. */
 export const MOD_SOURCES = ['steam', 'upload', 'nexus', 'manual', 'local', 'studio', 'compat'] as const;
@@ -55,8 +58,8 @@ export function modTagsOf(
   return map;
 }
 
-export const tagLabel = (tag: string): string =>
-  tag.startsWith('health:') ? labelFor({ code: tag.slice(7) }) : i18next.t(`modList.tags.${tag}`, { min: SLOW_LOAD_MS, pct: HEAVY_SHARE });
+export const tagLabel = (tag: string, mode: UiMode = 'advanced'): string =>
+  tag.startsWith('health:') ? labelFor({ code: tag.slice(7) }, mode) : i18next.t(`modList.tags.${tag}`, { min: SLOW_LOAD_MS, pct: HEAVY_SHARE });
 
 /**
  * What the game's Mods screen cannot tell by itself, for the Studio Link's filters: each mod's

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Archive, CheckCircle2, Globe, Layers, ListOrdered, Loader2, Play, RotateCcw, Stethoscope } from 'lucide-react';
-import { ActiveTab, AppProfile, GameLaunchMode, HealthReport, LaunchTarget, ModInfo, SaveSummary } from '../../types';
+import { ActiveTab, AppProfile, GameLaunchMode, HealthReport, LaunchTarget, ModInfo, SaveSummary, STUDIO_LINK_MOD_ID } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { healthVerdict } from '../../utils/healthVerdict';
@@ -43,8 +43,27 @@ export const SimpleHome: React.FC<SimpleHomeProps> = ({ paths, profile, mods, re
     };
   }, [paths, profile.id]);
 
-  const onCount = mods.filter((m) => m.enabled && !m.mod_id.startsWith('Z_PZModStudio_')).length;
-  const verdict = useMemo(() => (report ? healthVerdict(report.issues) : null), [report]);
+  // Whether the game is open, asked every few seconds: after Play the window takes a while to
+  // show, and a beginner needs to see that something is happening (and not press Play again).
+  const [gameOpen, setGameOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const ask = () => void TauriService.gameStatus().then((pid) => alive && setGameOpen(pid !== null));
+    ask();
+    const timer = setInterval(ask, 3000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // The player's own mods: the Studio's packages and its Link (always on in a profile) do not count.
+  const onCount = mods.filter((m) => m.enabled && !m.mod_id.startsWith('Z_PZModStudio_') && m.mod_id !== STUDIO_LINK_MOD_ID).length;
+  // A report of another list (the profile just changed, a mod was just switched on) is not said
+  // while the new check runs: "nothing to do" must be about the mods Play starts.
+  const enabledCount = mods.filter((m) => m.enabled).length;
+  const stale = !!report && checking && report.active_count !== enabledCount;
+  const verdict = useMemo(() => (report && !stale ? healthVerdict(report.issues) : null), [report, stale]);
 
   const doctor = (() => {
     if (!verdict) {
@@ -124,22 +143,44 @@ export const SimpleHome: React.FC<SimpleHomeProps> = ({ paths, profile, mods, re
             <button
               type="button"
               onClick={() => onPlay(launchMode(), { kind: 'menu' })}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg cursor-pointer"
+              disabled={gameOpen}
+              title={gameOpen ? t('simple.home.gameOpen') : undefined}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4 fill-current" aria-hidden="true" /> {t('simple.home.play')}
             </button>
             {lastSave && (
               <button
                 type="button"
+                disabled={gameOpen}
                 onClick={() => onPlay(launchMode(), { kind: 'save', id: lastSave.id, label: lastSave.world })}
                 title={t('simple.home.continueTitle', { world: lastSave.world })}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 cursor-pointer max-w-full"
+                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 cursor-pointer max-w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RotateCcw className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">{t('simple.home.continue', { world: lastSave.world })}</span>
               </button>
             )}
           </div>
+          {gameOpen && (
+            <div role="status" className="flex items-center gap-2 rounded-lg border border-emerald-800/60 bg-emerald-950/20 px-3 py-2 text-[11px] text-emerald-100">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-300 shrink-0" aria-hidden="true" />
+              <span>{t('simple.home.gameOpenLine')}</span>
+            </div>
+          )}
+          {/* A new profile can be empty: say so before Play starts a game without mods. */}
+          {mods.length > 0 && onCount === 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100">
+              <span className="flex-1 min-w-[220px]">{t('simple.home.noModsOn')}</span>
+              <button
+                type="button"
+                onClick={() => onGo('MOD_LIST')}
+                className="px-2.5 py-1 rounded font-bold bg-amber-700 hover:bg-amber-600 text-white cursor-pointer"
+              >
+                {t('simple.home.noModsOnGo')}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col gap-2">

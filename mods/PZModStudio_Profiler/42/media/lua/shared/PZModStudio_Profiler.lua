@@ -11,7 +11,10 @@
 -- thousands of calls the sum is the real time spent (the chance of straddling a tick is the
 -- fraction of a millisecond the call takes).
 --
--- Every few seconds the totals go to Zomboid/Lua/pz_profile.json, which the Studio reads.
+-- Every few seconds the totals go to Zomboid/Lua/pz_profile.json, which the Studio reads. Every
+-- 2 s a short live sample goes to Zomboid/Lua/pz_profile_live.json (overwritten, never growing):
+-- each mod's Lua time over the last 10 s, and the frames of those 10 s, for the Studio's Live
+-- panel and the Studio Link's overlay (which reads PZStudioProfiler.live in the game itself).
 
 if PZStudioProfiler then return end
 
@@ -20,7 +23,7 @@ local fileOf = getFilenameOfClosure
 local lineOf = getFirstLineOfClosure
 
 PZStudioProfiler = {
-    version = 3,
+    version = 4,
     since = now(),
     handlers = {},   -- key -> { file, line, event, ms, calls, worst }
     order = {},      -- keys in the order first seen, to write a stable file
@@ -37,8 +40,13 @@ for i = 1, HIST_STEPS do P.frames.hist[i] = 0 end
 
 -- One frame of `d` ms. A frame over 5 s is the game stopped (a loading screen, alt-tab), not
 -- a frame, and is left out.
+local live -- the live sample (below), counted here too
+
 local function frameTook(d)
     if d <= 0 or d > 5000 then return end
+    live.count = live.count + 1
+    live.sum = live.sum + d
+    if d > live.max then live.max = d end
     local f = P.frames
     f.count = f.count + 1
     f.sum = f.sum + d
@@ -63,7 +71,7 @@ local function statFor(event, file, line)
     local key = event .. "|" .. file .. "|" .. tostring(line)
     local s = P.handlers[key]
     if not s then
-        s = { file = file, line = line, event = event, ms = 0, calls = 0, worst = 0 }
+        s = { file = file, line = line, event = event, ms = 0, calls = 0, worst = 0, mark = 0, callMark = 0, slotWorst = 0 }
         P.handlers[key] = s
         table.insert(P.order, key)
     end
@@ -91,7 +99,10 @@ local function timed(s, fn)
         inner = outer + d
         s.ms = s.ms + own
         s.calls = s.calls + 1
-        if own > s.worst then s.worst = own end
+        if own > s.slotWorst then
+            s.slotWorst = own
+            if own > s.worst then s.worst = own end
+        end
         return a, b
     end
 end
@@ -206,6 +217,207 @@ function P.write()
     w:close()
 end
 
+-- ---------------------------------------------------------------- the live sample
+
+-- Every LIVE_EVERY ms what each handler took since the last look goes to its mod's slot; the
+-- last LIVE_SLOTS slots are the window (10 s). Per frame only frameTook's three numbers; the rest
+-- runs once per sample. A handler's mod is the active mod whose folder holds its file (the
+-- longest folder wins), found once per file.
+local LIVE_EVERY = 2000
+local LIVE_SLOTS = 5
+local LIVE_FILE = "pz_profile_live.json"
+local LIVE_WRITTEN = 10 -- mods in the file
+
+live = {
+    version = 1,
+    slot = 0,
+    count = 0, sum = 0, max = 0,         -- frames of the slot being filled
+    fCount = {}, fSum = {}, fMax = {}, slotMs = {}, cost = {},
+    owners = {}, ownerList = {}, fileOwner = {}, dirs = {}, dirsFor = -1,
+    top = {}, topN = 0,                  -- the mods by time in the window, the most first
+    windowMs = 0, totalMs = 0, frames = 0, frameSum = 0, frameMax = 0, costMs = 0, at = 0,
+}
+P.live = live
+for i = 1, LIVE_SLOTS do
+    live.fCount[i], live.fSum[i], live.fMax[i], live.slotMs[i], live.cost[i] = 0, 0, 0, 0, 0
+end
+
+local function ownerNamed(id, name)
+    local o = live.owners[id]
+    if not o then
+        o = { id = id, name = name, ms = {}, calls = {}, worst = {}, win = 0, winCalls = 0, winWorst = 0 }
+        for i = 1, LIVE_SLOTS do o.ms[i], o.calls[i], o.worst[i] = 0, 0, 0 end
+        live.owners[id] = o
+        table.insert(live.ownerList, o)
+    end
+    return o
+end
+local gameOwner = ownerNamed("", "")
+
+local function norm(path)
+    return string.lower((string.gsub(tostring(path), "\\", "/")))
+end
+
+--- The folders of the mods that are on, made again when the list changes.
+local function refreshDirs()
+    local okList, list = pcall(getActivatedMods)
+    if not okList or not list then return end
+    local n = list:size()
+    if n == live.dirsFor then return end
+    live.dirsFor = n
+    local dirs = {}
+    for i = 0, n - 1 do
+        local id = tostring(list:get(i))
+        local ok, info = pcall(getModInfoByID, id)
+        if ok and info then
+            local okDir, dir = pcall(function() return info:getDir() end)
+            local okName, name = pcall(function() return info:getName() end)
+            local okId, realId = pcall(function() return info:getId() end)
+            if okDir and dir then
+                local d = norm(dir)
+                if string.sub(d, -1) ~= "/" then d = d .. "/" end
+                table.insert(dirs, { dir = d, len = string.len(d), id = (okId and realId) and tostring(realId) or id, name = (okName and name) and tostring(name) or id })
+            end
+        end
+    end
+    table.sort(dirs, function(a, b) return a.len > b.len end)
+    live.dirs = dirs
+    live.fileOwner = {}
+    for _, s in pairs(P.handlers) do s.owner = nil end
+end
+
+local function ownerOf(file)
+    local o = live.fileOwner[file]
+    if o then return o end
+    local f = norm(file)
+    o = gameOwner
+    for _, d in ipairs(live.dirs) do
+        if string.sub(f, 1, d.len) == d.dir then
+            o = ownerNamed(d.id, d.name)
+            break
+        end
+    end
+    live.fileOwner[file] = o
+    return o
+end
+
+local function clean(s)
+    return (string.gsub(tostring(s), "%c", " "))
+end
+
+local function writeLive(t)
+    local w = getFileWriter(LIVE_FILE, true, false)
+    if not w then return end
+    w:write("{\"version\":" .. live.version
+        .. ",\"now\":" .. string.format("%d", t)
+        .. ",\"in_game\":" .. tostring(P.inGame == true)
+        .. ",\"window_ms\":" .. string.format("%d", live.windowMs)
+        .. ",\"frames\":{\"count\":" .. string.format("%d", live.frames)
+        .. ",\"sum\":" .. string.format("%d", live.frameSum)
+        .. ",\"max\":" .. string.format("%d", live.frameMax) .. "}"
+        .. ",\"total_ms\":" .. string.format("%d", live.totalMs)
+        .. ",\"cost_ms\":" .. string.format("%d", live.costMs)
+        .. ",\"handlers\":" .. #P.order
+        .. ",\"mods\":[")
+    local n = math.min(live.topN, LIVE_WRITTEN)
+    for i = 1, n do
+        local o = live.top[i]
+        w:write((i > 1 and "," or "")
+            .. "{\"id\":" .. quote(clean(o.id))
+            .. ",\"name\":" .. quote(clean(o.name))
+            .. ",\"ms\":" .. string.format("%d", o.win)
+            .. ",\"calls\":" .. string.format("%d", o.winCalls)
+            .. ",\"worst\":" .. string.format("%d", o.winWorst) .. "}")
+    end
+    w:write("]}")
+    w:close()
+end
+
+local function byTime(a, b)
+    if a.win ~= b.win then return a.win > b.win end
+    return a.winWorst > b.winWorst
+end
+
+--- One sample: the slot just ended goes in, the window is added up, the file written. Its own
+--- time (live.cost, live.costMs over the window) is said in the file and on the overlay.
+function P.liveSample(t)
+    local started = now()
+    refreshDirs()
+    live.slot = live.slot % LIVE_SLOTS + 1
+    local k = live.slot
+    for _, o in ipairs(live.ownerList) do
+        o.ms[k], o.calls[k], o.worst[k] = 0, 0, 0
+    end
+    for _, key in ipairs(P.order) do
+        local s = P.handlers[key]
+        local dc = s.calls - s.callMark
+        if dc > 0 then
+            local o = s.owner
+            if not o then
+                o = ownerOf(s.file)
+                s.owner = o
+            end
+            o.ms[k] = o.ms[k] + (s.ms - s.mark)
+            o.calls[k] = o.calls[k] + dc
+            if s.slotWorst > o.worst[k] then o.worst[k] = s.slotWorst end
+            s.mark, s.callMark = s.ms, s.calls
+        end
+        s.slotWorst = 0
+    end
+    live.fCount[k], live.fSum[k], live.fMax[k] = live.count, live.sum, live.max
+    live.count, live.sum, live.max = 0, 0, 0
+    live.slotMs[k] = (live.at > 0) and (t - live.at) or 0
+    live.at = t
+
+    local windowMs, frames, frameSum, frameMax, cost = 0, 0, 0, 0, 0
+    for i = 1, LIVE_SLOTS do
+        windowMs = windowMs + live.slotMs[i]
+        frames = frames + live.fCount[i]
+        frameSum = frameSum + live.fSum[i]
+        if live.fMax[i] > frameMax then frameMax = live.fMax[i] end
+        if i ~= k then cost = cost + live.cost[i] end
+    end
+    live.windowMs, live.frames, live.frameSum, live.frameMax = windowMs, frames, frameSum, frameMax
+    local top, n, total = live.top, 0, 0
+    for _, o in ipairs(live.ownerList) do
+        local ms, calls, worst = 0, 0, 0
+        for i = 1, LIVE_SLOTS do
+            ms = ms + o.ms[i]
+            calls = calls + o.calls[i]
+            if o.worst[i] > worst then worst = o.worst[i] end
+        end
+        o.win, o.winCalls, o.winWorst = ms, calls, worst
+        if calls > 0 then
+            n = n + 1
+            top[n] = o
+            total = total + ms
+        end
+    end
+    for i = n + 1, live.topN do top[i] = nil end
+    live.topN = n
+    live.totalMs = total
+    table.sort(top, byTime)
+    live.cost[k] = now() - started
+    live.costMs = cost + live.cost[k]
+    writeLive(t)
+end
+
+--- A new start (the save entered): the live window starts empty too.
+local function liveReset()
+    for _, s in pairs(P.handlers) do s.mark, s.callMark, s.slotWorst = 0, 0, 0 end
+    for _, o in ipairs(live.ownerList) do
+        for i = 1, LIVE_SLOTS do o.ms[i], o.calls[i], o.worst[i] = 0, 0, 0 end
+        o.win, o.winCalls, o.winWorst = 0, 0, 0
+    end
+    for i = 1, LIVE_SLOTS do
+        live.fCount[i], live.fSum[i], live.fMax[i], live.slotMs[i], live.cost[i] = 0, 0, 0, 0, 0
+    end
+    live.count, live.sum, live.max = 0, 0, 0
+    for i = 1, live.topN do live.top[i] = nil end
+    live.topN, live.totalMs, live.windowMs, live.frames, live.frameSum, live.frameMax, live.costMs = 0, 0, 0, 0, 0, 0, 0
+    live.at = now()
+end
+
 -- Starts the count again: what the main menu cost is not what playing costs.
 function P.reset(inGame)
     for _, s in pairs(P.handlers) do
@@ -217,9 +429,11 @@ function P.reset(inGame)
     local f = P.frames
     f.count, f.sum, f.max, f.over25, f.over50, f.over100, f.chunks, f.squares = 0, 0, 0, 0, 0, 0, 0, 0
     for i = 1, HIST_STEPS do f.hist[i] = 0 end
+    liveReset()
 end
 
 local lastWrite = now()
+local lastLive = now()
 local lastSweep = 0
 local lastFrame = nil
 local function everyFrame()
@@ -237,6 +451,10 @@ local function everyFrame()
     if t - lastWrite >= 5000 then
         lastWrite = t
         P.write()
+    end
+    if t - lastLive >= LIVE_EVERY then
+        lastLive = t
+        P.liveSample(t)
     end
 end
 

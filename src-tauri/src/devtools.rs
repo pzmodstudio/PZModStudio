@@ -821,7 +821,8 @@ pub struct MapTools {
     pub searched: Vec<String>,
 }
 
-const MAP_TOOL_EXES: [&str; 2] = ["TileZed.exe", "WorldEd.exe"];
+/// The Linux builds of the tools have the same names without ".exe".
+const MAP_TOOL_EXES: [&str; 2] = if cfg!(windows) { ["TileZed.exe", "WorldEd.exe"] } else { ["TileZed", "WorldEd"] };
 
 /// The folders worth a look: the ones named (TileZed's, WorldEd's), then the usual unzip spots.
 fn map_tool_dirs(configured: &[String]) -> Vec<PathBuf> {
@@ -892,9 +893,9 @@ mod map_tool_tests {
         let dir = std::env::temp_dir().join(format!("pzms-maptools-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("TileZed-2024")).unwrap();
-        std::fs::write(dir.join("TileZed-2024/TileZed.exe"), b"").unwrap();
+        std::fs::write(dir.join("TileZed-2024").join(MAP_TOOL_EXES[0]), b"").unwrap();
         let found = find_map_tools(&[dir.to_string_lossy().to_string()]);
-        assert!(found.tilezed.as_deref().map(|p| p.ends_with("TileZed.exe")).unwrap_or(false), "{:?}", found);
+        assert!(found.tilezed.as_deref().map(|p| p.ends_with(MAP_TOOL_EXES[0])).unwrap_or(false), "{:?}", found);
         assert!(found.worlded.is_none());
         assert_eq!(found.searched[0], dir.to_string_lossy());
         assert!(launch_map_tool(&dir.join("TileZed-2024/notepad.exe").to_string_lossy()).is_err());

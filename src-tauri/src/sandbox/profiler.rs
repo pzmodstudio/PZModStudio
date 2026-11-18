@@ -234,6 +234,19 @@ fn with_profiler(text: &str, on: bool) -> String {
     joined
 }
 
+/// Whether the profiler is in the active list (default.txt): it runs from the next start.
+pub fn is_on(z_dir: &Path) -> bool {
+    lists_profiler(&z_dir.join("mods").join("default.txt"))
+}
+
+/// A profiler left on by an older Studio gets this build's copy (its live sample is newer).
+pub fn refresh_install(z_dir: &Path) {
+    let lua = z_dir.join("mods").join(PROFILER_ID).join("42").join("media").join("lua").join("shared").join("PZModStudio_Profiler.lua");
+    if lua.is_file() && std::fs::read_to_string(&lua).map_or(true, |now| now != PROFILER_LUA) {
+        let _ = install(z_dir);
+    }
+}
+
 fn lists_profiler(path: &Path) -> bool {
     std::fs::read_to_string(path).is_ok_and(|t| t.lines().any(|l| l.trim() == MOD_LINE))
 }

@@ -33,7 +33,8 @@ pub struct AppInstance {
     /// An isolated profile ("Isolate this profile"; the name is from when it was saves only): its
     /// single-player saves, game options and mod settings are its own, put in place when it is
     /// switched on and put away when another is (profile_saves). The mods themselves are shared.
-    #[serde(default)]
+    /// Written only when true: a profile file from before this field reads and writes back the same.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub own_saves: bool,
 }
 
@@ -417,8 +418,11 @@ pub fn activate_instance(user_zomboid_dir: String, instance_id: String) -> Resul
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(c) = fs::read_to_string(&path) {
                     if let Ok(mut inst) = serde_json::from_str::<AppInstance>(&c) {
-                        inst.is_active = inst.id == instance_id;
-                        let _ = crate::load_order::ini_parser::atomic_write(&path, serde_json::to_string_pretty(&inst).unwrap_or_default());
+                        // Only the files whose mark changes: the others stay byte for byte.
+                        if inst.is_active != (inst.id == instance_id) {
+                            inst.is_active = inst.id == instance_id;
+                            let _ = crate::load_order::ini_parser::atomic_write(&path, serde_json::to_string_pretty(&inst).unwrap_or_default());
+                        }
                     }
                 }
             }
@@ -846,4 +850,214 @@ mod build_tests {
         let _ = fs::remove_dir_all(&z);
     }
 
+}
+
+/// Isolated profiles driven through the app's own calls on a real Zomboid folder: a copy of this
+/// PC's (`PZMS_ISO_COPY`, the long run) or the folder itself (`PZMS_ISO_REAL`, a short run). Never
+/// run by `cargo test`: `cargo test --lib isolation_on_real_data -- --ignored --test-threads=1`.
+/// The profile named in `PZMS_ISO_KEEP` must be active, not isolated, and is never isolated or
+/// edited: it is checked byte for byte at the end, and is the active profile again.
+#[cfg(test)]
+mod isolation_on_real_data {
+    use super::*;
+    use crate::profile_saves as ps;
+    use std::collections::BTreeMap;
+    use std::path::{Path, PathBuf};
+
+    fn fingerprint(p: &Path) -> (u64, u64) {
+        use std::hash::{Hash, Hasher};
+        let bytes = fs::read(p).unwrap_or_default();
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut h);
+        (bytes.len() as u64, h.finish())
+    }
+
+    fn is_link(p: &Path) -> bool {
+        fs::symlink_metadata(p).map(|m| m.file_type().is_symlink()).unwrap_or(false)
+    }
+
+    /// Every file under each of `rels` (the profile's settings in place), with its fingerprint.
+    fn snapshot(z: &Path, rels: &[String]) -> BTreeMap<String, (u64, u64)> {
+        fn walk(base: &Path, p: &Path, out: &mut BTreeMap<String, (u64, u64)>) {
+            if is_link(p) {
+                return;
+            }
+            if p.is_dir() {
+                for e in fs::read_dir(p).into_iter().flatten().flatten() {
+                    walk(base, &e.path(), out);
+                }
+            } else if p.is_file() {
+                out.insert(p.strip_prefix(base).unwrap().to_string_lossy().replace('\\', "/"), fingerprint(p));
+            }
+        }
+        let mut out = BTreeMap::new();
+        for rel in rels {
+            walk(z, &z.join(rel), &mut out);
+        }
+        out
+    }
+
+    /// The single-player worlds in place (mode/world).
+    fn worlds(z: &Path) -> Vec<String> {
+        let mut out = Vec::new();
+        for m in fs::read_dir(z.join("Saves")).into_iter().flatten().flatten() {
+            let mode = m.file_name().to_string_lossy().to_string();
+            for w in fs::read_dir(m.path()).into_iter().flatten().flatten().filter(|w| w.path().is_dir()) {
+                out.push(format!("{}/{}", mode, w.file_name().to_string_lossy()));
+            }
+        }
+        out.sort();
+        out
+    }
+
+    fn files_under(dir: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for e in fs::read_dir(dir).into_iter().flatten().flatten() {
+            if e.path().is_dir() && !is_link(&e.path()) {
+                out.extend(files_under(&e.path()));
+            } else {
+                out.push(e.path());
+            }
+        }
+        out
+    }
+
+    fn by_name(user: &str, name: &str) -> AppInstance {
+        list_instances(user.to_string()).unwrap().into_iter().find(|i| i.name == name).unwrap_or_else(|| panic!("no profile named {}", name))
+    }
+
+    fn run(z: &Path, long: bool) {
+        assert!(crate::sandbox::find_running_pz_pid().is_none(), "the game runs");
+        assert!(crate::server_manager::mp_test::running_servers().is_empty(), "a server runs");
+        let user = z.to_string_lossy().to_string();
+        let keep_name = std::env::var("PZMS_ISO_KEEP").expect("PZMS_ISO_KEEP: the profile that must stay as it is");
+        let keep = by_name(&user, &keep_name);
+        let keep_file = get_instances_dir(&user).join(format!("{}.json", keep.id));
+        let keep_bytes = fs::read(&keep_file).unwrap();
+        assert!(keep.is_active && !keep.own_saves, "{} must be active and not isolated", keep_name);
+        // Activating it again writes it back: only when that writes the same bytes is it touched.
+        let mut again = keep.clone();
+        again.with_link();
+        assert_eq!(serde_json::to_string_pretty(&again).unwrap().as_bytes(), &keep_bytes[..], "{}: re-activating it would not write the same file; stopping before anything moves", keep_name);
+        let s = ps::state(z);
+        assert_eq!((s.current.as_str(), s.moving.is_none()), (ps::SHARED, true));
+
+        // What must be the same at the end: the settings in place and the worlds.
+        let rels = ps::settings_in_place(z);
+        let settings_before = snapshot(z, &rels);
+        let mut worlds_before = worlds(z);
+        eprintln!("{} settings entries in place ({} files), worlds: {:?}", rels.len(), settings_before.len(), worlds_before);
+        let stamp = chrono::Local::now().format("%H%M%S").to_string();
+        let dummy = [format!("Sandbox/PZMS_IsoTest_A_{}", stamp), format!("Sandbox/PZMS_IsoTest_B_{}", stamp)];
+        if long {
+            for d in &dummy {
+                fs::create_dir_all(z.join("Saves").join(d)).unwrap();
+                fs::write(z.join("Saves").join(d).join("map_ver.bin"), d.as_bytes()).unwrap();
+                fs::write(z.join("Saves").join(d).join("map_t.bin"), vec![7u8; 4096]).unwrap();
+            }
+        }
+        let bring: Vec<String> = if long { dummy.to_vec() } else { vec![] };
+
+        let test = create_instance(user.clone(), format!("PZMS Isolation Test {}", stamp), None, keep.active_mod_ids.clone(), keep.load_order.clone()).unwrap();
+        let test = set_own_saves(user.clone(), test.id.clone(), true, bring.clone()).unwrap();
+        assert!(test.own_saves);
+        let left: Vec<String> = ps::left_shared(z).into_iter().map(|l| l.rel).collect();
+        eprintln!("left shared (too big to copy): {:?}", left);
+        assert_eq!(worlds(z), worlds_before, "the brought worlds went with it");
+        assert_eq!(snapshot(z, &rels), settings_before, "isolating copies; the settings in place stay");
+
+        let rounds = if long { 3 } else { 1 };
+        for round in 0..rounds {
+            activate_instance(user.clone(), test.id.clone()).unwrap();
+            let in_place = worlds(z);
+            let mut want: Vec<String> = in_place.iter().filter(|w| w.starts_with("Multiplayer/")).cloned().collect();
+            want.extend(bring.iter().cloned());
+            want.sort();
+            assert_eq!(in_place, want, "round {}: only its worlds (and the multiplayer ones)", round);
+            let now = snapshot(z, &rels);
+            if round == 0 {
+                assert_eq!(now, settings_before, "it starts with a copy");
+            }
+            if long && round == 0 {
+                // A setting changed inside the isolated profile, and a mod's new file.
+                let mut opts = fs::read_to_string(z.join("options.ini")).unwrap();
+                opts.push_str("pzmsIsoTest=1\r\n");
+                fs::write(z.join("options.ini"), opts).unwrap();
+                fs::write(z.join("Lua/PZMS_IsoTest_option.ini"), "isolated=1\r\n").unwrap();
+            }
+            if long && round > 0 {
+                assert!(fs::read_to_string(z.join("options.ini")).unwrap().contains("pzmsIsoTest=1"), "round {}: its own options came back", round);
+                assert!(z.join("Lua/PZMS_IsoTest_option.ini").is_file());
+            }
+            activate_instance(user.clone(), keep.id.clone()).unwrap();
+            assert_eq!(worlds(z), worlds_before, "round {}: the shared worlds back, its own away", round);
+            assert_eq!(snapshot(z, &rels), settings_before, "round {}: the shared settings back exactly", round);
+            assert!(!z.join("Lua/PZMS_IsoTest_option.ini").exists());
+            assert_eq!(fs::read(&keep_file).unwrap(), keep_bytes, "round {}: {} unchanged", round, keep_name);
+        }
+
+        if long {
+            // Isolation turned off while it is on: its worlds become shared, its settings kept aside.
+            activate_instance(user.clone(), test.id.clone()).unwrap();
+            let off = set_own_saves(user.clone(), test.id.clone(), false, vec![]).unwrap();
+            assert!(!off.own_saves);
+            assert_eq!(snapshot(z, &rels), settings_before, "the shared settings in place, not the test's");
+            worlds_before.extend(dummy.iter().cloned());
+            worlds_before.sort();
+            assert_eq!(worlds(z), worlds_before, "its worlds joined the shared ones");
+            let kept = fs::read_dir(z.join("PZModStudio_Backups/ProfileSettings").join(&test.id)).unwrap().flatten().next().unwrap().path();
+            assert!(fs::read_to_string(kept.join("options.ini")).unwrap().contains("pzmsIsoTest=1"));
+            assert!(kept.join("Lua/PZMS_IsoTest_option.ini").is_file());
+        }
+        delete_instance(user.clone(), test.id.clone()).unwrap();
+        activate_instance(user.clone(), keep.id.clone()).unwrap();
+        if long {
+            for d in &dummy {
+                fs::remove_dir_all(z.join("Saves").join(d)).unwrap();
+            }
+            worlds_before.retain(|w| !dummy.contains(w));
+        }
+
+        // At the end: as at the start.
+        assert_eq!(ps::state(z), ps::State { current: ps::SHARED.into(), moving: None });
+        assert_eq!(worlds(z), worlds_before);
+        assert_eq!(snapshot(z, &rels), settings_before);
+        assert_eq!(ps::settings_in_place(z).into_iter().filter(|r| !rels.contains(r)).collect::<Vec<_>>(), Vec::<String>::new(), "nothing new in place");
+        assert_eq!(fs::read(&keep_file).unwrap(), keep_bytes, "{} unchanged", keep_name);
+        assert!(by_name(&user, &keep_name).is_active);
+        let left_in_store = files_under(&z.join("PZModStudio_ProfileSaves"));
+        assert!(left_in_store.is_empty(), "nothing left put away: {:?}", left_in_store);
+        if !long {
+            let kept = z.join("PZModStudio_Backups/ProfileSettings").join(&test.id);
+            eprintln!("the test profile's settings kept in {} ({} files)", kept.display(), files_under(&kept).len());
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn on_a_copy_of_this_pcs_zomboid() {
+        let z = PathBuf::from(std::env::var("PZMS_ISO_COPY").expect("PZMS_ISO_COPY: a copy of the Zomboid folder"));
+        run(&z, true);
+    }
+
+    #[test]
+    #[ignore]
+    fn on_this_pcs_zomboid() {
+        let z = PathBuf::from(std::env::var("PZMS_ISO_REAL").expect("PZMS_ISO_REAL: the Zomboid folder"));
+        run(&z, false);
+    }
+
+    /// A process named java.exe whose command line runs the game server (`PZMS_FAKE_JAVA`: a
+    /// harmless program copied as java.exe, e.g. cmd.exe) is seen as a server.
+    #[test]
+    #[ignore]
+    fn a_running_server_is_seen() {
+        let exe = std::env::var("PZMS_FAKE_JAVA").expect("PZMS_FAKE_JAVA");
+        let mut child = std::process::Command::new(&exe).args(["/c", "ping -n 15 127.0.0.1 >nul & rem zombie.network.GameServer -servername fakeiso"]).spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        let seen = crate::server_manager::mp_test::running_servers();
+        let _ = child.kill();
+        // (Its -servername is inside cmd's quoted command: the name is read in the unit tests.)
+        assert!(seen.iter().any(|(pid, _)| *pid == child.id()), "{:?}", seen);
+    }
 }

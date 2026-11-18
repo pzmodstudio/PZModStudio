@@ -107,7 +107,7 @@ pub fn total_memory_mb() -> Option<u64> {
 
 #[cfg(not(windows))]
 pub fn total_memory_mb() -> Option<u64> {
-    None
+    Some(crate::platform::memory_bytes().0 / (1024 * 1024)).filter(|mb| *mb > 0)
 }
 
 fn launch_file(pz_install_dir: &str) -> Option<PathBuf> {

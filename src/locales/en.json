@@ -172,7 +172,8 @@
       "title": "Starts the game in {{mode}} and goes straight to {{name}}",
       "saveFailed": "Could not ask for the save {{name}}",
       "serverFailed": "Could not join {{name}}"
-    }
+    },
+    "play": "Play"
   },
   "settings": {
     "tabAlerts": "Alerts",
@@ -356,7 +357,30 @@
     "modsScreenOther": "The other manager's",
     "zbList": "Show ZombieBuddy's list of Java mods on the game's menu",
     "zbListBlurb": "ZombieBuddy writes every Java mod it loaded across the top of the game's menu. The Studio hides it; switch this on to see it. Applied while the game is closed.",
-    "zbListOwn": "You chose another value in the game (Options → Mods → ZombieBuddy, watermark opacity): the Studio leaves it as it is."
+    "zbListOwn": "You chose another value in the game (Options → Mods → ZombieBuddy, watermark opacity): the Studio leaves it as it is.",
+    "keptVersions": {
+      "title": "Keep earlier versions of mods",
+      "blurb": "Steam keeps no old versions of a Workshop mod: an update replaces the files. The Studio keeps a copy of the installed version of every Workshop mod a profile uses, before Steam replaces it, so a broken update can be undone from the Mod List (right click, Versions). Each file is kept once, so a version after an update costs only what changed. Past the limit, the oldest versions go first; versions you keep by hand stay. Whatever the limit, the drive is always left with 15% of its size free. Never while the game runs.",
+      "cap": "Up to",
+      "keepNow": "Keep now",
+      "keeping": "Keeping…",
+      "status": "{{used}} of {{cap}} used. {{kept}} of {{items}} Workshop items in use have their installed version kept; {{earlier}} earlier versions.",
+      "noRoom_one": "{{count}} mod has no copy for lack of room: {{names}}. A higher limit keeps it.",
+      "noRoom_other": "{{count}} mods have no copy for lack of room: {{names}}… A higher limit keeps them.",
+      "notYet": "The first copies are made a minute and a half after the Studio starts.",
+      "folder": "Folder:",
+      "folderUse": "({{used}} used)",
+      "folderDefault": "(the default, in your Zomboid folder)",
+      "chooseFolder": "Choose folder…",
+      "moving": "Moving…",
+      "moveConfirm": "Move the kept versions ({{size}}) to {{folder}}?\n\nEvery file is copied and checked, and only then is the old folder removed. If that folder has other files in it, they go in a PZModStudio_Versions folder inside it. It can take a few minutes; keep the game closed meanwhile.",
+      "moved": "Moved to {{folder}} ({{size}}). The Studio keeps them there from now on.",
+      "movedSame": "The kept versions are already in {{folder}}.",
+      "movedOldLeft": "Moved to {{folder}}, but the old folder could not be removed completely: {{why}}",
+      "drive": "{{disk}} has {{free}} free; the Studio always leaves {{reserve}} (15% of the drive) free.",
+      "limited": "Limited by free space on {{disk}}: up to {{cap}} for now ({{free}} free; the Studio always leaves {{reserve}}, 15% of the drive, free). Free some space or choose a folder on another drive.",
+      "limitedRound": "The last round was limited by free space on {{disk}}."
+    }
   },
   "profiles": {
     "wizard": {
@@ -417,7 +441,7 @@
     "deleteTitle": "Delete this profile",
     "deleteLabel": "Delete the profile {{name}}",
     "noneTitle": "No profiles created",
-    "noneBlurb": "Create your first profile in the left panel to save the current mod combination.",
+    "noneBlurb": "Create your first profile with the \"New profile\" button to save the current mod combination.",
     "editTitle": "Edit Mod Profile",
     "gameBuild": "Game build",
     "gameBuildLabel": "Game build this profile is for",
@@ -493,8 +517,13 @@
       "confirm_one": "Isolate this profile (takes {{count}} save)",
       "confirm_other": "Isolate this profile (takes {{count}} saves)",
       "done": "{{name}} is isolated: it has its own saves, options and mod settings.",
-      "backDone": "{{name}} is no longer isolated: its saves are back among the shared ones and its settings were kept in a backup."
-    }
+      "backDone": "{{name}} is no longer isolated: its saves are back among the shared ones and its settings were kept in a backup.",
+      "leftShared_one": "{{list}} stays the same for every profile: it is too big to copy.",
+      "leftShared_other": "{{list}} stay the same for every profile: they are too big to copy.",
+      "leftSharedTitle": "When a profile is isolated the app copies the game options and mod settings, except a file over 20 MB or a folder over 50 MB that is not a game setting: that one is used the same by every profile."
+    },
+    "loading": "Reading your profiles…",
+    "createdNotActive": "Profile '{{name}}' created. It is not on yet: switch it on from its card when you want it."
   },
   "modList": {
     "empty": {
@@ -618,7 +647,7 @@
       "rules": "Load-order rules…",
       "keepVersion": "Keep this version",
       "kept": "{{name}} as it is today is kept ({{when}}).",
-      "keptVersions": "Kept versions…",
+      "keptVersions": "Versions…",
       "copyId": "Copy the mod id",
       "unsubscribe": "Unsubscribe from its Workshop item",
       "unsubscribeTitle": "Steam deletes its files; subscribe again from Browse Mods to get it back",
@@ -747,7 +776,11 @@
         "api_missing": "Calls things this build lacks",
         "function_seen_other": "Another version in the game",
         "java_link_broken": "Java older than this build",
-        "game_folder_changed": "The game's folder changed"
+        "game_folder_changed": "The game's folder changed",
+        "file_conflict": "Same file as another mod",
+        "file_conflict_stale": "File merge out of date",
+        "kept_version_in_use": "Kept version in use",
+        "require_spaced": "Space in its requirements"
       },
       "fix": {
         "enable": "Switch on {{name}}",
@@ -776,7 +809,21 @@
       "moreTitle": "{{count}} more problem(s)",
       "moreAction": "Click: open Diagnostics on them",
       "infoTitle": "{{count}} note(s), nothing to do",
-      "moreInPanel": "The panel on the right shows them all, with what each one says."
+      "moreInPanel": "The panel on the right shows them all, with what each one says.",
+      "simpleLabels": {
+        "not_for_build": "Made for another version of the game",
+        "outside_version_range": "Does not accept your version of the game",
+        "invalid_mod_info": "The game cannot read it",
+        "zb_excluded": "Part of the mod did not load",
+        "dependency_unavailable": "Needs a mod that does not work on your version",
+        "dependency_after": "Comes before a mod it needs",
+        "incompatible": "Does not work with another mod you have on",
+        "java_link_broken": "Part of it does not work on your game version",
+        "learned_issue": "Failed several times on this PC",
+        "api_missing": "Uses things your game version does not have",
+        "community_successor": "There is a version for your game",
+        "require_spaced": "A typo in its files keeps it out of the game"
+      }
     },
     "statWorkshop": "from the Workshop",
     "statWorkshopOf": "of {{total}} from the Workshop",
@@ -1261,13 +1308,23 @@
         "word": "your mod",
         "title": "A mod you are making (its folder is linked from elsewhere)."
       }
+    },
+    "willEnable_one": "switch on 1 mod that others need",
+    "willEnable_other": "switch on {{count}} mods that others need",
+    "willMove_one": "move 1 mod earlier in the load order",
+    "willMove_other": "move {{count}} mods earlier in the load order",
+    "changesMade_one": "1 change made to your mod list.",
+    "changesMade_other": "{{count}} changes made to your mod list.",
+    "firstCheck": {
+      "title": "Checking your mods…",
+      "body": "The first check of a list reads each of its {{count}} mods: with a few dozen it takes seconds, with hundreds a few minutes. What it finds shows here."
     }
   },
   "dialogs": {
     "kept": {
-      "title": "Kept versions of {{name}}",
-      "blurb": "Steam replaces a Workshop mod in place when it updates; there is no going back unless a copy was kept. A kept version put back becomes a local copy the game reads instead of the Workshop one.",
-      "keepTitle": "Copies the mod's folder as it is today into Zomboid/PZModStudio_Snapshots",
+      "title": "Versions of {{name}}",
+      "blurb": "Steam replaces a Workshop mod in place when it updates and keeps no old versions. The Studio keeps the installed version of every mod a profile uses, by itself (Settings, App), so the one from before an update stays here. A version put back becomes a local copy the game reads instead of the Workshop one.",
+      "keepTitle": "Keeps the mod as it is today; a version kept by hand is never dropped to make room",
       "keeping": "Keeping…",
       "keepToday": "Keep the version installed today{{version}}",
       "modversion": " (modversion {{version}})",
@@ -1278,9 +1335,24 @@
       "deleteTitle": "Delete this kept copy",
       "delete": "Delete",
       "keptNow": "{{name}} as it is today is kept ({{when}}).",
-      "confirmUse": "Use the version of {{name}} kept on {{when}}{{version}}?\n\nIt goes into Zomboid/mods as a local copy, and the game started from the Studio reads it instead of the Workshop one. Diagnostics lists it as a compatible copy, with \"Back to the original\" to go back to the Workshop version.",
+      "confirmUse": "Use the version of {{name}} kept on {{when}}{{version}}?\n\nIt goes into Zomboid/mods as a local copy, and the game started from the Studio reads it instead of the Workshop one. The Workshop folder is not touched. \"Back to the Workshop version\" (here, or in Diagnostics) undoes it.",
       "restored": "{{name}} is back to the version kept on {{when}}. Start the game from the Studio to play it.",
-      "confirmDelete": "Delete the version of {{name}} kept on {{when}}? This cannot be undone."
+      "confirmDelete": "Delete the version of {{name}} kept on {{when}}? This cannot be undone.",
+      "close": "Close",
+      "inUseLine": "The game uses the version kept on {{when}}{{version}}, from Zomboid/mods.",
+      "back": "Back to the Workshop version",
+      "confirmBack": "Go back to the Workshop version of {{name}}?\n\nThe copy in Zomboid/mods goes to the backups (Zomboid/PZModStudio_Backups/mods) and the game reads the Workshop one again. The kept version stays here.",
+      "backDone": "{{name}} is back to the Workshop version.",
+      "tagInUse": "in use",
+      "tagCurrent": "installed now",
+      "tagAuto": "kept by the Studio",
+      "tagKept": "kept by you",
+      "tagCopy": "plain copy",
+      "published": "published {{date}}",
+      "useCurrentTitle": "The same files Steam has now: using it keeps this version even when Steam updates the mod",
+      "earlierLine_one": "An earlier version is kept: {{when}}{{version}}.",
+      "earlierLine_other": "{{count}} earlier versions are kept, the newest {{when}}{{version}}.",
+      "open": "Versions…"
     },
     "history": {
       "buttonTitle": "Undo a change to your list: every time the Studio wrote it, the one before was kept. Pick one and it is put back.",
@@ -2123,7 +2195,18 @@
       "folderNotCompat": "There is already a folder {{what}} in Zomboid/mods that is not a Studio compatible copy: move or rename it first.",
       "earlierCompat": "There is already an earlier compatible copy of {{what}} in Zomboid/mods.",
       "bisectPairNot": "{{with}} and {{mod}} together do not do it either. It may not happen every time (try again with \"does not happen every time\" ticked), or it needs more than two mods.",
-      "bisectNoPartner": "No other mod makes it happen together with {{with}}. It may not happen every time, or it needs more than two mods."
+      "bisectNoPartner": "No other mod makes it happen together with {{with}}. It may not happen every time, or it needs more than two mods.",
+      "profilesCloseGame": "Close Project Zomboid first (process {{pid}}): the saves, game options and mod settings of isolated profiles are moved only while no Project Zomboid game or server runs, so nothing is moved while one of them has the files open.",
+      "profilesStopServer": "The Project Zomboid server \"{{name}}\" is running (process {{pid}}). Stop it first (Servers screen, or its console): the saves, game options and mod settings of isolated profiles are moved only while no Project Zomboid game or server runs.",
+      "profilesStopAnyServer": "A Project Zomboid server is running (process {{pid}}). Stop it first (Servers screen, or its console): the saves, game options and mod settings of isolated profiles are moved only while no Project Zomboid game or server runs.",
+      "profilesNotASet": "\"{{set}}\" is not a profile with its own saves.",
+      "profilesSwitchFirst": "Switch to a profile that is not isolated first: the saves to bring are the shared ones.",
+      "cannotMake": "Cannot make {{what}}: {{why}}",
+      "cannotMoveTo": "Cannot move {{what}} to {{to}}: {{why}}",
+      "cannotMove": "Cannot move {{what}}: {{why}}",
+      "cannotKeep": "Cannot keep {{what}} in {{to}}: {{why}}",
+      "cannotCopy": "Cannot copy {{what}}: {{why}}",
+      "cannotPutCopy": "Cannot put the copy in {{what}}: {{why}}"
     },
     "holder": {
       "server": "the server \"{{name}}\"",
@@ -2558,7 +2641,8 @@
       "settings": "Quick .ini",
       "discord": "Discord",
       "mpTest": "Multiplayer test",
-      "options": "All options"
+      "options": "All options",
+      "restarts": "Restarts"
     },
     "host": {
       "memory": "Memory (-Xmx)",
@@ -2578,7 +2662,7 @@
       "launch": "Launch Dedicated Server ({{name}})",
       "stop": "Stop Dedicated Server",
       "restart": "Restart",
-      "zombieBuddyAgent": "Java mods: this server lists ZombieBuddy, so it starts with its agent (-agentlib:zbNative=policy=deny-new). Only jars already approved on this PC load; a server cannot show ZombieBuddy's window. Mods & Sync says which are not approved yet."
+      "zombieBuddyAgent": "Java mods: this server lists ZombieBuddy, so it starts with its agent (-agentlib:zbNative=policy=deny-new) when the folder it starts from has zbNative.dll. Only jars already approved on this PC load; a server cannot show ZombieBuddy's window. Mods & Sync says which are not approved yet, and when the agent is missing."
     },
     "mods": {
       "clientState": "Current Client State",
@@ -2751,6 +2835,130 @@
       "save_other": "Save {{count}} changes",
       "saved_one": "Saved: {{count}} option. The files were backed up to PZModStudio_Backups/server_settings.",
       "saved_other": "Saved: {{count}} options. The files were backed up to PZModStudio_Backups/server_settings."
+    },
+    "restarts": {
+      "title": "Restarts",
+      "intro": "Restart the server at set times, when one of its Workshop mods is updated, or now: the players are warned in the game first, then the world is saved, the server quits and starts again the same way. It can also start again by itself after a crash.",
+      "whileOpen": "This is done by PZ Mod Studio: only while the app is open. The server keeps running if you close the app, but nothing restarts it then. The schedule is saved and goes on when you open the app again.",
+      "notWatching": "PZ Mod Studio is not following the server right now (it was just opened, or it is busy): restarts wait until it is.",
+      "restarting": "Restarting now: saving, stopping and starting again...",
+      "pending": "Restart at {{when}} (in {{count}} min): {{why}}.",
+      "notRunning": "The server is not running: restarts start counting once it runs.",
+      "next": "Next scheduled restart: {{when}}.",
+      "noneScheduled": "No scheduled restart.",
+      "updatedMods": "Updated: {{list}}",
+      "gaveUp": "At {{when}} the server stopped by itself again: it had already been started again {{count}} times in {{minutes}} minutes, so it was left off. Look at its log (See how it runs) before starting it again.",
+      "warnFor": "Warn the players for",
+      "noWarning": "no warning (now)",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min",
+      "restartNow": "Restart now (warn players)",
+      "restartNowTitle": "The players are told in the game, then the world is saved and the server starts again",
+      "cancel": "Call it off",
+      "asked_one": "Restart asked: in {{count}} minute.",
+      "asked_other": "Restart asked: in {{count}} minutes.",
+      "cancelAsked": "Calling off the restart: the players are told.",
+      "scheduled": "Scheduled restarts",
+      "scheduledHelp": "At the times below and/or every few hours. A time less than 30 minutes after the server started is skipped.",
+      "times": "At these times (this PC's clock)",
+      "addTime": "Add",
+      "newTime": "New time",
+      "removeTime": "Remove {{time}}",
+      "every": "Every",
+      "everyOff": "never",
+      "hours_one": "{{count}} hour",
+      "hours_other": "{{count}} hours",
+      "everyHelp": "counted from when the server started",
+      "warnings": "Warn the players before (in the game chat)",
+      "warningsHelp": "Sent over RCON with servermsg. A restart asked for in less time says only the warnings that fit.",
+      "onModUpdate": "Restart when a Workshop mod of this server is updated",
+      "onModUpdateHelp": "Every {{minutes}} minutes the Studio asks Steam when each item of WorkshopItems= was last updated; one updated after the server started gets a restart with the warnings above, and the server downloads the update as it starts.",
+      "onCrash": "Start it again if it stops by itself",
+      "onCrashHelp": "After a crash, once it had come up. At most {{count}} times in {{minutes}} minutes; then it stays off and this screen says so. A server that fails while it starts is not started again: the same thing would happen.",
+      "save": "Save",
+      "saved": "Saved.",
+      "unsaved": "Not saved yet",
+      "history": "Last restarts",
+      "noHistory": "None yet.",
+      "reason": {
+        "schedule": "Scheduled",
+        "mod_update": "Mod update",
+        "manual": "Asked for",
+        "crash": "After a crash",
+        "gave_up": "Left off: too many crashes",
+        "crash_no_restart": "Stopped by itself",
+        "stopped_while_closed": "Stopped while the app was closed"
+      }
+    },
+    "dedicated": {
+      "title": "Server program",
+      "fromGame": "the game's files",
+      "fromDedicated": "dedicated server",
+      "intro": "A server can run from the game's own files (the default) or from the official Project Zomboid Dedicated Server, a separate program Steam gives for free. The dedicated one can be on another branch than your game and is updated apart from it. The Studio installs and updates it with SteamCMD, Valve's command-line Steam.",
+      "sourceGame": "The game's files",
+      "sourceGameHelp": "Uses the game folder set in Settings. Nothing to install.",
+      "sourceDedicated": "The dedicated server",
+      "sourceDedicatedHelp": "Starts servers from the folder below.",
+      "installFirst": "Install it in the folder below first.",
+      "stopFirst": "Stop the server to change the program it runs from.",
+      "folder": "Dedicated server folder",
+      "pick": "Pick a folder",
+      "found": "Installed here: build {{build}}, {{branch}}, {{size}}.",
+      "incomplete": "The last install or update did not finish: update it again.",
+      "checkDue": "The last check of its files was stopped: the next update checks all of them again (many minutes).",
+      "notThere": "Not installed in this folder yet. Pick an empty folder (or a new one) on a disk with room.",
+      "alsoFound": "Also found: {{dir}}",
+      "branch": "Branch",
+      "branchPublic": "Stable (public)",
+      "branchUnstable": "Unstable (beta)",
+      "branchHelp": "It has to match the game of whoever joins. Changing it here and pressing Update switches the folder.",
+      "branchGame": "Your game is on {{branch}}.",
+      "branchMismatch": "That is not the branch your game is on: a game from this PC could not join that server.",
+      "version": "It starts as game version {{version}}.",
+      "versionMatches": "The same version as your game ({{game}}): a game from this PC can join it.",
+      "versionMismatch": "Your game is version {{game}} and this server {{version}}: a game only joins a server of its own version. Update the server here (or the game in Steam).",
+      "steamcmdFound": "SteamCMD: {{path}}",
+      "steamcmdMissing": "SteamCMD is not on this PC yet: the first install downloads it from Valve (about 3 MB), after asking you.",
+      "askDownload": "SteamCMD is not on this PC. Download it from Valve ({{url}}, about 3 MB)? Its signature is checked before it runs. It then updates itself (about 40 MB) and downloads the dedicated server from Steam (several GB).",
+      "downloadAndInstall": "Download SteamCMD and install",
+      "notNow": "Not now",
+      "install": "Install",
+      "update": "Update",
+      "cancel": "Stop",
+      "size": "Several GB from Steam; it takes a while.",
+      "onDisk": "In the folder so far: {{size}}",
+      "folderSize": "Folder size: {{size}}",
+      "commandTitle": "The SteamCMD command that runs",
+      "usingDedicated": "Servers now start from the dedicated server.",
+      "usingGame": "Servers now start from the game's files.",
+      "phase": {
+        "download_steamcmd": "Downloading SteamCMD from Valve",
+        "starting": "Starting SteamCMD",
+        "steamcmd_update": "SteamCMD is updating itself",
+        "login": "Logging in to Steam (anonymous)",
+        "preallocating": "Making room on the disk",
+        "downloading": "Downloading the dedicated server",
+        "verifying": "Checking the files",
+        "committing": "Putting the files in place",
+        "reconfiguring": "Setting it up",
+        "updating": "Updating",
+        "done": "Installed and up to date",
+        "upToDate": "Already up to date: nothing to download",
+        "error": "It did not finish",
+        "cancelled": "Stopped"
+      },
+      "errors": {
+        "steamcmd_missing": "SteamCMD is not on this PC.",
+        "bad_folder": "That folder will not do: {{detail}}",
+        "bad_branch": "That branch name will not do: {{detail}}",
+        "server_running": "The server runs from that folder: stop it first.",
+        "install_running": "An install or update is already running.",
+        "not_installed": "The dedicated server is not installed in that folder yet: install it first.",
+        "download_failed": "SteamCMD could not be downloaded: {{detail}}",
+        "signature": "SteamCMD was not run: {{detail}}",
+        "bad_steamcmd": "That is not a steamcmd.exe.",
+        "steamcmd_missing_linux": "SteamCMD is not on this PC. Install it from your distribution (the steamcmd package) or Valve's steamcmd_linux.tar.gz, then point the Studio at its steamcmd.sh."
+      }
     }
   },
   "developer": {
@@ -3155,6 +3363,7 @@
       "confirming": "One mod is left: <b class=\"text-cyan-300\">{{mod}}</b>, and it is the only suspect switched on. Play, then say whether it still happens.",
       "trial": "<b class=\"text-cyan-300\">{{trial}}</b> of <b class=\"text-slate-200\">{{candidates}}</b> suspects are switched on, plus the {{alwaysOn}} mods another mod requires. Play the way you did when it happened, then answer.",
       "owns": "The hunt owns the mod list until it ends: switching mods on or off in the Mod List while it runs makes the next answer mean nothing.",
+      "saveOwnList": "A saved game loads with its own mod list, not the trial's: start a new game for each trial. If you load an old one, the Studio Link says which mods it brings back that the trial switched off; taking them out changes that save (a backup is kept).",
       "showTrial": "Show the {{count}} mods on trial",
       "hideTrial": "Hide the {{count}} mods on trial",
       "launch": "Launch the game",
@@ -3198,6 +3407,52 @@
       "optionalOff": "{{mod}} asks for a module of {{owner}} ({{wanted}}), which you have installed and switched off. The game carried on, and no error from {{file}} follows in the log: it looks like an optional link between the two. Nothing to do.",
       "nowhereOff": "No module called {{wanted}} is in the game or in the mods you have switched on. {{owner}}, which you have installed and switched off, has it at that path.",
       "movedUnrelated": "A module of that name is in {{owner}}, at {{path}} (in {{phase}}/), not at {{wanted}}. Neither mod asks for the other, so it may be a different module with the same name: nothing is fixed from here."
+    },
+    "live": {
+      "title": "Live",
+      "badge": "game running",
+      "chartWaiting": "The line starts once the game has been running for a few seconds.",
+      "minutesAgo_one": "{{count}} min ago",
+      "minutesAgo_other": "{{count}} min ago",
+      "now": "now",
+      "sumFps": "{{fps}} FPS",
+      "sumHeap": "Java {{used}} of {{max}} GB",
+      "sumRam": "memory {{gb}} GB",
+      "sumCpu": "CPU {{pct}} %",
+      "sumErrors_one": "{{count}} Lua error",
+      "sumErrors_other": "{{count}} Lua errors",
+      "fpsTitle": "FPS, last minutes",
+      "fpsValue": "{{fps}} FPS",
+      "fps30": "dashed: 30 FPS",
+      "frame": "Frame",
+      "frameValue": "{{ms}} ms on average, longest {{worst}} ms (last 10 s)",
+      "heap": "Java memory",
+      "heapValue": "{{used}} GB used of {{max}} GB (its limit)",
+      "heapNoLimit": "{{used}} GB used",
+      "heapUnknown": "said by the Studio Link 1.20 or newer, in a game",
+      "process": "Whole process",
+      "processValue": "{{gb}} GB (the PC has {{free}} GB free)",
+      "cpu": "CPU",
+      "heapTitle": "Java memory used, last minutes",
+      "ramTitle": "Process memory, last minutes",
+      "luaTitle": "Lua time now, by mod (last 10 s)",
+      "luaTotal": "{{ms}} ms/s, {{pct}} % of the time",
+      "luaRowTip": "{{calls}} calls in 10 s, the longest {{worst}} ms",
+      "msPerS": "{{ms}} ms/s",
+      "luaHow": "From the Studio profiler: every mod event handler clocked. Its own sampling: {{cost}} ms/s for {{handlers}} handlers.",
+      "luaNone": "No mod's Lua ran in the last 10 s.",
+      "profilerOff": "Mods' Lua time is not measured: the Studio profiler is off, and nothing is timed without it. Turn it on and it runs from the next start of the game (it goes first in the mod list, and in the save you played last).",
+      "profilerNext": "The profiler is on for the next start: close the game and start it again to see which mods take the most time.",
+      "profilerTurnOn": "Turn it on for the next start",
+      "errorsTitle": "Lua errors this session",
+      "errorsCount_one": "{{count}} Lua error, by mod:",
+      "errorsCount_other": "{{count}} Lua errors, by mod:",
+      "errorsNone": "None so far.",
+      "noLink": "The Studio Link tells FPS and errors once you are in a game (version 1.20 or newer).",
+      "newCard": "new",
+      "overlayOn": "The Link's overlay shows in the game. Its own cost: {{cost}} ms per second.",
+      "overlayOff": "The Link's overlay is hidden (pause menu: Live overlay, or the key in Options > Mods). Its meter costs {{cost}} ms per second.",
+      "theGame": "the game's own code"
     }
   },
   "backendText": {
@@ -3211,12 +3466,12 @@
       "invalid_mod_info": "{{mod}}: {{reason}}",
       "missing_dependency_similar": "{{mod}} requires {{dep}}, which is not installed (an installed mod is called {{similar}}: ids are case-sensitive)",
       "missing_dependency_plain": "{{mod}} requires {{dep}}, which is not installed",
-      "dependency_not_enabled": "{{mod}} requires {{dep}}, which is installed but not enabled",
+      "dependency_not_enabled": "{{mod}} requires {{dep}}, which is installed but off in this list. The game loads it anyway, as a requirement, so nothing breaks; switch it on so the list shows what runs.",
       "dependency_after": "{{mod}} requires {{dep}}, but {{dep}} loads after it",
       "dependency_unavailable_not_installed": "{{mod}} requires {{dep}}, which is unavailable: {{culprit}} is not installed",
       "dependency_unavailable_cannot_load": "{{mod}} requires {{dep}}, which is unavailable: {{culprit}} cannot load on this build",
-      "load_after_order": "{{mod}} asks to load after {{other}}, but {{other}} comes later in the list",
-      "load_before_order": "{{mod}} asks to load before {{other}}, but {{other}} comes earlier in the list",
+      "load_after_order": "{{mod}} asks to load after {{other}}, but {{other}} loads later",
+      "load_before_order": "{{mod}} asks to load before {{other}}, but {{other}} loads earlier",
       "incompatible": "{{mod}} is marked incompatible with {{other}}, and both are enabled",
       "workshop_update_pending": "Steam has a newer version of {{mod}}{{published}} that is not downloaded yet. Nothing breaks meanwhile: the game runs the version you have. Steam usually downloads it once the game is closed; if it still waits after that, restart Steam. It matters on a server: servers reject players whose mod versions differ (\"Workshop item version is different than the server's\").",
       "compatible_copy": "{{mod}} uses your fixed copy ({{changes}}) instead of the Workshop original, which does not load on your build. Nothing to do. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Once the author updates it, \"Back to the original\" removes the copy.",
@@ -3265,6 +3520,9 @@
       "server_java_not_approved": "{{mod}}: its jar {{jar}} is not approved in ZombieBuddy on this PC yet (new or changed since it was approved). The server only loads approved jars (it has no window to ask), so start the game once with this mod on and allow it in ZombieBuddy's window, then start the server.",
       "server_java_denied": "{{mod}}: ZombieBuddy was told to refuse {{jar}} on this PC, so the server does not load it either. Allow it from ZombieBuddy's window in the game (or remove its line from ~/.zombie_buddy/mod_approvals.json).",
       "server_java_without_zombiebuddy": "{{mods}} carry Java code (javaJarFile=), but Mods= has no ZombieBuddy: their jars never load on the server, only their Lua.",
+      "server_java_no_agent": "Mods= has ZombieBuddy, but the game's folder ({{folder}}) has no zbNative.dll: the server starts without ZombieBuddy and no Java mod loads (their Lua does). Start the game once with ZombieBuddy on (it puts zbNative.dll and ZombieBuddy.jar there), then start the server.",
+      "server_java_no_agent_dedicated": "Mods= has ZombieBuddy, but the dedicated server's folder ({{folder}}) has no zbNative.dll: the server starts without ZombieBuddy and no Java mod loads (their Lua does). To have them, copy zbNative.dll and ZombieBuddy.jar from the game's folder ({{game}}) into the dedicated server's folder, or start servers from the game's files.",
+      "server_java_no_agent_dedicated_nowhere": "Mods= has ZombieBuddy, but the dedicated server's folder ({{folder}}) has no zbNative.dll: the server starts without ZombieBuddy and no Java mod loads (their Lua does). ZombieBuddy puts zbNative.dll and ZombieBuddy.jar in the game's folder ({{game}}) when the game starts with it on; then copy both into the dedicated server's folder.",
       "server_mod_workshop_only": "{{mod}} is only in the Steam Workshop folder. A server started without Steam (NoSteam) only reads Zomboid/mods, so it reports it \"not found\". Copy it into Zomboid/mods.",
       "server_mod_workshop_only_required": "{{mod}} is only in the Steam Workshop folder. A server started without Steam (NoSteam) only reads Zomboid/mods, so it reports it \"not found\" and also drops {{dropped}}, which require it. Copy it into Zomboid/mods.",
       "server_mod_workshop_linked": "{{mod}} is in Zomboid/mods as a link to its Workshop folder, not a copy. With some linked mods a server started without Steam crashes while it creates the world (\"absPath:null\", then \"Server Terminated\"). Replace the link with a copy.",
@@ -3311,7 +3569,12 @@
       "function_seen_other": "In the running game, the version of {{function}} that runs is {{actual}}'s ({{place}}), not {{expected}}'s as their files suggest: a mod sets it later than its files show (from a function or an event of its own). Nothing to do unless something of {{expected}} seems missing in the game.",
       "function_overridden_mod_many": "{{winner}} replaces {{count}} functions of {{owner}} ({{examples}}...) after {{cut}} changed them, so those changes never run. {{how}}",
       "java_link_broken": "{{mod}}'s Java uses {{count}} thing(s) this build of the game no longer has: {{examples}}{{more}}. That code fails when it runs, often as the game starts or a save loads.{{patch}} If the Monitor shows it failing, look for an update of {{mod}} or turn it off; if it works, it checks first and there is nothing to do.",
-      "game_folder_changed": "While the game ran (session that ended {{when}}), {{count}} file(s) of the game's own folder changed: {{files}}. The game never writes there itself: a Java mod, a mod's helper program or another tool did. If you did not install or update something there yourself, look at which mod could have."
+      "game_folder_changed": "While the game ran (session that ended {{when}}), {{count}} file(s) of the game's own folder changed: {{files}}. The game never writes there itself: a Java mod, a mod's helper program or another tool did. If you did not install or update something there yourself, look at which mod could have.",
+      "kept_version_in_use": "{{mod}} runs from the version kept on {{kept}} that you put back in Zomboid/mods; the Workshop version is ignored meanwhile. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Nothing to do while the newer one gives trouble; once its author fixes it, \"Back to the Workshop version\" takes the copy out.",
+      "kept_version_in_use_newer": "{{mod}} runs from the version kept on {{kept}} that you put back in Zomboid/mods; the Workshop version (modversion {{workshop}}) is ignored meanwhile. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Nothing to do while the newer one gives trouble; once its author fixes it, \"Back to the Workshop version\" takes the copy out.",
+      "require_spaced_copy": "{{mod}} does not load: its mod.info names a required mod with a space around it ({{written}}). The game looks for a mod called exactly that, with the space, finds none and leaves it out, though its mods screen shows it on. A compatible copy mends the line in a copy; the original files stay as they are, and its author can fix it by taking the spaces out.",
+      "require_spaced_local": "{{mod}} does not load: its mod.info names a required mod with a space around it ({{written}}). The game looks for a mod called exactly that, with the space, finds none and leaves it out, though its mods screen shows it on. Take the spaces out of its require= line (ids separated by commas only) and it loads.",
+      "dependency_unavailable_spaced_require": "{{mod}} requires {{dep}}, which is unavailable: {{culprit}} does not load (a space in its require= line)"
     },
     "fragments": {
       "lua_concat": "joined text with a value that is not there",
@@ -4221,7 +4484,8 @@
     "on": {
       "game": "the game",
       "workshop": "the Workshop mods",
-      "zomboid": "the Zomboid folder (local mods, saves, backups)"
+      "zomboid": "the Zomboid folder (local mods, saves, backups)",
+      "versions": "the kept versions of mods"
     },
     "folder": {
       "game": "The game (its install folder)",
@@ -4236,7 +4500,8 @@
       "studioLogs": "Studio logs",
       "gameArchive": "The game's code of each build (to compare after an update)",
       "profilePhotos": "Profile photos (Diagnostics; deleted from Settings)",
-      "gameLogs": "Game logs (Zomboid/Logs)"
+      "gameLogs": "Game logs (Zomboid/Logs)",
+      "versions": "Earlier versions of mods"
     },
     "how": "A mod counts as used when a profile has it (on, or as part of the profile), the game's active list has it, a save's mod list (mods.txt) names it, or a kept server loaded it the last time you joined. Nothing goes to the Recycle Bin while the game is open.",
     "idleSum_one": "{{size}} in {{count}} off everywhere",
@@ -4253,7 +4518,7 @@
     "done": "Get started",
     "again": "Show the welcome tour again",
     "language": "Language:",
-    "notFound": "Not found: set it in Settings",
+    "notFound": "Not found: pick it with Browse... in Settings",
     "lockedHere": "This screen opens once you have an active profile (Profiles step).",
     "paths": {
       "game": "Game folder",
@@ -4280,7 +4545,7 @@
       },
       "folders": {
         "title": "Your folders",
-        "body": "First things first: where the game is and where your mods are. The Studio finds them itself; if one is missing, set it in Settings (behind this card).",
+        "body": "First things first: where the game is and where your mods are. The Studio finds them itself. If one says \"Not found\", pick it with the Browse... button on the Settings screen behind this card.",
         "points": [
           "The game folder is where ProjectZomboid64.exe is.",
           "The Workshop folder is where Steam downloads the mods you subscribe to.",
@@ -4307,7 +4572,7 @@
       },
       "health": {
         "title": "Diagnostics",
-        "body": "What the app knows about your mods, the game and the server, in three parts, with the Doctor on the front page for when you do not know where to start.",
+        "body": "What the app knows about your mods, the game and the server, in three parts, with a step-by-step guide on the front page for when you do not know where to start.",
         "points": [
           "Mods: checks your list with the game's own rules. Problems: missing or switched-off requirements, wrong order, mods your build can't load, incompatible pairs. Many are fixed with one button.",
           "Conflicts: two mods shipping the same file or item; merge them or pick one.",
@@ -4951,7 +5216,8 @@
       "title": "How much of the Studio to show",
       "blurb": "Simple shows what you need to play with mods. Complete shows every screen. Nothing is deleted or switched off when you change: you can go back and forth whenever you like.",
       "simple": "Home with Play, your mods (on/off, order, Auto-Sort), profiles, Explore, saves, and in Diagnostics only what you need to fix, with one button each.",
-      "advanced": "Everything: Monitor, What's new, Maps, Merger, Servers, Developer, every Diagnostics tab and the AI tools."
+      "advanced": "Everything: Monitor, What's new, Maps, Merger, Servers, Developer, every Diagnostics tab and the AI tools.",
+      "headerBlurb": "Where your game and mods live, which warnings you see, and the app."
     },
     "home": {
       "profile": "Profile in use",
@@ -4971,11 +5237,15 @@
       "okHint": "You can play.",
       "optional_one": "You can play. 1 optional suggestion (the game works without it) is in Complete mode.",
       "optional_other": "You can play. {{count}} optional suggestions (the game works without them) are in Complete mode.",
-      "modsHint": "Switch mods on and off, order them, Auto-Sort.",
+      "modsHint": "Switch mods on and off and put them in order (or let the Studio order them).",
       "browseHint": "Find and subscribe to Workshop mods.",
       "savesHint": "Your games and their backups.",
       "profilesHint": "Make or switch mod lists.",
-      "moreInComplete": "This is Simple mode. Merger, Monitor, Servers, Maps and the other tools are in Complete mode."
+      "moreInComplete": "This is Simple mode. Merger, Monitor, Servers, Maps and the other tools are in Complete mode.",
+      "noModsOn": "No mods are on in this profile yet: the game would start without mods.",
+      "noModsOnGo": "Switch mods on",
+      "gameOpen": "The game is already open.",
+      "gameOpenLine": "The game is open. The first time with new mods it takes a few minutes to load. You can leave the Studio open in the background."
     },
     "health": {
       "nothingToAct": "Nothing to fix: your mods are ready to play.",
@@ -4983,7 +5253,85 @@
       "optionalHidden_other": "{{count}} optional suggestions are hidden (the game works without them).",
       "nothingToDoHidden_one": "1 more is only good to know or already fixed by the Studio: nothing to do.",
       "nothingToDoHidden_other": "{{count}} more are only good to know or already fixed by the Studio: nothing to do.",
-      "showAll": "Show everything (Complete)"
-    }
+      "showAll": "Show everything (Complete)",
+      "intro": "Only what you need to fix for your mods to load properly, each with its button. The optional ones and the ones that ask for nothing are counted below.",
+      "fixAllTitle": "Makes the safe fixes of the list above (switching on what is missing and ordering). The hidden optional suggestions are left alone.",
+      "mergerExplain": "Two mods change the same thing and the game uses only one: the one of the mod that loads last. Choosing what stays from each is done in the Complete view.",
+      "mergerInComplete": "Open the Complete view",
+      "fixAll_one": "Fix 1 problem automatically",
+      "fixAll_other": "Fix {{count}} problems automatically",
+      "pickOne": "Pick which of the two to switch off: the other stays on.",
+      "checksAgain": "The Studio checks again by itself: anything left to do shows below.",
+      "copyReady": "The fixed copy of {{name}} is ready.",
+      "copyNext": "Play with the Studio's Play button so the game uses the copy (the Workshop original stays as it was). Try it in a new game first.",
+      "copyMayBreak_one": "Note: 1 thing could not be fixed in the copy; if the mod fails in the game, switch it off.",
+      "copyMayBreak_other": "Note: {{count}} things could not be fixed in the copy; if the mod fails in the game, switch it off.",
+      "copyDetails": "What changed in the copy",
+      "homeOptional_one": "Nothing to fix. There is 1 optional suggestion (the game runs without it) in Complete.",
+      "homeOptional_other": "Nothing to fix. There are {{count}} optional suggestions (the game runs without them) in Complete."
+    },
+    "offer": {
+      "title": "There is a Simple view with just what you need to play: give it a try.",
+      "body": "It shows Home with Play, your mods and only the problems you need to fix. Nothing is deleted or switched off, and Complete is one click away at the foot of the left bar.",
+      "try": "Try Simple",
+      "no": "No, thanks",
+      "noTitle": "You stay in Complete and this note does not come back. Simple stays at the foot of the left bar and in Settings."
+    },
+    "modList": {
+      "title": "Mod List",
+      "blurb": "Switch on the ones you want to use. Order matters: the one at the top loads first. If you do not know the right order, press \"Auto-Sort\".",
+      "missing": "A mod needs one you do not have",
+      "missingTitle": "You need to act: a mod needs another one you do not have. Click to go to each; its red mark has the button to find it on the Workshop.",
+      "depsOff": "Need a mod that is off",
+      "depsOffTitle": "You need to act: a mod needs another one that is switched off. Click to go to each; its red mark has the button to switch it on.",
+      "incompatible": "Do not go together",
+      "incompatibleTitle": "You need to act: two mods that are on clash with each other. Click to go to each and switch one of them off.",
+      "order": "In the wrong order",
+      "orderTitle": "You need to act: a mod loads before one it needs. Click to go to each, or press \"Auto-Sort\" to fix them all.",
+      "autoSort": "Auto-Sort",
+      "autoSortTitle": "Puts each mod after the ones it needs. Everything else stays as you left it, and it can be undone.",
+      "colName": "Name",
+      "loadsFirst": "TOP: loads first",
+      "loadsLast": "BOTTOM: loads last (when two mods change the same thing, this one wins)",
+      "sortRule": "Each mod now comes after the mods it needs, as the game asks. Everything else kept its order. If you do not like it, press Undo.",
+      "sortReason": {
+        "require": "{{mod}} goes after {{other}}: it needs it.",
+        "load_after": "{{mod}} goes after {{other}}: its author asks for it.",
+        "load_before": "{{mod}} goes before {{other}}: its author asks for it.",
+        "rule": "{{mod}} goes after {{other}}: you asked for it.",
+        "index": "{{mod}} goes after {{other}}: the Studio knows they work that way.",
+        "package": "{{mod}} goes last: it is a Studio fix and loads after the mods it fixes."
+      },
+      "orphans": "{{count}} mods you have installed (subscribed on Steam's website, for example) are in no profile. \"Add to the profile\" adds them to \"{{name}}\", switched off; \"Show them\" lets you look first."
+    },
+    "profiles": {
+      "launchFile": "Some mods (the ones with Java code, which use ZombieBuddy) are not loaded from the list but from the game's start-up. The Studio sets that start-up to follow this profile, keeping a copy first. Nothing else to do.",
+      "launchFileLater": "Some mods (the ones with Java code, which use ZombieBuddy) are loaded from the game's start-up. The game is open, so the Studio sets that start-up as soon as you close it. Nothing else to do.",
+      "launchOut": "No longer loads when the game starts",
+      "launchBack": "Loads again when the game starts",
+      "outNote": "is not on in this profile",
+      "backNote": "is on in this profile",
+      "everythingHint": "Want every mod you have installed on ({{count}} mods)? It is rarely a good idea: that many mods take long to load and some do not go together.",
+      "everythingButton": "Switch on all {{count}}",
+      "everythingChosen": "This profile will switch on all {{count}} mods you have installed, at once.",
+      "everythingUndo": "Better not"
+    },
+    "header": {
+      "how": "How the game opens",
+      "NORMAL_FULLSCREEN": "Fills the whole screen, as when you open it from Steam.",
+      "NORMAL_WINDOWED": "In a window: you see the game and the Studio at once."
+    },
+    "issueText": {
+      "outside_version_range": "{{mod}} is not made for your version of the game ({{build}}): as it is, the game does not load it.",
+      "not_for_build": "{{mod}} is not made for your version of the game ({{build}}): as it is, the game does not load it.",
+      "dependency_not_enabled": "{{mod}} needs {{dep}}, which you have installed but switched off.",
+      "missing_dependency_plain": "{{mod}} needs {{dep}}, which you do not have installed.",
+      "dependency_after": "{{mod}} needs {{dep}}, but {{dep}} is further down the list: it has to load first.",
+      "incompatible": "{{mod}} and {{other}} do not go together: they cannot both be on.",
+      "require_spaced_copy": "{{mod}} has a typo in its files (a space in the list of mods it needs), so the game skips it even though it shows as on. \"Make compatible copy\" fixes it in a copy; the original stays as it is.",
+      "require_spaced_local": "{{mod}} has a typo in its mod.info (a space in the list of mods it needs), so the game skips it even though it shows as on. Take the spaces out of its require= line."
+    },
+    "doctorTitle": "Something wrong?",
+    "doctorChatTitle": "Ask about your mods"
   }
 }

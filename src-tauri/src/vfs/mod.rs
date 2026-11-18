@@ -93,8 +93,9 @@ pub fn file_conflict_states(paths: &StudioPaths, catalog: &crate::catalog::ModCa
     scan_conflicts_with(paths, catalog, active)
         .into_iter()
         // A definition conflict gets a row of its own, which says what the two mods disagree
-        // about; reported here as well it would be the same thing twice, in worse words.
-        .filter(|c| !c.is_identical_noise && c.file_type != "SCRIPT_DEFINITION")
+        // about; reported here as well it would be the same thing twice, in worse words. So do
+        // translations: the game reads every mod's, so no copy is "ignored" as a file is.
+        .filter(|c| !c.is_identical_noise && c.file_type != "SCRIPT_DEFINITION" && c.file_type != "TRANSLATION")
         .map(|c| {
             let in_package = package.as_ref().and_then(|(_, root)| {
                 [root.join("42").join(&c.relative_path), root.join(&c.relative_path)].into_iter().find(|p| p.is_file())
@@ -249,6 +250,10 @@ fn steam_libraries(steam_root: &Path) -> Vec<PathBuf> {
 /// Steam writes its path in whatever shape it likes ("d:/apps/steam"): make it "D:\\Apps\\Steam"
 /// so the paths the Studio stores and compares all look the same.
 fn windows_style(p: PathBuf) -> PathBuf {
+    if !cfg!(windows) {
+        // Linux paths are case-sensitive and use '/': kept as Steam wrote them.
+        return p;
+    }
     let mut text = p.to_string_lossy().replace('/', "\\");
     if text.len() > 3 {
         text = text.trim_end_matches('\\').to_string();
@@ -259,9 +264,39 @@ fn windows_style(p: PathBuf) -> PathBuf {
     PathBuf::from(text)
 }
 
-/// Where Steam itself is installed, as the registry says.
+/// Where Steam itself is installed, as the registry says (Linux: the first of its usual folders
+/// that is there).
 pub fn steam_path() -> Option<PathBuf> {
+    if !cfg!(windows) {
+        return linux_steam_roots().into_iter().next();
+    }
     registry_string(true, "Software\\Valve\\Steam", "SteamPath").map(|p| windows_style(PathBuf::from(p)))
+}
+
+/// Linux: where Steam keeps its files: the native package's folders (`~/.steam/steam` and
+/// `~/.steam/root` are links to it) and the Flatpak's. Only folders with a `steamapps`.
+pub fn linux_steam_roots() -> Vec<PathBuf> {
+    let Some(home) = dirs_next::home_dir() else { return Vec::new() };
+    let mut out: Vec<PathBuf> = Vec::new();
+    for p in [
+        home.join(".local/share/Steam"),
+        home.join(".steam/steam"),
+        home.join(".steam/root"),
+        home.join(".steam/debian-installation"),
+        home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"),
+        home.join(".var/app/com.valvesoftware.Steam/data/Steam"),
+        home.join("snap/steam/common/.local/share/Steam"),
+    ] {
+        if !p.join("steamapps").is_dir() {
+            continue;
+        }
+        // The links lead to the same folder: one entry each.
+        let real = fs::canonicalize(&p).unwrap_or_else(|_| p.clone());
+        if !out.iter().any(|o| fs::canonicalize(o).unwrap_or_else(|_| o.clone()) == real) {
+            out.push(p);
+        }
+    }
+    out
 }
 
 /// Every Steam library on this PC: the install Steam recorded in the registry and the libraries it
@@ -284,6 +319,16 @@ pub fn steam_library_dirs() -> Vec<PathBuf> {
     .flatten()
     {
         push(&mut roots, PathBuf::from(installed));
+    }
+    if !cfg!(windows) {
+        // Linux: Steam's own folders and every library they list; no drive letters to look on.
+        for root in linux_steam_roots() {
+            push(&mut roots, root);
+        }
+        for library in roots.clone().iter().flat_map(|r| steam_libraries(r)) {
+            push(&mut roots, library);
+        }
+        return roots;
     }
     for library in roots.clone().iter().flat_map(|r| steam_libraries(r)) {
         push(&mut roots, library);
@@ -606,7 +651,9 @@ pub fn scan_conflicts_for_package(
     // looked for afterwards the active package was never there, so with no package named every
     // conflict read as pending even with all of them merged and published.
     let list_package = active_package_dir(catalog, active).map(|(id, _)| id);
-    let active: Vec<String> = active
+    // In the order the game loads the mods (each after what it requires, a requirement that is
+    // off loaded too): the last of them that ships a path is the one whose copy the game uses.
+    let active: Vec<String> = crate::catalog::game_load_order(catalog, active)
         .iter()
         .filter(|s| !s.starts_with("Z_PZModStudio_") && s.as_str() != "PZModStudioCarrier")
         .cloned()
@@ -842,9 +889,13 @@ mod text_file_tests {
             .map(|p| p.strip_prefix(&media).unwrap().to_string_lossy().replace('\\', "/"))
             .collect();
         got.sort();
+        // (Windows: Scripts/ and scripts/ are one folder. Linux keeps them apart, as the game sees them there.)
+        if !cfg!(windows) {
+            got = got.into_iter().map(|p| p.replacen("Scripts/", "scripts/", 1)).collect();
+            got.sort();
+        }
         assert_eq!(
             got,
-            // (Windows: Scripts/ and scripts/ are one folder.)
             ["lua/client/A.lua", "lua/shared/Translate/EN/UI_EN.txt", "maps/MyMap/objects.lua", "sandbox-options.txt", "scripts/items/x.txt", "scripts/vehicles/y.txt"]
         );
         let _ = fs::remove_dir_all(media.parent().unwrap());
@@ -855,6 +906,45 @@ mod text_file_tests {
 mod tests {
     use super::*;
 
+    /// Measured on two players' collections (2026-11-18): a mod listed before a library it
+    /// requires was said to lose their shared file to the library, but the game loads the library
+    /// first, so the mod's copy is the one it uses; and two mods' translation files, which the
+    /// game reads both of, were said to be one file the game took from one mod only.
+    #[test]
+    fn the_copy_that_wins_is_the_last_in_the_game_order_and_translations_are_not_file_conflicts() {
+        let root = std::env::temp_dir().join(format!("pzms-vfs-order-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let write = |rel: &str, text: &str| {
+            let p = root.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, text).unwrap();
+        };
+        for (id, info) in [("Addon", "require=\\Lib\n"), ("Lib", "")] {
+            write(&format!("zomboid/mods/{}/mod.info", id), &format!("name={}\nid={}\n{}", id, id, info));
+            write(&format!("zomboid/mods/{}/media/lua/client/Same.lua", id), &format!("print('{}')\n", id));
+            write(&format!("zomboid/mods/{}/media/lua/shared/Translate/EN/UI.json", id), &format!("{{ \"UI_Hello\": \"Hello from {}\" }}\n", id));
+        }
+        fs::create_dir_all(root.join("workshop")).unwrap();
+        fs::create_dir_all(root.join("game/media")).unwrap();
+        let paths = StudioPaths {
+            pz_install_dir: root.join("game").to_string_lossy().to_string(),
+            workshop_dir: root.join("workshop").to_string_lossy().to_string(),
+            user_zomboid_dir: root.join("zomboid").to_string_lossy().to_string(),
+            mod_list_ini_path: String::new(),
+            carrier_workshop_id: None,
+            is_valid: true,
+        };
+        let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, Some(41_078));
+        let states = file_conflict_states(&paths, &catalog, &["Addon".to_string(), "Lib".to_string()]);
+        let raw = scan_conflicts_with(&paths, &catalog, &["Addon".to_string(), "Lib".to_string()]);
+        let _ = fs::remove_dir_all(&root);
+        assert!(raw.iter().any(|c| c.file_type == "TRANSLATION"), "the two words are a translation conflict (a row of its own)");
+        assert_eq!(states.len(), 1, "{:?}", states);
+        assert_eq!(states[0].relative_path, "media/lua/client/Same.lua");
+        assert_eq!(states[0].mod_ids, ["Lib", "Addon"], "the game loads Lib first: Addon's copy is the one it uses");
+    }
+
+    #[cfg(windows)]
     #[test]
     fn steam_paths_are_normalised() {
         let norm = |s: &str| windows_style(PathBuf::from(s)).to_string_lossy().to_string();

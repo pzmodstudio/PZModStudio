@@ -2,5 +2,5 @@ name=PZ Mod Manager Studio Link
 id=Z_StudioLink
 description=A clearer Mods screen (search, filters, requirements, server lines), a notice naming the mod behind each Lua error with a report for its author, and every error kept in an error log on disk. Also the in-game side of PZ Mod Studio (free mod manager for Windows): the app's profile on the Mods screen, Mod Health marks, a check and a backup before a save loads. Website and download: https://pzmodstudio.github.io/PZModStudio/
 url=https://pzmodstudio.github.io/PZModStudio/
-modversion=1.19.0
+modversion=1.20.0
 versionMin=42.0.0

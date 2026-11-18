@@ -36,9 +36,33 @@ A la izquierda, **Configuraciones de servidor (.ini)** lista las configuraciones
 - **Memoria (-Xmx)**: 4, 8, 12 o 16 GB para el servidor.
 - **Contraseña de admin**: fija la contraseña de la cuenta `admin` cuando arranca el servidor. El Studio la guarda en el Administrador de credenciales de Windows (nunca en un archivo), así un asistente conectado al Studio puede volver a iniciar este servidor sin que se la den.
 - **Autenticación y red**: **Steam activado** o **NoSteam (LAN)**.
-- **Iniciar servidor dedicado (nombre)** lo arranca en su propia ventana de consola. Mientras corre, **Detener servidor dedicado** detiene el servidor que inició el Studio (nunca otros programas Java), y **Reiniciar** lo detiene y lo vuelve a arrancar.
+- **Iniciar servidor dedicado (nombre)** lo arranca en su propia ventana de consola. Mientras corre, **Detener servidor dedicado** detiene el servidor que inició el Studio (nunca otros programas Java), y **Reiniciar** lo detiene y lo vuelve a arrancar en el momento (para avisar antes a los jugadores, usá la pestaña **Reinicios**).
+
+**Programa del servidor.** Un servidor anda con los archivos del propio juego, salvo que elijas otra cosa. El recuadro **Programa del servidor** ofrece en cambio el **Project Zomboid Dedicated Server** oficial: un programa aparte que Steam da gratis (app 380870), que puede estar en otra rama que tu juego y se actualiza por separado.
+
+1. Elegí una **Carpeta del servidor dedicado**: una carpeta vacía o nueva en un disco con lugar (no la del juego, no `Zomboid`). Si ya hay un servidor dedicado en esta PC (de la Biblioteca > Herramientas de Steam, o de un SteamCMD anterior), se encuentra y se ofrece.
+2. Elegí la **Rama**: **Estable (public)** o **Inestable (beta)**. Tiene que coincidir con el juego de quien se conecte; el recuadro dice en qué rama está tu juego y arranca con esa. Una rama que Steam tiene con contraseña no se puede instalar: el recuadro lo dice.
+3. Apretá **Instalar**. El Studio usa SteamCMD, el Steam de línea de comandos de Valve. Si no está en esta PC primero pregunta, después lo baja de la dirección de Valve (unos 3 MB), revisa que lo firmó Valve y lo deja actualizarse. Después SteamCMD baja el servidor de Steam (varios GB): el recuadro muestra cada paso con su porcentaje y los gigabytes (unos 7 GB para 42.22), y el tamaño de la carpeta cuando termina. **Detener** lo corta; si volvés a apretar Instalar sigue donde estaba.
+4. Cuando está instalado, elegí **El servidor dedicado**. Desde ahí los servidores arrancan desde esa carpeta, con la misma carpeta Zomboid (tus configuraciones de servidor, partidas y `Zomboid/mods`). **Los archivos del juego** vuelve a lo de siempre. Cambialo con el servidor detenido.
+
+**Actualizar** vuelve a correr SteamCMD en esa carpeta y rama (cambiando de rama si la cambiaste). Sobre una instalación completa solo baja lo que cambió y termina en segundos ("Ya estaba al día" si no cambió nada); después de una instalación cortada, o de una revisión de archivos que se detuvo, revisa cada archivo, y eso tarda muchos minutos. El recuadro también dice con qué versión del juego arranca el servidor y si es la de tu juego: un juego solo entra a un servidor de su misma versión.
+
+Los mods con Java y ZombieBuddy necesitan también `zbNative.dll` y `ZombieBuddy.jar` de ZombieBuddy en esa carpeta: copialos de la carpeta del juego (ZombieBuddy los pone ahí cuando el juego arranca con él). Mientras no estén, el servidor arranca sin su agente y **Mods y sincronización** lo dice.
 
 **Mods con Java (ZombieBuddy).** Los mods de Build 42 con código Java necesitan ZombieBuddy, y ZombieBuddy necesita su agente en la línea de comandos del servidor. Cuando el `Mods=` del servidor tiene ZombieBuddy (también escrito `\ZombieBuddy`), el Studio lo inicia con `-agentlib:zbNative=policy=deny-new`, y una nota en esta pestaña lo dice. *deny-new* quiere decir que el servidor carga solo los jars que esta PC ya aprobó en la ventana de ZombieBuddy (quedan en `.zombie_buddy/mod_approvals.json` en tu carpeta de usuario) y rechaza los demás sin preguntar: un servidor no tiene ventana, y la pregunta lo dejaría parado para siempre. **Mods y sincronización** dice qué jars faltan aprobar.
+
+## Reinicios
+
+PZ Mod Studio puede reiniciar el servidor por vos, avisando antes a los jugadores en el juego. Un reinicio manda los avisos por RCON (`servermsg`), después `save`, después `quit` (el servidor guarda el mundo al cerrarse; solo se cierra a la fuerza si no se va en 90 segundos), y lo vuelve a arrancar igual que antes (misma memoria, con Steam o NoSteam, mismo programa).
+
+- **Reinicios programados**: a ciertas horas (reloj de esta PC) y/o **Cada** 2 a 24 horas desde que arrancó el servidor. Una hora a menos de 30 minutos de que arrancó se saltea.
+- **Avisar a los jugadores antes**: 60, 30, 15, 10, 5 y 1 minutos, los que marques (al principio 30, 15, 5 y 1). Los mensajes van en el idioma de la app.
+- **Reiniciar cuando se actualiza un mod del Workshop de este servidor**: cada 15 minutos el Studio le pregunta a Steam (su API web pública) cuándo se actualizó cada ítem del `WorkshopItems=` del servidor. Uno actualizado después de que arrancó el servidor trae un reinicio con los mismos avisos, y el servidor baja la actualización al arrancar.
+- **Volver a arrancarlo si se cierra solo** (prendido al principio): después de un cierre inesperado, si ya había arrancado (un servidor que falla mientras arranca fallaría de nuevo, así que no se vuelve a arrancar). Como mucho 3 veces en 10 minutos; después queda apagado y la pestaña lo dice en rojo. Arrancarlo a mano vuelve a contar desde cero. Una detención que pediste (Detener, Reiniciar, un asistente, Discord) o un `quit` de un admin en el juego nunca se toma como un cierre inesperado.
+
+Arriba de la pestaña dice qué viene: el próximo reinicio programado, o el que está en cuenta regresiva con cuándo y por qué. **Reiniciar ahora (avisando)** empieza una cuenta regresiva de los minutos que elijas (**sin aviso (ahora)** reinicia en el momento); **Cancelarlo** la para y les avisa a los jugadores. **Últimos reinicios** lista qué pasó y por qué: Programado, Mod actualizado, Pedido, Después de un cierre inesperado, Quedó apagado: demasiados cierres, Se cerró solo, Se cerró con la app cerrada.
+
+**Solo con la app abierta.** Los reinicios los hace PZ Mod Studio. Si cerrás la app el servidor sigue andando, pero nada lo reinicia, avisa ni lo vuelve a arrancar después de un cierre. La programación queda guardada (`Zomboid/PZModStudio_ServerSchedule.json`) y sigue cuando volvés a abrir la app; un servidor que se cerró con la app cerrada queda anotado, no se vuelve a arrancar.
 
 ## Mods y sincronización
 
@@ -112,4 +136,4 @@ Le hablan al servidor por RCON: un servidor que creó el juego no tiene contrase
 - Para iniciar un servidor hace falta la carpeta del juego configurada en **Configuración**.
 - Entrar a un servidor abre el juego: cerralo antes.
 - Para entrar a tu propio servidor desde esta PC, usá su dirección de la red local (por ejemplo `192.168.0.10:16261`): un cliente de Steam no puede entrar a `127.0.0.1` ni a la IP pública de esta misma PC. Un servidor iniciado con **NoSteam (LAN)** necesita un juego iniciado con `-nosteam` (ahí `127.0.0.1` sí funciona), y un juego iniciado con `-debug` solo puede entrar como admin.
-- Los asistentes conectados al Studio (MCP) pueden hacer lo mismo: `server_start`, `server_status`, `server_stop` y `server_join`.
+- Los asistentes conectados al Studio (MCP) pueden hacer lo mismo: `server_start`, `server_status`, `server_stop`, `server_join`, `server_schedule`, `server_restart` y `dedicated_server`.

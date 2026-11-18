@@ -697,6 +697,49 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// ZombieBuddy's two files in a program folder: its native agent (the JVM refuses to start with
+/// `-agentlib:zbNative` and no dll) and its jar.
+/// On Linux the JVM looks for the agent as `libzbNative.so`.
+pub const ZOMBIEBUDDY_FILES: [&str; 2] = [if cfg!(windows) { "zbNative.dll" } else { "libzbNative.so" }, "ZombieBuddy.jar"];
+
+/// Mods= has ZombieBuddy but the folder the server starts from has no zbNative.dll: the server
+/// then starts without the agent and no Java mod loads. `game_dir` is the game's folder, where
+/// ZombieBuddy puts its files when the game starts with it; `program_dir` is the same folder, or
+/// the dedicated server's when servers start from it.
+pub fn agent_issue(ini_content: &str, program_dir: &Path, game_dir: &Path, dedicated: bool) -> Option<HealthIssue> {
+    if !mods_line_has_zombiebuddy(ini_content) || program_dir.join(ZOMBIEBUDDY_FILES[0]).is_file() {
+        return None;
+    }
+    let folder = program_dir.to_string_lossy().to_string();
+    let game = game_dir.to_string_lossy().to_string();
+    let game_has = ZOMBIEBUDDY_FILES.iter().all(|f| game_dir.join(f).is_file());
+    let (code, message) = match (dedicated, game_has) {
+        (true, true) => (
+            "server_java_no_agent_dedicated",
+            format!(
+                "Mods= has ZombieBuddy, but the dedicated server's folder ({}) has no zbNative.dll: the server starts without ZombieBuddy and no Java mod loads (their Lua does). To have them, copy zbNative.dll and ZombieBuddy.jar from the game's folder ({}) into the dedicated server's folder, or start servers from the game's files.",
+                folder, game
+            ),
+        ),
+        (true, false) => (
+            "server_java_no_agent_dedicated_nowhere",
+            format!(
+                "Mods= has ZombieBuddy, but the dedicated server's folder ({}) has no zbNative.dll: the server starts without ZombieBuddy and no Java mod loads (their Lua does). ZombieBuddy puts zbNative.dll and ZombieBuddy.jar in the game's folder ({}) when the game starts with it on; then copy both into the dedicated server's folder.",
+                folder, game
+            ),
+        ),
+        (false, _) => (
+            "server_java_no_agent",
+            format!(
+                "Mods= has ZombieBuddy, but the game's folder ({}) has no zbNative.dll: the server starts without ZombieBuddy and no Java mod loads (their Lua does). Start the game once with ZombieBuddy on (it puts zbNative.dll and ZombieBuddy.jar there), then start the server.",
+                folder
+            ),
+        ),
+    };
+    let message = if cfg!(windows) { message } else { message.replace("zbNative.dll", ZOMBIEBUDDY_FILES[0]) };
+    Some(issue(Severity::Warning, code, message, &[("folder", &folder), ("game", &game)], ZOMBIEBUDDY_ID))
+}
+
 fn issue(severity: Severity, code: &str, message: String, params: &[(&str, &str)], mod_id: &str) -> HealthIssue {
     HealthIssue {
         params: crate::catalog::issue_params(params),
@@ -747,6 +790,30 @@ mod tests {
         adopt_unmarked(&copy, "Mod", "", &source).unwrap();
         assert!(!unmarked_differs(&copy, &source));
         assert_eq!(marker_is_stale(&copy, &source), Some(true));
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_server_folder_without_zbnative_is_said_with_what_to_do() {
+        let base = temp("agent");
+        let (game, ded) = (base.join("game"), base.join("dedicated"));
+        fs::create_dir_all(&game).unwrap();
+        fs::create_dir_all(&ded).unwrap();
+        let ini = "Mods=\\ZombieBuddy;\\KnoxLives\n";
+        let code = |program: &Path, dedicated: bool| agent_issue(ini, program, &game, dedicated).map(|i| i.code);
+        assert_eq!(agent_issue("Mods=KnoxLives\n", &ded, &game, true).map(|i| i.code), None, "no ZombieBuddy in Mods=");
+        assert_eq!(code(&game, false).as_deref(), Some("server_java_no_agent"));
+        assert_eq!(code(&ded, true).as_deref(), Some("server_java_no_agent_dedicated_nowhere"));
+        for f in ZOMBIEBUDDY_FILES {
+            fs::write(game.join(f), b"x").unwrap();
+        }
+        assert_eq!(code(&game, false), None, "the game's folder has it");
+        let i = agent_issue(ini, &ded, &game, true).unwrap();
+        assert_eq!(i.code, "server_java_no_agent_dedicated");
+        assert!(i.message.contains(&*ded.to_string_lossy()) && i.message.contains(&*game.to_string_lossy()) && i.message.contains("ZombieBuddy.jar"));
+        assert!(i.code.starts_with("server_java_"), "server_start's will_not_load lists it");
+        fs::write(ded.join(ZOMBIEBUDDY_FILES[0]), b"x").unwrap();
+        assert_eq!(code(&ded, true), None);
         let _ = fs::remove_dir_all(&base);
     }
 

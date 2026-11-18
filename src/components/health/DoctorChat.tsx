@@ -8,6 +8,7 @@ import { noteChange } from '../../services/changes';
 import { BisectSession, BrainOverview, BrainSessionReport, HealthReport, LearnedIssue, ModInfo, ModMeta, TranslatedErrorCard } from '../../types';
 import { changesText, crashesText, day, fixText, onsetText, prelaunchText, sessionText, sessionWentBadly, when } from '../../utils/brain';
 import { cardText } from '../../i18n/backendText';
+import { useUiMode } from '../../hooks/useUiMode';
 import {
   ALL_CHIPS,
   ChipKey,
@@ -31,8 +32,12 @@ import {
   splitQuestions,
   TROUBLE_WORDS,
   workshopAskOf,
+  leansOnLast,
+  profileNamed,
+  asksLastSession,
 } from '../../utils/doctorChat';
 import i18next from 'i18next';
+import { scriptLanguage } from '../../utils/language';
 import { crashAdvice, fixAdvice, loadAdvice, onsetAdvice } from '../../utils/doctorAdvice';
 
 /** What the Doctor remembers between visits: the mod last talked about, and the last session it reported. */
@@ -113,6 +118,8 @@ export const DoctorChat: React.FC<{
   onModsChanged?: () => void;
 }> = ({ paths, mods, report, onShowInModList, onToggleMod, onOpenSection, onOpenPage, onModsChanged }) => {
   const { t } = useTranslation();
+  // Simple has one name for this page (Diagnostics): the chat goes by what it does.
+  const title = useUiMode()[0] === 'simple' ? t('simple.doctorChatTitle') : t('doctorChat.title');
   const [overview, setOverview] = useState<BrainOverview | null>(null);
   const [meta, setMeta] = useState<ModMeta | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -250,10 +257,10 @@ export const DoctorChat: React.FC<{
     // a question to the Workshop about a mod
     const ws = workshopAskOf(withoutModNames(text, named));
     if (ws && named.length === 1) return answerWorkshop(ws, named[0]);
-    if (ws && named.length === 0 && focus.current && /\b(ese|este|it|that|this)\b/.test(plain(text))) return answerWorkshop(ws, focus.current);
+    if (ws && named.length === 0 && focus.current && leansOnLast(text)) return answerWorkshop(ws, focus.current);
     // a profile or a group as the subject ("how do I make a profile?" is a question for the guide)
-    const prof = asksTheGuide(text) ? null : plain(text).match(/(?:perfil|profile)\s+(.+)$/);
-    if (prof && named.length === 0) return answerProfile(prof[1]);
+    const prof = asksTheGuide(text) ? null : profileNamed(text);
+    if (prof && named.length === 0) return answerProfile(prof);
     const group = [...(meta?.groups ?? [])]
       .sort((a, b) => b.name.length - a.name.length)
       .find((g) => g.name.length >= 2 && ` ${plain(text)} `.includes(` ${plain(g.name)} `));
@@ -683,7 +690,7 @@ export const DoctorChat: React.FC<{
 
   const answerWeek = async (since: number | null, text: string): Promise<Msg> => {
     // "how did my last session go?": the last session; else the period (a week by default)
-    if (!since && /(ultima partida|last session|ultima vez|last time|ultima sesion)/.test(plain(text)) && overview?.last_report) {
+    if (!since && asksLastSession(text) && overview?.last_report) {
       return reportMsg(overview.last_report, t('doctorChat.reportHead', { when: when(overview.last_report.brief.started) }));
     }
     const from = since ?? Math.floor(Date.now() / 1000) - 7 * 86400;
@@ -795,12 +802,17 @@ export const DoctorChat: React.FC<{
 
   const PAGE_LABEL: Record<string, string> = { profiles: 'nav.profiles', saves: 'nav.saves', monitor: 'nav.monitor', 'mod-list': 'nav.modList', health: 'nav.health', browse: 'nav.browse', maps: 'nav.maps', merger: 'nav.merger', servers: 'nav.servers', settings: 'nav.settings', 'whats-new': 'nav.whatsNew' };
   const answerGuide = async (text: string, onlyIfClear = false): Promise<Msg | null> => {
-    // the guide in the app's language, else in the other one (a question typed in Spanish with the app in English)
+    // the guide in the app's language, else in the others (a question typed in another language
+    // than the app's): the language the text's letters give away first, then English and Spanish
     const lang = i18next.resolvedLanguage ?? 'es';
     let hits = await TauriService.appDocsSearch(text, lang);
-    if (hits.length === 0 || hits[0].score < 1.5) {
-      const other = await TauriService.appDocsSearch(text, lang.startsWith('es') ? 'en' : 'es');
-      if (other.length > 0 && (hits.length === 0 || other[0].score > hits[0].score)) hits = other;
+    const script = scriptLanguage(text);
+    const byScript = script === 'zh' ? 'zh-CN' : script === 'ru' ? 'ru' : null;
+    const others = [byScript, 'en', 'es', 'pt-BR', 'fr', 'de', 'ru', 'zh-CN'].filter((l, i, all): l is string => !!l && l !== lang && all.indexOf(l) === i);
+    for (const other of others) {
+      if (hits.length > 0 && hits[0].score >= 1.5) break;
+      const found = await TauriService.appDocsSearch(text, other);
+      if (found.length > 0 && (hits.length === 0 || found[0].score > hits[0].score)) hits = found;
     }
     if (hits.length === 0 || (onlyIfClear && hits[0].score < 1.5)) {
       return onlyIfClear ? null : { from: 'doctor', text: t('doctorChat.notUnderstood'), chips: ALL_CHIPS, learnFrom: text };
@@ -984,7 +996,7 @@ export const DoctorChat: React.FC<{
       <div className="flex items-start gap-2">
         <Bot className="w-5 h-5 text-violet-300 shrink-0" aria-hidden="true" />
         <div>
-          <div className="text-sm font-bold text-slate-100">{t('doctorChat.title')}</div>
+          <div className="text-sm font-bold text-slate-100">{title}</div>
           <div className="text-[11px] text-slate-400 leading-relaxed">{t('doctorChat.blurb')}</div>
         </div>
       </div>
@@ -1109,7 +1121,7 @@ export const DoctorChat: React.FC<{
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t('doctorChat.placeholder')}
-          aria-label={t('doctorChat.title')}
+          aria-label={title}
           className="flex-1 min-w-0 rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-[12px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-violet-600"
         />
         <button type="submit" disabled={busy || !input.trim()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-700 hover:bg-violet-600 text-white text-[12px] font-bold cursor-pointer disabled:opacity-40">

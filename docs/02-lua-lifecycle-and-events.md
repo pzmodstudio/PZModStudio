@@ -1,6 +1,6 @@
 # 02 — Lua Script Lifecycle & Event Bus
 
-Project Zomboid does not feature a dynamic dependency resolution graph (such as modern package managers). Instead, the engine evaluates scripts through **strict lifecycle phases** and **deterministic alphabetical ordering**, orchestrating subsystems through a centralized event bus (`Events`).
+The engine runs Lua in **lifecycle phases** (`shared`, `client`, `server`), and inside each phase in a fixed order: the game's own files first, then each mod in the order the game loads the mods (what a mod requires comes before it), the files of one mod sorted by path. Subsystems talk through a centralized event bus (`Events`).
 
 ---
 
@@ -30,16 +30,32 @@ media/lua/
 
 ---
 
-## 2. Alphabetical Load Order & Vanilla Precedence
+## 2. Load Order: Requirements First, Then the List
 
-Within each loading phase (`shared`, `client`, `server`), the engine indexes and executes scripts in **strict alphabetical order by filename**:
+Checked against the game's own loader (`ZomboidFileSystem.loadMods`, `LuaManager.LoadDirBase`, 42.22).
 
-1. **Absolute Precedence of Vanilla Code:**
-   The game's core vanilla scripts are always parsed and evaluated **before** any third-party mod files.
-2. **Mod Evaluation Order:**
-   Third-party mod scripts are evaluated alphabetically by `.lua` filename.
-3. **The `Z_` Prefix Convention:**
-   If Mod B needs to extend or patch a table defined in Mod A (e.g. `ModA_Core.lua`), Mod B's script must start with a later letter in the alphabet (e.g. `Z_ModB_Patch.lua`) to guarantee Mod A's global tables exist prior to Mod B's execution.
+### Which mods load, and in what order
+
+The game walks the active list (`default.txt`, or a save's own `mods.txt`) from top to bottom. For each mod it first loads everything that mod names in `require=`, recursively, and only then the mod itself:
+
+1. **A requirement comes first, wherever it sits.** A required mod further down the list, or not in the list at all (installed but switched off), is loaded right before the first mod that needs it. A requirement placed after its mod is therefore not a problem.
+2. **Everything else keeps the list's order.** `loadModAfter=` and `loadModBefore=` are **not** applied when the game loads a list: they are hints for whoever sorts the list (the game's mod screen, or a tool). If a mod must run after another it does not require, the list itself has to say so.
+3. **A mod that cannot load is left out**, with every mod that requires it: outside its `versionMin`/`versionMax`, no folder for the installed build, or a requirement missing or unloadable at any depth.
+4. **Required ids are looked up exactly as written.** `require=A, B` asks for a mod called `" B"` (with the space): none exists, so the mod is left out, though the game's mod screen (which trims the names) shows it on. Write the ids separated by commas only.
+
+### Which Lua files run, and when
+
+For each phase (`shared` and `client` at the main menu, `server` when a game starts or a server boots):
+
+1. **The game's own files** of that phase, sorted by their path (case-insensitive).
+2. **Then each mod, in the load order above.** A mod's files from `common/` and from its version folder (`42/`, `42.13/`...) are sorted together by path, and run one mod after another. Sorting is per mod, not across all mods: `ZZZ_Patch.lua` in a mod that loads early still runs before `AAA.lua` of a mod that loads later.
+3. **One path runs once.** When several sources ship the same relative path (`media/lua/client/ISUI/ISInventoryPane.lua`), the copy of the **last** mod in the load order is the one kept, and it runs **at the place of the first** source that has the path: a mod's copy of a game file runs in the game's turn, before every mod.
+
+### What this means for a mod that patches another
+
+- To be sure your file runs after mod A's, **require mod A** (`require=A` in `mod.info`). That is the only order the game enforces; a file name starting with `Z_` does nothing across mods.
+- For code that needs every mod's files to have run, use an event: `OnGameBoot` fires after all `shared` and `client` files of all mods, `OnGameStart` after the `server` ones too.
+- A file of yours at the same path as a game file replaces the game's file and runs where the game's file ran, before any mod's code.
 
 ---
 

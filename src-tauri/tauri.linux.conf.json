@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBundleCommand": "cargo build --release --bin pz-mcp-server --manifest-path src-tauri/Cargo.toml"
+  },
+  "bundle": {
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/bin/pz-mcp-server": "target/release/pz-mcp-server"
+        }
+      }
+    }
+  }
+}

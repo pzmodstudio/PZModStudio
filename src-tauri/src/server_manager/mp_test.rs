@@ -336,8 +336,89 @@ $procs = @($list | ForEach-Object { $g = Get-Process -Id $_.ProcessId -ErrorActi
     }
     #[cfg(not(windows))]
     {
-        Snapshot::default()
+        // Linux: /proc, with the CPU from two readings half a second apart.
+        let pick = |all: Vec<crate::platform::Proc>| -> Vec<crate::platform::Proc> {
+            all.into_iter().filter(|p| is_game_name(&p.name, &p.cmd) || is_server_process(&p.name, &p.cmd)).collect()
+        };
+        let before = pick(crate::platform::processes());
+        let started = std::time::Instant::now();
+        if !before.is_empty() {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        let secs = started.elapsed().as_secs_f64().max(0.001);
+        let cores = std::thread::available_parallelism().map(|n| n.get() as f64).unwrap_or(1.0);
+        let procs = before
+            .iter()
+            .filter_map(|b| {
+                let now = crate::platform::process(b.pid)?;
+                let used = now.cpu_100ns.saturating_sub(b.cpu_100ns) as f64 / 10_000_000.0;
+                Some(ProcRow { id: now.pid, name: now.name, cmd: Some(now.cmd), ram: now.rss, cpu: (used / secs / cores * 1000.0).round() / 10.0, up: now.up_secs })
+            })
+            .collect();
+        let (total, free) = crate::platform::memory_bytes();
+        Snapshot { total_kb: total / 1024, free_kb: free / 1024, procs }
     }
+}
+
+/// The game's client among the listed processes: ProjectZomboid64.exe on Windows; on Linux the
+/// ProjectZomboid64 launcher or a Java running the game's main class.
+fn is_game_name(name: &str, cmd: &str) -> bool {
+    if cfg!(windows) {
+        name.eq_ignore_ascii_case("ProjectZomboid64.exe")
+    } else {
+        crate::platform::is_game_process(name, cmd)
+    }
+}
+
+/// Whether a process is a Project Zomboid server: Java running `zombie.network.GameServer` (the
+/// Studio's, the game's StartServer64.bat, a co-op host's).
+pub(crate) fn is_server_process(name: &str, cmd: &str) -> bool {
+    (name.eq_ignore_ascii_case("java.exe") || name.eq_ignore_ascii_case("javaw.exe") || name == "java") && (cmd.contains("-servername") || cmd.contains("GameServer"))
+}
+
+/// Every Project Zomboid server running on this PC: its process id and `-servername` (empty when
+/// it has none). Cheap when no Java runs (one `tasklist`); the command lines only then.
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) fn running_servers() -> Vec<(u32, String)> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let java = std::process::Command::new("tasklist")
+            .args(["/FI", "IMAGENAME eq java*", "/FO", "CSV", "/NH"])
+            .creation_flags(0x08000000)
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_ascii_lowercase().contains("java"))
+            .unwrap_or(true);
+        if !java {
+            return Vec::new();
+        }
+        let script = r#"$l = @(Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" | ForEach-Object { [pscustomobject]@{ Id = [int]$_.ProcessId; Name = $_.Name; Cmd = $_.CommandLine } }); ConvertTo-Json -InputObject $l -Compress"#;
+        let Ok(out) = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .creation_flags(0x08000000)
+            .output()
+        else {
+            return Vec::new();
+        };
+        let rows: Vec<ProcRow> = serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).unwrap_or_default();
+        servers_in(&rows)
+    }
+    #[cfg(not(windows))]
+    {
+        let rows: Vec<ProcRow> = crate::platform::processes()
+            .into_iter()
+            .filter(|p| p.name == "java")
+            .map(|p| ProcRow { id: p.pid, name: p.name, cmd: Some(p.cmd), ..Default::default() })
+            .collect();
+        servers_in(&rows)
+    }
+}
+
+fn servers_in(rows: &[ProcRow]) -> Vec<(u32, String)> {
+    rows.iter()
+        .filter(|p| is_server_process(&p.name, p.cmd.as_deref().unwrap_or("")))
+        .map(|p| (p.id, arg_value(p.cmd.as_deref().unwrap_or(""), "-servername").unwrap_or_default()))
+        .collect()
 }
 
 /// The value of `-name=value` or `-name value` in a command line.
@@ -426,6 +507,11 @@ fn set_phase(primary: &Path, phase: &str) {
     let _ = std::fs::write(phase_file(primary), serde_json::json!({ "phase": phase }).to_string());
 }
 
+/// Whether a multiplayer test is under way (its server is not one to restart on its own).
+pub fn active(primary: &Path) -> bool {
+    read_phase(primary).is_some_and(|p| matches!(p.as_str(), "waiting_for_server" | "players_launched" | "watching" | "all_in_game"))
+}
+
 fn read_phase(primary: &Path) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(phase_file(primary)).ok()?).ok()?;
     v.get("phase").and_then(|p| p.as_str()).map(str::to_string)
@@ -441,9 +527,9 @@ pub(crate) fn roles_of(pids: &[u32]) -> std::collections::HashMap<u32, (String, 
     }
     for p in snapshot().procs.iter().filter(|p| pids.contains(&p.id)) {
         let cmd = p.cmd.clone().unwrap_or_default();
-        if p.name.eq_ignore_ascii_case("java.exe") && (cmd.contains("-servername") || cmd.contains("GameServer")) {
+        if is_server_process(&p.name, &cmd) {
             out.insert(p.id, ("server".to_string(), arg_value(&cmd, "-servername").unwrap_or_default()));
-        } else if p.name.eq_ignore_ascii_case("ProjectZomboid64.exe") {
+        } else if is_game_name(&p.name, &cmd) {
             out.insert(p.id, ("game".to_string(), if arg_value(&cmd, "-cachedir").is_some() { "2".to_string() } else { String::new() }));
         }
     }
@@ -459,8 +545,8 @@ pub fn status(primary: &Path, pz_install_dir: &Path) -> MpStatus {
     let mut processes = Vec::new();
     for p in &snap.procs {
         let cmd = p.cmd.clone().unwrap_or_default();
-        let is_server = p.name.eq_ignore_ascii_case("java.exe") && (cmd.contains("-servername") || cmd.contains("GameServer"));
-        let is_game = p.name.eq_ignore_ascii_case("ProjectZomboid64.exe");
+        let is_server = is_server_process(&p.name, &cmd);
+        let is_game = is_game_name(&p.name, &cmd);
         if !is_server && !is_game {
             continue;
         }
@@ -558,9 +644,9 @@ pub fn test_account(server: &str, slot: u32, admin_password: Option<&str>) -> Op
 
 /// Launches one game joined to `address`, without Steam unless `steam`; player 2 with its own Zomboid folder.
 pub fn launch_player(pz_install_dir: &Path, primary: &Path, slot: u32, address: &str, steam: bool) -> Result<u32, String> {
-    let exe = pz_install_dir.join("ProjectZomboid64.exe");
+    let exe = crate::platform::game_launcher(pz_install_dir);
     if !exe.is_file() {
-        return Err(format!("ProjectZomboid64.exe not found at {}", exe.display()));
+        return Err(format!("{} not found at {}", crate::platform::GAME_EXE, exe.display()));
     }
     let dir = if slot == 2 { second_dir(primary) } else { primary.to_path_buf() };
     crate::sandbox::configure_options_ini(&dir.to_string_lossy(), true);
@@ -859,6 +945,8 @@ pub fn restart_player(pz_install_dir: PathBuf, primary: PathBuf, slot: u32, admi
             use std::os::windows::process::CommandExt;
             let _ = std::process::Command::new("taskkill").args(["/PID", &p.pid.to_string(), "/F"]).creation_flags(0x08000000).output();
         }
+        #[cfg(not(windows))]
+        let _ = crate::platform::kill(p.pid, false, true);
         std::thread::sleep(std::time::Duration::from_secs(2));
     }
     let w = launch_one(&pz_install_dir, &primary, &settings, slot, admin_password.as_deref())?;
@@ -878,6 +966,8 @@ pub fn stop(primary: &Path) -> Result<Vec<u32>, String> {
             use std::os::windows::process::CommandExt;
             let _ = std::process::Command::new("taskkill").args(["/PID", &p.pid.to_string(), "/F"]).creation_flags(0x08000000).output();
         }
+        #[cfg(not(windows))]
+        let _ = crate::platform::kill(p.pid, false, true);
         closed.push(p.pid);
     }
     let _ = super::stop_dedicated_server(primary.to_string_lossy().to_string(), None);
@@ -891,6 +981,18 @@ pub fn stop(primary: &Path) -> Result<Vec<u32>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_java_running_the_game_server_is_a_server_and_other_java_is_not() {
+        let row = |id: u32, name: &str, cmd: &str| ProcRow { id, name: name.into(), cmd: Some(cmd.into()), ..Default::default() };
+        let rows = vec![
+            row(1, "java.exe", r#""C:\PZ\jre64in\java.exe" -Xmx4g -cp ./;projectzomboid.jar zombie.network.GameServer -servername knoxtest -nosteam"#),
+            row(2, "java.exe", r#"java -jar gradle-wrapper.jar build"#),
+            row(3, "javaw.exe", r#"javaw.exe -cp x zombie.network.GameServer"#),
+            row(4, "ProjectZomboid64.exe", r#"ProjectZomboid64.exe -servername x"#),
+        ];
+        assert_eq!(servers_in(&rows), vec![(1, "knoxtest".to_string()), (3, String::new())]);
+    }
 
     #[test]
     fn the_login_is_left_where_the_link_reads_it() {

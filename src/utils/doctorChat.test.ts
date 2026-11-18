@@ -119,3 +119,112 @@ describe('doctorChat, the new questions', () => {
     expect(workshopAskOf('¿qué cambió?')).toBeNull();
   });
 });
+
+describe('doctorChat, in every language of the app', () => {
+  const now = new Date(2026, 10, 17, 18, 0, 0);
+  const day = (d: Date) => Math.floor(d.getTime() / 1000);
+
+  it('reads the questions in Portuguese', () => {
+    expect(intentOf('o que mudou?')).toBe('changed');
+    expect(intentOf('por que o jogo fechou?')).toBe('crash');
+    expect(intentOf('o jogo travou de novo')).toBe('crash');
+    expect(intentOf('está muito lento')).toBe('slow');
+    expect(intentOf('qual mod causa o problema?')).toBe('culprit');
+    expect(intentOf('os consertos funcionaram?')).toBe('fixes');
+    expect(intentOf('o que aconteceu esta semana?')).toBe('week');
+    expect(asksTheGuide('como faço um perfil?')).toBe(true);
+    expect(sinceOf('o que mudou desde ontem?', now)).toBe(day(new Date(2026, 10, 16)));
+    expect(followUpOf('desliga ele')).toBe('disable');
+    expect(followUpOf('e desde quando?')).toBe('why');
+    expect(superlativeOf('qual demora mais para carregar?')).toBe('slowest');
+    expect(workshopAskOf('tem versão nova?')).toBe('update');
+    expect(splitQuestions('o que mudou e quais mods falham?')).toEqual(['o que mudou', 'quais mods falham?'.replace('?', '')]);
+    expect(orderOf('coloque A, B no grupo Mapas')).toEqual({ kind: 'add', mods: ['A', 'B'], group: 'Mapas' });
+  });
+
+  it('reads the questions in French', () => {
+    expect(intentOf("qu'est-ce qui a changé ?")).toBe('changed');
+    expect(intentOf('le jeu a planté')).toBe('crash');
+    expect(intentOf('le jeu ne démarre pas')).toBe('crash');
+    expect(intentOf("c'est très lent")).toBe('slow');
+    expect(intentOf('quel mod cause ça ?')).toBe('culprit');
+    expect(intentOf('les erreurs')).toBe('errors');
+    expect(asksTheGuide("comment créer un profil ?")).toBe(true);
+    expect(asksTheGuide("qu'est-ce qu'une copie compatible ?")).toBe(true);
+    expect(sinceOf("qu'est-ce qui a changé depuis hier ?", now)).toBe(day(new Date(2026, 10, 16)));
+    expect(sinceOf('les plantages de cette semaine', now)).toBe(day(new Date(2026, 10, 10)));
+    expect(followUpOf('désactive-le')).toBe('disable');
+    expect(followUpOf('et pourquoi ?')).toBe('why');
+    expect(superlativeOf('quel mod a le plus d’erreurs ?')).toBe('most_errors');
+    expect(orderOf('renomme le groupe Cartes en Monde')).toEqual({ kind: 'rename', group: 'Cartes', to: 'Monde' });
+  });
+
+  it('reads the questions in German', () => {
+    expect(intentOf('was hat sich geändert?')).toBe('changed');
+    expect(intentOf('das Spiel ist abgestürzt')).toBe('crash');
+    expect(intentOf('es ist sehr langsam')).toBe('slow');
+    expect(intentOf('welche Mod verursacht das?')).toBe('culprit');
+    expect(intentOf('haben die Reparaturen funktioniert? wurde es behoben?')).toBe('fixes');
+    expect(asksTheGuide('wie erstelle ich ein Profil?')).toBe(true);
+    expect(sinceOf('was hat sich seit gestern geändert?', now)).toBe(day(new Date(2026, 10, 16)));
+    expect(sinceOf('seit 12.11.', now)).toBe(day(new Date(2026, 10, 12)));
+    expect(followUpOf('schalte es aus')).toBe('disable');
+    expect(followUpOf('und seit wann?')).toBe('why');
+    expect(superlativeOf('welche Mod lädt am längsten?')).toBe('slowest');
+    expect(orderOf('lösche die Gruppe Karten')).toEqual({ kind: 'delete', group: 'Karten' });
+    expect(orderOf('benenne die Gruppe Karten in Welt um')).toEqual({ kind: 'rename', group: 'Karten', to: 'Welt' });
+  });
+
+  it('reads the questions in Russian', () => {
+    expect(intentOf('что изменилось?')).toBe('changed');
+    expect(intentOf('игра вылетает')).toBe('crash');
+    expect(intentOf('почему игра закрылась?')).toBe('crash');
+    expect(intentOf('очень медленно грузится')).toBe('slow');
+    expect(intentOf('какой мод вызывает ошибки?')).toBe('culprit');
+    expect(intentOf('какие ошибки?')).toBe('errors');
+    expect(asksTheGuide('как сделать профиль?')).toBe(true);
+    expect(sinceOf('что изменилось со вчера? вчера', now)).toBe(day(new Date(2026, 10, 16)));
+    expect(sinceOf('за последние 3 дня', now)).toBe(day(new Date(2026, 10, 14)));
+    expect(followUpOf('выключи его')).toBe('disable');
+    expect(followUpOf('и с каких пор?')).toBe('why');
+    expect(orderOf('добавь A, B в группу Карты')).toEqual({ kind: 'add', mods: ['A', 'B'], group: 'Карты' });
+    expect(orderOf('убери A из группы Карты')).toEqual({ kind: 'remove', mods: ['A'], group: 'Карты' });
+  });
+
+  it('reads the questions in Chinese', () => {
+    expect(intentOf('改变了什么？')).toBe('changed');
+    expect(intentOf('游戏崩溃了')).toBe('crash');
+    expect(intentOf('游戏很卡顿')).toBe('slow');
+    expect(intentOf('哪个模组导致的？')).toBe('culprit');
+    expect(intentOf('有什么错误')).toBe('errors');
+    expect(asksTheGuide('怎么创建配置方案？')).toBe(true);
+    expect(sinceOf('昨天以来改变了什么', now)).toBe(day(new Date(2026, 10, 16)));
+    expect(sinceOf('最近3天', now)).toBe(day(new Date(2026, 10, 14)));
+    expect(followUpOf('关掉它')).toBe('disable');
+    expect(followUpOf('为什么？')).toBe('why');
+    expect(superlativeOf('哪个模组加载最慢？')).toBe('slowest');
+    expect(splitQuestions('改变了什么？哪些模组出错？')).toEqual(['改变了什么', '哪些模组出错']);
+  });
+
+  it('reads the Studio notes and Chinese orders', () => {
+    expect(orderOf('nota em Light Fix: desliga com Viewpoint')).toEqual({ kind: 'note', mod: 'Light Fix', text: 'desliga com Viewpoint' });
+    expect(orderOf('note sur Light Fix : à revoir')).toEqual({ kind: 'note', mod: 'Light Fix', text: 'à revoir' });
+    expect(orderOf('Notiz zu Light Fix: später prüfen')).toEqual({ kind: 'note', mod: 'Light Fix', text: 'später prüfen' });
+    expect(orderOf('заметка к Light Fix: проверить')).toEqual({ kind: 'note', mod: 'Light Fix', text: 'проверить' });
+    expect(orderOf('备注 Light Fix：以后再看')).toEqual({ kind: 'note', mod: 'Light Fix', text: '以后再看' });
+    expect(orderOf('lösche die Studio-Notiz von Light Fix')).toEqual({ kind: 'noteRemove', mod: 'Light Fix' });
+    expect(orderOf('supprime la note du Studio de Light Fix')).toEqual({ kind: 'noteRemove', mod: 'Light Fix' });
+    expect(orderOf('把 A、B 加到 地图 分组')).toEqual({ kind: 'add', mods: ['A', 'B'], group: '地图' });
+    expect(orderOf('把 A 从 地图 分组移出')).toEqual({ kind: 'remove', mods: ['A'], group: '地图' });
+    expect(orderOf('把 地图 分组改名为 世界')).toEqual({ kind: 'rename', group: '地图', to: '世界' });
+    expect(orderOf('删除 地图 分组')).toEqual({ kind: 'delete', group: '地图' });
+    expect(orderOf('改变了什么？')).toBeNull();
+  });
+
+  it('keeps Spanish and English as they were', () => {
+    expect(intentOf('no abre el juego')).toBe('crash');
+    expect(followUpOf('no abre el juego')).toBeNull();
+    expect(followUpOf('¿qué hay de nuevo hier?')).toBeNull();
+    expect(orderOf('group No Lag, Better Sorting in Maps')).toEqual({ kind: 'add', mods: ['No Lag', 'Better Sorting'], group: 'Maps' });
+  });
+});

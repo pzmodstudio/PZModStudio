@@ -9,6 +9,12 @@
 -- changes goes to mods/default.txt exactly as the game's screen writes it.
 -- Also on its own: the map order (the game's own Map Order screen, on the list being edited),
 -- undo / redo (Ctrl+Z, Ctrl+Y), and the list / details split dragged wider or narrower.
+-- Shared files: "Overrides" on a mod whose copy of a Lua file is the one used over another loaded
+-- mod's copy, "Overridden" on the mod whose copy is not used (see PZModStudio_Overwrites.lua);
+-- the summary's "Shared files" shows them, with the legend on hover, and a mod's details name
+-- the files and the other mod.
+-- "Reload mods" has the game read its mod folders again (a Workshop item subscribed or updated
+-- while the game runs) without restarting: the same reload of the game's Lua as an Accept.
 -- A group's heading has a counter (on / total) and a switch for the whole group (with what its
 -- mods require, as for one mod). Accept says what it will do ("+3 on / -2 off", the names on
 -- hover); after it the main menu says once what was turned on and off, and "Undo last Accept"
@@ -25,6 +31,7 @@
 -- owns the Mods screen (see PZModStudio_Link.lua) keeps it: then this screen never opens.
 
 require "PZModStudio_Link"
+require "PZModStudio_Overwrites"
 require "ISUI/ISPanelJoypad"
 require "ISUI/ISButton"
 require "ISUI/ISTextEntryBox"
@@ -43,6 +50,8 @@ local ListBox, Panel, PanelJoypad = ISScrollingListBox, ISPanel, ISPanelJoypad
 local Link = PZModStudioLink
 local text = Link.text
 local plainId = Link.plainId
+-- Which mods replace a Lua file another loaded mod ships (PZModStudio_Overwrites.lua).
+local Over = Link.Overwrites
 
 local function fontH(font) return getTextManager():getFontHeight(font) end
 local function measure(font, s) return getTextManager():MeasureStringX(font, s) end
@@ -553,8 +562,13 @@ function ModList:doDrawItem(y, item, alt)
     if screen.updated[mod.id] == "waiting" then tag(text("modsWaiting"), C.warn) end
     if not mod.available then tag(text("modsNotForBuild"), C.muted) end
     if screen.missingReq[mod.id] then tag(text("modsNeedsMore"), C.warn) end
+    -- Shared Lua files, as the game loaded the mods (only for a mod that is on).
+    -- Shared files of any kind, as Mod Health found them (with the app), say the same words.
+    local over = on and Over.of(mod.id)
     local health = screen.health[mod.id]
-    if health then tag("!", health.severity == "error" and C.error or C.warn) end
+    if (over and over.nReplacedBy > 0) or (on and health and #health.overridden > 0) then tag(text("modsOverriddenTag"), C.warn) end
+    if (over and over.nReplaces > 0) or (on and health and #health.overrides > 0) then tag(text("modsOverridesTag"), C.info) end
+    if Link.healthProblem(health) then tag("!", health.severity == "error" and C.error or C.warn) end
     self:drawRect(0, y + h - 1, self.width, 1, 0.6, C.border[1], C.border[2], C.border[3])
     return y + h
 end
@@ -762,12 +776,22 @@ function Screen:recount()
     if self.orderChanged then self.changes = self.changes + 1 end
     if self.mapOrderChanged then self.changes = self.changes + 1 end
     -- The summary on top.
-    self.counts = { problems = 0, updated = 0, favourites = 0 }
+    self.counts = { problems = 0, updated = 0, favourites = 0, files = 0 }
     for _, mod in ipairs(self.mods) do
-        if self.health[mod.id] or self.missingReq[mod.id] or (self.on[mod.id] and not mod.available) then self.counts.problems = self.counts.problems + 1 end
+        if self:sharesFiles(mod.id) then self.counts.files = self.counts.files + 1 end
+        if Link.healthProblem(self.health[mod.id]) or self.missingReq[mod.id] or (self.on[mod.id] and not mod.available) then self.counts.problems = self.counts.problems + 1 end
         if self.updated[mod.id] then self.counts.updated = self.counts.updated + 1 end
         if self.favs[mod.id] then self.counts.favourites = self.counts.favourites + 1 end
     end
+end
+
+--- Whether a mod that is on ships a file another mod that is on also ships: the Lua files the
+--- Link finds itself, or any file Mod Health found (with the app).
+function Screen:sharesFiles(id)
+    if not self.on[id] then return false end
+    if Over.of(id) then return true end
+    local health = self.health[id]
+    return health ~= nil and (#health.overrides > 0 or #health.overridden > 0)
 end
 
 --- The mods the list shows now, in the order chosen.
@@ -783,8 +807,9 @@ function Screen:visibleMods()
         if show and f == "favourites" and not self.favs[mod.id] then show = false end
         if show and f == "updated" and not self.updated[mod.id] then show = false end
         if show and f == "maps" and not mod.map then show = false end
-        if show and f == "problems" and not (self.health[mod.id] or self.missingReq[mod.id] or (self.on[mod.id] and not mod.available)) then show = false end
+        if show and f == "problems" and not (Link.healthProblem(self.health[mod.id]) or self.missingReq[mod.id] or (self.on[mod.id] and not mod.available)) then show = false end
         if show and f == "libraries" and not self.facts.library[mod.id] then show = false end
+        if show and f == "files" and not self:sharesFiles(mod.id) then show = false end
         if show and f == "unloadable" and mod.available then show = false end
         if show and self.groupPick and not self:inGroup(mod, self.groupPick) then show = false end
         if show and self.originPick and self.facts.origin[mod.id] ~= self.originPick then show = false end
@@ -1801,10 +1826,40 @@ function Screen:select(mod, groupName)
     if self.notes[mod.id] then line(" <RGB:0.55,0.8,1> " .. text("modsYourNote") .. " " .. self.notes[mod.id] .. " <RGB:1,1,1> <LINE> <LINE> ") end
     -- What Mod Health says (with the app).
     local health = self.health[mod.id]
-    if health then
+    if Link.healthProblem(health) then
         local color = health.severity == "error" and "1,0.45,0.45" or "1,0.8,0.35"
-        for _, l in ipairs(health.lines) do line(" <RGB:" .. color .. "> " .. l .. " <RGB:1,1,1> <LINE> ") end
+        for _, l in ipairs(health.problems) do line(" <RGB:" .. color .. "> " .. l .. " <RGB:1,1,1> <LINE> ") end
         line(" <LINE> ")
+    end
+    -- Files it shares with another mod that is on, as Mod Health found them: whose copy is used.
+    if health and self.on[mod.id] and (#health.overrides > 0 or #health.overridden > 0) then
+        for _, l in ipairs(health.overrides) do line(" <RGB:0.35,0.65,0.98> " .. text("modsOverridesTag") .. ": " .. l .. " <RGB:1,1,1> <LINE> ") end
+        for _, l in ipairs(health.overridden) do line(" <RGB:1,0.8,0.35> " .. text("modsOverriddenTag") .. ": " .. l .. " <RGB:1,1,1> <LINE> ") end
+        line(" <LINE> ")
+    end
+    -- Lua files it shares with another loaded mod: whose copy is used (only for a mod that is on).
+    local over = self.on[mod.id] and Over.of(mod.id)
+    if over then
+        line(" <RGB:0.58,0.64,0.72> " .. text("modsFilesHead") .. " <RGB:1,1,1> <LINE> ")
+        local function block(map, key, color)
+            local ids = {}
+            for id, _ in pairs(map) do table.insert(ids, id) end
+            table.sort(ids, function(a, b) return string.lower(nameOf(a)) < string.lower(nameOf(b)) end)
+            for _, id in ipairs(ids) do
+                local paths = map[id]
+                line(" <RGB:" .. color .. "> " .. text(key, nameOf(id), #paths) .. " <RGB:1,1,1> <LINE> ")
+                for i, p in ipairs(paths) do
+                    if i > 5 then
+                        line(" <RGB:0.7,0.75,0.85> " .. text("andMore", #paths - 5) .. " <RGB:1,1,1> <LINE> ")
+                        break
+                    end
+                    line(" <RGB:0.7,0.75,0.85> - " .. p .. " <RGB:1,1,1> <LINE> ")
+                end
+            end
+        end
+        block(over.replaces, "modsFilesReplaces", "0.35,0.65,0.98")
+        block(over.replacedBy, "modsFilesReplacedBy", "1,0.8,0.35")
+        line(" <RGB:0.58,0.64,0.72> " .. text("modsFilesWhy") .. " <RGB:1,1,1> <LINE> <LINE> ")
     end
     if not mod.available then line(" <RGB:1,0.6,0.3> " .. text("modsCannotTurnOn") .. " <RGB:1,1,1> <LINE> <LINE> ") end
     if self.updated[mod.id] == "updated" then line(" <RGB:0.35,0.65,0.98> " .. text("modsUpdatedLong") .. " <RGB:1,1,1> <LINE> <LINE> ") end
@@ -1928,6 +1983,13 @@ function Screen:updateButtons()
     self.summary.problems:setTitle(text("modsSumProblems", self.counts.problems))
     self.summary.favourites:setTitle(text("modsSumFavourites", self.counts.favourites))
     if self.summary.updated then self.summary.updated:setTitle(text("modsSumUpdated", self.counts.updated)) end
+    if self.summary.files then
+        -- While the check runs it says so; done, it shows only when some mod shares a file.
+        local files = self.summary.files
+        files:setTitle(Over.ready() and text("modsSumFiles", self.counts.files) or text("modsSumFilesChecking"))
+        files:setVisible(Over.state ~= "failed" and (not Over.ready() or self.counts.files > 0 or self.filter == "files"))
+        files:setEnable(Over.ready())
+    end
     self.undoButton:setEnable(#self.history > 0)
     self.redoButton:setEnable(#self.future > 0)
     if #many > 1 or (self.groupView and #self:multiMods() == 0) then
@@ -2082,6 +2144,28 @@ function Screen:createChildren()
     summaryButton("favourites", text("modsSumFavourites", 999))
     if Link.appInstalled() then summaryButton("updated", text("modsSumUpdated", 999)) end
     summaryButton("problems", text("modsSumProblems", 999))
+    -- Mods that share a Lua file (the legend on hover): wide enough for "checking" too.
+    do
+        local w = math.max(measure(UIFont.Small, text("modsSumFiles", 999)), measure(UIFont.Small, text("modsSumFilesChecking"))) + 40
+        sx = sx - w
+        local b = button(self, sx, sy, w, bh, text("modsSumFilesChecking"), function(screen)
+            if not Over.ready() then return end
+            screen.filter = "files"
+            screen:refreshList()
+        end)
+        b.tooltip = text("modsFilesTip")
+        sx = sx - 6
+        self.summary.files = b
+    end
+    -- The game reads its mod folders again (a Workshop item subscribed or updated meanwhile).
+    do
+        local label = text("modsReload")
+        local w = measure(UIFont.Small, label) + 26
+        sx = sx - w - 4
+        self.reloadButton = button(self, sx, sy, w, bh, label, function(screen) screen:reloadMods() end)
+        self.reloadButton.tooltip = text("modsReloadTip")
+        sx = sx - 6
+    end
 
     if self.link then
         local w = math.max(measure(UIFont.Small, text("modsOnlyProfileOn")), measure(UIFont.Small, text("modsOnlyProfileOff"))) + 22
@@ -2413,19 +2497,32 @@ end
 
 -- ------------------------------------------------------------------ PZ Mod Studio
 
-local function writeReopen(on)
+--- kind: "reload" for Reload mods (with how many mods were installed before), else a Sync.
+local function writeReopen(on, kind, before)
     local file = getFileWriter(REOPEN_FILE, true, false)
     if not file then return end
-    file:write("reopen=" .. (on and "1" or "0") .. "\n")
+    local lines = "reopen=" .. (on and "1" or "0") .. "\n"
+    if on and kind then lines = lines .. "kind=" .. kind .. "\nbefore=" .. tostring(before or 0) .. "\n" end
+    file:write(lines)
     file:close()
 end
 
+--- Whether to open the screen again, and why: true/false, kind, mods installed before.
 local function readReopen()
     local file = getFileReader(REOPEN_FILE, false)
     if not file then return false end
+    local on, kind, before = false, nil, nil
     local line = file:readLine()
+    while line do
+        if line == "reopen=1" then on = true end
+        local k = string.match(line, "^kind=(.*)$")
+        if k then kind = k end
+        local b = string.match(line, "^before=(%d+)$")
+        if b then before = tonumber(b) end
+        line = file:readLine()
+    end
     file:close()
-    return line == "reopen=1"
+    return on, kind, before
 end
 
 --- Gives the game PZ Mod Studio's list, and reloads the game's Lua when mods came on or went
@@ -2440,6 +2537,21 @@ local function takeFromApp(list, reopen)
         getCore():ResetLua("default", "modsChanged")
     end
     return true
+end
+
+--- Reload mods: the game reads its mod folders and every mod.info again and reloads its Lua, as
+--- after an Accept (getCore():ResetLua empties the game's list of mod folders, so a Workshop
+--- item subscribed or updated while it runs is found), and this screen opens again. With changes
+--- waiting here it asks for Accept or Back first: a reload would lose them.
+function Screen:reloadMods()
+    if self.changes > 0 then return self:say(text("modsReloadPending")) end
+    local ok, err = pcall(function()
+        pcall(writeReopen, true, "reload", #self.mods)
+        self:close()
+        MainScreen.instance.bottomPanel:setVisible(false)
+        getCore():ResetLua("default", "modsChanged")
+    end)
+    if not ok then print("[StudioLink] the mods could not be read again: " .. tostring(err)) end
 end
 
 --- What the app changed is taken as seen (its list now, its files).
@@ -2872,18 +2984,35 @@ local function click(item, x, y)
 end
 MainScreen.onMenuItemMouseDownMainMenu = click
 
+-- The check of shared files ends after the screen opened: its marks, count and details then.
+Over.onReady(function()
+    local s = Screen.instance
+    if not s then return end
+    s:recount()
+    s:refreshList()
+end)
+
 local menuPrerender = MainScreen.prerender
 function MainScreen:prerender(...)
     menuPrerender(self, ...)
     if self.modsOption and self.modsOption.onMouseDown ~= click then self.modsOption.onMouseDown = click end
     if self.inGame then return end
-    -- Back from a reload asked by Sync while this screen was open: it opens again.
+    -- Back from a reload asked by Sync or Reload mods while this screen was open: it opens again.
     if not Link.reopenChecked then
         Link.reopenChecked = true
-        if readReopen() then
+        local reopen, kind, before = readReopen()
+        if reopen then
             pcall(writeReopen, false)
             local ok, err = pcall(Screen.open)
-            if ok and Screen.instance then Screen.instance:say(text("modsSynced")) end
+            if ok and Screen.instance then
+                local s = Screen.instance
+                if kind == "reload" then
+                    local more = #s.mods - (before or #s.mods)
+                    s:say(more > 0 and text("modsReloadedMore", #s.mods, more) or text("modsReloaded", #s.mods))
+                else
+                    s:say(text("modsSynced"))
+                end
+            end
             if not ok then print("[StudioLink] the Mods screen could not open again: " .. tostring(err)) end
         end
     end

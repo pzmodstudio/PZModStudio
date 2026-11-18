@@ -46,6 +46,8 @@ The main menu's **MODS** button opens the Link's Mods screen instead of the game
 - turning mods on and off together with what they require, several at once with Ctrl or Shift;
 - the load order: sorted by it, moved up and down, or dragged, never above what a mod requires;
 - groups by author or category, each mod's options (**Mod options**), the **Map order**, and **Undo** / **Redo**;
+- **Shared files**: when two mods that are on ship the same Lua file, the game runs only one copy, the one of the mod that loads later. The mod whose copy is used is marked **Overrides**, the one whose copy is not used **Overridden**; the summary button **N share files** lists them (its tooltip explains the marks) and each mod's details name the files and the other mod. Checked against the mods the game loaded, a few seconds after the main menu appears; only Lua files are looked at;
+- **Reload mods** has the game read its mod folders again, so a Workshop item you subscribed to (or that updated) while the game runs shows up without restarting; the game reloads its Lua, as after **Accept**;
 - **Server lines** copies the mods that are on as a dedicated server's `Mods=`, `WorkshopItems=` and `Map=` lines, in load order (each mod after what it requires, the maps in the map order), to paste over those lines of the server's `.ini` in `Zomboid/Server`; mods with no Workshop item are named on a comment line, to copy into the server's own mods folder;
 - **Accept** saves to the list the game reads, as the game's own screen does. **The game's screen** opens the original one.
 
@@ -63,7 +65,7 @@ When the game records a Lua error, a notice names the mod it came from (and whic
 
 Every error also goes to `Zomboid/Lua/PZModStudio_LinkErrorLog.txt` within a second of happening, so a crash, a disconnect or going back to the menu does not lose it: each kind once in full (mod, file:line, message, stack) and its repeats counted, under a heading with the date, the build and whether it was the menu or which save, with a line where the game went back to the main menu or the server dropped it. The file keeps about the last 3000 lines. **Error log** in the list opens its folder and copies its path.
 
-For mod authors: `PZModStudioLink.registerReport("YourModId", fn)` (or `PZModStudioLinkReports["YourModId"] = fn` from Lua that runs before the Link's) adds your own information to the reports. `fn(err)` returns a string, a list of lines or a table of name = value pairs; it runs only when a report is made, inside `pcall`. Its text goes into **Copy all**, and into **Copy report** and the error log for an error of your mod.
+For mod authors: `PZModStudioLink.registerReport("YourModId", fn)` (or `PZModStudioLinkReports["YourModId"] = fn` from Lua that runs before the Link's) adds your own information to the reports. `fn(err)` returns a string, a list of lines or a table of name = value pairs; it runs only when a report is made, inside `pcall`. Its text goes into **Copy all**, and into **Copy report** and the error log for an error of your mod. Other mods' debug reports, the ones mods already register for error tools, go into the same places under the name each mod gave them.
 
 The game's own red **ERROR** counter in the bottom-right corner is drawn by the game's Java, which Lua cannot reach: the Link cannot hide it.
 

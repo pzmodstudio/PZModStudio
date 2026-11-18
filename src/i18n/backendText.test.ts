@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import i18next from './index';
-import { backendText, cardText, issueText } from './backendText';
+import { backendText, cardText, issueText, plainIssueText } from './backendText';
 
 describe('backendText', () => {
   beforeAll(async () => {
@@ -100,5 +100,35 @@ describe('backendText', () => {
     await i18next.changeLanguage('en');
     expect(issueText({ code: 'dependency_after', params: { mod: 'A', dep: 'B' }, message: 'rust words' })).toBe('rust words');
     await i18next.changeLanguage('es');
+  });
+});
+
+describe('plainIssueText (Simple)', () => {
+  const names: Record<string, string> = { Neat_Crafting: 'Neat Crafting', NeatUI_Framework: 'NeatUI Framework', EURY_CONTAINERS: 'Better Containers' };
+  const nameOf = (id: string) => names[id] ?? id;
+  afterAll(async () => {
+    await i18next.changeLanguage('en');
+  });
+
+  it('says the mods by their names, never their ids, in Spanish', async () => {
+    await i18next.changeLanguage('es');
+    const text = plainIssueText({ code: 'dependency_not_enabled', params: { mod: 'Neat Crafting (Neat_Crafting)', dep: 'NeatUI_Framework' }, message: 'x' }, nameOf);
+    expect(text).toBe('Neat Crafting necesita NeatUI Framework, que tenés instalado pero apagado.');
+  });
+
+  it('does so in English too, where the full view keeps the text as written', async () => {
+    await i18next.changeLanguage('en');
+    const issue = { code: 'incompatible', params: { mod: 'Smarter Storage (SmarterStorage)', other: 'EURY_CONTAINERS' }, message: 'Smarter Storage (SmarterStorage) is marked incompatible with EURY_CONTAINERS' };
+    expect(issueText(issue)).toBe(issue.message);
+    const plain = plainIssueText(issue, (id) => (id === 'SmarterStorage' ? 'Smarter Storage' : nameOf(id)));
+    expect(plain).toContain('Smarter Storage and Better Containers');
+    expect(plain).not.toContain('SmarterStorage');
+    expect(plain).not.toContain('EURY_CONTAINERS');
+  });
+
+  it('keeps a value that is not a known mod as it is', async () => {
+    await i18next.changeLanguage('es');
+    const text = plainIssueText({ code: 'missing_dependency', params: { mod: 'Neat Crafting (Neat_Crafting)', dep: 'truemusic', variant: 'plain' }, message: 'x' }, nameOf);
+    expect(text).toBe('Neat Crafting necesita truemusic, que no tenés instalado.');
   });
 });

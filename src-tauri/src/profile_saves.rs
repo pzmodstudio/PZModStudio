@@ -36,14 +36,35 @@
 //! the game, the Monitor, the Link and the backups keep working on the folder in place. A profile
 //! that becomes isolated starts with a COPY of the options and mod settings in place (the others
 //! keep their own); a set isolated before settings were (saves only) gets that copy the first time
-//! it is switched to. Turning isolation off, or deleting the profile, gives its worlds to the shared
-//! set and keeps its settings in `PZModStudio_Backups/ProfileSettings/<profile>/<when>/`, never
-//! over the shared ones. Something that would be overwritten goes to
+//! it is switched to. Turning isolation off, or deleting the profile, gives its worlds to the
+//! shared set and keeps its settings in `PZModStudio_Backups/ProfileSettings/<profile>/<when>/`,
+//! never over the shared ones. Something that would be overwritten goes to
 //! `PZModStudio_Backups/ProfileSettings/replaced-<when>/` instead: nothing is ever lost.
 //!
+//! **Big unknown data is never copied.** The names in `CACHES` are only the big folders seen on one
+//! PC; any other PC has mods of its own that keep caches, shader dumps, recordings or worlds of
+//! their own in `Zomboid`. So the copy made when a profile is isolated skips any single file over
+//! `BIG_FILE` (20 MB) and any folder over `BIG_FOLDER` (50 MB) that is not one of the game's known
+//! settings (`KNOWN_SETTINGS`, copied whatever their size): such an entry is LEFT SHARED, the same
+//! for every profile from then on, and written down in `PZModStudio_ProfileSavesShared.json`
+//! (name, size counted, when, for which profile: `left_shared`). From then on it counts as shared
+//! like the names above: it is never moved by a switch either. A set that already had its own copy
+//! of it (isolated before) gets it put in the replaced backups the next time it comes in, never
+//! laid over the one in place.
+//!
 //! Each switch is written down first (`PZModStudio_ProfileSaves.json`, step out/in); one cut short
-//! (the PC went off) is finished the next time the Studio starts or switches. Refused while the game
-//! runs.
+//! (the PC went off) is finished the next time the Studio starts or switches.
+//!
+//! **Refused while Project Zomboid runs**: the game (any `ProjectZomboid64.exe`, player 2 of a
+//! multiplayer test too) or any Project Zomboid server (Java running `zombie.network.GameServer`:
+//! the Studio's dedicated server, the game's own StartServer64.bat, a co-op host). Either can hold
+//! files in `Zomboid` open or write them while they move. A switch cut short is not finished then
+//! either: it waits for both to close.
+//!
+//! **Every move is logged**: each world, Continue file, setting moved, copied, left shared, kept in
+//! the backups or thrown away (an unfinished copy) is one line in the Studio's log of that Zomboid
+//! folder (`PZModStudio_Logs/studio.log`, `[Profiles]`), from where to where, so a save or a setting
+//! that seems missing can always be traced.
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -102,6 +123,15 @@ const SHARED_LUA: &[&str] = &[
 ];
 /// Never moved, anywhere: the Studio's and the Link's files, and the app's bridge files.
 const SHARED_PREFIXES: &[&str] = &["pzmodstudio_", "pz_"];
+/// Big data that is not a setting: above these (a file, a folder), an entry that is not in
+/// `KNOWN_SETTINGS` is not copied when a profile is isolated, it is left shared.
+const BIG_FILE: u64 = 20 * 1024 * 1024;
+const BIG_FOLDER: u64 = 50 * 1024 * 1024;
+/// The game's own settings (and the mod options file nearly every list has): always the profile's
+/// and always copied, whatever their size. `Lua/keys*.ini` too.
+const KNOWN_SETTINGS: &[&str] = &["options.ini", "InputBindings", "layout.ini", "screenresolution.ini", "Lua/layout.ini", "Lua/screenresolution.ini", "Lua/ModOptions.ini"];
+/// What was left shared because it was too big to copy (see the module doc).
+const LEFT_SHARED: &str = "PZModStudio_ProfileSavesShared.json";
 /// Caches and dumps mods keep, big and rebuilt by them: the same for every profile.
 const CACHES: &[&str] = &[
     "apf-cellspread.txt",
@@ -172,7 +202,7 @@ fn free_name(dir: &Path, world: &str) -> PathBuf {
 }
 
 /// Moves every single-player world of `from` (a saves folder) into `to`, mode by mode.
-fn move_worlds(from: &Path, to: &Path) -> Result<usize, String> {
+fn move_worlds(z: &Path, from: &Path, to: &Path) -> Result<usize, String> {
     let mut moved = 0;
     let Ok(modes) = fs::read_dir(from) else { return Ok(0) };
     for mode in modes.flatten().filter(|e| e.path().is_dir()) {
@@ -186,26 +216,73 @@ fn move_worlds(from: &Path, to: &Path) -> Result<usize, String> {
             fs::create_dir_all(&dest_dir).map_err(|e| format!("Cannot make {}: {}", dest_dir.display(), e))?;
             let dest = free_name(&dest_dir, &world.file_name().to_string_lossy());
             fs::rename(world.path(), &dest).map_err(|e| format!("Cannot move {} to {}: {}", world.path().display(), dest.display(), e))?;
+            note(z, format!("moved world {} -> {}", world.path().display(), dest.display()));
             moved += 1;
         }
     }
     Ok(moved)
 }
 
-fn move_file(from: &Path, to: &Path) {
+/// Moves the Continue file (`latestSave.ini`), the one already at `to` replaced.
+fn move_file(z: &Path, from: &Path, to: &Path) {
     if from.is_file() {
         if let Some(dir) = to.parent() {
             let _ = fs::create_dir_all(dir);
         }
+        let replaced = to.is_file();
         let _ = fs::remove_file(to);
-        let _ = fs::rename(from, to);
+        match fs::rename(from, to) {
+            Ok(()) => note(z, format!("moved {} -> {}{}", from.display(), to.display(), if replaced { " (replacing the one there)" } else { "" })),
+            Err(e) => note(z, format!("could not move {} -> {}: {}", from.display(), to.display(), e)),
+        }
     }
 }
 
-/// Whether the game runs. Never in the unit tests: they work on folders of their own in the temp
-/// folder, whatever this PC's game is doing.
-fn game_running() -> bool {
-    !cfg!(test) && crate::sandbox::find_running_pz_pid().is_some()
+/// One line in the Studio's log of this Zomboid folder: what moved from where to where.
+fn note(z: &Path, text: String) {
+    crate::diagnostics::log_in(z, "INFO", &format!("[Profiles] {}", text));
+}
+
+#[cfg(test)]
+thread_local! {
+    /// What the unit tests pretend runs (the reason it gives), on their own thread only.
+    static TEST_BUSY: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Why saves and settings cannot be moved now: the game or a Project Zomboid server runs. Never
+/// the real processes in the unit tests: they work on folders of their own in the temp folder,
+/// whatever this PC's game is doing (they set `TEST_BUSY` to try a refusal).
+fn busy() -> Option<String> {
+    #[cfg(test)]
+    {
+        TEST_BUSY.with(|b| b.borrow().clone())
+    }
+    #[cfg(not(test))]
+    {
+        // The game first: one tasklist. The servers' command lines only when Java runs.
+        if let Some(pid) = crate::sandbox::find_running_pz_pid() {
+            return refusal(Some(pid), &[]);
+        }
+        refusal(None, &crate::server_manager::mp_test::running_servers())
+    }
+}
+
+/// The refusal for the game's process (if it runs) or the first server found.
+fn refusal(game: Option<u32>, servers: &[(u32, String)]) -> Option<String> {
+    const WHY: &str = "the saves, game options and mod settings of isolated profiles are moved only while no Project Zomboid game or server runs, so nothing is moved while one of them has the files open.";
+    if let Some(pid) = game {
+        return Some(format!("Close Project Zomboid first (process {}): {}", pid, WHY));
+    }
+    let (pid, name) = servers.first()?;
+    let which = if name.is_empty() { "A Project Zomboid server".to_string() } else { format!("The Project Zomboid server \"{}\"", name) };
+    Some(format!("{} is running (process {}). Stop it first (Servers screen, or its console): {}", which, pid, WHY))
+}
+
+fn refuse_if_busy() -> Result<(), String> {
+    match busy() {
+        Some(why) => Err(why),
+        None => Ok(()),
+    }
 }
 
 // ---- Settings: the game's options and what mods save -------------------------------------------
@@ -228,8 +305,9 @@ fn is_link(p: &Path) -> bool {
 }
 
 /// The entries of a folder laid out like Zomboid (the root, and `Lua/<name>` for the ones in its Lua
-/// folder), each with whether it is shared.
-fn entries(root: &Path) -> Vec<(String, bool)> {
+/// folder), each with whether it is shared: by name, or left shared in `z` (too big to copy).
+fn entries(z: &Path, root: &Path) -> Vec<(String, bool)> {
+    let left: Vec<String> = left_shared(z).into_iter().map(|l| l.rel.to_ascii_lowercase()).collect();
     let mut out = Vec::new();
     let Ok(top) = fs::read_dir(root) else { return out };
     for e in top.flatten() {
@@ -238,13 +316,14 @@ fn entries(root: &Path) -> Vec<(String, bool)> {
             if let Ok(lua) = fs::read_dir(e.path()) {
                 for l in lua.flatten() {
                     let n = l.file_name().to_string_lossy().to_string();
-                    let shared = is_shared(&n, true) || is_link(&l.path());
-                    out.push((format!("{}/{}", name, n), shared));
+                    let rel = format!("{}/{}", name, n);
+                    let shared = is_shared(&n, true) || is_link(&l.path()) || left.contains(&rel.to_ascii_lowercase());
+                    out.push((rel, shared));
                 }
             }
             continue;
         }
-        let shared = is_shared(&name, false) || is_link(&e.path());
+        let shared = is_shared(&name, false) || is_link(&e.path()) || left.contains(&name.to_ascii_lowercase());
         out.push((name, shared));
     }
     out.sort();
@@ -253,7 +332,88 @@ fn entries(root: &Path) -> Vec<(String, bool)> {
 
 /// The options and mod settings in place now: the active set's (`options.ini`, `Lua/keysB42.ini`...).
 pub fn settings_in_place(z: &Path) -> Vec<String> {
-    entries(z).into_iter().filter(|(_, shared)| !shared).map(|(rel, _)| rel).collect()
+    entries(z, z).into_iter().filter(|(_, shared)| !shared).map(|(rel, _)| rel).collect()
+}
+
+/// One entry left shared because it was too big to copy when a profile was isolated.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct LeftShared {
+    /// As in Zomboid: `name`, or `Lua/name`.
+    pub rel: String,
+    /// Its size as counted (a folder is counted until it is over the limit: at least this).
+    pub bytes: u64,
+    pub when: String,
+    /// The profile being isolated then.
+    pub profile: String,
+}
+
+/// What was left shared because it was too big to copy (the screen and the log can say it).
+pub fn left_shared(z: &Path) -> Vec<LeftShared> {
+    fs::read_to_string(z.join(LEFT_SHARED)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn add_left_shared(z: &Path, more: &[LeftShared]) -> Result<(), String> {
+    if more.is_empty() {
+        return Ok(());
+    }
+    let mut all = left_shared(z);
+    for m in more {
+        if !all.iter().any(|a| a.rel.eq_ignore_ascii_case(&m.rel)) {
+            all.push(m.clone());
+        }
+    }
+    crate::load_order::ini_parser::atomic_write(&z.join(LEFT_SHARED), serde_json::to_string_pretty(&all).unwrap_or_default()).map_err(|e| e.to_string())
+}
+
+/// One of the game's own settings: copied whatever its size.
+fn is_known_setting(rel: &str) -> bool {
+    let lower = rel.to_ascii_lowercase();
+    KNOWN_SETTINGS.iter().any(|k| k.eq_ignore_ascii_case(rel)) || (lower.starts_with("lua/keys") && lower.ends_with(".ini"))
+}
+
+/// The size of a file, or of a folder's files (links not followed), counted until it is over
+/// `limit`: `Some(counted)` when it is over, `None` when it is not.
+fn over(path: &Path, limit: u64) -> Option<u64> {
+    fn walk(p: &Path, total: &mut u64, limit: u64) {
+        if *total > limit || is_link(p) {
+            return;
+        }
+        let Ok(meta) = fs::metadata(p) else { return };
+        if meta.is_file() {
+            *total += meta.len();
+            return;
+        }
+        if let Ok(rd) = fs::read_dir(p) {
+            for e in rd.flatten() {
+                walk(&e.path(), total, limit);
+                if *total > limit {
+                    return;
+                }
+            }
+        }
+    }
+    let mut total = 0;
+    walk(path, &mut total, limit);
+    (total > limit).then_some(total)
+}
+
+/// The limit an entry is held to: `BIG_FOLDER` for a folder, `BIG_FILE` for a file.
+fn limit_of(p: &Path) -> u64 {
+    if p.is_dir() {
+        BIG_FOLDER
+    } else {
+        BIG_FILE
+    }
+}
+
+/// Too big to copy: a file over `BIG_FILE` or a folder over `BIG_FOLDER` that is not a known
+/// setting. Its size when it is.
+fn too_big_to_copy(z: &Path, rel: &str) -> Option<u64> {
+    if is_known_setting(rel) {
+        return None;
+    }
+    let p = z.join(rel);
+    over(&p, limit_of(&p))
 }
 
 fn stamp() -> String {
@@ -275,7 +435,9 @@ fn put(z: &Path, from: &Path, to: &Path, rel: &str) -> Result<(), String> {
     if let Some(dir) = dest.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("Cannot make {}: {}", dir.display(), e))?;
     }
-    fs::rename(&src, &dest).map_err(|e| format!("Cannot move {} to {}: {}", src.display(), dest.display(), e))
+    fs::rename(&src, &dest).map_err(|e| format!("Cannot move {} to {}: {}", src.display(), dest.display(), e))?;
+    note(z, format!("moved setting {} -> {}", src.display(), dest.display()));
+    Ok(())
 }
 
 /// Puts `path` (known as `rel`) in the replaced backups.
@@ -286,7 +448,9 @@ fn keep_replaced(z: &Path, path: &Path, rel: &str) -> Result<(), String> {
     fs::create_dir_all(&dir).map_err(|e| format!("Cannot make {}: {}", dir.display(), e))?;
     let name = rel_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| rel.to_string());
     let keep = free_name(&dir, &name);
-    fs::rename(path, &keep).map_err(|e| format!("Cannot keep {} in {}: {}", path.display(), keep.display(), e))
+    fs::rename(path, &keep).map_err(|e| format!("Cannot keep {} in {}: {}", path.display(), keep.display(), e))?;
+    note(z, format!("kept in the backups (it was in the way): {} -> {}", path.display(), keep.display()));
+    Ok(())
 }
 
 /// Removes the empty folders of a tree, the tree too when it ends up empty.
@@ -326,7 +490,7 @@ fn settings_in(z: &Path, set: &str) -> Result<(), String> {
     if !store.is_dir() {
         return Ok(());
     }
-    for (rel, shared) in entries(&store) {
+    for (rel, shared) in entries(z, &store) {
         if shared {
             keep_replaced(z, &store.join(&rel), &rel)?;
         } else {
@@ -356,20 +520,35 @@ fn copy_any(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// `set` gets a copy of the options and mod settings in place now (the set in place keeps its
-/// own). Made aside and put in with one rename; what `set` had before goes to the backups.
-fn copy_settings_to(z: &Path, set: &str) -> Result<(), String> {
+/// own). Made aside and put in with one rename; what `set` had before goes to the backups. Big
+/// unknown data is not copied but left shared (see the module doc); returns what was.
+fn copy_settings_to(z: &Path, set: &str) -> Result<Vec<LeftShared>, String> {
     let base = store_of(z, set)?;
     let staging = base.join(COPYING);
     let _ = fs::remove_dir_all(&staging);
     fs::create_dir_all(&staging).map_err(|e| format!("Cannot make {}: {}", staging.display(), e))?;
-    for rel in settings_in_place(z) {
-        copy_any(&z.join(&rel), &staging.join(&rel)).map_err(|e| format!("Cannot copy {}: {}", rel, e))?;
+    let in_place = settings_in_place(z);
+    // Written down before anything is copied: from now on they count as shared.
+    let left: Vec<LeftShared> = in_place
+        .iter()
+        .filter_map(|rel| too_big_to_copy(z, rel).map(|bytes| LeftShared { rel: rel.clone(), bytes, when: stamp(), profile: set.to_string() }))
+        .collect();
+    add_left_shared(z, &left)?;
+    for l in &left {
+        let p = z.join(&l.rel);
+        note(z, format!("left shared, not copied for {} (over {} MB and not a known setting): {} ({} bytes counted)", set, limit_of(&p) / (1024 * 1024), p.display(), l.bytes));
+    }
+    for rel in in_place.iter().filter(|r| !left.iter().any(|l| &l.rel == *r)) {
+        copy_any(&z.join(rel), &staging.join(rel)).map_err(|e| format!("Cannot copy {}: {}", rel, e))?;
+        note(z, format!("copied setting for {}: {} -> {}", set, z.join(rel).display(), staging.join(rel).display()));
     }
     let dest = base.join(SETTINGS);
     if dest.exists() {
         keep_replaced(z, &dest, &format!("{}-{}", set, SETTINGS))?;
     }
-    fs::rename(&staging, &dest).map_err(|e| format!("Cannot put the copy in {}: {}", dest.display(), e))
+    fs::rename(&staging, &dest).map_err(|e| format!("Cannot put the copy in {}: {}", dest.display(), e))?;
+    note(z, format!("the copy of the settings for {} is in place: {}", set, dest.display()));
+    Ok(left)
 }
 
 /// A profile's settings and Continue file, out of its store and into
@@ -386,8 +565,9 @@ fn keep_aside(z: &Path, profile_id: &str) -> Result<Option<PathBuf>, String> {
         let dest = free_name(&dir, &stamp());
         if settings.is_dir() {
             fs::rename(&settings, &dest).map_err(|e| format!("Cannot keep {} in {}: {}", settings.display(), dest.display(), e))?;
+            note(z, format!("settings of {} kept in the backups: {} -> {}", profile_id, settings.display(), dest.display()));
         }
-        move_file(&latest, &dest.join(LATEST));
+        move_file(z, &latest, &dest.join(LATEST));
         kept = Some(dest);
     }
     remove_empty(&store);
@@ -398,28 +578,47 @@ fn keep_aside(z: &Path, profile_id: &str) -> Result<Option<PathBuf>, String> {
 /// left put away (a take or give back cut short): its worlds, and the settings not in place (the
 /// ones in place win; a leftover copy of them goes to the backups). Nothing while the game runs.
 pub fn recover(z: &Path) -> Result<(), String> {
-    if game_running() {
+    if busy().is_some() {
         return Ok(());
     }
+    recover_now(z)
+}
+
+/// Whether `recover` has anything to do for the set in place: worlds or settings of its own left
+/// put away, or a copy cut short.
+fn leftovers(z: &Path, current: &str) -> bool {
+    let away = store_of(z, current).ok();
+    let has_world = |saves: &Path| fs::read_dir(saves).into_iter().flatten().flatten().any(|m| fs::read_dir(m.path()).into_iter().flatten().flatten().any(|w| w.path().is_dir()));
+    let left = away.as_ref().is_some_and(|a| has_world(&a.join("Saves")) || a.join(SETTINGS).is_dir());
+    left || fs::read_dir(z.join(STORE)).into_iter().flatten().flatten().any(|s| s.path().join(COPYING).is_dir())
+}
+
+/// `recover` once nothing runs.
+fn recover_now(z: &Path) -> Result<(), String> {
     let s = state(z);
     if let Some((from, to, step)) = s.moving.clone() {
+        note(z, format!("finishing a switch cut short: {} -> {} (step {})", from, to, step));
         run_switch_from(z, &from, &to, &step)?;
     }
     // Copies being made when the PC went off: only copies.
     if let Ok(sets) = fs::read_dir(z.join(STORE)) {
         for set in sets.flatten() {
-            let _ = fs::remove_dir_all(set.path().join(COPYING));
+            let copying = set.path().join(COPYING);
+            if copying.is_dir() {
+                let _ = fs::remove_dir_all(&copying);
+                note(z, format!("threw away an unfinished copy of settings (only a copy): {}", copying.display()));
+            }
         }
     }
     let s = state(z);
     if s.moving.is_none() {
         let away = store_of(z, &s.current)?.join("Saves");
         if away.is_dir() {
-            move_worlds(&away, &z.join("Saves"))?;
+            move_worlds(z, &away, &z.join("Saves"))?;
         }
         let left = store_of(z, &s.current)?.join(SETTINGS);
         if left.is_dir() {
-            for (rel, shared) in entries(&left) {
+            for (rel, shared) in entries(z, &left) {
                 if shared || fs::symlink_metadata(z.join(&rel)).is_ok() {
                     keep_replaced(z, &left.join(&rel), &rel)?;
                 } else {
@@ -437,7 +636,10 @@ fn run_switch(z: &Path, from: &str, to: &str) -> Result<(), String> {
     if !has_settings(z, to)? {
         copy_settings_to(z, to)?;
     }
-    run_switch_from(z, from, to, "out")
+    note(z, format!("switch {} -> {}", from, to));
+    run_switch_from(z, from, to, "out")?;
+    note(z, format!("switch {} -> {} done", from, to));
+    Ok(())
 }
 
 fn run_switch_from(z: &Path, from: &str, to: &str, step: &str) -> Result<(), String> {
@@ -448,13 +650,13 @@ fn run_switch_from(z: &Path, from: &str, to: &str, step: &str) -> Result<(), Str
     // Each step is recorded before it moves anything: a cut is finished by doing that step again.
     if step == "out" {
         record("out")?;
-        move_worlds(&saves, &from_store.join("Saves"))?;
-        move_file(&z.join(LATEST), &from_store.join(LATEST));
+        move_worlds(z, &saves, &from_store.join("Saves"))?;
+        move_file(z, &z.join(LATEST), &from_store.join(LATEST));
         settings_out(z, from)?;
     }
     record("in")?;
-    move_worlds(&to_store.join("Saves"), &saves)?;
-    move_file(&to_store.join(LATEST), &z.join(LATEST));
+    move_worlds(z, &to_store.join("Saves"), &saves)?;
+    move_file(z, &to_store.join(LATEST), &z.join(LATEST));
     settings_in(z, to)?;
     write_state(z, &State { current: to.to_string(), moving: None })
 }
@@ -462,13 +664,21 @@ fn run_switch_from(z: &Path, from: &str, to: &str, step: &str) -> Result<(), Str
 /// Puts the worlds and settings of `set` in place and the others away. Refused while the game runs.
 pub fn switch_to(z: &Path, set: &str) -> Result<bool, String> {
     safe(set)?;
-    recover(z)?;
+    // Nothing to move and nothing left over: no process check (every activation comes here).
     let s = state(z);
-    if s.current == set {
+    if s.current == set && s.moving.is_none() && !leftovers(z, &s.current) {
         return Ok(false);
     }
-    if game_running() {
-        return Err("Close the game first: this profile is isolated (its saves, game options and mod settings), and they are put in place while the game is closed.".to_string());
+    let busy = busy();
+    if busy.is_none() {
+        recover_now(z)?;
+    }
+    let s = state(z);
+    if s.current == set && s.moving.is_none() {
+        return Ok(false);
+    }
+    if let Some(why) = busy {
+        return Err(why);
     }
     run_switch(z, &s.current, set)?;
     Ok(true)
@@ -502,10 +712,8 @@ pub fn is_put_away(z: &Path, save_id: &str) -> bool {
 /// a profile. Refused while the game runs.
 pub fn move_saves(z: &Path, save_ids: &[String], to_set: &str) -> Result<usize, String> {
     safe(to_set)?;
-    recover(z)?;
-    if game_running() {
-        return Err("Close the game first.".to_string());
-    }
+    refuse_if_busy()?;
+    recover_now(z)?;
     let s = state(z);
     if s.current == to_set {
         return Ok(0);
@@ -523,7 +731,9 @@ pub fn move_saves(z: &Path, save_ids: &[String], to_set: &str) -> Result<usize, 
         }
         let dir = dest.join(mode);
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        fs::rename(&src, free_name(&dir, world)).map_err(|e| format!("Cannot move {}: {}", id, e))?;
+        let dest = free_name(&dir, world);
+        fs::rename(&src, &dest).map_err(|e| format!("Cannot move {}: {}", id, e))?;
+        note(z, format!("moved world {} -> {} (taken to {})", src.display(), dest.display(), to_set));
         moved += 1;
     }
     Ok(moved)
@@ -600,21 +810,15 @@ mod tests {
     }
 }
 
-fn refuse_while_running() -> Result<(), String> {
-    if game_running() {
-        return Err("Close the game first: saves and settings are moved only while the game is closed.".to_string());
-    }
-    Ok(())
-}
-
 /// A profile becomes isolated. `bring` (worlds now in Zomboid/Saves of the shared set) go with it;
 /// the rest stay shared. It starts with a copy of the options and mod settings in place now: the
 /// set in place keeps its own. When it is the active profile its worlds and settings are the ones
 /// left in place, and the shared set takes the copy.
-pub fn take_own(z: &Path, profile_id: &str, active: bool, bring: &[String]) -> Result<(), String> {
+pub fn take_own(z: &Path, profile_id: &str, active: bool, bring: &[String]) -> Result<Vec<LeftShared>, String> {
     safe(profile_id)?;
-    recover(z)?;
-    refuse_while_running()?;
+    refuse_if_busy()?;
+    recover_now(z)?;
+    note(z, format!("isolating profile {}{}, bringing {:?}", profile_id, if active { " (the active one)" } else { "" }, bring));
     let s = state(z);
     if s.current != SHARED {
         if bring.is_empty() && !active {
@@ -627,7 +831,7 @@ pub fn take_own(z: &Path, profile_id: &str, active: bool, bring: &[String]) -> R
     if active {
         // The copy first: cut short before the state, recover() finds it beside the ones in place
         // and keeps it in the backups.
-        copy_settings_to(z, SHARED)?;
+        let left = copy_settings_to(z, SHARED)?;
         // Everything but what it brings goes to the shared set, put away; its own stay in place.
         // The state first: cut short, a shared world left behind stays in sight, never hidden.
         let in_place = worlds_of(z, SHARED);
@@ -641,13 +845,16 @@ pub fn take_own(z: &Path, profile_id: &str, active: bool, bring: &[String]) -> R
             let (mode, world) = id.split_once('/').unwrap_or(("", ""));
             let dir = shared.join(mode);
             fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            fs::rename(saves.join(mode).join(world), free_name(&dir, world)).map_err(|e| format!("Cannot move {}: {}", id, e))?;
+            let (src, dest) = (saves.join(mode).join(world), free_name(&dir, world));
+            fs::rename(&src, &dest).map_err(|e| format!("Cannot move {}: {}", id, e))?;
+            note(z, format!("moved world {} -> {} (stays with the shared profiles)", src.display(), dest.display()));
         }
-        move_file(&z.join(LATEST), &store_of(z, SHARED)?.join(LATEST));
-        Ok(())
+        move_file(z, &z.join(LATEST), &store_of(z, SHARED)?.join(LATEST));
+        Ok(left)
     } else {
-        copy_settings_to(z, profile_id)?;
-        move_saves(z, bring, profile_id).map(|_| ())
+        let left = copy_settings_to(z, profile_id)?;
+        move_saves(z, bring, profile_id)?;
+        Ok(left)
     }
 }
 
@@ -656,8 +863,9 @@ pub fn take_own(z: &Path, profile_id: &str, active: bool, bring: &[String]) -> R
 /// shared ones are the ones in place. Nothing is lost. Returns where its settings were kept.
 pub fn give_back(z: &Path, profile_id: &str) -> Result<Option<PathBuf>, String> {
     safe(profile_id)?;
-    recover(z)?;
-    refuse_while_running()?;
+    refuse_if_busy()?;
+    recover_now(z)?;
+    note(z, format!("ending the isolation of profile {} (its worlds become shared, its settings go to the backups)", profile_id));
     let s = state(z);
     if s.current == profile_id {
         // A shared set from before settings were (saves only) takes a copy of these: they were
@@ -670,15 +878,15 @@ pub fn give_back(z: &Path, profile_id: &str) -> Result<Option<PathBuf>, String> 
         // Its worlds are in place: they become the shared ones, with the shared set brought back.
         // The state first: cut short, recover() brings the rest of the shared set in.
         write_state(z, &State { current: SHARED.to_string(), moving: None })?;
-        move_worlds(&store_of(z, SHARED)?.join("Saves"), &z.join("Saves"))?;
+        move_worlds(z, &store_of(z, SHARED)?.join("Saves"), &z.join("Saves"))?;
         settings_in(z, SHARED)?;
         let latest_away = store_of(z, SHARED)?.join(LATEST);
         if !z.join(LATEST).exists() {
-            move_file(&latest_away, &z.join(LATEST));
+            move_file(z, &latest_away, &z.join(LATEST));
         }
     } else {
         let target = if s.current == SHARED { z.join("Saves") } else { store_of(z, SHARED)?.join("Saves") };
-        move_worlds(&store_of(z, profile_id)?.join("Saves"), &target)?;
+        move_worlds(z, &store_of(z, profile_id)?.join("Saves"), &target)?;
     }
     keep_aside(z, profile_id)
 }
@@ -1042,6 +1250,133 @@ mod settings_tests {
         assert_eq!(kept.len(), 2, "{:?}", kept);
         assert!(kept.iter().any(|f| f.ends_with("/options.ini")) && kept.iter().any(|f| f.ends_with("Lua/PZModStudio_Link.txt")));
         assert!(!store.exists());
+        let _ = fs::remove_dir_all(&z);
+    }
+}
+
+#[cfg(test)]
+mod hardening_tests {
+    use super::*;
+
+    fn zomboid(tag: &str) -> PathBuf {
+        let z = std::env::temp_dir().join(format!("pzms-pharden-{}-{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&z);
+        for (rel, text) in [("options.ini", "shared"), ("Lua/ModOptions.ini", "shared"), ("Saves/Sandbox/W/map_ver.bin", "W")] {
+            let p = z.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, text).unwrap();
+        }
+        z
+    }
+
+    fn pretend(why: Option<&str>) {
+        TEST_BUSY.with(|b| *b.borrow_mut() = why.map(String::from));
+    }
+
+    fn log_text(z: &Path) -> String {
+        fs::read_to_string(z.join("PZModStudio_Logs/studio.log")).unwrap_or_default()
+    }
+
+    #[test]
+    fn nothing_moves_while_a_game_or_a_server_runs() {
+        let z = zomboid("busy");
+        let why = refusal(None, &[(4242, "knoxtest".into())]).unwrap();
+        assert!(why.contains("\"knoxtest\"") && why.contains("4242") && why.contains("Stop it first"), "{}", why);
+        assert!(refusal(Some(7), &[(1, String::new())]).unwrap().starts_with("Close Project Zomboid first (process 7)"));
+        assert!(refusal(None, &[(9, String::new())]).unwrap().starts_with("A Project Zomboid server is running (process 9)"));
+        assert_eq!(refusal(None, &[]), None);
+
+        pretend(Some(&why));
+        assert_eq!(take_own(&z, "p1", false, &["Sandbox/W".into()]), Err(why.clone()));
+        assert_eq!(switch_to(&z, "p1"), Err(why.clone()));
+        assert_eq!(give_back(&z, "p1"), Err(why.clone()));
+        assert_eq!(move_saves(&z, &["Sandbox/W".into()], "p1"), Err(why.clone()));
+        assert!(!z.join(STORE).exists() && z.join("Saves/Sandbox/W").is_dir(), "nothing moved");
+        // The set already in place: nothing to move, nothing refused.
+        assert_eq!(switch_to(&z, SHARED), Ok(false));
+        // A switch cut short waits for the server to close too.
+        pretend(None);
+        take_own(&z, "p1", false, &[]).unwrap();
+        write_state(&z, &State { current: SHARED.into(), moving: Some((SHARED.into(), "p1".into(), "out".into())) }).unwrap();
+        pretend(Some(&why));
+        recover(&z).unwrap();
+        assert!(state(&z).moving.is_some() && z.join("Saves/Sandbox/W").is_dir());
+        pretend(None);
+        recover(&z).unwrap();
+        assert_eq!(state(&z), State { current: "p1".into(), moving: None });
+        let _ = fs::remove_dir_all(&z);
+    }
+
+    #[test]
+    fn big_unknown_data_is_left_shared_not_copied() {
+        let z = zomboid("big");
+        let big = |p: &Path, bytes: u64| {
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::File::create(p).unwrap().set_len(bytes).unwrap();
+        };
+        // A mod's big file, a mod's big folder (in 3 files, each under the file limit), a big
+        // known setting, and a small mod folder.
+        big(&z.join("SomeModDump.bin"), BIG_FILE + 1);
+        for n in 0..3 {
+            big(&z.join(format!("SomeModTV/part{}.bin", n)), 18 * 1024 * 1024);
+        }
+        big(&z.join("Lua/keysB42.ini"), BIG_FILE + 1);
+        big(&z.join("Lua/HugeModLog.txt"), BIG_FILE + 1);
+        fs::create_dir_all(z.join("SmallMod")).unwrap();
+        fs::write(z.join("SmallMod/cfg.txt"), "shared").unwrap();
+
+        let left = take_own(&z, "p1", false, &[]).unwrap();
+        let mut names: Vec<&str> = left.iter().map(|l| l.rel.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["Lua/HugeModLog.txt", "SomeModDump.bin", "SomeModTV"]);
+        assert!(left.iter().all(|l| l.profile == "p1" && l.bytes > BIG_FILE));
+        assert_eq!(left_shared(&z), left, "written down");
+        let copy = z.join(STORE).join("p1").join(SETTINGS);
+        assert!(copy.join("options.ini").is_file() && copy.join("Lua/keysB42.ini").is_file() && copy.join("SmallMod/cfg.txt").is_file(), "settings and small data copied, a known setting whatever its size");
+        assert!(!copy.join("SomeModDump.bin").exists() && !copy.join("SomeModTV").exists() && !copy.join("Lua/HugeModLog.txt").exists());
+
+        // Shared from now on: a switch leaves them in place both ways.
+        switch_to(&z, "p1").unwrap();
+        for rel in ["SomeModDump.bin", "SomeModTV/part2.bin", "Lua/HugeModLog.txt"] {
+            assert!(z.join(rel).is_file(), "{} stays in place", rel);
+        }
+        assert!(!z.join(STORE).join(SHARED).join(SETTINGS).join("SomeModTV").exists());
+        assert!(z.join(STORE).join(SHARED).join(SETTINGS).join("SmallMod/cfg.txt").is_file(), "the small one is the shared set's own");
+        switch_to(&z, SHARED).unwrap();
+        assert!(z.join("SomeModTV/part0.bin").is_file() && z.join("SmallMod/cfg.txt").is_file());
+
+        // A set that had its own copy from before: kept in the backups, never laid over.
+        let p2 = z.join(STORE).join("p2").join(SETTINGS);
+        fs::create_dir_all(&p2).unwrap();
+        fs::write(p2.join("SomeModDump.bin"), "p2's old copy").unwrap();
+        switch_to(&z, "p2").unwrap();
+        assert_eq!(fs::metadata(z.join("SomeModDump.bin")).unwrap().len(), BIG_FILE + 1);
+        let log = log_text(&z);
+        assert!(log.contains("left shared, not copied for p1") && log.contains("SomeModTV"), "{}", log);
+        assert!(log.contains("kept in the backups (it was in the way)") && log.contains("SomeModDump.bin"));
+        let _ = fs::remove_dir_all(&z);
+    }
+
+    #[test]
+    fn every_move_is_in_the_log() {
+        let z = zomboid("log");
+        fs::write(z.join(LATEST), "Sandbox/W").unwrap();
+        take_own(&z, "p1", false, &["Sandbox/W".into()]).unwrap();
+        switch_to(&z, "p1").unwrap();
+        switch_to(&z, SHARED).unwrap();
+        give_back(&z, "p1").unwrap();
+        let log = log_text(&z);
+        let sep = std::path::MAIN_SEPARATOR;
+        let lines: Vec<&str> = log.lines().filter(|l| l.contains("[Profiles]")).collect();
+        let has = |needle: &str| lines.iter().any(|l| l.contains(needle));
+        assert!(has(&format!("moved world {}", z.join("Saves").join("Sandbox").join("W").display())), "{}", log);
+        assert!(has("(taken to p1)"));
+        assert!(has(&format!("copied setting for p1: {}", z.join("options.ini").display())));
+        assert!(has(&format!("moved setting {}{}options.ini", z.display(), sep)));
+        assert!(has("switch shared -> p1 done") && has("switch p1 -> shared done"));
+        assert!(has(&format!("moved {} -> ", z.join(LATEST).display())), "the Continue file");
+        assert!(has("settings of p1 kept in the backups"));
+        assert!(has("ending the isolation of profile p1"));
         let _ = fs::remove_dir_all(&z);
     }
 }

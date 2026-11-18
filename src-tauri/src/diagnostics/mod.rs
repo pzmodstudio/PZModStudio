@@ -48,13 +48,23 @@ fn rotate(dir: &Path) {
 /// One line in the Studio's log: `<local time> <LEVEL> <text>`. Never fails the caller.
 pub fn log(level: &str, text: &str) {
     let Some(dir) = log_dir() else { return };
+    write_line(&dir, level, text);
+}
+
+/// One line in the log of a given Zomboid folder (`<zomboid>/PZModStudio_Logs/studio.log`): for
+/// work done on a folder passed in (the profiles' saves), so a test folder logs into itself.
+pub fn log_in(zomboid: &Path, level: &str, text: &str) {
+    write_line(&zomboid.join(LOG_DIR), level, text);
+}
+
+fn write_line(dir: &Path, level: &str, text: &str) {
     let _guard = WRITE_LOCK.lock();
-    if std::fs::create_dir_all(&dir).is_err() {
+    if std::fs::create_dir_all(dir).is_err() {
         return;
     }
     let path = dir.join(LOG_FILE);
     if std::fs::metadata(&path).is_ok_and(|m| m.len() > LOG_MAX_BYTES) {
-        rotate(&dir);
+        rotate(dir);
     }
     let line = format!("{} {:<5} {}\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), level, text.replace(['\r', '\n'], " | "));
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
@@ -146,6 +156,15 @@ fn windows_version() -> String {
             if !v.is_empty() {
                 return v;
             }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        // The distribution's name, as /etc/os-release gives it.
+        if let Some(name) = std::fs::read_to_string("/etc/os-release").ok().and_then(|t| {
+            t.lines().find_map(|l| l.strip_prefix("PRETTY_NAME=").map(|v| v.trim_matches('"').to_string()))
+        }) {
+            return format!("{} ({} {})", name, std::env::consts::OS, std::env::consts::ARCH);
         }
     }
     format!("{} {}", std::env::consts::OS, std::env::consts::ARCH)

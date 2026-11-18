@@ -48,7 +48,7 @@ How `require` resolves (42.22 `LuaManager`): the game loads `shared`, then `clie
 
 ## 2. Virtual File System (VFS) Collision Model
 
-When two or more mods provide conflicting copies of the same relative path within `media/` (e.g. both shipping their own `media/lua/client/ISUI/ISInventoryPane.lua`), Project Zomboid performs a **destructive overwrite based on load order**: the last mod loaded completely replaces the previous one.
+When two or more mods provide conflicting copies of the same relative path within `media/` (e.g. both shipping their own `media/lua/client/ISUI/ISInventoryPane.lua`), Project Zomboid performs a **destructive overwrite based on load order**: the last mod loaded completely replaces the previous one. The load order is the one the game works out, with each mod's requirements moved before it, not the list as written (see [02 §2](02-lua-lifecycle-and-events.md#2-load-order-requirements-first-then-the-list)); the copy that wins runs where the first copy of that path would have run.
 
 ```
 Mod A: media/lua/client/ISUI/ISInventoryPane.lua  ─┐

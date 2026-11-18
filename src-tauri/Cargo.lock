@@ -3100,12 +3100,13 @@ dependencies = [
 
 [[package]]
 name = "pz-mod-studio"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "dirs-next",
  "ed25519-dalek",
+ "flate2",
  "full_moon",
  "keyring-core",
  "open",

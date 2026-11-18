@@ -69,10 +69,20 @@ Con un perfil activo, la lista muestra los mods de ese perfil. El botón **Mods 
 
 ## El menú del clic derecho
 
-**Activar/Desactivar**, **Agregar al perfil** / **Sacar del perfil** (sacarlo también lo apaga), **Mover al principio**, **Mover al final**, **Abrir en Explorar mods** (**Buscarlo en Explorar mods** para un mod que no está instalado), **Abrir su carpeta**, **Agregar una nota…** (**Editar la nota…** cuando ya tiene una), **Grupos…**, **Reglas de orden de carga…**, **Guardar esta versión**, **Versiones guardadas…**, **Favorito**, **Agregar a una lista…**, **Agregar a un perfil…**, **Copiar el id del mod** y **Desuscribirse de su ítem del Workshop** (Steam borra sus archivos; los otros mods del mismo ítem se van también).
+**Activar/Desactivar**, **Agregar al perfil** / **Sacar del perfil** (sacarlo también lo apaga), **Mover al principio**, **Mover al final**, **Abrir en Explorar mods** (**Buscarlo en Explorar mods** para un mod que no está instalado), **Abrir su carpeta**, **Agregar una nota…** (**Editar la nota…** cuando ya tiene una), **Grupos…**, **Reglas de orden de carga…**, **Guardar esta versión**, **Versiones…**, **Favorito**, **Agregar a una lista…**, **Agregar a un perfil…**, **Copiar el id del mod** y **Desuscribirse de su ítem del Workshop** (Steam borra sus archivos; los otros mods del mismo ítem se van también).
 
 - **Reglas de orden de carga…**: decí que un mod debe cargar después de otro (lo que descubriste jugando). Ordenar sigue la regla y Diagnóstico avisa cuando la lista la rompe. Para pasarle tu orden a otra persona, exportá un preset: lleva la lista en el orden que le dieron tus reglas.
-- **Guardar esta versión** copia el mod tal como está hoy en `Zomboid/PZModStudio_Snapshots`. **Versiones guardadas…** lista las copias: **Usar esta versión** repone una como copia local que el juego lee en vez de la del Workshop.
+## Volver a una versión anterior
+
+Steam no guarda versiones viejas de un mod del Workshop: una actualización reemplaza sus archivos y no hay forma de bajar la de antes. Por eso el Studio guarda solo una copia de la versión instalada de cada mod del Workshop que usa un perfil, antes de que Steam la reemplace. Cuando una actualización rompe algo, la versión de antes ya está en esta PC.
+
+- **Versiones…** (clic derecho; también en Simple) lista las versiones guardadas del mod: cuándo se guardó cada una, su modversion, cuándo la publicó su autor, y etiquetas: **instalada ahora** (los mismos archivos que tiene Steam), **en uso**, **guardada por el Studio** o **guardada por vos**.
+- **Usar esta versión** la pone en `Zomboid/mods` como copia local que el juego lee en vez de la del Workshop (iniciado desde el Studio). La carpeta del Workshop no se toca, así que Steam no lo deshace. No se puede con el juego abierto.
+- **Volver a la versión del Workshop** (en la misma ventana, o el arreglo en Diagnóstico, donde el mod muestra **Versión guardada en uso**) manda la copia a los backups; el juego vuelve a leer la del Workshop.
+- El panel del mod avisa cuando hay una versión anterior guardada o una en uso, con un botón **Versiones…**.
+- **Guardar esta versión** (Completo) guarda a mano el mod tal como está hoy: el límite de espacio nunca la borra.
+
+Las copias están en `Zomboid/PZModStudio_Versions`, o en la carpeta elegida en Ajustes, App (**Elegir carpeta…**, otro disco por ejemplo). Cada archivo se guarda una sola vez, así que una versión después de una actualización ocupa solo lo que cambió. El límite (10 GB al principio; al disco siempre le queda libre el 15% de su tamaño) y el interruptor están en Ajustes, App; pasado el límite se van primero las versiones anteriores más viejas, después las copias de mods que no están en el perfil activo. Las copias hechas antes (`Zomboid/PZModStudio_Snapshots`) se siguen listando.
 
 ## Etiquetas de las filas
 

@@ -97,7 +97,7 @@ pub struct DiskReport {
 }
 
 /// The disk a path is on, by name: `D:` on Windows, `/` or the mount elsewhere.
-fn disk_name(path: &Path) -> String {
+pub(crate) fn disk_name(path: &Path) -> String {
     let root = path.ancestors().last().map(|r| r.to_string_lossy().to_string()).unwrap_or_default();
     let name = root.trim_end_matches(['\\', '/']);
     if name.is_empty() { root } else { name.to_string() }
@@ -259,11 +259,23 @@ pub fn report(pz_install_dir: &str, workshop_dir: &str, user_zomboid_dir: &Path,
             folders.push(StudioFolder { name: dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(), kind: kind.to_string(), path: dir.to_string_lossy().to_string(), bytes });
         }
     }
+    // The kept versions of mods, when the player moved them to another folder.
+    let store_root = crate::snapshots::store::Store::at(user_zomboid_dir).root;
+    let store_outside = !store_root.starts_with(user_zomboid_dir);
+    if store_root.is_dir() && !folders.iter().any(|f| Path::new(&f.path) == store_root) {
+        let bytes = size_of(&store_root).0;
+        if bytes > 0 {
+            let name = crate::snapshots::store::STORE_DIR.to_string();
+            folders.push(StudioFolder { name: name.clone(), kind: name, path: store_root.to_string_lossy().to_string(), bytes });
+        }
+    }
     folders.sort_by(|a, b| b.bytes.cmp(&a.bytes));
 
     // The disks, each once, with what is on it.
     let mut disks: Vec<DiskSpace> = Vec::new();
-    for (what, dir) in [("game", game), ("workshop", workshop), ("zomboid", user_zomboid_dir)] {
+    let no_store = PathBuf::new();
+    let versions_dir: &Path = if store_outside { &store_root } else { &no_store };
+    for (what, dir) in [("game", game), ("workshop", workshop), ("zomboid", user_zomboid_dir), ("versions", versions_dir)] {
         if dir.as_os_str().is_empty() {
             continue;
         }
@@ -331,9 +343,43 @@ pub(crate) fn to_recycle_bin(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Linux: the desktop's trash (the freedesktop.org layout in `~/.local/share/Trash`, which file
+/// managers show and restore from). Only a folder on the same drive as the home folder can be
+/// moved there; any other is left where it is, with the reason.
 #[cfg(not(windows))]
-pub(crate) fn to_recycle_bin(_path: &Path) -> Result<(), String> {
-    Err("The Recycle Bin is only used on Windows.".to_string())
+pub(crate) fn to_recycle_bin(path: &Path) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err(format!("{} is not there any more.", path.display()));
+    }
+    let trash = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| dirs_next::home_dir().map(|h| h.join(".local").join("share")))
+        .ok_or("No home folder for the trash.")?
+        .join("Trash");
+    let (files, info) = (trash.join("files"), trash.join("info"));
+    std::fs::create_dir_all(&files).and_then(|_| std::fs::create_dir_all(&info)).map_err(|e| format!("Cannot make the trash folder: {}", e))?;
+    let base = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "folder".into());
+    let mut name = base.clone();
+    let mut n = 1;
+    while files.join(&name).exists() || info.join(format!("{}.trashinfo", name)).exists() {
+        n += 1;
+        name = format!("{}.{}", base, n);
+    }
+    let original = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    // The path is written percent-encoded, as the specification asks.
+    let encoded: String = original
+        .to_string_lossy()
+        .bytes()
+        .map(|b| if b.is_ascii_alphanumeric() || b"/-_.~".contains(&b) { (b as char).to_string() } else { format!("%{:02X}", b) })
+        .collect();
+    let when = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S");
+    let info_file = info.join(format!("{}.trashinfo", name));
+    std::fs::write(&info_file, format!("[Trash Info]\nPath={}\nDeletionDate={}\n", encoded, when)).map_err(|e| format!("Cannot write to the trash: {}", e))?;
+    if let Err(e) = std::fs::rename(path, files.join(&name)) {
+        let _ = std::fs::remove_file(&info_file);
+        return Err(format!("Could not move {} to the trash (it is on another drive than the home folder?): {}", path.display(), e));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -349,6 +395,7 @@ mod tests {
 
     #[test]
     fn a_disk_is_named_by_its_root() {
+        #[cfg(windows)]
         assert_eq!(disk_name(Path::new("D:\\Users\\x\\Zomboid")), "D:");
         assert_eq!(disk_name(Path::new("/home/x/Zomboid")), "/");
     }

@@ -6,7 +6,7 @@ import { StudioPathsUI } from '../settings/SettingsModule';
 import { CustomLaunchDialog } from './CustomLaunchDialog';
 import { useTranslation } from 'react-i18next';
 import { useUiMode } from '../../hooks/useUiMode';
-import { chosenLaunchMode, defaultLaunchMode } from '../../utils/uiMode';
+import { chosenLaunchMode, defaultLaunchMode, simpleLaunchMode } from '../../utils/uiMode';
 
 interface StudioHeaderProps {
   /** Conflicts still needing a decision. */
@@ -65,7 +65,8 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   const modeText = (id: GameLaunchMode) => ({
     title: t(`header.modes.${id}.title`),
     badge: t(`header.modes.${id}.badge`),
-    description: t(`header.modes.${id}.description`),
+    // Simple shows only the two normal modes, said without "-debug".
+    description: t(simple && (id === 'NORMAL_FULLSCREEN' || id === 'NORMAL_WINDOWED') ? `simple.header.${id}` : `header.modes.${id}.description`),
     buttonLabel: t(`header.modes.${id}.button`),
   });
   // The launch mode last used, when the player wants it remembered (Settings; on by default).
@@ -73,7 +74,10 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   // A player who never chose one gets the default of the view: a normal game in Simple, Debug in
   // Complete; it follows a switch between the two until the player picks a mode.
   const [chosenMode, setChosenMode] = useState<GameLaunchMode | null>(() => chosenLaunchMode());
-  const selectedMode = chosenMode ?? defaultLaunchMode(uiMode);
+  // Simple has no Debug modes: a Debug pick from Complete starts the same game without -debug.
+  const pickedMode = chosenMode ?? defaultLaunchMode(uiMode);
+  const selectedMode = simple ? simpleLaunchMode(pickedMode) : pickedMode;
+  const shownModes = simple ? LAUNCH_MODES.filter((m) => m.category === 'NORMAL') : LAUNCH_MODES;
   const setSelectedMode = (mode: GameLaunchMode) => {
     setChosenMode(mode);
     localStorage.setItem('pz_last_launch_mode', mode);
@@ -219,7 +223,8 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
             title={t('doctor.buttonTitle')}
             className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950 border border-sky-800/70 hover:border-sky-500 text-sky-200 font-bold cursor-pointer"
           >
-            <Stethoscope className="w-3.5 h-3.5" aria-hidden="true" /> {t('doctor.button')}
+            {/* The sidebar's name for the same page: one name for one place. */}
+            <Stethoscope className="w-3.5 h-3.5" aria-hidden="true" /> {t('nav.health')}
           </button>
         )}
 
@@ -237,7 +242,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
               title={target.kind === 'menu' ? t('header.executeIn', { mode: activeModeConfig.title }) : t('header.target.title', { name: targetName, mode: activeModeConfig.title })}
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span className="max-w-[260px] truncate">{target.kind === 'menu' ? activeModeConfig.buttonLabel : t(`header.target.${target.kind}Button`, { name: targetName })}</span>
+              <span className="max-w-[260px] truncate">{target.kind === 'menu' ? (simple ? t('header.play') : activeModeConfig.buttonLabel) : t(`header.target.${target.kind}Button`, { name: targetName })}</span>
               {(selectedMode === 'DEBUG_FULLSCREEN' || selectedMode === 'MONITORED') && (
                 <Activity className="w-3.5 h-3.5 text-emerald-200 animate-pulse" />
               )}
@@ -270,11 +275,13 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
                 <span className="text-[10px] font-mono text-slate-500">Project Zomboid</span>
               </div>
 
-              <div className="px-2.5 pt-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">
-                {t('header.debugModes')}
-              </div>
+              {!simple && (
+                <div className="px-2.5 pt-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">
+                  {t('header.debugModes')}
+                </div>
+              )}
 
-              {LAUNCH_MODES.filter((m) => m.category === 'DEBUG').map((mode) => {
+              {shownModes.filter((m) => m.category === 'DEBUG').map((mode) => {
                 const isSelected = selectedMode === mode.id;
                 const words = modeText(mode.id);
                 return (
@@ -315,8 +322,8 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
                 );
               })}
 
-              <div className="px-2.5 pt-2 text-[10px] font-bold text-amber-400 uppercase tracking-wider font-mono border-t border-slate-800/80">
-                {t('header.normalModes')}
+              <div className={`px-2.5 pt-2 text-[10px] font-bold text-amber-400 uppercase tracking-wider font-mono ${simple ? '' : 'border-t border-slate-800/80'}`}>
+                {simple ? t('simple.header.how') : t('header.normalModes')}
               </div>
 
               {LAUNCH_MODES.filter((m) => m.category === 'NORMAL').map((mode) => {
@@ -407,7 +414,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
               paths={paths}
               activeProfileId={activeProfileId}
               initial={target}
-              modes={LAUNCH_MODES.map((m) => m.id)}
+              modes={shownModes.map((m) => m.id)}
               mode={selectedMode}
               onCancel={() => setCustomOpen(false)}
               onConfirm={(next, mode, start) => {

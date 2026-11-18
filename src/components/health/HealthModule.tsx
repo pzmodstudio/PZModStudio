@@ -7,6 +7,7 @@ import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, reportBackendError } from '../../services/tauri';
 import { loadCommunityIndex } from '../../services/communityIndex';
 import { applyFix } from '../../utils/healthFix';
+import { enableWithRequirements } from '../../utils/planner';
 import { healthVerdict, inDoFirstOrder } from '../../utils/healthVerdict';
 import type { HealthChanges } from '../../utils/healthChanges';
 import { HealthListTarget, fixActsOn, listDifference, serverListIds } from '../../utils/healthList';
@@ -18,7 +19,7 @@ import { pickCollectionMods } from '../../utils/collectionPick';
 import { certaintyOf } from '../../utils/certainty';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
-import { issueText } from '../../i18n/backendText';
+import { issueText, plainIssueText } from '../../i18n/backendText';
 import { RichText } from '../common/RichText';
 import { tHtml } from '../../i18n/html';
 import { GameTimePanel } from './GameTimePanel';
@@ -28,7 +29,11 @@ import { BootTimePanel } from './BootTimePanel';
 import { MemoryPanel } from './MemoryPanel';
 import { DiskPanel } from './DiskPanel';
 import { useUiMode } from '../../hooks/useUiMode';
-import { setUiMode, simpleFindings } from '../../utils/uiMode';
+import { fixShownIn, setUiMode, simpleFindings } from '../../utils/uiMode';
+import { YOUR_CALL_CODES, safeFixPlan } from '../../utils/fixAll';
+
+/** Two mods that cannot run together: in Simple the row offers to switch off either one. */
+const PICK_ONE_CODES = new Set(['incompatible', 'community_incompatible']);
 
 interface HealthModuleProps {
   paths: StudioPathsUI;
@@ -82,16 +87,6 @@ const ACTION_FIXES = new Set<HealthFix['action']>([
   'enable_shim_patch', 'remove_from_package', 'dismiss_known_issue', 'adopt_workshop_copy', 'recopy_workshop', 'update_package',
 ]);
 
-/** Fixes the "fix all" button may apply without asking: they only enable or reorder. */
-const SAFE_FIX_ACTIONS = new Set<HealthFix['action']>(['enable_mod', 'move_before']);
-
-/**
- * Issues whose fix is a matter of taste, not of the game's rules: two mods defining the same item
- * is not broken, and which version you want is nobody's call but yours. Their fix stays on its own
- * row and is kept out of the one-click button, which is for what the game itself would complain
- * about.
- */
-const YOUR_CALL_CODES = new Set(['script_definition_conflict', 'script_definition_stale', 'script_definition_settled', 'translation_conflict', 'translation_stale', 'translation_settled', 'package_built_for_other_list']);
 
 
 /**
@@ -730,6 +725,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
 
   /** The name the Mod List shows for a mod id. */
   const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
+  /** A finding's words: Simple says the mods by their names alone, Complete as written (names and ids). */
+  const shownText = (issue: HealthIssue) => (simple ? plainIssueText(issue, nameOf) : issueText(issue));
 
   /** One warning, with what to ask, for any chat assistant (pasted; no key needed). */
   const copyForAssistant = async (issue: HealthIssue) => {
@@ -759,22 +756,27 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   /** Names and ids a message may mention, set in bold. */
   const modWords = useMemo(() => mods.flatMap((m) => [m.name, m.mod_id]), [mods]);
 
-  const safeFixes = useMemo(() => {
-    if (!report) return [] as HealthFix[];
-    return report.issues
-      .filter((i) => !YOUR_CALL_CODES.has(i.code))
-      .flatMap((i) => i.fixes.filter((f) => SAFE_FIX_ACTIONS.has(f.action)));
-  }, [report]);
-
+  /** "Fix all": the safe fixes of the rows on screen (in Simple, only the ones to act on it shows). */
   const handleFixAllSafe = () => {
-    const enabling = safeFixes.filter((f) => f.action === 'enable_mod').length;
-    const moving = safeFixes.filter((f) => f.action === 'move_before').length;
+    const { enabling, moving, fixes, issues } = fixPlan;
+    if (simple) {
+      // Simple: one press is enough. A mod switched on brings what it needs in turn (all the way
+      // down, each before what needs it), so a second round of "needs a mod that is off" never
+      // follows the first.
+      let next = enableWithRequirements(mods, fixes.flatMap((f) => (f.action === 'enable_mod' ? [f.mod_id] : [])));
+      for (const fix of fixes) if (fix.action === 'move_before') next = applyFix(next, fix) ?? next;
+      const wasOn = new Set(mods.filter((m) => m.enabled).map((m) => m.mod_id));
+      const turnedOn = next.filter((m) => m.enabled && !wasOn.has(m.mod_id)).length;
+      const what = [turnedOn > 0 && t('health.willEnable', { count: turnedOn }), moving > 0 && t('health.willMove', { count: moving })].filter(Boolean);
+      if (!confirm(t('health.confirmFixAll', { what: what.join(t('health.and')) }))) return;
+      markPending(issues);
+      onApplyModList(next);
+      say(t('health.changesMade', { count: turnedOn + moving }));
+      return;
+    }
     const parts = [enabling > 0 && t('health.willEnable', { count: enabling }), moving > 0 && t('health.willMove', { count: moving })].filter(Boolean);
     if (!confirm(t('health.confirmFixAll', { what: parts.join(t('health.and')) }))) return;
-    handleFixes(
-      safeFixes,
-      report ? report.issues.filter((i) => !YOUR_CALL_CODES.has(i.code) && i.fixes.some((f) => SAFE_FIX_ACTIONS.has(f.action))) : []
-    );
+    handleFixes(fixes, issues);
   };
 
   // Kept apart from the list fixes: merging rewrites the mod list on its own (enables the package).
@@ -783,10 +785,6 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
     const all = report.issues.flatMap((i) => i.fixes.flatMap((f) => (f.action === 'merge_files' ? f.relative_paths : [])));
     return Array.from(new Set(all));
   }, [report]);
-  const safeIssueCount =
-    report?.issues.filter(
-      (i) => !YOUR_CALL_CODES.has(i.code) && i.fixes.some((f) => SAFE_FIX_ACTIONS.has(f.action))
-    ).length ?? 0;
 
   const tabOf = (i: HealthIssue): ListTab =>
     i.code.startsWith('security_') ? 'security' : CONFLICT_CODE.test(i.code) || YOUR_CALL_CODES.has(i.code) ? 'conflicts' : 'problems';
@@ -797,7 +795,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report]);
   // The front page (the Doctor) on entering, unless another screen sent the player to a tab.
-  const [tab, setTab] = useState<HealthTab>(() => focusTab ?? 'home');
+  // Simple opens on its one list of what to fix: the front page is a click away.
+  const [tab, setTab] = useState<HealthTab>(() => focusTab ?? (simple ? 'problems' : 'home'));
   const section = sectionOf(tab);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
@@ -872,6 +871,11 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
    * worth knowing, already fixed by the Studio. The same four on every tab.
    */
   const simpleList = useMemo(() => simpleFindings(report?.issues ?? [], simpleKeep, issueKey), [report, simpleKeep]);
+  /** What "Fix N problems automatically" counts and applies: in Simple only the rows it shows, never the hidden optional ones. */
+  const fixPlan = useMemo(() => {
+    const shown = new Set(simpleList.shown);
+    return safeFixPlan(report?.issues ?? [], simple ? (i) => shown.has(i) : undefined);
+  }, [report, simple, simpleList]);
   // In Simple the mods part has one tab: whatever another screen or an earlier visit left open.
   useEffect(() => {
     if (simple && sectionOf(tab) === 'mods' && tab !== 'problems') setTab('problems');
@@ -902,6 +906,10 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       : issue.code === 'two_mod_managers' && fix.action === 'disable_mod' ? t('health.fix.useStudioScreen')
       : fix.action === 'replace_in_list' && nameOf(fix.mod_id) !== fix.mod_id ? t('health.fix.replaceNamed', { name: nameOf(fix.mod_id) })
       : issue.code === 'zb_excluded' && fix.action === 'disable_mod' && issue.fixes.length > 1 ? t('health.fix.offWithUsers', { name: nameOf(fix.mod_id), count: issue.fixes.length - 1 })
+      // Simple says the mods by their names, not their ids.
+      : simple && fix.action === 'enable_mod' ? t('health.fix.enable', { id: nameOf(fix.mod_id) })
+      : simple && fix.action === 'disable_mod' ? t('health.fix.disable', { id: nameOf(fix.mod_id) })
+      : simple && fix.action === 'move_before' ? t('health.fix.moveBefore', { id: nameOf(fix.mod_id), before: nameOf(fix.before) })
       : fixLabel(fix);
 
   /**
@@ -912,12 +920,23 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   const renderIssue = (issue: HealthIssue, state: IssueState, key: string) => {
     const style = STATE_STYLE[state];
     const Icon = style.icon;
-    const { applicable, enableThenMove, fixes: allFixes } = fixesOf(issue);
+    const { applicable, enableThenMove, fixes: everyFix } = fixesOf(issue);
+    // Simple has no Merger: when choosing there is the main fix, the row says so in words and the
+    // button stays in Complete, so it never leads to a screen Simple does not show.
+    const mergerMain = simple && everyFix[0]?.action === 'open_in_merger';
+    const allFixes = simple ? everyFix.filter((f) => fixShownIn('simple', f)) : everyFix;
     const undoOnly = state === 'handled' || state === 'info';
     // On a mod the player is making, "switch it off" is never the thing to do first: it stays, quiet.
     const primary = allFixes.find((f) => !(undoOnly && UNDO_ACTIONS.has(f.action)) && !(issue.own_mod && f.action === 'disable_mod'));
-    // Simple: the one button (the first fix); the others are in Complete.
-    const fixes = simple ? (primary ? [primary] : allFixes.slice(0, 1)) : allFixes;
+    // Two mods that do not go together: which one stays is the player's call, so Simple offers
+    // both "switch off" buttons. Anything else: the one button (the first fix); the others are in Complete.
+    const pickOne = simple && PICK_ONE_CODES.has(issue.code) && allFixes.filter((f) => f.action === 'disable_mod').length > 1;
+    // A row whose fix is not "switch it off" (subscribe, make a copy) keeps that way out beside it:
+    // a beginner may rather not use the mod than fix it.
+    const offInstead = simple && !pickOne && primary && primary.action !== 'disable_mod' && !issue.own_mod
+      ? allFixes.find((f) => f.action === 'disable_mod' && f.mod_id === issue.mod_id)
+      : undefined;
+    const fixes = simple ? (pickOne ? allFixes.filter((f) => f.action === 'disable_mod') : primary ? [primary, ...(offInstead ? [offInstead] : [])] : allFixes.slice(0, 1)) : allFixes;
     return (
       <div
         key={key}
@@ -929,20 +948,31 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${style.label}`}>{t(`health.state.${state}.word`)}</span>
-            {scopeChip(issue.code, issue.own_mod)}
-            {certaintyChip(issue)}
+            {!simple && scopeChip(issue.code, issue.own_mod)}
+            {!simple && certaintyChip(issue)}
             {issue.mod_id && (
               <span className="text-[12.5px] font-bold text-slate-100 truncate">
                 {nameOf(issue.mod_id)}
-                {nameOf(issue.mod_id) !== issue.mod_id && <span className="ml-1.5 text-[10px] font-mono font-normal text-slate-500">{issue.mod_id}</span>}
+                {!simple && nameOf(issue.mod_id) !== issue.mod_id && <span className="ml-1.5 text-[10px] font-mono font-normal text-slate-500">{issue.mod_id}</span>}
               </span>
             )}
           </div>
-          <RichText text={issueText(issue)} mods={modWords} foldAt={320} className="text-xs text-slate-300 leading-relaxed" />
+          <RichText text={shownText(issue)} mods={modWords} foldAt={320} className="text-xs text-slate-300 leading-relaxed" />
           {primary && (
             <div className="flex items-start gap-1.5 mt-1 text-[11px] text-slate-400">
               <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
-              <span>{t(effectKey(primary))}</span>
+              <span>{pickOne ? t('simple.health.pickOne') : t(effectKey(primary))}</span>
+            </div>
+          )}
+          {mergerMain && (
+            <div className="flex items-start gap-1.5 mt-1 text-[11px] text-slate-400">
+              <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+              <span>
+                {t('simple.health.mergerExplain')}{' '}
+                <button type="button" onClick={() => setUiMode('advanced')} className="text-sky-300 hover:text-sky-200 underline cursor-pointer">
+                  {t('simple.health.mergerInComplete')}
+                </button>
+              </span>
             </div>
           )}
           {!simple && <div className="flex items-center gap-2 mt-0.5">
@@ -1293,7 +1323,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
                     {t('health.gameBuild', { build: report.game_version ?? t('health.unknown') })}
                   </span>
                   <span className="px-2 py-0.5 rounded border border-slate-700 text-slate-300">{t('health.activeCount', { count: report.active_count })}</span>
-                  {report.community && report.community.mods > 0 && (
+                  {!simple && report.community && report.community.mods > 0 && (
                     <span
                       className="px-2 py-0.5 rounded border border-slate-700 text-slate-300"
                       title={t('health.communityTitle', { rules: report.community.rules, pairs: report.community.pairs, mods: report.community.mods, updated: report.community.index_updated ? t('health.indexUpdated', { date: report.community.index_updated }) : '' })}
@@ -1301,7 +1331,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
                       {t('health.community', { rules: report.community.rules + report.community.pairs, mods: report.community.mods })}
                     </span>
                   )}
-                  {!!report.community?.dismissed && (
+                  {!simple && !!report.community?.dismissed && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1382,7 +1412,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
 
       {section === 'mods' && (
         <>
-      {servers.length > 0 && (
+      {servers.length > 0 && !(simple && listTarget.kind === 'profile') && (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-slate-400 mr-1">{t('health.list.checking')}</span>
           {[{ kind: 'profile' } as HealthListTarget, ...servers.map((s) => ({ kind: 'server', name: s.name }) as HealthListTarget)].map((target) => {
@@ -1454,7 +1484,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
                   <Icon className={`w-5 h-5 shrink-0 ${color}`} aria-hidden="true" />
                   <span className="text-sm font-bold text-slate-100">{t(`health.verdict.${verdict.level}`, { count: verdict.level === 'act' ? act : recommended })}</span>
                 </div>
-                <div className="mt-0.5 ml-7 text-[11px] text-slate-400">
+                {/* Simple counts the hidden rows once, under its list, in its own words. */}
+                {!simple && <div className="mt-0.5 ml-7 text-[11px] text-slate-400">
                   {[
                     act > 0 && t('health.verdict.countAct', { count: act }),
                     recommended > 0 && t('health.verdict.countRecommended', { count: recommended }),
@@ -1463,7 +1494,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
                   ]
                     .filter(Boolean)
                     .join(' · ') || t('health.verdict.nothingFound')}
-                </div>
+                </div>}
                 {(report?.incomplete ?? []).length > 0 && (
                   <div className="mt-1 ml-7 flex items-center gap-1.5 text-[11px] text-sky-200">
                     <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
@@ -1476,7 +1507,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
                     <div className="flex-1 min-w-0 text-xs text-slate-200">
                       <span className="font-bold">{t('health.verdict.next')}</span>{' '}
                       {verdict.next.mod_id && <b className="text-slate-100">{nameOf(verdict.next.mod_id)}: </b>}
-                      <span className="text-slate-300 line-clamp-1" title={issueText(verdict.next)}>{issueText(verdict.next)}</span>
+                      <span className="text-slate-300 line-clamp-1" title={shownText(verdict.next)}>{shownText(verdict.next)}</span>
                     </div>
                     <button
                       type="button"
@@ -1512,16 +1543,16 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
 
       {isListTab(tab) && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-400 max-w-3xl">{t(`health.tabs.${tab}Intro`)}</p>
-          {tab === 'problems' && !onServer && safeFixes.length > 0 && (
+          <p className="text-xs text-slate-400 max-w-3xl">{simple ? t('simple.health.intro') : t(`health.tabs.${tab}Intro`)}</p>
+          {tab === 'problems' && !onServer && fixPlan.fixes.length > 0 && (
             <button
               type="button"
               onClick={handleFixAllSafe}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shrink-0"
-              title={t('health.fixAllTitle')}
+              title={simple ? t('simple.health.fixAllTitle') : t('health.fixAllTitle')}
             >
               <Wand2 className="w-3.5 h-3.5" aria-hidden="true" />
-              {t('health.fixAll', { count: safeIssueCount })}
+              {simple ? t('simple.health.fixAll', { count: fixPlan.issues.length }) : t('health.fixAll', { count: fixPlan.issues.length })}
             </button>
           )}
           {tab === 'conflicts' && mergeablePaths.length > 1 && (
@@ -1586,10 +1617,21 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-emerald-200 font-bold">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-              {t('health.copyReady', { mod: compatResult.mod_id, folder: compatResult.folder })}
+              {simple ? t('simple.health.copyReady', { name: nameOf(compatResult.mod_id) }) : t('health.copyReady', { mod: compatResult.mod_id, folder: compatResult.folder })}
             </div>
             <button type="button" onClick={() => setCompatResult(null)} className="text-slate-500 hover:text-slate-300 cursor-pointer text-[11px]">{t('health.close')}</button>
           </div>
+          {/* Simple: what to do next in one line; what the copy changed, file by file, stays folded. */}
+          {simple && <div className="text-slate-300">{t('simple.health.copyNext')}</div>}
+          {simple && compatResult.warnings.length > 0 && <div className="text-amber-200">{t('simple.health.copyMayBreak', { count: compatResult.warnings.length })}</div>}
+          {simple ? (
+            <details className="text-slate-400">
+              <summary className="cursor-pointer select-none text-[11px] text-sky-300">{t('simple.health.copyDetails')}</summary>
+              <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                {[...compatResult.changes, ...compatResult.warnings].map((c, i) => <li key={i}><RichText text={c} foldAt={240} /></li>)}
+              </ul>
+            </details>
+          ) : (<>
           <ul className="list-disc pl-5 text-slate-300 space-y-0.5">
             {compatResult.changes.map((c, i) => <li key={i}><RichText text={c} foldAt={240} /></li>)}
           </ul>
@@ -1604,6 +1646,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
             <div className="text-slate-400">{t('health.noLeftovers')}</div>
           )}
           <div className="text-slate-400" dangerouslySetInnerHTML={{ __html: tHtml('health.startFromStudio') }} />
+          </>)}
         </div>
       )}
 
@@ -1612,11 +1655,22 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="flex-1 min-w-0">
             <div className="font-bold">{done}</div>
-            <div className="text-emerald-300/80">{t('health.nothingMore')}</div>
+            <div className="text-emerald-300/80">{simple ? t('simple.health.checksAgain') : t('health.nothingMore')}</div>
           </div>
           <button type="button" onClick={() => setDone(null)} className="text-emerald-400/70 hover:text-emerald-200 cursor-pointer" aria-label={t('health.close')}>
             <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
+        </div>
+      )}
+
+      {/* The first check of a list has nothing to show yet: say it is under way, not an empty list. */}
+      {!report && checking && isListTab(tab) && (
+        <div role="status" className="flex items-center gap-3 p-5 rounded-xl border border-sky-900/60 bg-sky-950/20 text-sky-100 text-sm">
+          <Loader2 className="w-5 h-5 animate-spin text-sky-300 shrink-0" aria-hidden="true" />
+          <div>
+            <div className="font-bold">{t('health.firstCheck.title')}</div>
+            <div className="text-[11px] text-sky-200/80 mt-0.5">{t('health.firstCheck.body', { count: mods.filter((m) => m.enabled).length })}</div>
+          </div>
         </div>
       )}
 

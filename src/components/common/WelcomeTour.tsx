@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { ActiveTab, HealthReport } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
-import { LANGUAGES, setLanguage } from '../../i18n';
+import { AVAILABLE_LANGUAGES, currentLanguageCode, setLanguage } from '../../i18n';
 import { useUiMode } from '../../hooks/useUiMode';
 
 /** Seen once: the tour does not open by itself again (Help can open it). */
@@ -102,7 +102,7 @@ const OPEN_WITHOUT_PROFILE: ActiveTab[] = ['PROFILES', 'SETTINGS'];
  * found, the profiles, the problems Mod Health sees). It opens once by itself; Help opens it again.
  */
 export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, activeProfileName, profileCount, installedMods, health, onShowTab, onHighlight }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [uiMode] = useUiMode();
   const steps = uiMode === 'simple' ? SIMPLE_STEPS : STEPS;
   const [index, setIndex] = useState(0);
@@ -166,14 +166,14 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
     switch (step.key) {
       case 'welcome':
         return (
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
             <span className="text-slate-400">{t('welcome.language')}</span>
-            {LANGUAGES.map((l) => (
+            {AVAILABLE_LANGUAGES.map((l) => (
               <button
                 key={l.code}
                 type="button"
                 onClick={() => void setLanguage(l.code)}
-                className={`px-2 py-0.5 rounded border cursor-pointer ${i18n.language.startsWith(l.code) ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                className={`px-2 py-0.5 rounded border cursor-pointer ${currentLanguageCode() === l.code ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
               >
                 {l.name}
               </button>
@@ -184,14 +184,14 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
         return (
           <div className="flex flex-col gap-1.5">
             {uiMode === 'simple' && (
-              <div className="flex items-center gap-2 text-[11px] pb-1 mb-0.5 border-b border-slate-800">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] pb-1 mb-0.5 border-b border-slate-800">
                 <span className="text-slate-400">{t('welcome.language')}</span>
-                {LANGUAGES.map((l) => (
+                {AVAILABLE_LANGUAGES.map((l) => (
                   <button
                     key={l.code}
                     type="button"
                     onClick={() => void setLanguage(l.code)}
-                    className={`px-2 py-0.5 rounded border cursor-pointer ${i18n.language.startsWith(l.code) ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                    className={`px-2 py-0.5 rounded border cursor-pointer ${currentLanguageCode() === l.code ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
                   >
                     {l.name}
                   </button>

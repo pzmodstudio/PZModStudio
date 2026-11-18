@@ -225,6 +225,7 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
               )}
 
               <p className="text-[10px] text-slate-500 leading-relaxed">{t('monitor.bisect.owns')}</p>
+              <p className="text-[10px] text-amber-300/80 leading-relaxed">{t('monitor.bisect.saveOwnList')}</p>
 
               <button
                 onClick={() => setShowTrial((v) => !v)}

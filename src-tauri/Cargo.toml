@@ -1,6 +1,6 @@
 [package]
 name = "pz-mod-studio"
-version = "1.10.0"
+version = "1.11.0"
 description = "Project Zomboid Mod Studio"
 authors = ["Pichu6"]
 license = "MIT"
@@ -37,16 +37,19 @@ open = "5.3"
 chrono = "0.4"
 png = "0.17"
 ureq = { version = "3.4.2", default-features = false, features = ["native-tls", "json", "gzip"] }
-keyring-core = "=1.0.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate", "deflate64"] }
 sevenz-rust = "0.6"
 # Self-update: the release's signed checksums (ed25519) and the zip's SHA-256.
 ed25519-dalek = "2"
 sha2 = "0.10"
+# Kept versions of mods: each stored file deflated (already a dependency of zip).
+flate2 = "1.1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
+# Secrets in Windows Credential Manager (on Linux: a 0600 file, see secrets/mod.rs).
+keyring-core = "=1.0.0"
 windows-native-keyring-store = "1.1.0"
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",

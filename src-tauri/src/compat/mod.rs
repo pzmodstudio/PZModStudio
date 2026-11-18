@@ -69,6 +69,36 @@ fn set_mod_info_value(path: &Path, key: &str, value: &str) -> Result<(), String>
     fs::write(path, lines.join(eol) + eol).map_err(|e| format!("Cannot write {}: {}", path.display(), e))
 }
 
+/// Rewrites the `require=` line of a mod.info with its ids trimmed (entries of spaces alone
+/// dropped), keeping every other line. The line the game reads as `require=` is the first key it
+/// contains in the game's order of checks, so a name or description line mentioning it is left
+/// alone. Returns the change as said in the copy's list, None when nothing needed it.
+fn mend_require_spaces(path: &Path) -> Result<Option<String>, String> {
+    let text = fs::read_to_string(path).map_err(|e| format!("Cannot read {}: {}", path.display(), e))?;
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut said: Option<String> = None;
+    let lines: Vec<String> = text
+        .lines()
+        .map(|line| {
+            let read_as_require = line.contains("require=") && !["name=", "poster=", "description="].iter().any(|k| line.contains(k));
+            if !read_as_require {
+                return line.to_string();
+            }
+            let value = line.replace("require=", "");
+            let ids: Vec<&str> = value.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+            let mended = format!("require={}", ids.join(","));
+            if mended != line {
+                said = Some(format!("require={} -> {} (the game looks a required id up with the spaces around it and found no such mod, so it left this one out).", value, ids.join(",")));
+            }
+            mended
+        })
+        .collect();
+    if said.is_some() {
+        fs::write(path, lines.join(eol) + eol).map_err(|e| format!("Cannot write {}: {}", path.display(), e))?;
+    }
+    Ok(said)
+}
+
 fn files_under(dir: &Path, ext: &str) -> Vec<PathBuf> {
     walkdir::WalkDir::new(dir)
         .into_iter()
@@ -741,6 +771,13 @@ fn adapt(dest: &Path, game_version: u32, index: &[(String, crate::sandbox::requi
             ));
         }
     }
+    // A required id with a space around it (`require=A, B`): the game's loader looks " B" up
+    // with the space and leaves the mod out. The copy gets the ids without spaces.
+    if !info.require_spaced.is_empty() {
+        if let Some(change) = mend_require_spaces(&info_path)? {
+            changes.push(change);
+        }
+    }
     if info.invalid_reason.is_some() && changes.iter().all(|c| !c.starts_with("version")) {
         changes.push("Fixed an invalid version value in mod.info.".to_string());
     }
@@ -1102,6 +1139,25 @@ mod tests {
         let joined = result.changes.join(" ");
         assert!(joined.contains("JSON translation"), "{}", joined);
         assert!(!result.warnings.iter().any(|w| w.contains(".txt; Build 42.15+")), "no txt warning once converted: {:?}", result.warnings);
+    }
+
+    #[test]
+    fn a_copy_writes_the_required_ids_without_the_spaces_that_keep_the_mod_out() {
+        let (_t, ws, z) = setup("spaced");
+        let src = ws.join("Spaced");
+        fs::create_dir_all(src.join("42/media/lua/client")).unwrap();
+        fs::create_dir_all(src.join("common")).unwrap();
+        let original = "name=Spaced\r\nid=Spaced\r\ndescription=Needs require= with care\r\nrequire=\\Lib, \\Core, \r\n";
+        fs::write(src.join("42/mod.info"), original).unwrap();
+        fs::write(src.join("42/media/lua/client/a.lua"), "local x = 1").unwrap();
+
+        let r = make_compatible_copy(&src, &z, 42_021, Some("123".into()), false).unwrap();
+        let info = fs::read_to_string(Path::new(&r.destination).join("42/mod.info")).unwrap();
+        assert!(info.contains("\r\nrequire=\\Lib,\\Core\r\n"), "{}", info);
+        assert!(info.contains("description=Needs require= with care\r\n"), "a line the game reads as something else stays: {}", info);
+        assert!(r.changes.iter().any(|c| c.starts_with("require=")), "{:?}", r.changes);
+        assert!(parse_game_mod_info(&info).require_spaced.is_empty());
+        assert_eq!(fs::read_to_string(src.join("42/mod.info")).unwrap(), original, "original untouched");
     }
 
     #[test]

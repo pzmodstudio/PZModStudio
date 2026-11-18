@@ -492,7 +492,13 @@ pub fn mod_health_checked(paths: &crate::vfs::StudioPaths, active: &[String], qu
         let mut shared = crate::overrides::shared_functions(std::path::Path::new(&paths.pz_install_dir), &catalog, active);
         // The Studio Link looks at them in the running game; what it last saw is said with them.
         if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
-            crate::overrides::write_probe(&z, &shared);
+            // Asked only for the list the game will load: a check of another list (an agent's,
+            // a profile not switched on) would leave the game asking about the wrong functions.
+            let plain = |list: &[String]| list.iter().map(|e| e.trim().trim_start_matches('\\').to_string()).collect::<HashSet<String>>();
+            let game_list = crate::load_order::ini_parser::read_mod_list_ini(&z.join("mods").join("default.txt").to_string_lossy()).map(|d| d.active_mods);
+            if game_list.as_ref().is_ok_and(|g| plain(g) == plain(active)) {
+                crate::overrides::write_probe(&z, &shared);
+            }
             crate::overrides::attach_checks(&z, &catalog, &mut shared);
         }
         add_override_issues(&mut report, &catalog, &shared);
@@ -1264,12 +1270,8 @@ pub fn logged_file_winners(console: &str, catalog: &ModCatalog, active: &[String
             }
         }
     }
-    let mut wanted: Vec<String> = Vec::new();
-    for m in active.iter().filter_map(|e| catalog.resolve(e.trim())).filter(|m| m.loadability == Loadability::Loadable) {
-        if !wanted.contains(&m.id) {
-            wanted.push(m.id.clone());
-        }
-    }
+    // The game's own order (requirements first, those that are off loaded too), which its log follows.
+    let wanted: Vec<String> = game_load_order(catalog, active);
     // The same mods, in the same order: after a reorder the log is about the order before it.
     let same_order = loaded_order.iter().filter(|id| wanted.contains(id)).cloned().collect::<Vec<_>>() == wanted;
     (!loaded.is_empty() && !winners.is_empty() && same_order).then_some(winners)
@@ -1372,6 +1374,8 @@ pub fn add_override_issues(report: &mut HealthReport, catalog: &ModCatalog, shar
             ("before", &before_name),
             ("howKey", how_key),
             ("variant", "mod_many"),
+            // Follows from the load order alone (see `cut_is_certain`): a game rule, not a guess.
+            ("certain", if fs.iter().all(|f| crate::overrides::cut_is_certain(f)) { "load" } else { "" }),
         ]);
         if let Some(last) = list.0.last_mut() {
             last.related = cut.clone();
@@ -1440,6 +1444,7 @@ pub fn add_override_issues(report: &mut HealthReport, catalog: &ModCatalog, shar
             ("table", &table),
             ("variant", variant),
             ("checkedKey", if seen.is_some() { "fo_seen" } else { "" }),
+            ("certain", if crate::overrides::cut_is_certain(f) { "load" } else { "" }),
         ]);
         if let Some(last) = list.0.last_mut() {
             if variant.is_empty() {
@@ -1713,12 +1718,13 @@ pub enum IssueState {
 pub fn issue_state(severity: Severity, code: &str) -> IssueState {
     match code {
         // Breaks the game or the mod does not load, whatever the severity says.
+        // (A requirement off or later in the list is not here: the game loads it first by itself.)
         "missing_mod" | "not_for_build" | "outside_version_range" | "invalid_mod_info" | "missing_dependency"
-        | "dependency_not_enabled" | "dependency_unavailable" | "dependency_after" | "incompatible"
+        | "dependency_unavailable" | "incompatible" | "require_spaced"
         | "server_item_missing" | "server_map_missing" | "server_java_denied" | "server_java_not_approved"
         | "server_mod_workshop_only" | "server_mod_workshop_linked" | "server_mod_not_for_build" => IssueState::Act,
         // Something the Studio did that works as it is.
-        "compatible_copy" | "translation_settled" | "script_definition_settled" | "package_file_differs" | "package_file_orphan" | "workshop_copy_kept" => {
+        "compatible_copy" | "kept_version_in_use" | "translation_settled" | "script_definition_settled" | "package_file_differs" | "package_file_orphan" | "workshop_copy_kept" => {
             IssueState::Handled
         }
         // Asks for a rebuild or a switch-off though it is told as information.
@@ -2387,6 +2393,67 @@ fn resolve_entry<'a>(catalog: &'a ModCatalog, entry: &str) -> Option<&'a Catalog
     }
 }
 
+/// The mods the game loads from a list, in the order it loads them (ZomboidFileSystem.loadMods
+/// in 42.22): a mod it cannot load is left out (its own version limits, or a mod it requires
+/// missing or unloadable at any depth: `ChooseGameInfo.isAvailable`), and every mod comes after
+/// all it requires, which the game loads first by itself, from further down the list or not in
+/// it at all. So a requirement placed after the mod is no problem, and one that is installed but
+/// off is loaded anyway. Order-dependent findings (which copy of a file wins, which function
+/// runs last, load-after rules) are worked out on this order, not on the list's.
+pub fn game_load_order(catalog: &ModCatalog, active: &[String]) -> Vec<String> {
+    fn plain(id: &str) -> &str {
+        id.trim().trim_start_matches('\\')
+    }
+    fn available<'a>(catalog: &'a ModCatalog, id: &str, memo: &mut HashMap<String, bool>, seen: &mut HashSet<String>) -> bool {
+        if let Some(&known) = memo.get(id) {
+            return known;
+        }
+        if !seen.insert(id.to_string()) {
+            return true; // a cycle: the game stops following it as well
+        }
+        let ok = match catalog.get(id) {
+            Some(m) if m.loadability == Loadability::Loadable => m.info.require.iter().all(|r| plain(r).is_empty() || available(catalog, plain(r), memo, seen)),
+            _ => false,
+        };
+        memo.insert(id.to_string(), ok);
+        ok
+    }
+    // Whether the mod got in. A requirement written with a space around its id (`require=A, B`)
+    // passes the availability check, which trims, but the loader looks " B" up as it is and
+    // stops: what it loaded before stays, the mod and every mod requiring it are left out.
+    fn load(catalog: &ModCatalog, id: &str, ordered: &mut Vec<String>, visiting: &mut HashSet<String>, memo: &mut HashMap<String, bool>) -> bool {
+        if id.is_empty() || ordered.iter().any(|o| o == id) || !visiting.insert(id.to_string()) {
+            return true;
+        }
+        let mut loaded = available(catalog, id, memo, &mut HashSet::new());
+        if loaded {
+            if let Some(m) = catalog.get(id) {
+                for r in &m.info.require {
+                    if m.info.require_spaced.iter().any(|s| s.trim() == plain(r)) || !load(catalog, plain(r), ordered, visiting, memo) {
+                        loaded = false;
+                        break;
+                    }
+                }
+                // An entry of spaces alone ("A, ") is dropped from `require` but stops the loader too.
+                loaded = loaded && !m.info.require_spaced.iter().any(|s| s.trim().is_empty());
+            }
+            if loaded {
+                ordered.push(id.to_string());
+            }
+        }
+        visiting.remove(id);
+        loaded
+    }
+    let mut ordered: Vec<String> = Vec::new();
+    let mut memo: HashMap<String, bool> = HashMap::new();
+    for entry in active {
+        let Some(m) = resolve_entry(catalog, plain(entry)) else { continue };
+        let id = m.id.clone();
+        load(catalog, &id, &mut ordered, &mut HashSet::new(), &mut memo);
+    }
+    ordered
+}
+
 fn entry_mod_id(entry: &str) -> &str {
     match entry.split_once('/') {
         Some((ws, id)) if ws.chars().all(|c| c.is_ascii_digit()) => id,
@@ -2466,6 +2533,10 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         })
         .collect();
     let position: HashMap<&str, usize> = active_ids.iter().enumerate().rev().map(|(i, id)| (*id, i)).collect();
+    // Where each mod really loads: the game puts every requirement first by itself (and loads one
+    // that is off), so order rules are checked on its order, not on the list's.
+    let game_order = game_load_order(catalog, active);
+    let game_position: HashMap<&str, usize> = game_order.iter().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
 
     // Availability like ChooseGameInfo.isAvailable (self + required mods, at any depth).
     // Why: the mod at fault and whether it is missing (`not_installed`) or not for this build
@@ -2486,6 +2557,7 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         let reason = match catalog.get(id) {
             None => Some(("not_installed", id.to_string())),
             Some(m) if m.loadability != Loadability::Loadable => Some(("cannot_load", describe(m))),
+            Some(m) if !m.info.require_spaced.is_empty() => Some(("spaced_require", describe(m))),
             Some(m) => m.info.require.iter().find_map(|r| why_unavailable(catalog, r, seen, memo)),
         };
         memo.insert(id.to_string(), reason.clone());
@@ -2575,14 +2647,29 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
                 list.push(
                 Severity::Error, "invalid_mod_info", Some(id),
                 format!("{}: {}", describe(m), reason),
-                compat_fix.into_iter().chain([SuggestedFix::DisableMod { mod_id: m.id.clone() }]).collect(),
+                compat_fix.clone().into_iter().chain([SuggestedFix::DisableMod { mod_id: m.id.clone() }]).collect(),
                 );
                 list.with(&[("mod", &name), ("reason", reason)]);
             }
         }
 
-        // A requirement that is also a loadModAfter is one problem, said once as the requirement.
-        let mut late_deps: HashSet<&str> = HashSet::new();
+        // `require=A, B`: the loader looks " B" up with its space and leaves the mod out, though
+        // the game's mods screen shows it on (it trims). Only a copy with the line mended loads.
+        if !m.info.require_spaced.is_empty() {
+            let written: Vec<String> = m.info.require_spaced.iter().map(|s| format!("\"{}\"", s)).collect();
+            let written = written.join(", ");
+            let (variant, remedy) = if compat_fix.is_some() {
+                ("copy", "A compatible copy mends the line in a copy; the original files stay as they are, and its author can fix it by taking the spaces out.")
+            } else {
+                ("local", "Take the spaces out of its require= line (ids separated by commas only) and it loads.")
+            };
+            list.push(Severity::Error, "require_spaced", Some(id),
+                format!("{} does not load: its mod.info names a required mod with a space around it ({}). The game looks for a mod called exactly that, with the space, finds none and leaves it out, though its mods screen shows it on. {}",
+                    describe(m), written, remedy),
+                compat_fix.clone().into_iter().chain([SuggestedFix::DisableMod { mod_id: m.id.clone() }]).collect());
+            list.with(&[("variant", variant), ("mod", &name), ("written", &written)]);
+        }
+
         for req in &m.info.require {
             match catalog.get(req) {
                 None => {
@@ -2598,40 +2685,40 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
                         None => list.with(&[("variant", "plain"), ("mod", &name), ("dep", req)]),
                     }
                 }
-                Some(dep) => match position.get(req.as_str()) {
-                    None => {
-                        list.push(Severity::Error, "dependency_not_enabled", Some(id),
-                        format!("{} requires {}, which is installed but not enabled", describe(m), describe(dep)),
-                        vec![
-                            SuggestedFix::EnableMod { mod_id: dep.id.clone() },
-                            // ...and place it before the mod that needs it.
-                            SuggestedFix::MoveBefore { mod_id: dep.id.clone(), before: m.id.clone() },
-                        ]);
+                // A requirement placed after the mod is no finding: the game loads it first by
+                // itself (ZomboidFileSystem.loadModAndRequired), whatever the list says.
+                Some(dep) => match why_unavailable(catalog, req, &mut HashSet::new(), &mut unavailable_memo) {
+                    Some((why, culprit)) => {
+                        let reason = match why {
+                            "not_installed" => format!("{} is not installed", culprit),
+                            "spaced_require" => format!("{} does not load (a space in its require= line)", culprit),
+                            _ => format!("{} cannot load on this build", culprit),
+                        };
+                        list.push(Severity::Error, "dependency_unavailable", Some(id),
+                            format!("{} requires {}, which is unavailable: {}", describe(m), dep.id, reason), vec![]);
+                        list.with(&[("variant", why), ("mod", &name), ("dep", &dep.id), ("culprit", &culprit)]);
+                        list.relate_last(&dep.id);
+                    }
+                    // Off in the list but installed and loadable: the game loads it anyway, as
+                    // a requirement. Nothing breaks; on, the list says what really runs.
+                    None if !position.contains_key(req.as_str()) => {
+                        list.push(Severity::Warning, "dependency_not_enabled", Some(id),
+                        format!("{} requires {}, which is installed but off in this list. The game loads it anyway, as a requirement, so nothing breaks; switch it on so the list shows what runs.", describe(m), describe(dep)),
+                        vec![SuggestedFix::EnableMod { mod_id: dep.id.clone() }]);
                         list.with(&[("mod", &name), ("dep", &describe(dep))]);
                     }
-                    Some(&dep_pos) if dep_pos > idx => {
-                        late_deps.insert(req.as_str());
-                        list.push(Severity::Warning, "dependency_after", Some(id),
-                        format!("{} requires {}, but {} loads after it", describe(m), dep.id, dep.id),
-                        vec![SuggestedFix::MoveBefore { mod_id: dep.id.clone(), before: m.id.clone() }]);
-                        list.with(&[("mod", &name), ("dep", &dep.id)]);
-                    }
-                    Some(_) => {
-                        if let Some((why, culprit)) = why_unavailable(catalog, req, &mut HashSet::new(), &mut unavailable_memo) {
-                            let reason = if why == "not_installed" { format!("{} is not installed", culprit) } else { format!("{} cannot load on this build", culprit) };
-                            list.push(Severity::Error, "dependency_unavailable", Some(id),
-                                format!("{} requires {}, which is unavailable: {}", describe(m), dep.id, reason), vec![]);
-                            list.with(&[("variant", why), ("mod", &name), ("dep", &dep.id), ("culprit", &culprit)]);
-                            list.relate_last(&dep.id);
-                        }
-                    }
+                    None => {}
                 },
             }
         }
 
+        // loadModAfter / loadModBefore are not applied by the game when it loads a list: checked
+        // on where the game really loads each mod (its requirements moved first, those it loads
+        // though they are off included).
+        let here = game_position.get(m.id.as_str()).copied();
         for after in &m.info.load_after {
-            if let Some(&p) = position.get(after.as_str()) {
-                if p > idx && !late_deps.contains(after.as_str()) {
+            if let (Some(&p), Some(here)) = (game_position.get(after.as_str()), here) {
+                if p > here {
                     list.push(Severity::Warning, "load_after_order", Some(id),
                         format!("{} asks to load after {}, but {} comes later in the list", describe(m), after, after),
                         vec![SuggestedFix::MoveBefore { mod_id: after.clone(), before: m.id.clone() }]);
@@ -2640,8 +2727,8 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             }
         }
         for before in &m.info.load_before {
-            if let Some(&p) = position.get(before.as_str()) {
-                if p < idx {
+            if let (Some(&p), Some(here)) = (game_position.get(before.as_str()), here) {
+                if p < here {
                     list.push(Severity::Warning, "load_before_order", Some(id),
                         format!("{} asks to load before {}, but {} comes earlier in the list", describe(m), before, before),
                         vec![SuggestedFix::MoveBefore { mod_id: m.id.clone(), before: before.clone() }]);
@@ -2657,7 +2744,10 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             list.with(&[("mod", &name)]);
         }
         for other in &m.info.incompatible {
-            if let Some(&p) = position.get(other.as_str()) {
+            // Both must really load: a mod the game leaves out (not for this build, a requirement
+            // missing) clashes with nothing.
+            let both_load = game_position.contains_key(m.id.as_str()) && game_position.contains_key(other.as_str());
+            if let (Some(&p), true) = (position.get(other.as_str()), both_load) {
                 // Report each pair once, on the later mod.
                 if p < idx || !catalog.get(other).is_some_and(|o| o.info.incompatible.contains(&m.id)) {
                     list.push(Severity::Error, "incompatible", Some(id),
@@ -2683,7 +2773,29 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
         }
 
         let compat = matches!(&m.origin, Some(crate::origins::ModOrigin::Compat { .. }));
-        if let Some(crate::origins::ModOrigin::Compat { changes, .. }) = &m.origin {
+        // A kept version the player put back: an older copy on purpose, not one made to load.
+        let kept_copy = match &m.origin {
+            Some(crate::origins::ModOrigin::Compat { source_dir, .. }) => {
+                let folder = std::path::Path::new(&m.root_dir).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+                crate::snapshots::kept_copy_info(source_dir, &folder).map(|k| (k, folder))
+            }
+            _ => None,
+        };
+        if let Some(((kept_at, kept_version), folder)) = &kept_copy {
+            let workshop_version = catalog
+                .mods
+                .iter()
+                .find(|o| o.id == m.id && o.source != ModSource::Local)
+                .and_then(|o| o.info.mod_version.clone())
+                .filter(|v| Some(v) != kept_version.as_ref());
+            let kept = format!("{}{}", kept_at, kept_version.as_ref().map(|v| format!(", modversion {}", v)).unwrap_or_default());
+            list.push(Severity::Info, "kept_version_in_use", Some(id),
+                format!("{} runs from the version kept on {} that you put back in Zomboid/mods; the Workshop version{} is ignored meanwhile. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Nothing to do while the newer one gives trouble; once its author fixes it, \"Back to the Workshop version\" takes the copy out.",
+                    describe(m), kept, workshop_version.as_ref().map(|v| format!(" (modversion {})", v)).unwrap_or_default()),
+                vec![SuggestedFix::RemoveCompatibleCopy { folder: folder.clone() }]);
+            list.with(&[("mod", &name), ("kept", &kept), ("workshop", workshop_version.as_deref().unwrap_or("")), ("variant", if workshop_version.is_some() { "newer" } else { "" })]);
+        }
+        if let (None, Some(crate::origins::ModOrigin::Compat { changes, .. })) = (&kept_copy, &m.origin) {
             let folder = std::path::Path::new(&m.root_dir).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
             // The Workshop original loads on this build as it is (its author updated it, or the
             // game's range now covers it): the copy only keeps an older version running.
@@ -2691,9 +2803,10 @@ pub fn health_report(catalog: &ModCatalog, active: &[String]) -> HealthReport {
             // by an original that loads: one that also rewrote require paths, item fields or
             // translations fixes what loading alone does not (a known issue of the index).
             let only_for_loading = changes.iter().all(|c| {
-                c.contains("blocked build") || c.starts_with("Created the Build 42 layout") || c.starts_with("This mod only had files for build") || c.starts_with("Fixed an invalid version value") || c.starts_with("Nothing needed changing")
+                c.contains("blocked build") || c.starts_with("Created the Build 42 layout") || c.starts_with("This mod only had files for build") || c.starts_with("Fixed an invalid version value") || c.starts_with("Nothing needed changing") || c.starts_with("require=")
             });
-            let original_loads = only_for_loading && catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local && matches!(o.loadability, Loadability::Loadable));
+            let original_loads = only_for_loading
+                && catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local && matches!(o.loadability, Loadability::Loadable) && o.info.require_spaced.is_empty());
             // The author of the original renamed its id since the copy was made: no Workshop mod
             // has this id now, its item has another. The copy keeps the version from before.
             let renamed = (!catalog.mods.iter().any(|o| o.id == m.id && o.source != ModSource::Local))
@@ -2954,8 +3067,8 @@ mod tests {
         let got = codes(&report);
         let has = |code: &str, id: &str| got.contains(&(code.to_string(), id.to_string()));
 
-        assert!(has("dependency_after", "UsesLib"));
-        assert!(!has("load_after_order", "UsesLib"), "a late requirement that is also loadModAfter is said once");
+        assert!(!has("dependency_after", "UsesLib"), "the game loads Lib first by itself");
+        assert!(!has("load_after_order", "UsesLib"), "...so its loadModAfter=Lib holds too");
         assert!(has("missing_dependency", "NeedsMissing"), "Ghost and lowercase lib are not installed");
         assert!(has("not_for_build", "Old"));
         assert!(has("dependency_unavailable", "NeedsOld"));
@@ -2973,7 +3086,6 @@ mod tests {
         let related = |code: &str, id: &str| {
             report.issues.iter().find(|i| i.code == code && i.mod_id.as_deref() == Some(id)).unwrap().related.clone()
         };
-        assert_eq!(related("dependency_after", "UsesLib"), vec!["Lib"]);
         assert_eq!(related("dependency_unavailable", "NeedsOld"), vec!["Old"]);
         assert_eq!(related("incompatible", "A"), vec!["B"]);
         assert_eq!(related("load_after_order", "Late"), vec!["B"]);
@@ -3138,9 +3250,80 @@ name=Off Noisy
     }
 
     #[test]
+    fn order_rules_follow_the_order_the_game_loads_in() {
+        // ZomboidFileSystem.loadMods: each mod after what it requires (loaded first even when it
+        // is further down the list, or off), and a mod it cannot load left out.
+        let f = fixture("game_order");
+        let ws = f.root.join("workshop");
+        write_mod(&ws.join("1/mods/Lib/42"), "id=Lib\n");
+        write_mod(&ws.join("2/mods/Addon/42"), "id=Addon\nrequire=\\Lib,\\Core\n");
+        write_mod(&ws.join("3/mods/Core/42"), "id=Core\nrequire=\\Lib\n");
+        write_mod(&ws.join("4/mods/Old/42"), "id=Old\nversionMax=42.15\nincompatible=\\Addon\n");
+        write_mod(&ws.join("5/mods/Patch/42"), "id=Patch\nloadModAfter=Core\n");
+        write_mod(&ws.join("6/mods/NeedsOld/42"), "id=NeedsOld\nrequire=\\Old\n");
+        let (w, z) = paths(&f);
+        let cat = build_catalog(&w, &z, Some(42_021));
+        let list = |ids: &[&str]| ids.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+        // Core is off: the game loads it anyway, after Lib and before Addon; Old and NeedsOld not at all.
+        let active = list(&["Patch", "Addon", "Old", "NeedsOld", "Lib"]);
+        assert_eq!(game_load_order(&cat, &active), list(&["Patch", "Lib", "Core", "Addon"]));
+
+        let report = health_report(&cat, &active);
+        let got = codes(&report);
+        let has = |code: &str, id: &str| got.contains(&(code.to_string(), id.to_string()));
+        assert!(!report.issues.iter().any(|i| i.code == "dependency_after"), "Lib after Addon is fine: the game loads it first");
+        assert!(has("dependency_not_enabled", "Addon"), "Core is off");
+        let off = report.issues.iter().find(|i| i.code == "dependency_not_enabled").unwrap();
+        assert_eq!(off.state, IssueState::Recommended, "the game loads it anyway: a tidy-up, not a break");
+        assert_eq!(off.fixes, vec![SuggestedFix::EnableMod { mod_id: "Core".into() }]);
+        assert!(has("load_after_order", "Patch"), "Core, loaded only as a requirement, still loads after Patch");
+        assert!(!has("incompatible", "Old"), "Old does not load on this build: it clashes with nothing");
+        assert!(has("outside_version_range", "Old"));
+        assert!(has("dependency_unavailable", "NeedsOld"));
+
+        // Patch moved after Addon: Core now loads before it.
+        let report = health_report(&cat, &list(&["Addon", "Patch", "Lib"]));
+        assert!(!report.issues.iter().any(|i| i.code == "load_after_order"), "{:?}", report.issues);
+    }
+
+    #[test]
+    fn a_required_id_with_a_space_leaves_the_mod_out_of_the_game() {
+        // ZomboidFileSystem.loadModAndRequired looks " Core" up untrimmed: no such mod, so Spaced
+        // is left out (Lib, loaded before the failing entry, stays), and so is what requires it.
+        let f = fixture("spaced_require");
+        let ws = f.root.join("workshop");
+        write_mod(&ws.join("1/mods/Lib/42"), "id=Lib\n");
+        write_mod(&ws.join("2/mods/Core/42"), "id=Core\n");
+        write_mod(&ws.join("3/mods/Spaced/42"), "id=Spaced\nrequire=\\Lib, \\Core\n");
+        write_mod(&ws.join("4/mods/OnTop/42"), "id=OnTop\nrequire=\\Spaced\n");
+        write_mod(&ws.join("5/mods/Tidy/42"), "id=Tidy\nrequire=\\Lib,\\Core,\n");
+        let (w, z) = paths(&f);
+        let cat = build_catalog(&w, &z, Some(42_021));
+        let list = |ids: &[&str]| ids.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+        let active = list(&["Spaced", "OnTop", "Tidy", "Core"]);
+        assert_eq!(game_load_order(&cat, &active), list(&["Lib", "Core", "Tidy"]));
+
+        let report = health_report(&cat, &active);
+        let spaced: Vec<&HealthIssue> = report.issues.iter().filter(|i| i.code == "require_spaced").collect();
+        assert_eq!(spaced.len(), 1, "{:?}", report.issues);
+        assert_eq!(spaced[0].mod_id.as_deref(), Some("Spaced"));
+        assert_eq!(spaced[0].state, IssueState::Act);
+        assert!(spaced[0].message.contains("\" Core\""), "{}", spaced[0].message);
+        assert_eq!(spaced[0].fixes[0], SuggestedFix::MakeCompatibleCopy { mod_id: "Spaced".into() });
+        assert_eq!(spaced[0].params.get("variant").map(String::as_str), Some("copy"));
+        let on_top = report.issues.iter().find(|i| i.code == "dependency_unavailable" && i.mod_id.as_deref() == Some("OnTop")).expect("OnTop needs Spaced");
+        assert_eq!(on_top.params.get("variant").map(String::as_str), Some("spaced_require"));
+        assert!(!report.issues.iter().any(|i| i.mod_id.as_deref() == Some("Tidy") && i.state == IssueState::Act), "a trailing comma is fine");
+    }
+
+    #[test]
     fn every_issue_says_whose_move_it_is() {
         // What breaks the game is to act on whatever its severity.
-        assert_eq!(issue_state(Severity::Warning, "dependency_after"), IssueState::Act);
+        assert_eq!(issue_state(Severity::Warning, "missing_dependency"), IssueState::Act);
+        // A requirement that is off: the game loads it anyway, so switching it on is a tidy-up.
+        assert_eq!(issue_state(Severity::Warning, "dependency_not_enabled"), IssueState::Recommended);
         assert_eq!(issue_state(Severity::Error, "missing_mod"), IssueState::Act);
         // What the Studio did and works is handled; its undo is not a thing to do.
         assert_eq!(issue_state(Severity::Info, "compatible_copy"), IssueState::Handled);

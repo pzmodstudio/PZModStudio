@@ -10,6 +10,8 @@ import i18next from 'i18next';
 import { issueText } from '../../i18n/backendText';
 import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
+import { useUiMode } from '../../hooks/useUiMode';
+import { UiMode, fixShownIn, simpleRowIssues } from '../../utils/uiMode';
 
 /** What a row says for each code the health check can raise. Short: the row is narrow. */
 /** What the Studio already fixed is Mod Health's record, not a row's problem: no chip. */
@@ -21,7 +23,11 @@ const MAX_CHIPS = 2;
 /** Issues about a group of files and mods, which only Mod Health shows whole. */
 const HEALTH_ONLY_CODES = new Set(['script_definition_conflict', 'script_definition_stale', 'script_definition_settled', 'script_definition_conflict_more', 'translation_conflict', 'translation_stale', 'translation_settled']);
 
-export const labelFor = (issue: Pick<HealthIssue, 'code'>) => i18next.t(`modList.health.labels.${issue.code}`, { defaultValue: issue.code.replace(/_/g, ' ') });
+/** The short name of a finding; Simple says the ones in the Studio's own words in plain ones. */
+export const labelFor = (issue: Pick<HealthIssue, 'code'>, mode: UiMode = 'advanced') => {
+  const label = i18next.t(`modList.health.labels.${issue.code}`, { defaultValue: issue.code.replace(/_/g, ' ') });
+  return mode === 'simple' ? i18next.t(`modList.health.simpleLabels.${issue.code}`, { defaultValue: label }) : label;
+};
 
 /** The same four states and colours as Mod Health (handled ones never reach a row). */
 const STYLE: Record<IssueState, { chip: string; tone: 'red' | 'amber' | 'slate' }> = {
@@ -169,7 +175,10 @@ interface RowHealthChipsProps {
  * the fix beside it when the row can apply it. The chip itself goes to the other mod involved,
  * or to Mod Health when there is none.
  */
-export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, mods, onApplyList, onJumpToMod, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote }) => {
+export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues: allIssues, mods, onApplyList, onJumpToMod, onOpenMerger, onGoToHealth, onOpenInBrowser, onSearchInBrowser, onNote }) => {
+  // Simple: only what needs something done gets a chip (the same rows its Diagnostics shows).
+  const [mode] = useUiMode();
+  const issues = mode === 'simple' ? simpleRowIssues(allIssues) : allIssues;
   if (issues.length === 0) return null;
   const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
   // The names and ids a message may mention, set in bold in the tips.
@@ -205,13 +214,15 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
         const other = others.length === 1 && !HEALTH_ONLY_CODES.has(issue.code) ? others[0] : undefined;
         // Only a row that wants something done offers its fix: on one that is only worth knowing, a
         // button reads as a thing to do.
-        const fix = state === 'act' || state === 'recommended' ? issue.fixes[0] : undefined;
+        const firstFix = state === 'act' || state === 'recommended' ? issue.fixes[0] : undefined;
+        // A fix that opens a Complete-only screen is not offered in Simple: the chip leads to Diagnostics.
+        const fix = firstFix && fixShownIn(mode, firstFix) ? firstFix : undefined;
         return (
           <span key={issue.code} className="flex items-center shrink-0">
             <Tip
               content={
                 <TipBody
-                  title={`${i18next.t(`health.state.${state}.word`)}: ${labelFor(issue)}`}
+                  title={`${i18next.t(`health.state.${state}.word`)}: ${labelFor(issue, mode)}`}
                   tone={style.tone}
                   action={
                     other
@@ -237,7 +248,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
                 }`}
               >
                 <Icon className={`w-3 h-3 shrink-0 ${STATE_STYLE[state].iconColor}`} aria-hidden="true" />
-                <span>{labelFor(issue)}</span>
+                <span>{labelFor(issue, mode)}</span>
               </button>
             </Tip>
             {fix && (
@@ -274,7 +285,7 @@ export const RowHealthChips: React.FC<RowHealthChipsProps> = ({ paths, issues, m
                   return (
                     <li key={i.code} className="flex items-center gap-1.5">
                       <FoldIcon className={`w-3 h-3 shrink-0 ${STATE_STYLE[issueStateOf(i)].iconColor}`} aria-hidden="true" />
-                      <span>{labelFor(i)}</span>
+                      <span>{labelFor(i, mode)}</span>
                     </li>
                   );
                 })}
@@ -309,8 +320,10 @@ interface IssueCardsProps extends FixContext {
  * with its state word (act / recommended / nothing to do), the whole message, and the buttons:
  * its fix when it asks for one, the other mod when there is exactly one, and Mod Health.
  */
-export const IssueCards: React.FC<IssueCardsProps> = ({ issues, onJumpToMod, ...ctx }) => {
+export const IssueCards: React.FC<IssueCardsProps> = ({ issues: allIssues, onJumpToMod, ...ctx }) => {
   const { mods, onGoToHealth } = ctx;
+  const [mode] = useUiMode();
+  const issues = mode === 'simple' ? simpleRowIssues(allIssues) : allIssues;
   const nameOf = (id: string) => mods.find((m) => m.mod_id === id)?.name ?? id;
   const modWords = mods.flatMap((m) => [m.name, m.mod_id]);
   const seen = new Set<string>();
@@ -330,14 +343,15 @@ export const IssueCards: React.FC<IssueCardsProps> = ({ issues, onJumpToMod, ...
         const Icon = STATE_STYLE[state].icon;
         const others = issue.related.filter((id) => mods.some((m) => m.mod_id === id));
         const other = others.length === 1 && !HEALTH_ONLY_CODES.has(issue.code) ? others[0] : undefined;
-        const fix = state === 'act' || state === 'recommended' ? issue.fixes[0] : undefined;
+        const firstFix = state === 'act' || state === 'recommended' ? issue.fixes[0] : undefined;
+        const fix = firstFix && fixShownIn(mode, firstFix) ? firstFix : undefined;
         return (
           <div key={`${issue.code}-${n}`} className={`rounded-lg border px-3 py-2 text-[11.5px] ${STATE_STYLE[state].card}`}>
             <div className="flex items-start gap-2">
               <Icon className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${STATE_STYLE[state].iconColor}`} aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className={`font-bold ${STATE_STYLE[state].label}`}>{labelFor(issue)}</span>
+                  <span className={`font-bold ${STATE_STYLE[state].label}`}>{labelFor(issue, mode)}</span>
                   <span className="text-[10px] uppercase tracking-wider text-slate-500">{i18next.t(`health.state.${state}.word`)}</span>
                 </div>
                 <div className="mt-0.5 text-slate-300 leading-relaxed">

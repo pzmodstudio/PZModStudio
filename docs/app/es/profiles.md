@@ -44,7 +44,11 @@ Con el perfil activo el juego usa solo lo suyo, y con otro perfil, lo de ese (o 
 
 Los **mods en sí son los mismos para todos los perfiles**: no se copian ni se mueven, y no hay que instalar nada de nuevo. Que un mod (o una parte de un mod) esté prendido en un perfil y apagado en otro funciona como siempre. Tampoco se separan las partidas de servidores (`Saves/Multiplayer`), los registros del juego, los servidores, ni los archivos de la app y del Link.
 
-Al cambiar de perfil la app pone cada cosa en su lugar con un renombre, sin copiar nada, y siempre con el juego cerrado. Lo de los otros perfiles espera en `Zomboid/PZModStudio_ProfileSaves`. Si la PC se apaga a mitad de un cambio, la app lo termina la próxima vez que abre.
+Lo que pesa mucho y no es un ajuste no se copia al aislar un perfil: un archivo de más de 20 MB o una carpeta de más de 50 MB (la caché de un mod, grabaciones, volcados) queda **compartido**, igual para todos los perfiles desde ese momento, así aislar nunca llena el disco. Las opciones y las teclas del juego se copian siempre, pesen lo que pesen. Lo que quedó compartido se anota en `Zomboid/PZModStudio_ProfileSavesShared.json`.
+
+Al cambiar de perfil la app pone cada cosa en su lugar con un renombre, sin copiar nada. Solo lo hace con Project Zomboid cerrado: el juego, y también cualquier servidor de Project Zomboid en esta PC (el servidor del Studio de la pantalla Servidores, o uno abierto a mano). Si hay uno abierto, la app dice cuál y te pide que lo cierres primero. Lo de los otros perfiles espera en `Zomboid/PZModStudio_ProfileSaves`. Si la PC se apaga a mitad de un cambio, la app lo termina la próxima vez que abre.
+
+Cada partida y cada ajuste que la app mueve, copia o guarda en los respaldos queda anotado en el registro del Studio (`Zomboid/PZModStudio_Logs/studio.log`, las líneas con `[Profiles]`), de dónde a dónde, así que si parece faltar una partida podés ver adónde fue.
 
 **Dejar de aislar** junta sus partidas con las compartidas y vuelve a poner las opciones y la configuración compartidas; las del perfil se guardan en `Zomboid/PZModStudio_Backups/ProfileSettings`, sin pisar nada. Borrar el perfil hace lo mismo, así que nunca se pierde una partida ni un ajuste.
 

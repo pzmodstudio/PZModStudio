@@ -16,8 +16,9 @@ import type { BrainOnset } from '../types';
  * - A param `fooVs` is a list (joined by U+001F) that becomes `{{foo}}`, joined by "against".
  * - A param `fooList` is a list of codes (comma-separated); each code's fragment, joined by commas, becomes `{{foo}}`.
  */
-export function backendText(area: string, code: string | undefined, params: Record<string, string> | undefined, english: string, part?: string): string {
-  if (!code || i18next.resolvedLanguage === 'en') return english;
+export function backendText(area: string, code: string | undefined, params: Record<string, string> | undefined, english: string, part?: string, inEnglishToo = false): string {
+  // English is Rust's own text; `inEnglishToo` says it from the locale anyway (other values than Rust's).
+  if (!code || (i18next.resolvedLanguage === 'en' && !inEnglishToo)) return english;
   const p = params ?? {};
   const base = p.template ?? (p.variant ? `${code}_${p.variant}` : code);
   const key = `backendText.${area}.${base}${part ? `.${part}` : ''}`;
@@ -70,6 +71,32 @@ export const issueText = (issue: { code: string; params?: Record<string, string>
     return onset ? `${text}. ${onset}` : text;
   }
   return backendText('health', issue.code, issue.params, issue.message);
+};
+
+/**
+ * A finding said for a beginner (Simple): mods by their names only, never by their ids. Rust writes
+ * a mod as "Name (id)" or as a bare id; each such value becomes the name the Mod List shows. Said
+ * in the chosen language, English included (the locale's English is Rust's text with the same
+ * values), so the ids go in both.
+ */
+export const plainIssueText = (
+  issue: { code: string; params?: Record<string, string>; message: string },
+  nameOf: (id: string) => string,
+) => {
+  if (!issue.params || issue.code === 'learned_issue') return issueText(issue);
+  const named = (value: string) => {
+    const bare = nameOf(value);
+    if (bare !== value) return bare;
+    // "Name (id)": the id in brackets is a known mod, so the name alone says it.
+    const m = /^(.*\S) \(([^()]+)\)$/.exec(value);
+    return m && nameOf(m[2]) !== m[2] ? m[1] : value;
+  };
+  const params: Record<string, string> = {};
+  for (const [k, v] of Object.entries(issue.params)) params[k] = typeof v === 'string' ? named(v) : v;
+  // A few findings have shorter words of their own for a beginner (no version ranges, no files).
+  const own = [`simple.issueText.${params.variant ? `${issue.code}_${params.variant}` : issue.code}`, `simple.issueText.${issue.code}`].find((k) => i18next.exists(k));
+  if (own) return i18next.t(own, params);
+  return backendText('health', issue.code, params, issue.message, undefined, true);
 };
 
 /** A Monitor card's title, explanation or recommended action. */

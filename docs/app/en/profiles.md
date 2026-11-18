@@ -44,7 +44,11 @@ With the profile on the game uses only its own, and with another profile that on
 
 The **mods themselves are the same for every profile**: they are not copied or moved, and there is nothing to install again. A mod (or part of a mod) that is on in one profile and off in another works as always. Servers' saves (`Saves/Multiplayer`), the game's logs, servers, and the app's and the Link's files are not separated either.
 
-Switching profiles the app puts everything in its place with a rename, nothing copied, always with the game closed. What belongs to the other profiles waits in `Zomboid/PZModStudio_ProfileSaves`. If the PC goes off in the middle of a switch, the app finishes it the next time it opens.
+Big data that is not a setting is not copied when you isolate a profile: a single file over 20 MB or a folder over 50 MB (a mod's cache, recordings or dumps) stays **shared**, the same for every profile from then on, so isolating never fills the disk. The game's own options and keys are always copied, whatever their size. What was left shared is written down in `Zomboid/PZModStudio_ProfileSavesShared.json`.
+
+Switching profiles the app puts everything in its place with a rename, nothing copied. It only does it while Project Zomboid is closed: the game, and also any Project Zomboid server on this PC (the Studio's server from the Servers screen, or one started by hand). If one is running, the app says which and asks you to close it first. What belongs to the other profiles waits in `Zomboid/PZModStudio_ProfileSaves`. If the PC goes off in the middle of a switch, the app finishes it the next time it opens.
+
+Every save and setting the app moves, copies or keeps in the backups is written in the Studio's log (`Zomboid/PZModStudio_Logs/studio.log`, lines with `[Profiles]`), from where to where, so if a save seems to be missing you can see where it went.
 
 **Stop isolating** puts its saves with the shared ones and brings the shared options and mod settings back; the profile's own are kept in `Zomboid/PZModStudio_Backups/ProfileSettings`, nothing overwritten. Deleting the profile does the same, so a save or a setting is never lost.
 

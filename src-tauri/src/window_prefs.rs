@@ -74,6 +74,7 @@ mod placement {
     }
 }
 
+#[cfg(windows)]
 fn hwnd_of<R: Runtime>(window: &WebviewWindow<R>) -> Option<isize> {
     #[cfg(windows)]
     {

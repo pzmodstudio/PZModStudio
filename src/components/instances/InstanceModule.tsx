@@ -2,12 +2,13 @@ import { freshProfile, profileModCounts } from '../../utils/profiles';
 import { ChangePreview } from '../common/ChangePreview';
 import React, { useState, useEffect } from 'react';
 import { Layers, ListOrdered, Plus, Check, Trash2, Zap, FolderArchive, RefreshCw, Edit3, Share2, X, Save, Loader2, Unplug } from 'lucide-react';
-import { ModInfo, StudioPathsUI, AppInstance } from '../../types';
+import { ModInfo, StudioPathsUI, AppInstance, STUDIO_LINK_MOD_ID } from '../../types';
 import { TauriService, explainError } from '../../services/tauri';
 import { useTranslation } from 'react-i18next';
 import { tHtml } from '../../i18n/html';
 import { useChangeRevision } from '../../services/changes';
 import { planProfileCleanup, ProfileCleanupPlan } from '../../utils/profileCleanup';
+import { useUiMode } from '../../hooks/useUiMode';
 
 interface InstanceModuleProps {
   paths: StudioPathsUI;
@@ -50,6 +51,8 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   onRefreshMods,
 }) => {
   const { t } = useTranslation();
+  /** Simple: the profile's own saves (isolating) stay in Complete; the launch file said in plain words. */
+  const simple = useUiMode()[0] === 'simple';
   const changeRev = useChangeRevision();
   const [instances, setInstances] = useState<AppInstance[]>([]);
   /** The mods on disk now, by id: a profile's mods that are not among them are counted on its card. */
@@ -75,6 +78,8 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   const [pickSearch, setPickSearch] = useState('');
   const [newInstanceDesc, setNewInstanceDesc] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  /** The list came back once: until then "no profiles yet" would be a guess. */
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   // Edit Modal State
@@ -86,16 +91,28 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const activeMods = mods.filter((m) => m.enabled);
+  /** What the player has on, as the Mod List counts it: the Studio Link is never a row there. */
+  const shownOn = activeMods.filter((m) => m.mod_id !== STUDIO_LINK_MOD_ID).length;
+  /** Names and sizes of what isolated profiles share because it is too big to copy. */
+  const [leftShared, setLeftShared] = useState<string[]>([]);
 
   const loadInstances = async () => {
     setIsLoading(true);
     try {
       const list: AppInstance[] = await TauriService.listInstances(paths.user_zomboid_dir);
       setInstances(list);
+      // What isolating left shared because it was too big to copy: said beside each isolated one.
+      if (list.some((i) => i.own_saves)) {
+        const left = await TauriService.profileLeftShared(paths).catch(() => []);
+        setLeftShared(left.map((l) => `${l.rel.split(/[\\/]/).pop() || l.rel} (${Math.max(1, Math.round(l.bytes / (1024 * 1024)))} MB)`));
+      } else {
+        setLeftShared([]);
+      }
     } catch (err) {
       console.error('Error loading profiles:', err);
     } finally {
       setIsLoading(false);
+      setLoadedOnce(true);
     }
   };
 
@@ -153,9 +170,9 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
       setPickSearch('');
       await loadInstances();
 
-      // Activate it so the rest of the app unlocks, and only then say so.
-      await handleActivateInstance(created);
-      setStatusMessage(t('profiles.created', { name: created.name }));
+      // Activate it so the rest of the app unlocks, and only then say so: when the launch file
+      // changes too, its window asks first, and the message waits for the answer.
+      await handleActivateInstance(created, true);
     } catch (err: any) {
       alert(t('profiles.createError', { error: explainError(err) }));
     }
@@ -191,7 +208,7 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   };
 
   /** A profile whose switch also changes the game's launch file, waiting to be confirmed. */
-  const [pendingActivation, setPendingActivation] = useState<{ inst: AppInstance; plan: NonNullable<Awaited<ReturnType<typeof TauriService.javaAgentsPlan>>> } | null>(null);
+  const [pendingActivation, setPendingActivation] = useState<{ inst: AppInstance; plan: NonNullable<Awaited<ReturnType<typeof TauriService.javaAgentsPlan>>>; justCreated?: boolean } | null>(null);
 
   // Isolate this profile: the shared worlds to bring along, chosen before they move (its options
   // and mod settings start as a copy).
@@ -215,17 +232,18 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
     }
   };
 
-  const handleActivateInstance = async (inst: AppInstance) => {
+  /** `justCreated`: the profile was made a moment ago, and the message says so once it is on. */
+  const handleActivateInstance = async (inst: AppInstance, justCreated = false) => {
     // The launch file is the game's, outside the mods folder: its change is shown first.
     const plan = await TauriService.javaAgentsPlan(paths, inst.active_mod_ids);
     if (plan && (plan.removed.length > 0 || plan.restored.length > 0)) {
-      setPendingActivation({ inst, plan });
+      setPendingActivation({ inst, plan, justCreated });
       return;
     }
-    await activateNow(inst);
+    await activateNow(inst, justCreated);
   };
 
-  const activateNow = async (inst: AppInstance) => {
+  const activateNow = async (inst: AppInstance, justCreated = false) => {
     setPendingActivation(null);
     try {
       await TauriService.activateInstance(paths.user_zomboid_dir, inst.id);
@@ -233,7 +251,7 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
       if (onProfileActivated) {
         onProfileActivated(inst);
       }
-      setStatusMessage(t('profiles.activated', { name: inst.name }));
+      setStatusMessage(t(justCreated ? 'profiles.created' : 'profiles.activated', { name: inst.name }));
       await loadInstances();
     } catch (err: any) {
       alert(t('profiles.activateError', { error: explainError(err) }));
@@ -398,14 +416,19 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
         <ChangePreview
           title={t('profiles.launchFile.title', { name: pendingActivation.inst.name })}
           blurb={pendingActivation.plan.gameRunning
-            ? t('profiles.launchFile.blurbLater', { file: pendingActivation.plan.file })
-            : t('profiles.launchFile.blurb', { file: pendingActivation.plan.file })}
+            ? t(simple ? 'simple.profiles.launchFileLater' : 'profiles.launchFile.blurbLater', { file: pendingActivation.plan.file })
+            : t(simple ? 'simple.profiles.launchFile' : 'profiles.launchFile.blurb', { file: pendingActivation.plan.file })}
           sections={[
-            { label: t('profiles.launchFile.out'), tone: 'off', rows: pendingActivation.plan.removed.map((m, k) => ({ name: pendingActivation.plan.removed_args[k] ?? m, note: t('profiles.launchFile.outNote', { mod: m }) })) },
-            { label: t('profiles.launchFile.back'), tone: 'on', rows: pendingActivation.plan.restored.map((m, k) => ({ name: pendingActivation.plan.restored_args[k] ?? m, note: t('profiles.launchFile.backNote', { mod: m }) })) },
+            // Simple names the mod, not the line of the launch file (-agentlib:...).
+            { label: t(simple ? 'simple.profiles.launchOut' : 'profiles.launchFile.out'), tone: 'off', rows: pendingActivation.plan.removed.map((m, k) => ({ name: simple ? m : pendingActivation.plan.removed_args[k] ?? m, note: t(simple ? 'simple.profiles.outNote' : 'profiles.launchFile.outNote', { mod: m }) })) },
+            { label: t(simple ? 'simple.profiles.launchBack' : 'profiles.launchFile.back'), tone: 'on', rows: pendingActivation.plan.restored.map((m, k) => ({ name: simple ? m : pendingActivation.plan.restored_args[k] ?? m, note: t(simple ? 'simple.profiles.backNote' : 'profiles.launchFile.backNote', { mod: m }) })) },
           ]}
-          primary={{ label: t('profiles.launchFile.activate', { name: pendingActivation.inst.name }), onClick: () => void activateNow(pendingActivation.inst) }}
-          onClose={() => setPendingActivation(null)}
+          primary={{ label: t('profiles.launchFile.activate', { name: pendingActivation.inst.name }), onClick: () => void activateNow(pendingActivation.inst, pendingActivation.justCreated) }}
+          onClose={() => {
+            // A new profile whose switch was not confirmed is made but not on: say that, not "activated".
+            if (pendingActivation.justCreated) setStatusMessage(t('profiles.createdNotActive', { name: pendingActivation.inst.name }));
+            setPendingActivation(null);
+          }}
         />
       )}
       {/* Header: the screen's name, how many profiles, and the way to make a new one */}
@@ -518,8 +541,9 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 {([
-                  { id: 'current', label: t('profiles.whatIsOn'), count: activeMods.length },
-                  { id: 'all', label: t('profiles.everything'), count: mods.length },
+                  { id: 'current', label: t('profiles.whatIsOn'), count: shownOn },
+                  // Simple: switching on everything installed is a choice of its own, below.
+                  ...(simple ? [] : [{ id: 'all', label: t('profiles.everything'), count: mods.length }]),
                   { id: 'pick', label: t('profiles.pickThem'), count: picked.size },
                   { id: 'none', label: t('profiles.nothingYet'), count: 0 },
                 ] as { id: NewProfileMods; label: string; count: number }[]).map((option) => (
@@ -541,6 +565,27 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                   </button>
                 ))}
               </div>
+
+              {/* Simple: everything installed is offered apart, with what it means (hundreds of mods on at once). */}
+              {simple && (
+                <div className={`mt-2 rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed ${newProfileMods === 'all' ? 'border-amber-800/70 bg-amber-950/30 text-amber-200' : 'border-slate-800 bg-slate-950/60 text-slate-400'}`}>
+                  {newProfileMods === 'all' ? (
+                    <>
+                      {t('simple.profiles.everythingChosen', { count: mods.length })}{' '}
+                      <button type="button" onClick={() => setNewProfileMods('current')} className="underline text-slate-200 hover:text-white cursor-pointer">
+                        {t('simple.profiles.everythingUndo')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {t('simple.profiles.everythingHint', { count: mods.length })}{' '}
+                      <button type="button" onClick={() => setNewProfileMods('all')} className="underline text-slate-300 hover:text-white cursor-pointer">
+                        {t('simple.profiles.everythingButton', { count: mods.length })}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
 
               {newProfileMods === 'pick' && (
                 <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
@@ -658,7 +703,11 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
         )}
 
         <div className="space-y-4">
-          {instances.length > 0 ? (
+          {instances.length === 0 && !loadedOnce ? (
+            <div className="h-64 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-center gap-2 text-xs text-slate-400" role="status">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" aria-hidden="true" /> {t('profiles.loading')}
+            </div>
+          ) : instances.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
               {/* The active profile first: it is the one the game reads now. */}
               {[...instances].sort((x, y) => Number(y.is_active) - Number(x.is_active)).map((inst) => (
@@ -739,7 +788,7 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                           {t('profiles.ownSaves.back')}
                         </button>
                       </>
-                    ) : (
+                    ) : simple ? null : (
                       <button
                         type="button"
                         onClick={() => void openOwnSaves(inst)}
@@ -750,6 +799,11 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                       </button>
                     )}
                   </div>
+                  {inst.own_saves && leftShared.length > 0 && (
+                    <p className="text-[11px] text-slate-400 leading-relaxed" title={t('profiles.ownSaves.leftSharedTitle')}>
+                      {t('profiles.ownSaves.leftShared', { count: leftShared.length, list: leftShared.join(', ') })}
+                    </p>
+                  )}
 
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
                     {inst.is_active && onGoToModList && (

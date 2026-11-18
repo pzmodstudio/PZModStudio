@@ -34,6 +34,7 @@ const FOLDER_KEYS: Record<string, string> = {
   saves: 'saves',
   PZModStudio_SaveBackups: 'saveBackups',
   PZModStudio_Snapshots: 'snapshots',
+  PZModStudio_Versions: 'versions',
   PZModStudio_Backups: 'listBackups',
   PZModStudio_Cache: 'cache',
   PZModStudio_Staging: 'staging',

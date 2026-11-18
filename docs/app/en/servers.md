@@ -36,9 +36,33 @@ On the left, **Server Configs (.ini)** lists the server configurations in `Zombo
 - **Memory (-Xmx)**: 4, 8, 12 or 16 GB for the server.
 - **Admin Password**: sets the password of the `admin` account when the server starts. The Studio keeps it in Windows Credential Manager (never in a file), so an assistant connected to the Studio can start this server again without being given it.
 - **Auth & Network**: **Steam Enabled** or **NoSteam (LAN)**.
-- **Launch Dedicated Server (name)** starts it in its own console window. While it runs, **Stop Dedicated Server** stops the server the Studio started (never other Java programs), and **Restart** stops and starts it again.
+- **Launch Dedicated Server (name)** starts it in its own console window. While it runs, **Stop Dedicated Server** stops the server the Studio started (never other Java programs), and **Restart** stops and starts it again at once (to warn the players first, use the **Restarts** tab).
+
+**Server program.** A server runs from the game's own files unless you choose otherwise. The **Server program** box offers the official **Project Zomboid Dedicated Server** instead: a separate program Steam gives for free (app 380870), which can be on another branch than your game and is updated apart from it.
+
+1. Pick a **Dedicated server folder**: an empty or new folder on a disk with room (not the game's folder, not `Zomboid`). A dedicated server already on this PC (from Steam's Library > Tools, or an earlier SteamCMD) is found and offered.
+2. Choose the **Branch**: **Stable (public)** or **Unstable (beta)**. It has to match the game of whoever joins; the box says which branch your game is on and starts on that one. A branch Steam keeps behind a password cannot be installed: the box says so.
+3. Press **Install**. The Studio uses SteamCMD, Valve's command-line Steam. If it is not on this PC it asks first, then downloads it from Valve's own address (about 3 MB), checks that Valve signed it, and lets it update itself. Then SteamCMD downloads the server from Steam (several GB): the box shows each step with its percentage and gigabytes (about 7 GB for 42.22), and the folder's size once it ends. **Stop** ends it; pressing Install again carries on where it was.
+4. Once it is installed, choose **The dedicated server**. Servers start from that folder from then on, with the same Zomboid folder (your server configs, saves and `Zomboid/mods`). **The game's files** goes back to the usual way. Change it with the server stopped.
+
+**Update** runs SteamCMD again on that folder and branch (switching branch when you changed it). On a complete install it only fetches what changed and is done in seconds ("Already up to date" when nothing changed); after an install that was cut short, or a check of the files that was stopped, it checks every file, which takes many minutes. The box also says the game version the server starts as and whether it is your game's: a game only joins a server of its own version.
+
+Java mods with ZombieBuddy need ZombieBuddy's `zbNative.dll` and `ZombieBuddy.jar` in that folder too: copy them from the game's folder (ZombieBuddy puts them there when the game starts with it). Until they are there, the server starts without its agent and **Mods & Sync** says so.
 
 **Java mods (ZombieBuddy).** Build 42 mods with Java code need ZombieBuddy, and ZombieBuddy needs its agent on the server's command line. When the server's `Mods=` has ZombieBuddy (written `\ZombieBuddy` too), the Studio starts it with `-agentlib:zbNative=policy=deny-new`, and a note on this tab says so. *deny-new* means the server loads only the jars this PC already approved in ZombieBuddy's window (they are kept in `.zombie_buddy/mod_approvals.json` in your user folder) and refuses the rest without asking: a server has no window, and the question would stop it for good. **Mods & Sync** says which jars are not approved yet.
+
+## Restarts
+
+PZ Mod Studio can restart the server for you, warning the players in the game first. A restart sends the warnings over RCON (`servermsg`), then `save`, then `quit` (the server saves the world as it quits; it is closed by force only if it does not go within 90 seconds), and starts it again the same way it was started (same memory, Steam or NoSteam, program).
+
+- **Scheduled restarts**: at times of day (this PC's clock) and/or **Every** 2 to 24 hours from when the server started. A time less than 30 minutes after the server started is skipped.
+- **Warn the players before**: 60, 30, 15, 10, 5 and 1 minutes, the ones you tick (30, 15, 5 and 1 at first). The messages are in the app's language.
+- **Restart when a Workshop mod of this server is updated**: every 15 minutes the Studio asks Steam (its public Web API) when each item of the server's `WorkshopItems=` was last updated. One updated after the server started gets a restart with the same warnings, and the server downloads the update as it starts.
+- **Start it again if it stops by itself** (on at first): after a crash, if it had come up (a server that fails while it starts would fail again, so it is not started again). At most 3 times in 10 minutes; after that it stays off and the tab says so in red. Starting it by hand counts again from zero. A stop you asked for (Stop, Restart, an assistant, Discord) or an admin's `quit` in the game is never taken for a crash.
+
+The top of the tab says what is coming: the next scheduled restart, or the one counting down with when and why. **Restart now (warn players)** starts a countdown of the minutes you choose (**no warning (now)** restarts at once); **Call it off** stops it and tells the players. **Last restarts** lists what happened and why: Scheduled, Mod update, Asked for, After a crash, Left off: too many crashes, Stopped by itself, Stopped while the app was closed.
+
+**Only while the app is open.** The restarts are done by PZ Mod Studio. The server keeps running if you close the app, but then nothing restarts it, warns anyone or starts it after a crash. The schedule is saved (`Zomboid/PZModStudio_ServerSchedule.json`) and goes on when you open the app again; a server that stopped while the app was closed is noted, not started again.
 
 ## Mods & Sync
 
@@ -112,4 +136,4 @@ They talk to the server over RCON: a server the game made has no RCON password, 
 - Launching a server needs the game folder set in **App Settings**.
 - Joining starts the game: close it first.
 - To join your own server from this PC, use its LAN address (for example `192.168.0.10:16261`): a Steam client cannot join `127.0.0.1` or this PC's own public IP. A server started with **NoSteam (LAN)** needs a game started with `-nosteam` (there `127.0.0.1` works), and a game started with `-debug` may only join as an admin.
-- Assistants connected to the Studio (MCP) can do the same: `server_start`, `server_status`, `server_stop` and `server_join`.
+- Assistants connected to the Studio (MCP) can do the same: `server_start`, `server_status`, `server_stop`, `server_join`, `server_schedule`, `server_restart` and `dedicated_server`.

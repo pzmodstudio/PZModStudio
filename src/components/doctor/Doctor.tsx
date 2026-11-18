@@ -6,6 +6,7 @@ import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { DoctorStep, doctorStep } from '../../utils/doctor';
 import { issueText } from '../../i18n/backendText';
+import { useUiMode } from '../../hooks/useUiMode';
 
 type Symptom = 'crash' | 'mod' | 'slow' | 'other';
 
@@ -38,6 +39,8 @@ export const Doctor: React.FC<{
   onRecheck: () => void;
 }> = ({ paths, issues, cards, nameOf, onClose: onCloseWindow, embedded = false, onGoIssue, onSwitchOffMod, onGoMonitor, onGoPerformance, onGoAudit, onRecheck }) => {
   const { t } = useTranslation();
+  // Simple has one name for the page it sits on (Diagnostics): the guide goes by its question.
+  const title = useUiMode()[0] === 'simple' ? t('simple.doctorTitle') : t('doctor.title');
   const [symptom, setSymptom] = useState<Symptom | null>(kept.symptom);
   const [tried, setTried] = useState<string[]>(kept.tried);
   const [waiting, setWaiting] = useState(kept.waiting);
@@ -193,7 +196,7 @@ export const Doctor: React.FC<{
     return (
       <div className="rounded-xl border border-sky-900/60 bg-slate-900/60 p-5 flex flex-col gap-3">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-100">
-          <Stethoscope className="w-4 h-4 text-sky-300" aria-hidden="true" /> {t('doctor.title')}
+          <Stethoscope className="w-4 h-4 text-sky-300" aria-hidden="true" /> {title}
         </div>
         {body}
         {note && <div className="text-[11px] text-emerald-300">{note}</div>}
@@ -211,7 +214,7 @@ export const Doctor: React.FC<{
       <div role="dialog" aria-modal="true" className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-950 p-5 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-100">
-            <Stethoscope className="w-4 h-4 text-sky-300" aria-hidden="true" /> {t('doctor.title')}
+            <Stethoscope className="w-4 h-4 text-sky-300" aria-hidden="true" /> {title}
           </div>
           <button type="button" onClick={onCloseWindow} aria-label={t('doctor.close')} className="text-slate-500 hover:text-slate-200 cursor-pointer">
             <X className="w-4 h-4" />

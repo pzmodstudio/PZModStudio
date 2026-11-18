@@ -2,6 +2,8 @@ import { ZbExcludedNotice } from '../common/ZbExcludedNotice';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { TranslatedErrorCard, LogFileInfoUI, ModInfo, ExcludedMod } from '../../types';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { LivePanel } from './LivePanel';
+import { useUiMode } from '../../hooks/useUiMode';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService, explainError } from '../../services/tauri';
 import { clearLiveConsole, liveConsoleLines, startLiveConsole, subscribeLiveConsole } from '../../services/liveConsole';
@@ -114,6 +116,7 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
   onGoToSettings,
 }) => {
   const { t } = useTranslation();
+  const fullMode = useUiMode()[0] !== 'simple';
   // The companion bridge is a developer feature; its log filter follows the same switch.
   const [showAdvanced, setShowAdvanced] = useState<boolean>(() => localStorage.getItem('pz_show_advanced') === 'true');
   useEffect(() => {
@@ -570,6 +573,9 @@ export const SandboxModule: React.FC<SandboxModuleProps> = ({
           </label>
         </div>
       </div>
+
+      {/* While the game runs (Full mode): frames, memory, the mods' Lua time and errors as they come */}
+      {fullMode && <LivePanel paths={paths} mods={mods} errorCards={errorCards.filter((c) => (c.log ?? 'game') === 'game')} onModsChanged={onRefreshMods} />}
 
       {/* Main Grid: Console Terminal Watcher (Left) vs Actionable Cards (Right) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-0 overflow-hidden">

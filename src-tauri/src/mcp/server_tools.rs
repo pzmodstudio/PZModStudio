@@ -12,7 +12,7 @@ pub fn tools() -> Vec<McpTool> {
     vec![
         McpTool {
             name: "server_start".to_string(),
-            description: "Starts a dedicated server from a config in Zomboid/Server/<name>.ini, the way the Servers screen does: java.exe from the game folder, headless, its log in Zomboid/server-console.txt. When Mods= has ZombieBuddy the JVM gets -agentlib:zbNative=policy=deny-new (only Java jars already approved on this PC load; a server cannot show the approval window). The admin password comes from admin_password_file (its first line) or the value the Studio stored the last time this server was started with one; it is never returned. Returns the PID, whether the agent was added, and what the Mods and sync check says will not load (unapproved jars; Workshop mods linked into Zomboid/mods or copied there and outdated; with nosteam, mods only in the Workshop folder: the Servers screen's Mods & Sync button copies them). One server at a time. Poll server_status until started is true (a big mod list takes minutes).".to_string(),
+            description: "Starts a dedicated server from a config in Zomboid/Server/<name>.ini, the way the Servers screen does: java.exe from the game folder (or from the dedicated server program when dedicated_server chose it: program and program_dir say which), headless, its log in Zomboid/server-console.txt. When Mods= has ZombieBuddy the JVM gets -agentlib:zbNative=policy=deny-new (only Java jars already approved on this PC load; a server cannot show the approval window), when that folder has zbNative.dll; without it the server starts without the agent and will_not_load says so (server_java_no_agent*). The admin password comes from admin_password_file (its first line) or the value the Studio stored the last time this server was started with one; it is never returned. Returns the PID, whether the agent was added, and what the Mods and sync check says will not load (unapproved jars; Workshop mods linked into Zomboid/mods or copied there and outdated; with nosteam, mods only in the Workshop folder: the Servers screen's Mods & Sync button copies them). One server at a time. Poll server_status until started is true (a big mod list takes minutes).".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -57,6 +57,49 @@ pub fn tools() -> Vec<McpTool> {
                     "debug": { "type": "boolean", "description": "Launch with -debug (default false; only admins may join with it)" },
                     "extra_args": { "type": "array", "items": { "type": "string" }, "description": "Optional extra game arguments" },
                     "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "server_schedule".to_string(),
+            description: "A Studio server's restarts: without set, reads them; with set, changes them (only the fields given). Scheduled restarts at times of day (times, \"HH:MM\" on this PC's clock) and/or every_hours from the server's start (enabled turns both on); players warned in the game over RCON (servermsg) warn_minutes before (default 30, 15, 5, 1), then save and quit (it saves) and started again the same way. on_crash (default true): started again when it stops by itself after it had come up, at most crash_limit times in crash_window_minutes (default 3 in 10), then left off and said. on_mod_update: every mod_check_minutes it asks Steam's public Web API (GetPublishedFileDetails) for the time_updated of each WorkshopItems= item, and an item updated after the server started gets a warned restart. language: en/es for the in-game messages. All of this runs inside the PZ Mod Studio app only while it is open (app_watching says whether it is); the server itself keeps running when the app is closed. Returns the schedule, next_restart (unix s), the pending restart with its warnings given, the last restarts with their reason (schedule, mod_update, manual, crash, gave_up, crash_no_restart, stopped_while_closed) and gave_up_at. Kept in Zomboid/PZModStudio_ServerSchedule.json.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "server": { "type": "string", "description": "Server config name (Zomboid/Server/<name>.ini). Default: the running Studio server" },
+                    "set": {
+                        "type": "object",
+                        "description": "Fields to change: enabled (bool), times (array of \"HH:MM\"), every_hours (int, 0 none), warn_minutes (array of int), on_crash (bool), crash_limit (int), crash_window_minutes (int), on_mod_update (bool), mod_check_minutes (int, min 5), language (en/es)"
+                    },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "server_restart".to_string(),
+            description: "Restarts the running Studio server with in-game warnings: the players are told warn_minutes before (and at the schedule's warnings in between, e.g. 5 and 1), then it saves, quits over RCON and is started again the same way. With the PZ Mod Studio app open the app counts down and restarts (returns at once; follow it with server_schedule). With the app closed only warn_minutes 0 works: restarted now from here (save, quit, start; blocks until it is started). cancel: true calls off a restart counting down (the players are told).".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "warn_minutes": { "type": "integer", "description": "Minutes of warning, 0-120 (default 5)" },
+                    "cancel": { "type": "boolean", "description": "Call off the restart counting down instead" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "dedicated_server".to_string(),
+            description: "The official dedicated server program (Steam app 380870) as an alternative to starting servers from the game's own folder. action info (default): which program starts the Studio's servers (source game/dedicated), the chosen folder and branch, steamcmd.exe when found on this PC, dedicated servers found (the chosen folder, Steam libraries' steamapps/common/Project Zomboid Dedicated Server, beside SteamCMD) with build id, branch and size from SteamCMD's appmanifest_380870.acf, the install job's progress (phase, percent, bytes, folder size, last SteamCMD line, error) and the SteamCMD command an update runs. action set: source (game/dedicated: dedicated needs the program installed there), dir, branch (default: the branch the installed game is on, given as game_branch; public, unstable or another; a branch Steam keeps behind a password is refused with bad_branch), steamcmd (a steamcmd.exe path). action install: installs or updates into dir (an empty folder or an existing dedicated server; not the game's or the Zomboid folder) with SteamCMD: +force_install_dir <dir> +login anonymous +app_update 380870 -beta <branch> [validate] +quit, in the background (poll with info; action cancel stops it). Downloads several GB from Steam. When SteamCMD is not on this PC it is downloaded from Valve's address (https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip, about 3 MB, its Valve signature checked) only with allow_download: true; ask the user first. Refused while the Studio's server runs from that folder.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["info", "set", "install", "cancel"], "description": "Default info" },
+                    "source": { "type": "string", "enum": ["game", "dedicated"], "description": "set: which program starts servers" },
+                    "dir": { "type": "string", "description": "set/install: the dedicated server's folder" },
+                    "branch": { "type": "string", "description": "set/install: public, unstable or another branch name (default: the branch the installed game is on)" },
+                    "steamcmd": { "type": "string", "description": "set: path of a steamcmd.exe already on this PC" },
+                    "validate": { "type": "boolean", "description": "install: check every file (many minutes for ~7 GB; mends a broken install). Default: true when the folder has no complete install, else false (an update then only fetches what changed)" },
+                    "allow_download": { "type": "boolean", "description": "install: download SteamCMD from Valve when it is not on this PC. Default false" }
                 }
             }),
         },
@@ -179,6 +222,9 @@ pub fn execute(name: &str, args: &Value, paths: &crate::vfs::StudioPaths) -> Opt
         "server_stop" => result(server_manager::stop_dedicated_server(paths.user_zomboid_dir.clone(), None).map(|stopped| json!({ "stopped": stopped }))),
         "server_status" => result(status(args, paths)),
         "server_join" => result(join(args, paths)),
+        "server_schedule" => result(schedule(args, paths)),
+        "server_restart" => result(restart(args, paths)),
+        "dedicated_server" => result(dedicated(args, paths)),
         _ => return None,
     })
 }
@@ -239,6 +285,11 @@ fn start(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String>
         .map(|i| json!({ "code": i.code, "mod": i.mod_id, "message": i.message }))
         .collect();
 
+    // The folder the server starts from (the game's, or the dedicated server's when chosen): the
+    // agent goes on the JVM only when that folder has zbNative.dll.
+    let (program_dir, dedicated) = server_manager::server_program_dir();
+    let zb_agent = java_mods::agent_arg_for(&content).filter(|_| program_dir.join(java_mods::ZOMBIEBUDDY_FILES[0]).is_file());
+
     crate::claude_agent::keep_std_handles_private();
     let pid = server_manager::launch_dedicated_server(
         paths.pz_install_dir.clone(),
@@ -253,7 +304,9 @@ fn start(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String>
         "pid": pid,
         "name": name,
         "nosteam": nosteam,
-        "zombiebuddy_agent": java_mods::agent_arg_for(&content).filter(|_| Path::new(&paths.pz_install_dir).join("zbNative.dll").is_file()),
+        "zombiebuddy_agent": zb_agent,
+        "program_dir": program_dir.to_string_lossy(),
+        "program": if dedicated { "dedicated" } else { "game" },
         "admin_password": password_source,
         "mods": report.mods,
         "will_not_load": will_not_load,
@@ -325,6 +378,100 @@ fn status(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String
         "join_at": join_at,
         "log_tail": tail,
     }))
+}
+
+fn schedule(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String> {
+    use server_manager::restarts;
+    let zomboid = zomboid_dir(paths);
+    let running = server_manager::get_dedicated_server_status(zomboid.to_string_lossy().to_string()).ok().filter(|s| s.is_running).and_then(|s| s.server_name);
+    let server = args.get("server").and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()).map(str::to_string).or(running).ok_or("server is required (no Studio server is running).")?;
+    if !zomboid.join("Server").join(format!("{}.ini", server)).is_file() {
+        return Err(format!("There is no Zomboid/Server/{}.ini.", server));
+    }
+    if let Some(set) = args.get("set").filter(|v| v.is_object()) {
+        // Only the fields given change: the stored schedule with them laid over it.
+        let mut current = serde_json::to_value(restarts::schedule_of(&zomboid, &server)).map_err(|e| e.to_string())?;
+        for (k, v) in set.as_object().into_iter().flatten() {
+            if current.get(k).is_none() {
+                return Err(format!("Unknown schedule field: {}", k));
+            }
+            current[k] = v.clone();
+        }
+        let s: restarts::Schedule = serde_json::from_value(current).map_err(|e| format!("Bad schedule: {}", e))?;
+        restarts::save_schedule(&zomboid, &server, s)?;
+    }
+    serde_json::to_value(restarts::view(&zomboid, &server)).map_err(|e| e.to_string())
+}
+
+fn restart(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String> {
+    use server_manager::restarts;
+    let zomboid = zomboid_dir(paths);
+    let st = server_manager::get_dedicated_server_status(zomboid.to_string_lossy().to_string())?;
+    let cancel = args.get("cancel").and_then(Value::as_bool).unwrap_or(false);
+    let warn = args.get("warn_minutes").and_then(Value::as_u64).unwrap_or(5).min(120) as u32;
+    let watching = restarts::watcher_alive(&restarts::state(&zomboid));
+    if !st.is_running && !cancel {
+        return Err("No Studio server is running: server_start it.".to_string());
+    }
+    if watching {
+        let kind = if cancel { "cancel" } else { "restart" };
+        restarts::request(&zomboid, &restarts::Request { kind: kind.into(), warn_minutes: warn, by: "assistant".into(), at: now() })?;
+        return Ok(json!({
+            "status": if cancel { "cancel_asked" } else { "restart_asked" },
+            "warn_minutes": warn,
+            "restart_at": (!cancel).then(|| now() + warn as u64 * 60),
+            "next": "The app counts down and restarts: follow it with server_schedule (pending, history).",
+        }));
+    }
+    if cancel {
+        return Err("PZ Mod Studio is not open: no restart is counting down.".to_string());
+    }
+    if warn > 0 {
+        return Err("PZ Mod Studio is not open: warned restarts are counted down by the app. Open it, or pass warn_minutes 0 to restart now.".to_string());
+    }
+    let server = st.server_name.clone().unwrap_or_default();
+    let w = restarts::Watched { server: server.clone(), pid: st.pid, memory_gb: st.memory_gb, nosteam: st.nosteam, started_at: st.start_timestamp.unwrap_or(0), started_ok: true };
+    let lang = restarts::schedule_of(&zomboid, &server).language;
+    crate::claude_agent::keep_std_handles_private();
+    let done = restarts::restart_now(&zomboid, &w, "manual", &lang)?;
+    Ok(json!({ "status": "restarted", "server": server, "detail": done, "next": "Poll server_status until started is true." }))
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+fn dedicated(args: &Value, paths: &crate::vfs::StudioPaths) -> Result<Value, String> {
+    use server_manager::dedicated;
+    let text = |k: &str| args.get(k).and_then(Value::as_str).map(str::to_string);
+    match args.get("action").and_then(Value::as_str).unwrap_or("info") {
+        "info" => serde_json::to_value(dedicated::view()).map_err(|e| e.to_string()),
+        "set" => {
+            dedicated::set(text("source"), text("dir"), text("branch"), text("steamcmd"))?;
+            serde_json::to_value(dedicated::view()).map_err(|e| e.to_string())
+        }
+        "install" => {
+            let cfg = dedicated::load_config();
+            let dir = text("dir").filter(|d| !d.trim().is_empty()).unwrap_or(cfg.dir.clone());
+            if dir.trim().is_empty() {
+                return Err("dir is required (the folder for the dedicated server).".to_string());
+            }
+            let req = dedicated::InstallRequest {
+                dir: dir.clone(),
+                branch: text("branch").unwrap_or(cfg.branch),
+                validate: args.get("validate").and_then(Value::as_bool).unwrap_or_else(|| dedicated::validate_by_default(Path::new(dir.trim()))),
+                allow_download: args.get("allow_download").and_then(Value::as_bool).unwrap_or(false),
+            };
+            let zomboid = zomboid_dir(paths);
+            let st = server_manager::get_dedicated_server_status(zomboid.to_string_lossy().to_string()).ok().filter(|s| s.is_running);
+            let from = st.and_then(|s| s.program_dir).map(PathBuf::from);
+            crate::claude_agent::keep_std_handles_private();
+            let p = dedicated::start_install(req, Path::new(&paths.pz_install_dir), &zomboid, from.as_deref())?;
+            Ok(json!({ "status": "started", "progress": p, "next": "Poll dedicated_server (action info) for progress; it takes minutes (several GB)." }))
+        }
+        "cancel" => dedicated::cancel().map(|c| json!({ "cancelled": c })),
+        other => Err(format!("Unknown action {}: info, set, install or cancel.", other)),
+    }
 }
 
 /// `ip:port` from what the caller wrote (`ip`, `ip:port`), or None when it is not an address.

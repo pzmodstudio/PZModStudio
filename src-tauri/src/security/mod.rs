@@ -13,8 +13,14 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// Bumped when a rule changes: older scans are made again (v6: Lua outside `media/lua` is not
-/// read, the game never runs it).
-const ENGINE: &str = "security-v6";
+/// read, the game never runs it; v7: nor Lua in a version folder the installed build does not
+/// load, and the build is part of what a kept scan is for).
+const ENGINE: &str = "security-v7";
+
+/// What a kept scan is for: the rules and the build (which version folders the game reads).
+fn engine_for(game: Option<u32>) -> String {
+    format!("{}-{}", ENGINE, game.map(|g| g.to_string()).unwrap_or_default())
+}
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_JAR_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -394,9 +400,16 @@ fn scanned_entry(e: &walkdir::DirEntry, dev_link: bool) -> bool {
     !(dev_link && e.depth() == 1 && e.file_type().is_dir() && DEV_TOOLING_DIRS.iter().any(|d| d.eq_ignore_ascii_case(&name)))
 }
 
-/// Scans the files under `root` the game reads or a player downloads, now (no cache).
-pub fn scan_tree(mod_id: &str, root: &Path) -> ModScan {
+/// Scans the files under `root` the game reads or a player downloads, now (no cache). `game`:
+/// the installed build (major*1000+minor), whose layers are the only Lua the game runs.
+pub fn scan_tree(mod_id: &str, root: &Path, game: Option<u32>) -> ModScan {
     let mut findings = Vec::new();
+    // The game runs Lua only from the build's layers (`common/` and one version folder, or the
+    // root on Build 41): the same file in `42.13/` and `42.20/` is read once, the other never.
+    let lua_dirs: Vec<String> = crate::load_order::mod_info::media_layers_for_build(root, game)
+        .iter()
+        .map(|l| l.join("media").join("lua").strip_prefix(root).unwrap_or(l).to_string_lossy().replace('\\', "/").to_lowercase())
+        .collect();
     let (fp, _) = fingerprint(root);
     let dev_link = is_dev_link(root);
     let mut files = 0u32;
@@ -452,8 +465,10 @@ pub fn scan_tree(mod_id: &str, root: &Path) -> ModScan {
         }
         // The game runs Lua from a `media/lua` folder only: an author's tools beside it
         // (`source/tools/keys/sim.lua` with its `dofile`) never run in the game.
-        let under_media_lua = format!("/{}", rel.to_lowercase()).contains("/media/lua/");
-        if ext == "lua" && size <= MAX_TEXT_BYTES && under_media_lua {
+        let lower = rel.to_lowercase();
+        let under_media_lua = format!("/{}", lower).contains("/media/lua/");
+        let in_layer = lua_dirs.is_empty() || lua_dirs.iter().any(|d| lower.starts_with(&format!("{}/", d)));
+        if ext == "lua" && size <= MAX_TEXT_BYTES && under_media_lua && in_layer {
             if let Ok(text) = std::fs::read_to_string(path) {
                 findings.extend(scan_lua(&rel, &text));
             }
@@ -467,7 +482,7 @@ pub fn scan_tree(mod_id: &str, root: &Path) -> ModScan {
         findings,
         files_scanned: files,
         fingerprint: fp,
-        engine: ENGINE.to_string(),
+        engine: engine_for(game),
         scanned_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0),
     }
 }
@@ -483,15 +498,15 @@ fn cache_file(user_zomboid_dir: &Path, mod_id: &str) -> PathBuf {
 }
 
 /// The mod's scan, from the cache when its files and the rules are unchanged.
-pub fn scan_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path) -> ModScan {
+pub fn scan_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game: Option<u32>) -> ModScan {
     let file = cache_file(user_zomboid_dir, mod_id);
     let (fp, _) = fingerprint(root);
     if let Some(kept) = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<ModScan>(&t).ok()) {
-        if kept.fingerprint == fp && kept.engine == ENGINE {
+        if kept.fingerprint == fp && kept.engine == engine_for(game) {
             return kept;
         }
     }
-    let scan = scan_tree(mod_id, root);
+    let scan = scan_tree(mod_id, root, game);
     if let Some(dir) = file.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -512,7 +527,7 @@ pub fn scan_mods(user_zomboid_dir: &Path, catalog: &crate::catalog::ModCatalog, 
     ids.iter()
         .filter_map(|e| catalog.resolve(e.trim()))
         .filter(|m| !is_studio_mod(&m.id) && seen.insert(m.id.clone()))
-        .map(|m| scan_mod(user_zomboid_dir, &m.id, Path::new(&m.root_dir)))
+        .map(|m| scan_mod(user_zomboid_dir, &m.id, Path::new(&m.root_dir), catalog.game_version_int()))
         .collect()
 }
 
@@ -602,7 +617,7 @@ mod tests {
         let tools = dir.join("source").join("tools");
         std::fs::create_dir_all(&tools).unwrap();
         std::fs::write(tools.join("sim.lua"), "dofile(\"x.lua\")").unwrap();
-        let scan = scan_tree("Test", &dir);
+        let scan = scan_tree("Test", &dir, None);
         assert_eq!(scan.risk, Risk::High);
         assert!(!scan.clean);
         let rules: Vec<&str> = scan.findings.iter().map(|f| f.rule.as_str()).collect();
@@ -614,8 +629,8 @@ mod tests {
         // the cache answers the second time
         let z = dir.join("z");
         std::fs::create_dir_all(&z).unwrap();
-        let first = scan_mod(&z, "Test", &dir);
-        let again = scan_mod(&z, "Test", &dir);
+        let first = scan_mod(&z, "Test", &dir, None);
+        let again = scan_mod(&z, "Test", &dir, None);
         assert_eq!(first.scanned_at, again.scanned_at);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -637,13 +652,13 @@ mod tests {
         put(".git/hooks/pre-commit.sh", "x");
         put(".vscode/run.exe", "x");
         put("42/media/lua/client/a.lua", "print('hi')");
-        let scan = scan_tree("Hidden", &dir);
+        let scan = scan_tree("Hidden", &dir, None);
         assert!(scripts_of(&scan).is_empty(), "{:?}", scan.findings);
         assert_eq!(scan.files_scanned, 1);
         put("42/media/run.bat", "x");
         // a plain folder (a Workshop download) keeps its dev/ and tools/: they are what a player gets
         put("dev/b.sh", "x");
-        let scan = scan_tree("Hidden", &dir);
+        let scan = scan_tree("Hidden", &dir, None);
         let mut s = scripts_of(&scan);
         s.sort();
         assert_eq!(s, vec!["42/media/run.bat".to_string(), "dev/b.sh".to_string()]);
@@ -667,7 +682,7 @@ mod tests {
         let ok = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(&link).arg(&repo).output().map(|o| o.status.success()).unwrap_or(false);
         assert!(ok, "mklink /J failed");
         assert!(is_dev_link(&link) && !is_dev_link(&repo));
-        let mut s = scripts_of(&scan_tree("Linked", &link));
+        let mut s = scripts_of(&scan_tree("Linked", &link, None));
         s.sort();
         assert_eq!(s, vec!["42/media/run.bat".to_string(), "helper.exe".to_string()]);
         let _ = std::fs::remove_dir(&link);
@@ -679,7 +694,7 @@ mod tests {
     #[ignore]
     fn knoxlives_real_folder() {
         let root = Path::new(r"C:\Users\javie\Zomboid\mods\KnoxLives");
-        let scan = scan_tree("KnoxLives", root);
+        let scan = scan_tree("KnoxLives", root, None);
         let s = scripts_of(&scan);
         println!("dev_link={} files_scanned={} scripts/executables={} {:?}", is_dev_link(root), scan.files_scanned, s.len(), s);
         for f in &scan.findings {

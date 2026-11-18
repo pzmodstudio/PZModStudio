@@ -8,12 +8,13 @@ La tarjeta de arriba, **Cuánto del Studio mostrar**, elige una de dos vistas. E
 
 - **Simple** muestra lo que necesitás para jugar con mods:
   - **Inicio**: el perfil en uso, **Jugar**, **Continuar** (tu última partida con este perfil, cuando ya tengas una) y el chequeo en una línea: verde cuando no hay nada que hacer, rojo con **Ver qué hacer** cuando hay algo para arreglar antes.
-  - **Perfiles**, **Lista de mods** (prender/apagar, orden, Ordenar dependencias), **Explorar mods**, **Partidas** y **Diagnóstico**.
-  - **Diagnóstico** muestra solo lo que tenés que arreglar, con un botón cada cosa. Las sugerencias opcionales (el juego anda sin ellas) y lo que es solo para saber o ya arregló el Studio se cuentan debajo de la lista, sin mostrarse; **Mostrar todo (Completo)** las muestra.
+  - **Perfiles**, **Lista de mods**, **Explorar mods**, **Partidas** y **Diagnóstico**.
+  - La **Lista de mods** deja prender y apagar, ordenar (a mano o con **Ordenar automáticamente**), buscar, y filtrar por prendidos, apagados y con problemas. Cada mod marca en rojo, con palabras simples, solo lo que hay que arreglar, con su botón al lado. Grupos, notas, presets, los demás filtros y los tiempos de carga quedan en Completo.
+  - **Diagnóstico** abre directo en lo que tenés que arreglar, con un botón cada cosa. Las sugerencias opcionales (el juego anda sin ellas) y lo que es solo para saber o ya arregló el Studio se cuentan debajo de la lista, sin mostrarse; **Mostrar todo (Completo)** las muestra. **Arreglar N problema(s) automáticamente** cuenta y arregla solo los de la lista que ves: las sugerencias ocultas no se tocan.
   - Acá, Configuración deja las pestañas **Carpetas**, **Avisos** y **La app**.
 - **Completo** es el Studio entero: todas las pantallas en la barra (Centro de monitoreo, Novedades, Mapas, Fusionador de mods, Servidores, Desarrollador), todas las pestañas de Diagnóstico y todas las de Configuración.
 
-Una instalación nueva arranca en **Simple**, con una bienvenida de tres pasos: dónde se encontró tu juego, crear o elegir un perfil, jugar. Si el Studio ya se usó en esta PC, arranca en **Completo**, como se vio siempre. La elección se recuerda en esta PC.
+Una instalación nueva arranca en **Simple**, con una bienvenida de tres pasos: dónde se encontró tu juego, crear o elegir un perfil, jugar. Si el Studio ya se usó en esta PC, arranca en **Completo**, como se vio siempre, y la primera vez aparece una línea arriba que ofrece probar Simple: **Probar Simple** o **No, gracias**. Se muestra una sola vez, y nunca si ya elegiste una vista. La elección se recuerda en esta PC.
 
 Un enlace desde otra pantalla igual puede abrir una pantalla que Simple oculta (por ejemplo, los pasos del Doctor); aparece en la barra mientras está abierta.
 
@@ -57,7 +58,7 @@ Cada uno tiene **Silenciar** / **Volver a mostrar**.
 
 ## Idioma
 
-Elegí **English** o **Español** en **Idioma**. Si a un idioma le falta una línea, se muestra en inglés. Los mensajes del propio juego (errores, avisos, las líneas del registro en el Monitor) quedan como el juego los escribe.
+Elegí el idioma de la app en **Idioma**: English, Español, Português (Brasil), Français, Deutsch, Русский o 简体中文. Si a un idioma le falta una línea, se muestra en inglés. Los mensajes del propio juego (errores, avisos, las líneas del registro en el Monitor) quedan como el juego los escribe.
 
 ## Inicio del juego y la pantalla de Mods del juego
 
@@ -67,6 +68,10 @@ Elegí **English** o **Español** en **Idioma**. Si a un idioma le falta una lí
 ## Actualizaciones de la app
 
 - **Buscar versiones nuevas de PZ Mod Studio**: al abrir y cada 6 horas mientras está abierto, el Studio le pregunta a GitHub cuál es la última versión publicada. Si hay una más nueva, una barra debajo del encabezado lo avisa. **Actualizar ahora** baja la versión nueva, comprueba que la firmó el proyecto (la firma de `SHA256SUMS.txt` y el SHA-256 del zip), la pone en lugar de la que tenés y reinicia el Studio; si algo no coincide, no cambia nada. **Descargar** abre la página de la versión en el navegador, y **Ahora no** oculta el aviso hasta la próxima versión. Si el Studio está instalado en una carpeta donde no puede escribir (Archivos de programa, para todos los usuarios), actualizalo con el instalador de la página. Nada se instala sin que lo pidas, y no se envía nada. **Buscar ahora** pregunta en el momento. Si GitHub no responde, el Studio le pregunta a su página de itch.io; entonces el aviso ofrece solo la página de descarga, sin **Actualizar ahora**. Apagado, no se consulta GitHub.
+
+## Versiones anteriores de los mods
+
+- **Guardar versiones anteriores de los mods** (activado al principio): Steam no guarda versiones viejas de un mod del Workshop. El Studio guarda una copia de la versión instalada de cada mod del Workshop que usa un perfil, en `Zomboid/PZModStudio_Versions`, antes de que Steam la reemplace; **Versiones…** en la Lista de mods repone una. **Hasta** fija el espacio que puede ocupar (10 GB al principio; un límite que elegiste queda como lo elegiste); cada archivo se guarda una sola vez, así que una versión después de una actualización ocupa solo lo que cambió. Pasado el límite se van primero las versiones anteriores más viejas, después las copias de mods que no están en el perfil activo; las guardadas a mano quedan. Sea cual sea el límite, el Studio nunca llena el disco: una pasada siempre deja libre el 15% del tamaño del disco, y cuando eso es lo que frena las copias la tarjeta dice **Limitado por el espacio libre en D:** (con el límite que vale por ahora). **Carpeta** muestra dónde están las copias y cuánto ocupan; **Elegir carpeta…** las mueve, por ejemplo a otro disco: se copia cada archivo, se comprueba contra el original y recién después se borra la carpeta vieja (en el mismo disco solo se le cambia el nombre). Una carpeta que ya tiene otros archivos recibe una carpeta `PZModStudio_Versions` adentro. No se puede mover con el juego abierto ni durante una pasada, ni a la raíz de un disco, la carpeta del Workshop de Steam, la carpeta del juego, `Zomboid/mods` o `Zomboid/Saves`. La línea de abajo dice cuánto se usa y cuántos de tus mods del Workshop están cubiertos; los que quedaron sin copia por falta de lugar se nombran. **Guardar ahora** hace una pasada en el momento (también se hace sola un rato después de que arranca el Studio y cada vez que Steam actualiza algo). Con el juego abierto no se hace nada, y la carpeta del Workshop solo se lee.
 
 ## Diagnóstico
 
@@ -91,3 +96,7 @@ Solo con **Funciones para desarrolladores** encendido. Elegí tu cliente de IA, 
 ## Bueno saber
 
 - Las carpetas, el idioma, la ventana y los avisos se aplican en el momento; nada necesita reiniciar salvo los interruptores del shim, que el juego lee en el próximo inicio.
+
+## En Linux
+
+La versión para Linux (AppImage o .deb) encuentra Steam en sus carpetas de siempre (`~/.local/share/Steam`, `~/.steam`, la de Flatpak) y la carpeta Zomboid en tu carpeta personal. Algunas cosas funcionan solo en Windows: actualizar la app en el lugar (en Linux **Descargar** abre la página de la versión), mover y capturar la ventana del juego para un asistente de IA (estacionar, capturas, clics, teclas), el registro de falta de memoria de Windows, suscribirse con el cliente de Steam y bajar SteamCMD (instalalo desde tu distribución). Las claves y contraseñas guardadas quedan en un archivo privado, `~/.config/PZModStudio/secrets.json`, en vez de un almacén de credenciales. Para un cliente de IA, el servidor de consola es `/usr/bin/pz-mcp-server` con el .deb; el AppImage sirve MCP por sí mismo con `--mcp`.

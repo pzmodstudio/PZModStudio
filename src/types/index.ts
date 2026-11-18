@@ -201,6 +201,74 @@ export interface ProfilerStatus {
   report: ProfileReport | null;
 }
 
+/** What the Studio Link says while the game runs (Lua/PZModStudio_LinkLive.txt, every 2 s). */
+export interface LinkLive {
+  age_ms: number;
+  link_version: string;
+  fps: number;
+  frame_ms: number;
+  worst_ms: number;
+  heap_mb: number | null;
+  heap_total_mb: number | null;
+  errors: number;
+  error_mods: { name: string; count: number }[];
+  overlay: boolean;
+  cost_ms_per_s: number;
+  profiler: boolean;
+}
+
+export interface LiveMod {
+  mod_id: string | null;
+  name: string;
+  ms: number;
+  ms_per_s: number;
+  share_percent: number;
+  calls: number;
+  worst: number;
+}
+
+/** The profiler's last 10 s (Lua/pz_profile_live.json, every 2 s while it runs). */
+export interface ProfilerLive {
+  age_ms: number;
+  in_game: boolean;
+  window_ms: number;
+  fps: number;
+  frame_ms: number;
+  worst_ms: number;
+  total_ms: number;
+  total_ms_per_s: number;
+  share_percent: number;
+  cost_ms_per_s: number;
+  handlers: number;
+  mods: LiveMod[];
+}
+
+export interface LivePoint {
+  t: number;
+  fps: number | null;
+  worst_ms: number | null;
+  ram_mb: number | null;
+  heap_mb: number | null;
+  cpu: number | null;
+  lua_ms_per_s: number | null;
+  errors: number | null;
+}
+
+/** The game as it runs now (game_live_cmd, the MCP tool game_live). */
+export interface LiveSnapshot {
+  running: boolean;
+  pid: number | null;
+  ram_mb: number | null;
+  ram_max_mb: number | null;
+  cpu_percent: number | null;
+  pc_free_mb: number;
+  pc_total_mb: number;
+  link: LinkLive | null;
+  profiler_on: boolean;
+  profiler: ProfilerLive | null;
+  history: LivePoint[];
+}
+
 /** One Lua handler as Smooth Frames measured it (ms per second of play, worst single frame). */
 export interface FrameHandler {
   ms_per_s: number;
@@ -293,6 +361,65 @@ export interface KeptVersion {
   source_dir: string;
   path: string;
   bytes: number;
+  /** auto: kept by the Studio by itself; kept: by the player; copy: a plain copy from before the store. */
+  kind: 'auto' | 'kept' | 'copy' | '';
+  /** The same version Steam has installed now. */
+  current: boolean;
+  /** Put back: the game uses it from Zomboid/mods. */
+  in_use: boolean;
+  /** When its author published it ("2026-11-02"). */
+  published: string | null;
+}
+
+/** The kept-versions store: its settings and what its last round found. */
+export interface KeptVersionsSummary {
+  settings: { enabled: boolean; cap_bytes: number; cap_by_player: boolean };
+  status: {
+    last_run: number;
+    items_used: number;
+    items_kept: number;
+    no_room: string[];
+    bytes: number;
+    versions: number;
+    earlier_versions: number;
+    errors: string[];
+    /** The cap that applied: the chosen one, or less when the drive had no more room. */
+    cap_effective: number;
+    /** The drive ("D:") whose free space limited the cap, when it did. */
+    limited_by_disk: string | null;
+    protected_bytes: number;
+  } | null;
+  /** Where the store is. */
+  folder: string;
+  /** Where it is when none was chosen (Zomboid/PZModStudio_Versions). */
+  default_folder: string;
+  folder_chosen: boolean;
+  /** The drive it is on: what is free, the 15% always left free, the cap that applies. */
+  guard: {
+    disk: string;
+    free_bytes: number;
+    total_bytes: number;
+    reserve_bytes: number;
+    cap_effective: number;
+    limited: boolean;
+  } | null;
+  /** Being moved now. */
+  moving: boolean;
+}
+
+/** A move of the kept-versions store to another folder. */
+export interface KeptVersionsMoved {
+  moved: {
+    from: string;
+    to: string;
+    unchanged: boolean;
+    files: number;
+    bytes: number;
+    renamed: boolean;
+    copies_repointed: number;
+    old_left: string | null;
+  };
+  summary: KeptVersionsSummary;
 }
 
 /** One per-mod patch of the shim's part 7, with its switch. */
@@ -493,6 +620,8 @@ export interface DedicatedServerStatus {
   start_timestamp?: number | null;
   /** Started without Steam (-nosteam). */
   nosteam?: boolean | null;
+  /** The dedicated server's folder when it runs from there; none for the game's folder. */
+  program_dir?: string | null;
 }
 
 export interface ConnectedPlayer {
@@ -2178,4 +2307,107 @@ export interface GameResources {
   pc_total_mb: number;
   pc_free_mb: number;
   processes: { pid: number; kind: 'game' | 'server'; ram_mb: number; ram_max_mb: number | null; cpu_percent: number | null }[];
+}
+
+/** The dedicated server program (Steam app 380870) and which program starts the Studio's servers. */
+export interface DedicatedConfig {
+  /** "game" (default) or "dedicated". */
+  source: string;
+  dir: string;
+  /** "public", "unstable" or another branch. */
+  branch: string;
+  steamcmd: string;
+}
+
+export interface DedicatedInstall {
+  dir: string;
+  ready: boolean;
+  build_id?: string | null;
+  branch?: string | null;
+  size_on_disk?: number | null;
+  last_updated?: number | null;
+  incomplete: boolean;
+  /** The game version its projectzomboid.jar starts as ("42.22"); a client joins only the same. */
+  version?: string | null;
+  /** SteamCMD's record says the next update checks every file first (a check was stopped). */
+  check_due?: boolean;
+}
+
+export interface DedicatedInstallProgress {
+  running: boolean;
+  /** Set when it worked: SteamCMD said it was already up to date (nothing downloaded). */
+  up_to_date?: boolean | null;
+  phase: string;
+  percent?: number | null;
+  done_bytes?: number | null;
+  total_bytes?: number | null;
+  disk_bytes?: number | null;
+  line: string;
+  error?: string | null;
+  started_at: number;
+  finished_at?: number | null;
+  dir: string;
+  branch: string;
+  command: string;
+  pid?: number | null;
+}
+
+export interface DedicatedView {
+  config: DedicatedConfig;
+  steamcmd?: string | null;
+  steamcmd_url: string;
+  installs: DedicatedInstall[];
+  chosen?: DedicatedInstall | null;
+  starts_from?: string | null;
+  progress?: DedicatedInstallProgress | null;
+  update_command?: string | null;
+  default_dir: string;
+  /** The branch the installed game is on ("public" when none): the one a client of this PC can join. */
+  game_branch?: string | null;
+  /** The installed game's version ("42.22"). */
+  game_version?: string | null;
+}
+
+/** A Studio server's restart settings (Zomboid/PZModStudio_ServerSchedule.json). */
+export interface RestartSchedule {
+  enabled: boolean;
+  times: string[];
+  every_hours: number;
+  warn_minutes: number[];
+  on_crash: boolean;
+  crash_limit: number;
+  crash_window_minutes: number;
+  on_mod_update: boolean;
+  mod_check_minutes: number;
+  language: string;
+}
+
+export interface RestartPending {
+  server: string;
+  at: number;
+  reason: string;
+  detail: string;
+  warned: number[];
+  announced: boolean;
+}
+
+export interface RestartEvent {
+  at: number;
+  server: string;
+  /** schedule, mod_update, manual, crash, gave_up, crash_no_restart, stopped_while_closed */
+  reason: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface RestartView {
+  server: string;
+  schedule: RestartSchedule;
+  next_restart?: number | null;
+  pending?: RestartPending | null;
+  history: RestartEvent[];
+  gave_up_at?: number | null;
+  app_watching: boolean;
+  restarting_since?: number | null;
+  running: boolean;
 }

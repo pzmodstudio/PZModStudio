@@ -8,6 +8,8 @@ import { TauriService } from '../../services/tauri';
 import { ResourceMeter } from '../common/ResourceMeter';
 import { ProcessCard } from '../server/MpTestPanel';
 import { issueStateOf } from '../../utils/issueState';
+import { useUiMode } from '../../hooks/useUiMode';
+import { isWindows } from '../../utils/platform';
 
 export type DiagSection = 'mods' | 'game' | 'server';
 
@@ -73,6 +75,7 @@ export const DiagnosticsHome: React.FC<{
   onModsChanged?: () => void;
 }> = ({ paths, report, checking, onOpen, doctor, mods = [], onShowInModList, onToggleMod, onOpenPage, onModsChanged }) => {
   const { t } = useTranslation();
+  const simple = useUiMode()[0] === 'simple';
   const procs = useProcesses(paths, 4000);
   const { memory, boots } = useGameFacts(paths);
   const games = procs?.processes.filter((p) => p.role === 'player') ?? [];
@@ -86,10 +89,13 @@ export const DiagnosticsHome: React.FC<{
       : t('diag.home.mods.notYet')
     : act > 0
       ? t('diag.home.mods.act', { count: act })
-      : recommended > 0
+      // Simple's list hides the optional ones: the card says what that list says.
+      : recommended > 0 && !simple
         ? t('diag.home.mods.recommended', { count: recommended })
-        : t('diag.home.mods.ok', { count: report.active_count });
-  const modsTone = act > 0 ? 'red' : recommended > 0 ? 'amber' : report ? 'green' : 'slate';
+        : recommended > 0
+          ? t('simple.health.homeOptional', { count: recommended })
+          : t('diag.home.mods.ok', { count: report.active_count });
+  const modsTone = act > 0 ? 'red' : recommended > 0 && !simple ? 'amber' : report ? 'green' : 'slate';
 
   const oom = memory?.out_of_memory.length ?? 0;
   const lastBoot = boots?.[0];
@@ -149,12 +155,14 @@ export const DiagnosticsHome: React.FC<{
     </button>
   );
 
+  // Simple has no Servers screen: the server's card shows only while one runs on this PC.
+  const showServer = !simple || servers.length > 0;
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={`grid gap-3 ${showServer ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         {card('mods', HeartPulse, modsLine, t('diag.home.mods.sub'), modsTone)}
         {card('game', Gamepad2, gameLine, gameSub, gameTone)}
-        {card('server', Server, serverLine, servers.length > 0 ? t('diag.home.server.sub', { errors: servers[0].errors }) : t('diag.home.server.offSub'), serverTone)}
+        {showServer && card('server', Server, serverLine, servers.length > 0 ? t('diag.home.server.sub', { errors: servers[0].errors }) : t('diag.home.server.offSub'), serverTone)}
       </div>
       {learned && (
         <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11.5px] text-slate-300 leading-relaxed">
@@ -216,10 +224,12 @@ export const GameLivePanel: React.FC<{ paths: StudioPathsUI }> = ({ paths }) => 
                 <dd className={memory.out_of_memory.length > 0 ? 'text-amber-300 font-bold' : 'text-slate-200'}>
                   {memory.out_of_memory.length > 0 ? t('diag.live.oomCount', { count: memory.out_of_memory.length }) : t('diag.live.none')}
                 </dd>
+                {isWindows && <>
                 <dt className="text-slate-500">{t('diag.live.windowsLow')}</dt>
                 <dd className={memory.windows_low_memory.length > 0 ? 'text-amber-300 font-bold' : 'text-slate-200'}>
                   {memory.windows_low_memory.length > 0 ? t('diag.live.windowsLowCount', { count: memory.windows_low_memory.length }) : t('diag.live.none')}
                 </dd>
+                </>}
               </>
             )}
           </dl>

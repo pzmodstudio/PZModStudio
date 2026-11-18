@@ -27,7 +27,8 @@
 -- not lose them; "Error log" in the list of the session's errors opens its folder.
 --
 -- For other mods (see "what other mods add"): PZModStudioLink.registerReport(modId, fn). What fn
--- returns goes into "Copy all", and for an error of that mod into "Copy report" and the log.
+-- returns goes into "Copy all", and for an error of that mod into "Copy report" and the log. The
+-- debug reports mods give another error mod's report API (with that mod on) go there too.
 
 require "PZModStudio_Link"
 require "ISUI/ISPanel"
@@ -95,11 +96,15 @@ local function framesOf(entry)
 end
 
 --- An error made of its entries: the mod that failed and the ones that called it.
+-- The Studio's profiler wraps every handler to clock it: its frame is on the stack of each error
+-- in a handler, and is never the one to blame or a caller worth naming.
+local PROFILER_NAME = "PZ Mod Studio Profiler"
+
 local function settle(err)
     if not err.frames then err.frames = {} end
     err.callers = {}
     for _, f in ipairs(err.frames) do
-        if f.mod then
+        if f.mod and f.mod ~= PROFILER_NAME then
             if not err.mod then
                 err.mod = f.mod
             elseif f.mod ~= err.mod then
@@ -220,12 +225,12 @@ function Errors.report(group)
         table.insert(lines, "")
         for _, f in ipairs(err.frames) do table.insert(lines, "    " .. f.line) end
     end
-    -- What the mod itself adds to its reports (PZModStudioLink.registerReport).
-    local id = Errors.idOf(group.mod)
-    local own = id and Errors.reportOf(id, err)
+    -- What the mod itself adds to its reports (PZModStudioLink.registerReport, or its debug report
+    -- given to another report API).
+    local own, label = Errors.reportOf(Errors.idOf(group.mod), err, group.mod)
     if own then
         table.insert(lines, "")
-        table.insert(lines, text("errReportFrom", id))
+        table.insert(lines, text("errReportFrom", label))
         for _, line in ipairs(own) do table.insert(lines, "    " .. line) end
     end
     return table.concat(lines, "\n")
@@ -483,11 +488,12 @@ function Errors.reportAll()
         for _, f in ipairs(err.frames or {}) do table.insert(lines, "    " .. f.line) end
         table.insert(lines, "")
     end
-    -- What mods add to the reports (PZModStudioLink.registerReport), every one that registered.
+    -- What mods add to the reports (PZModStudioLink.registerReport, and other mods' debug
+    -- reports), every one that registered.
     for _, id in ipairs(Errors.reporters()) do
-        local own = Errors.reportOf(id, nil)
+        local own, label = Errors.reportOf(id, nil)
         if own then
-            table.insert(lines, text("errReportFrom", id))
+            table.insert(lines, text("errReportFrom", label))
             for _, line in ipairs(own) do table.insert(lines, "    " .. line) end
             table.insert(lines, "")
         end
@@ -507,13 +513,30 @@ end
 -- fn is called only when a report is made (Copy report and Copy all in the error notice and its
 -- list, and the first time an error of that mod goes to the error log), inside pcall. It gets the
 -- error ({ mod, message, at = "File.lua:48" }) or nil (Copy all), and returns a string, a list of
--- lines, or a table of name = value pairs; the first REPORT_MAX_LINES lines are kept. A mod whose
--- Lua runs before the Link's can set PZModStudioLinkReports["MyModId"] = fn instead: the same.
+-- lines, or a table of name = value pairs (a table in it is shown indented, REPORT_DEPTH deep);
+-- the first REPORT_MAX_LINES lines are kept. A mod whose Lua runs before the Link's can set
+-- PZModStudioLinkReports["MyModId"] = fn instead: the same.
 -- Its text goes in "Copy all" always, and in a single error's report when the error is that mod's.
+--
+-- Other mods' debug reports: a mod may hand its report to another error mod's report API instead
+-- (registerDebugReport(modId, fn, displayName), kept in that API's modReports as
+-- { func = fn, displayName = ... }; fn gets nothing and returns a string or a table). Those go in
+-- the same places, under their display name, read from that API's own table while its mod is on
+-- (what its require gave, which the game keeps). A mod registered in both is shown once, with
+-- what it gave the Link.
+-- With that mod off there is nothing to read, and the Link offers no stand-in: answering that
+-- require would mean replacing the game's global require, and the game then names the replacing
+-- mod in every "require(...) failed" warning and in the stack of every file loaded through it
+-- (seen live on 42.22: other mods' and the game's own failed requires all read as the Link's).
+-- Shipping a file of the same name instead would replace the real one. The mods that use that API
+-- list its mod as a requirement in their mod.info, so the game loads it with them anyway.
 
 PZModStudioLinkReports = PZModStudioLinkReports or {}
 local REPORT_MAX_LINES = 60
 local REPORT_MAX_CHARS = 4000
+local REPORT_DEPTH = 4
+-- The file the other API's users require (a technical name: never shown).
+local OTHER_API_FILE = "errorMagnifier_Main"
 
 --- Registers (or, with fn nil, takes back) what modId adds to the reports. True when taken.
 function Link.registerReport(modId, fn)
@@ -523,50 +546,133 @@ function Link.registerReport(modId, fn)
     return true
 end
 
---- The ids of the mods that registered a report, sorted.
+--- The other report API's table, or nil: that mod's own, asked only while it is on and only
+--- when a report is made (long after it loaded: the game hands back the table it keeps).
+local otherApi = nil
+function Errors.otherApi()
+    if otherApi then return otherApi end
+    if not Errors.otherShows() then return nil end
+    local ok, value = pcall(require, OTHER_API_FILE)
+    if ok and type(value) == "table" and type(value.modReports) == "table" then otherApi = value end
+    return otherApi
+end
+
+--- The other API's entry for a mod: by its key (modId, or the same id written another way), or by
+--- the name a stack gives it (name). Returns the entry and its key, or nil.
+local function otherEntry(modId, name)
+    local api = Errors.otherApi()
+    if not api then return nil end
+    local reports = api.modReports
+    if modId then
+        local entry = reports[modId]
+        if type(entry) == "table" and type(entry.func) == "function" then return entry, modId end
+    end
+    for key, entry in pairs(reports) do
+        if type(entry) == "table" and type(entry.func) == "function" then
+            local k = tostring(key)
+            if (modId and plainId(k) == plainId(modId)) or (name and (k == name or tostring(entry.displayName) == name)) then
+                return entry, k
+            end
+        end
+    end
+    return nil
+end
+
+--- The ids of the mods that registered a report (with the Link or with the other API), sorted.
 function Errors.reporters()
-    local ids = {}
-    if type(PZModStudioLinkReports) ~= "table" then return ids end
-    for id, fn in pairs(PZModStudioLinkReports) do
-        if type(fn) == "function" then table.insert(ids, tostring(id)) end
+    local ids, seen = {}, {}
+    if type(PZModStudioLinkReports) == "table" then
+        for id, fn in pairs(PZModStudioLinkReports) do
+            if type(fn) == "function" then
+                table.insert(ids, tostring(id))
+                seen[plainId(tostring(id))] = true
+            end
+        end
+    end
+    local api = Errors.otherApi()
+    if api then
+        for key, entry in pairs(api.modReports) do
+            local k = tostring(key)
+            if type(entry) == "table" and type(entry.func) == "function" and not seen[plainId(k)] then
+                table.insert(ids, k)
+                seen[plainId(k)] = true
+            end
+        end
     end
     table.sort(ids)
     return ids
 end
 
---- The lines modId adds for err (nil: for every error), or nil when it registered none.
-function Errors.reportOf(modId, err)
-    local reports = PZModStudioLinkReports
-    local fn = type(reports) == "table" and (reports[modId] or reports[plainId(modId)]) or nil
-    if type(fn) ~= "function" then return nil end
-    local arg = nil
-    if err then arg = { mod = err.mod, message = err.message, at = failedAt(err) } end
-    local ok, value = pcall(fn, arg)
-    if not ok then return { text("errReportFailed", tostring(value)) } end
+--- A report's value as lines: a string, a list, a table of name = value (sorted by name), tables
+--- in it indented below their name. At most REPORT_MAX_LINES lines and REPORT_MAX_CHARS chars.
+local function reportLines(value)
     local lines, chars = {}, 0
-    local function addText(s)
+    local function addText(s, indent)
         for line in string.gmatch(tostring(s) .. "\n", "([^\n]*)\n") do
             if #lines < REPORT_MAX_LINES and chars < REPORT_MAX_CHARS then
-                local cut = string.sub(string.gsub(line, "\r", ""), 1, REPORT_MAX_CHARS - chars)
+                local cut = string.sub(indent .. string.gsub(line, "\r", ""), 1, REPORT_MAX_CHARS - chars)
                 table.insert(lines, cut)
                 chars = chars + string.len(cut)
             end
         end
     end
-    if type(value) == "table" then
-        if #value > 0 then
-            for _, v in ipairs(value) do addText(v) end
-        else
-            local pairsOf = {}
-            for k, v in pairs(value) do table.insert(pairsOf, { key = tostring(k), value = v }) end
-            table.sort(pairsOf, function(a, b) return a.key < b.key end)
-            for _, p in ipairs(pairsOf) do addText(p.key .. " = " .. tostring(p.value)) end
+    local function addTable(t, indent, depth)
+        if #t > 0 then
+            for _, v in ipairs(t) do
+                if type(v) == "table" then
+                    if depth < REPORT_DEPTH then addTable(v, indent .. "  ", depth + 1) else addText("{...}", indent) end
+                else
+                    addText(v, indent)
+                end
+            end
+            return
         end
-    elseif value ~= nil then
-        addText(value)
+        local pairsOf = {}
+        for k, v in pairs(t) do table.insert(pairsOf, { key = tostring(k), value = v }) end
+        table.sort(pairsOf, function(a, b) return a.key < b.key end)
+        for _, p in ipairs(pairsOf) do
+            if type(p.value) == "table" then
+                if depth < REPORT_DEPTH then
+                    addText(p.key .. ":", indent)
+                    addTable(p.value, indent .. "  ", depth + 1)
+                else
+                    addText(p.key .. " = {...}", indent)
+                end
+            else
+                addText(p.key .. " = " .. tostring(p.value), indent)
+            end
+        end
     end
-    if #lines == 0 then return nil end
+    if type(value) == "table" then
+        addTable(value, "", 1)
+    elseif value ~= nil then
+        addText(value, "")
+    end
     return lines
+end
+
+--- What a mod adds for err (nil: for every error): its lines and the name to show them under, or
+--- nil when it registered none. modId: its id (may be nil); name: the name a stack gives it.
+function Errors.reportOf(modId, err, name)
+    local reports = PZModStudioLinkReports
+    local fn = nil
+    if modId and type(reports) == "table" then fn = reports[modId] or reports[plainId(modId)] end
+    local label = modId
+    local ok, value
+    if type(fn) == "function" then
+        local arg = nil
+        if err then arg = { mod = err.mod, message = err.message, at = failedAt(err) } end
+        ok, value = pcall(fn, arg)
+    else
+        local entry, key = otherEntry(modId, name)
+        if not entry then return nil end
+        label = (entry.displayName ~= nil and tostring(entry.displayName) ~= "") and tostring(entry.displayName) or key
+        ok, value = pcall(entry.func)
+    end
+    if not ok then return { text("errReportFailed", tostring(value)) }, label end
+    local lines = reportLines(value)
+    if #lines == 0 then return nil end
+    return lines, label
 end
 
 -- ------------------------------------------------------------------ kept on disk
@@ -681,10 +787,9 @@ local function entryLines(err, out)
     local frames = err.frames or {}
     for i = 1, math.min(#frames, LOG_STEPS) do table.insert(out, "        " .. frames[i].line) end
     if #frames > LOG_STEPS then table.insert(out, "        ... " .. tostring(#frames - LOG_STEPS) .. " more step(s)") end
-    local id = Errors.idOf(err.mod)
-    local own = id and Errors.reportOf(id, err)
+    local own, label = Errors.reportOf(Errors.idOf(err.mod), err, err.mod)
     if own then
-        table.insert(out, "    Added by " .. id .. ":")
+        table.insert(out, "    Added by " .. label .. ":")
         for _, line in ipairs(own) do table.insert(out, "        " .. line) end
     end
 end

@@ -43,6 +43,10 @@ pub struct Redefinition {
     /// function defined on it before gone.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub reset: bool,
+    /// Its file may stop before it (`if getActivatedMods():contains("X") then return end` at file
+    /// level above it): whether it runs depends on that test.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub conditional: bool,
 }
 
 /// What the game itself said about the function, read by the Studio Link in the running game:
@@ -147,6 +151,9 @@ pub struct FileScan {
     /// `A.b = f` where `f` is not a function of this file: a definition only when `f` is a
     /// function of the mod elsewhere (`button.title = label` is a field, not a function).
     pub aliases: Vec<((String, u32, bool, Option<String>), String)>,
+    /// The first `return` at file level inside a block (`if X then return end`): the file may stop
+    /// there, and what it defines below runs only when it does not.
+    pub early_return: Option<u32>,
 }
 
 /// `Events.OnGameStart.Add(` just before token `i`: the event's name.
@@ -197,7 +204,24 @@ pub fn scan(text: &str) -> FileScan {
     let mut scan = FileScan::default();
     // Open blocks: whether each is a function body, and the name an `if not X then` guards (a
     // fallback defined only when the game's is missing: never a replacement of the game's).
-    let mut stack: Vec<(bool, Option<String>, Option<String>)> = Vec::new();
+    // Each block: (a function body, the name an `if not X` guards, the event a function was given
+    // to inline, the function's own name: `local function install()`, `install = function`).
+    let mut stack: Vec<(bool, Option<String>, Option<String>, Option<String>)> = Vec::new();
+    // The name the next `function` gets (`local install = function`).
+    let mut next_fn_name: Option<String> = None;
+    // Definitions made inside a named function (index in defs, the function's name), and how that
+    // function is run: called at file level (`install()`) or given to an event by name
+    // (`Events.OnGameBoot.Add(install)`).
+    let mut owned: Vec<(usize, String)> = Vec::new();
+    let mut owned_aliases: Vec<(usize, String)> = Vec::new();
+    let mut called_at_file_level: BTreeSet<String> = BTreeSet::new();
+    let mut handler_of: HashMap<String, String> = HashMap::new();
+    // A named function's parameters, the names read inside one (owner), and its calls at file
+    // level with the tables they pass (`wrapAction(ISReloadWeaponAction)`): what it does to a
+    // field of a parameter it does to the table passed there.
+    let mut params_of: HashMap<String, Vec<String>> = HashMap::new();
+    let mut owned_reads: Vec<(String, String)> = Vec::new();
+    let mut file_calls: Vec<(String, Vec<Option<String>>)> = Vec::new();
     // `while`/`for` open their block themselves: their `do` opens nothing more.
     let mut loop_do_pending = 0usize;
     // Inside a table constructor `{ ... }`: `name = value` there is a field, not a global.
@@ -207,6 +231,7 @@ pub fn scan(text: &str) -> FileScan {
         let in_function = stack.iter().any(|f| f.0);
         // The event the outermost function block was given to, if any: when what it defines runs.
         let event = stack.iter().find(|f| f.0).and_then(|f| f.2.clone());
+        let owner = stack.iter().find(|f| f.0).and_then(|f| f.3.clone());
         let guarded = |name: &str| stack.iter().filter_map(|b| b.1.as_deref()).any(|g| name == g || name.starts_with(&format!("{}.", g)));
         let prev_is_path_link = i > 0 && matches!(toks[i - 1].0, Tok::Punct('.') | Tok::Punct(':'));
         match &toks[i].0 {
@@ -215,6 +240,9 @@ pub fn scan(text: &str) -> FileScan {
                 if parts.len() >= 2 && matches!(toks.get(after), Some((Tok::Punct('('), _))) {
                     let name = parts.join(".");
                     if !guarded(&name) {
+                        if let (true, None, Some(o)) = (in_function, &event, &owner) {
+                            owned.push((scan.defs.len(), o.clone()));
+                        }
                         scan.defs.push((name, toks[i].1, in_function, event.clone()));
                     }
                 } else if parts.len() == 1 && !in_function && !(i > 0 && toks[i - 1].0 == Tok::Ident("local".into())) {
@@ -226,12 +254,14 @@ pub fn scan(text: &str) -> FileScan {
                 }
                 // Its parameters are locals: `local function base(def) def.x = ... end` sets a
                 // field of what it was given, not of a global table `def`.
+                let mut params: Vec<String> = Vec::new();
                 if matches!(toks.get(after), Some((Tok::Punct('('), _))) {
                     let mut j = after + 1;
                     while let Some((tok, _)) = toks.get(j) {
                         match tok {
                             Tok::Ident(n) if !is_kw(n) => {
                                 scan.locals.insert(n.clone());
+                                params.push(n.clone());
                             }
                             Tok::Punct(')') => break,
                             _ => {}
@@ -239,7 +269,12 @@ pub fn scan(text: &str) -> FileScan {
                         j += 1;
                     }
                 }
-                stack.push((true, None, event_before(&toks, i)));
+                let fn_name = if parts.len() == 1 { Some(parts[0].clone()) } else { next_fn_name.take() };
+                next_fn_name = None;
+                if let (Some(n), false) = (&fn_name, in_function || params.is_empty()) {
+                    params_of.insert(n.clone(), params);
+                }
+                stack.push((true, None, event_before(&toks, i), fn_name));
                 i += 1;
                 continue;
             }
@@ -278,22 +313,25 @@ pub fn scan(text: &str) -> FileScan {
                         (!p.is_empty() && matches!(toks.get(end), Some((Tok::Op, _))) && matches!(toks.get(end + 1), Some((Tok::Ident(n), _)) if n == "nil")).then(|| p.join("."))
                     }
                 };
-                stack.push((false, guard, None));
+                stack.push((false, guard, None, None));
             }
-            Tok::Ident(w) if w == "repeat" => stack.push((false, None, None)),
+            Tok::Ident(w) if w == "repeat" => stack.push((false, None, None, None)),
             Tok::Ident(w) if w == "while" || w == "for" => {
-                stack.push((false, None, None));
+                stack.push((false, None, None, None));
                 loop_do_pending += 1;
             }
             Tok::Ident(w) if w == "do" => {
                 if loop_do_pending > 0 {
                     loop_do_pending -= 1;
                 } else {
-                    stack.push((false, None, None));
+                    stack.push((false, None, None, None));
                 }
             }
             Tok::Ident(w) if w == "end" || w == "until" => {
                 stack.pop();
+            }
+            Tok::Ident(w) if w == "return" && !in_function && !stack.is_empty() && scan.early_return.is_none() => {
+                scan.early_return = Some(toks[i].1);
             }
             Tok::Punct('{') => braces += 1,
             Tok::Punct('}') => braces = braces.saturating_sub(1),
@@ -307,6 +345,9 @@ pub fn scan(text: &str) -> FileScan {
                         match toks.get(after + 1) {
                             Some((Tok::Ident(f), _)) if f == "function" => {
                                 if !guarded(&name) {
+                                    if let (true, None, Some(o)) = (in_function, &event, &owner) {
+                                        owned.push((scan.defs.len(), o.clone()));
+                                    }
                                     scan.defs.push((name, toks[i].1, in_function, event.clone()));
                                 }
                             }
@@ -317,6 +358,9 @@ pub fn scan(text: &str) -> FileScan {
                                 let continues = matches!(next, Some((Tok::Ident(o), _)) if o == "or" || o == "and");
                                 let used_further = matches!(next, Some((Tok::Punct('(' | '[' | '.' | ':'), _)));
                                 if value.len() == 1 && !continues && !used_further && !guarded(&name) {
+                                    if let (true, None, Some(o)) = (in_function, &event, &owner) {
+                                        owned_aliases.push((scan.aliases.len(), o.clone()));
+                                    }
                                     scan.aliases.push(((name, toks[i].1, in_function, event.clone()), value[0].clone()));
                                 }
                             }
@@ -324,11 +368,48 @@ pub fn scan(text: &str) -> FileScan {
                         }
                     } else if !matches!(toks.get(after), Some((Tok::Punct('(' | '{'), _))) {
                         // Read as a value, not called: kept (`local old = A.b`, `x = x or A.b`).
+                        if let (true, None, Some(o)) = (in_function, &event, &owner) {
+                            owned_reads.push((name.clone(), o.clone()));
+                        }
                         scan.reads.insert(name);
+                    } else if parts.len() == 3 && parts[0] == "Events" && parts[2] == "Add" && !in_function {
+                        // `Events.OnGameBoot.Add(install)`: install runs at that event.
+                        if let (Some((Tok::Punct('('), _)), Some((Tok::Ident(h), _)), Some((Tok::Punct(')'), _))) = (toks.get(after), toks.get(after + 1), toks.get(after + 2)) {
+                            handler_of.insert(h.clone(), parts[1].clone());
+                        }
+                    }
+                } else if parts.len() == 1 && !assigned && !in_function && matches!(toks.get(after), Some((Tok::Punct('('), _))) {
+                    // `install()` at file level: what that function defines is made now.
+                    called_at_file_level.insert(parts[0].clone());
+                    // Its arguments, each a table's name when it is only that (`wrap(ISFoo)`,
+                    // `wrap(Mod.Action, f)`), None otherwise.
+                    let mut args: Vec<Option<String>> = Vec::new();
+                    let mut j = after + 1;
+                    let mut depth = 0usize;
+                    let mut start = j;
+                    while let Some((tok, _)) = toks.get(j) {
+                        let closes = depth == 0 && *tok == Tok::Punct(')');
+                        if (depth == 0 && *tok == Tok::Punct(',')) || closes {
+                            let (p, end) = path_at(&toks, start);
+                            args.push((!p.is_empty() && end == j).then(|| p.join(".")));
+                            if closes {
+                                break;
+                            }
+                            start = j + 1;
+                        } else if matches!(tok, Tok::Punct('(' | '{' | '[')) || matches!(tok, Tok::Ident(w) if ["function", "if", "do", "repeat"].contains(&w.as_str())) {
+                            depth += 1;
+                        } else if matches!(tok, Tok::Punct(')' | '}' | ']')) || matches!(tok, Tok::Ident(w) if w == "end" || w == "until") {
+                            depth = depth.saturating_sub(1);
+                        }
+                        j += 1;
+                    }
+                    if args.iter().any(Option::is_some) {
+                        file_calls.push((parts[0].clone(), args));
                     }
                 } else if parts.len() == 1 && assigned && matches!(toks.get(after + 1), Some((Tok::Ident(f), _)) if f == "function") {
                     // `f = function` / `local f = function`: a function of this file.
                     scan.fn_names.insert(parts[0].clone());
+                    next_fn_name = Some(parts[0].clone());
                     if !in_function && stack.is_empty() && braces == 0 {
                         scan.globals.insert(parts[0].clone());
                     }
@@ -345,6 +426,55 @@ pub fn scan(text: &str) -> FileScan {
             _ => {}
         }
         i += 1;
+    }
+    // A definition inside a named function runs when that function does: at file level when the
+    // file calls it there, at an event when it is given to one by name.
+    // Called at file level first: it runs then, whatever event it is also given to afterwards.
+    let when = |name: &str, def: &mut (String, u32, bool, Option<String>)| {
+        if called_at_file_level.contains(name) {
+            def.2 = false;
+        } else if let Some(event) = handler_of.get(name) {
+            def.3 = Some(event.clone());
+        }
+    };
+    // `local function wrap(class) class.start = function ... end end` then `wrap(ISFoo)` at file
+    // level: ISFoo.start is defined then, keeping the original when the function reads it.
+    let mut passed: Vec<(String, u32, bool, Option<String>)> = Vec::new();
+    for (function, args) in &file_calls {
+        let Some(params) = params_of.get(function) else { continue };
+        let through = |name: &str| -> Vec<String> {
+            let (root, rest) = name.split_once('.').unwrap_or((name, ""));
+            params
+                .iter()
+                .zip(args.iter())
+                .filter(|(p, _)| p.as_str() == root && !rest.is_empty())
+                .filter_map(|(_, a)| a.as_ref().map(|t| format!("{}.{}", t, rest)))
+                .collect()
+        };
+        for (at, owner) in &owned {
+            if owner == function {
+                let (name, line, _, _) = &scan.defs[*at];
+                for real in through(name) {
+                    passed.push((real, *line, false, None));
+                }
+            }
+        }
+        for (name, owner) in &owned_reads {
+            if owner == function {
+                scan.reads.extend(through(name));
+            }
+        }
+    }
+    for (at, name) in owned {
+        when(&name, &mut scan.defs[at]);
+    }
+    for def in passed {
+        if !scan.defs.contains(&def) {
+            scan.defs.push(def);
+        }
+    }
+    for (at, name) in owned_aliases {
+        when(&name, &mut scan.aliases[at].0);
     }
     // `A.b = f` with `f` a function of this file: a definition; the rest wait for the mod's.
     let aliases = std::mem::take(&mut scan.aliases);
@@ -429,6 +559,9 @@ struct ModDefs {
     /// list has the same path, the game runs that one's copy and never this one.
     #[serde(default)]
     files: Vec<String>,
+    /// Files that may stop early (path as in the redefinitions, line of the `return`).
+    #[serde(default)]
+    returns: Vec<(String, u32)>,
 }
 
 type ModKey = (String, u64, Option<u64>, Option<u32>);
@@ -442,7 +575,7 @@ fn mod_defs(m: &crate::catalog::CatalogMod, game: &GameLua, version: Option<u32>
         }
     }
     // Kept on disk from an earlier start (mod_cache), until Steam updates the mod or the game changes.
-    let disk_key = crate::mod_cache::workshop_key(m, &format!("overrides3 {:?} {}", version, game.functions.len()));
+    let disk_key = crate::mod_cache::workshop_key(m, &format!("overrides7 {:?} {}", version, game.functions.len()));
     if let Some(found) = disk_key.as_deref().and_then(|k| crate::mod_cache::load::<ModDefs>("overrides", k)) {
         let found = Arc::new(found);
         if let Some(key) = key {
@@ -479,6 +612,9 @@ fn mod_defs(m: &crate::catalog::CatalogMod, game: &GameLua, version: Option<u32>
         }
     }
     for (rel, s) in scans {
+        if let Some(line) = s.early_return {
+            out.returns.push((rel.clone(), line));
+        }
         let at_game_path = game.files.contains(&rel.to_lowercase());
         for (name, line, deferred, event) in &s.defs {
             let root = name.split('.').next().unwrap_or("");
@@ -540,7 +676,8 @@ fn when_rank(r: &Redefinition) -> u8 {
 
 /// Made in time for the main menu: file time, boot and the menu's own event (a save's come later).
 pub fn runs_by_menu(r: &Redefinition) -> bool {
-    when_rank(r) <= 2
+    // The server/ folder loads only when a save does (GameLoadingState): not by the menu.
+    when_rank(r) <= 2 && phase(&r.file) != 2
 }
 
 /// The order the game runs a redefinition in: file time first, then handlers by event; then
@@ -562,6 +699,10 @@ pub fn shared_functions(install_dir: &Path, catalog: &crate::catalog::ModCatalog
         return Vec::new();
     }
     let version = catalog.game_version_int();
+    // The order the game runs the files in is its load order, not the list's: each mod after what
+    // it requires (a requirement further down, or off, loads first), a mod it cannot load left out.
+    let loaded = crate::catalog::game_load_order(catalog, active);
+    let active = loaded.as_slice();
     let mut by_function: BTreeMap<String, Vec<(usize, Redefinition)>> = BTreeMap::new();
     let mut other: BTreeMap<String, Vec<(usize, Redefinition)>> = BTreeMap::new();
     let mut resets: Vec<(usize, String, Redefinition)> = Vec::new();
@@ -595,6 +736,7 @@ pub fn shared_functions(install_dir: &Path, catalog: &crate::catalog::ModCatalog
         let defs = mod_defs(m, &game, version);
         // A file of this mod that a later mod's copy replaces never runs: nothing in it counts.
         let runs = |file: &str| runs_copy_of.get(&file.to_lowercase()).is_none_or(|owner| *owner == m.id);
+        let stops_before = |file: &str, line: u32| defs.returns.iter().any(|(f, at)| f == file && *at < line);
         let redef = |d: &ModDef| Redefinition {
             mod_id: m.id.clone(),
             mod_name: m.name.clone(),
@@ -605,6 +747,7 @@ pub fn shared_functions(install_dir: &Path, catalog: &crate::catalog::ModCatalog
             replaces_game_file: d.5,
             event: d.6.clone(),
             reset: false,
+            conditional: stops_before(&d.1, d.2),
         };
         for d in defs.game.iter().filter(|d| runs(&d.1)) {
             by_function.entry(d.0.clone()).or_default().push((position, redef(d)));
@@ -623,6 +766,7 @@ pub fn shared_functions(install_dir: &Path, catalog: &crate::catalog::ModCatalog
                 replaces_game_file: *at_game_path,
                 event: None,
                 reset: true,
+                conditional: stops_before(file, *line),
             };
             resets.push((position, table.clone(), r));
         }
@@ -691,6 +835,18 @@ pub fn shared_functions(install_dir: &Path, catalog: &crate::catalog::ModCatalog
             v
         })
         .collect()
+}
+
+/// Whether the cut follows from the load order alone: the winner's replacement and every change
+/// it drops are made while the files load (not in a function run later, an event's handler or an
+/// install(), which may run under conditions), in files that do not stop early. Measured on three
+/// collections (2026-11-18) these were each confirmed by reading the code; the others depend on
+/// what runs in the game.
+pub fn cut_is_certain(f: &SharedFunction) -> bool {
+    let Some(winner) = f.winner.as_deref() else { return false };
+    let Some(at) = f.redefinitions.iter().rposition(|r| r.mod_id == winner && !r.keeps_original) else { return false };
+    let sure = |r: &Redefinition| !r.deferred && !r.conditional;
+    sure(&f.redefinitions[at]) && f.redefinitions[..at].iter().filter(|r| f.cut.contains(&r.mod_id)).all(sure)
 }
 
 // Who cuts whom, from redefinitions already in run order (with their load positions).
@@ -839,6 +995,11 @@ pub fn attach_checks(user_zomboid_dir: &Path, catalog: &crate::catalog::ModCatal
             }
         }
     }
+    // The game may have a version from a mod that redefines it in a way the files do not show
+    // (a loop over tables): that mod is named by its folder all the same.
+    for m in catalog.mods.iter().filter(|m| m.shadowed_by.is_none()) {
+        roots.entry(m.id.clone()).or_insert_with(|| norm(&m.root_dir));
+    }
     for f in shared.iter_mut() {
         for (when, (_, at, found)) in &replies {
             let Some((file, line)) = found.get(&f.function) else { continue };
@@ -928,7 +1089,7 @@ function ISBaseTimedAction:start() end
     }
 
     fn r(mod_id: &str, keeps: bool, deferred: bool) -> Redefinition {
-        Redefinition { mod_id: mod_id.into(), mod_name: mod_id.into(), file: "client/x.lua".into(), line: 1, keeps_original: keeps, deferred, replaces_game_file: false, event: None, reset: false }
+        Redefinition { mod_id: mod_id.into(), mod_name: mod_id.into(), file: "client/x.lua".into(), line: 1, keeps_original: keeps, deferred, replaces_game_file: false, event: None, reset: false, conditional: false }
     }
 
     #[test]
@@ -1031,6 +1192,124 @@ function ISBaseTimedAction:start() end
         let mods: Vec<&str> = with_other[0].redefinitions.iter().map(|r| r.mod_id.as_str()).collect();
         assert_eq!(mods, ["ModB", "ModC"], "ModA's copy never runs");
         assert_eq!(with_other[0].cut, ["ModB"]);
+    }
+
+    /// Measured on two players' collections (2026-11-18): an alert library replaces
+    /// `MainScreen.onEnterFromGame` and an addon that requires it wraps it, but the list had the
+    /// addon first: read in list order the library "cut" the addon, while the game loads a
+    /// requirement first and the addon wraps it. And a requirement that is off is loaded by the
+    /// game all the same: its replacement after another mod's wrap was not seen at all.
+    #[test]
+    fn files_run_in_the_order_the_game_loads_the_mods() {
+        let root = std::env::temp_dir().join(format!("pzms-overrides-order-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let write = |rel: &str, text: &str| {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, text).unwrap();
+        };
+        write("game/media/lua/client/ISUI/ISFoo.lua", "ISFoo = {}\nfunction ISFoo.bar() end\nfunction ISFoo.baz() end\n");
+        for (id, info, text) in [
+            ("Alert", "", "function ISFoo:bar() end\n"),
+            ("Addon", "require=\\Alert\n", "local old = ISFoo.bar\nfunction ISFoo:bar() old(self) end\n"),
+            ("Wrapper", "", "local old = ISFoo.baz\nfunction ISFoo.baz() old() end\n"),
+            ("Framework", "", "function ISFoo.baz() end\n"),
+            ("UsesFramework", "require=\\Framework\n", "local x = 1\n"),
+        ] {
+            write(&format!("zomboid/mods/{}/mod.info", id), &format!("name={}\nid={}\n{}", id, id, info));
+            write(&format!("zomboid/mods/{}/media/lua/client/{}.lua", id, id), text);
+        }
+        std::fs::create_dir_all(root.join("workshop")).unwrap();
+        let catalog = crate::catalog::build_catalog(&root.join("workshop").to_string_lossy(), &root.join("zomboid").to_string_lossy(), Some(41_078));
+        let list = |ids: &[&str]| ids.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // Addon listed before the library it requires; Framework off but required by a mod on.
+        let shared = shared_functions(&root.join("game"), &catalog, &list(&["Addon", "Alert", "Wrapper", "UsesFramework"]));
+        let _ = std::fs::remove_dir_all(&root);
+        let bar = shared.iter().find(|f| f.function == "ISFoo.bar").expect("both redefine bar");
+        assert_eq!(bar.redefinitions.iter().map(|r| r.mod_id.as_str()).collect::<Vec<_>>(), ["Alert", "Addon"], "the requirement runs first");
+        assert_eq!(bar.winner, None, "the addon wraps the library's version: no one is cut");
+        let baz = shared.iter().find(|f| f.function == "ISFoo.baz").expect("the requirement that is off is loaded too");
+        assert_eq!((baz.winner.as_deref(), baz.cut.clone()), (Some("Framework"), vec!["Wrapper".to_string()]));
+    }
+
+    /// What makes a cut certain (Mod Health's certainty chip): measured on three collections
+    /// (2026-11-18), every cut made at file load was confirmed by reading the code; a replacement
+    /// made in a handler or install() runs only under its own conditions (a sandbox option), and a
+    /// file can stop before its definition (`if getActivatedMods():contains("X") then return end`).
+    #[test]
+    fn a_cut_made_while_the_files_load_is_certain_and_a_conditional_one_is_not() {
+        let s = scan("if getActivatedMods():contains(\"x\") then return end\nfunction ISFoo:bar() end\n");
+        assert_eq!(s.early_return, Some(1));
+        assert_eq!(scan("function ISFoo:bar() return 1 end\nreturn ISFoo\n").early_return, None, "a return inside a function or at the very end is no early stop");
+
+        let file_time = verdict("F".into(), vec![(0, r("A", true, false)), (3, r("B", false, false))]);
+        assert!(cut_is_certain(&file_time));
+        let in_handler = verdict("F".into(), vec![(0, r("A", true, false)), (3, r("B", false, true))]);
+        assert_eq!(in_handler.cut, ["A"]);
+        assert!(!cut_is_certain(&in_handler), "the replacement runs from a function: whether it does is the game's to say");
+        let mut stops = r("B", false, false);
+        stops.conditional = true;
+        let early = verdict("F".into(), vec![(0, r("A", true, false)), (3, stops)]);
+        assert!(!cut_is_certain(&early));
+        assert!(!cut_is_certain(&verdict("F".into(), vec![(0, r("A", true, false)), (1, r("B", true, false))])), "no cut, nothing certain");
+    }
+
+    /// Seen in the running game (Studio Link, 389-mod collection, 2026-11-18): 39 of 140 functions
+    /// were not what the files suggested at the main menu. Most were wraps made inside a named
+    /// function the file runs itself (`applyPatches()` at its end) or gives to an event by name
+    /// (`Events.OnGameBoot.Add(install)`), taken for "later than everything"; and files of the
+    /// server/ folder, which load only with a save, taken as loaded by the menu.
+    #[test]
+    fn a_named_install_runs_when_the_file_runs_or_gives_it_to_an_event() {
+        let s = scan(
+            "local function applyPatches()\n  local old = ISFoo.a\n  function ISFoo.a() old() end\nend\napplyPatches()\n\
+             local function install()\n  ISFoo.b = function() end\nend\nEvents.OnGameBoot.Add(install)\n\
+             local later = function()\n  ISFoo.c = function() end\nend\nM.hook = later\n\
+             local function both()\n  ISFoo.d = function() end\nend\nboth()\nEvents.OnGameStart.Add(both)\n\
+             local function mine() end\nlocal function aliased()\n  ISFoo.e = mine\nend\naliased()\n",
+        );
+        let got: Vec<(String, bool, Option<String>)> = s.defs.into_iter().map(|d| (d.0, d.2, d.3)).collect();
+        assert_eq!(
+            got,
+            [
+                ("ISFoo.a".to_string(), false, None),
+                ("ISFoo.b".to_string(), true, Some("OnGameBoot".to_string())),
+                ("ISFoo.c".to_string(), true, None),
+                ("M.hook".to_string(), false, None),
+                ("ISFoo.d".to_string(), false, None),
+                ("ISFoo.e".to_string(), false, None),
+            ]
+        );
+        let mut server = r("A", true, false);
+        server.file = "server/A.lua".into();
+        assert!(!runs_by_menu(&server), "server/ files load with a save");
+        assert!(runs_by_menu(&r("B", true, false)));
+    }
+
+    /// Measured on two players' collections (2026-11-18): a firearms mod wraps seven of the game's
+    /// timed actions through one function given each table (`wrapAction(ISReloadWeaponAction)`),
+    /// and none of those wraps were seen.
+    #[test]
+    fn a_function_given_a_table_at_file_level_defines_on_that_table() {
+        let s = scan(
+            "local function wrapAction(class, onFinish)\n  local origStart = class.start\n  if origStart then\n    class.start = function(self) return origStart(self) end\n  end\n  class.stop = function(self) end\nend\n\
+             wrapAction(ISReload)\nwrapAction(ISRack, function(gun) if gun then x() end end)\nwrapAction(makeOne())\n\
+             local function later(t)\n  t.perform = function() end\nend\nEvents.OnGameStart.Add(function() later(ISLate) end)\n",
+        );
+        let got: Vec<(String, u32, bool)> = s.defs.iter().filter(|d| d.0.starts_with("IS")).map(|d| (d.0.clone(), d.1, d.2)).collect();
+        assert_eq!(
+            got,
+            [
+                ("ISReload.start".to_string(), 4, false),
+                ("ISRack.start".to_string(), 4, false),
+                ("ISReload.stop".to_string(), 6, false),
+                ("ISRack.stop".to_string(), 6, false),
+            ],
+            "a call with something else than a table, or from inside a function, gives nothing"
+        );
+        assert!(s.reads.contains("ISReload.start") && s.reads.contains("ISRack.start"), "it keeps the original start");
+        assert!(!s.reads.contains("ISReload.stop"), "stop is replaced outright");
+        assert!(s.locals.contains("class"), "the parameter's own definitions stay a local's");
     }
 
     #[test]

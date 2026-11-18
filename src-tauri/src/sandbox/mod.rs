@@ -124,6 +124,13 @@ pub fn find_running_pz_pid() -> Option<u32> {
             }
         }
     }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // The ProjectZomboid64 launcher (or a Java running the game's main class).
+        if let Some(pid) = crate::platform::game_pids().into_iter().next() {
+            return Some(pid);
+        }
+    }
     None
 }
 
@@ -215,10 +222,10 @@ pub fn launch_sandbox_and_watch<R: tauri::Runtime>(
     config: SandboxLaunchConfig,
 ) -> Result<u32, String> {
     let install_dir = Path::new(&config.pz_install_dir);
-    let exe_path = install_dir.join("ProjectZomboid64.exe");
+    let exe_path = crate::platform::game_launcher(install_dir);
 
     if !exe_path.exists() {
-        return Err(format!("ProjectZomboid64.exe not found at: {}", exe_path.display()));
+        return Err(format!("{} not found at: {}", crate::platform::GAME_EXE, exe_path.display()));
     }
 
     let is_normal = config.test_mode.contains("NORMAL");
@@ -258,7 +265,7 @@ pub fn launch_sandbox_and_watch<R: tauri::Runtime>(
         cmd.stdout(std::process::Stdio::null());
         cmd.stderr(std::process::Stdio::null());
 
-        let child = cmd.spawn().map_err(|e| format!("Failed to launch ProjectZomboid64.exe: {}", e))?;
+        let child = cmd.spawn().map_err(|e| format!("Failed to launch {}: {}", crate::platform::GAME_EXE, e))?;
         let child_pid = child.id();
         if is_windowed {
             crate::claude_agent::start_fit_window_guard();
@@ -284,7 +291,7 @@ pub fn launch_sandbox_and_watch<R: tauri::Runtime>(
         });
     } else {
         let _ = app.emit("sandbox-log", LogLinePayload {
-            line: format!("[PZ Monitor Center] Launched new ProjectZomboid64.exe session! PID: {} | {}", pid, mode_desc),
+            line: format!("[PZ Monitor Center] Launched new {} session! PID: {} | {}", crate::platform::GAME_EXE, pid, mode_desc),
             is_error: false,
         });
     }
@@ -2362,7 +2369,20 @@ pub fn kill_pz_game(pid: Option<u32>, force: bool) -> Result<String, String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Err("Process termination is only supported on Windows in this build.".to_string())
+        // Only ever the game: a stale or mistaken PID must not close another program.
+        let games = crate::platform::game_pids();
+        let targets: Vec<u32> = match pid {
+            Some(p) if games.contains(&p) => vec![p],
+            Some(p) => return Err(format!("Process {} is not Project Zomboid.", p)),
+            None => games,
+        };
+        if targets.is_empty() {
+            return Ok("Project Zomboid is not running.".to_string());
+        }
+        for p in &targets {
+            crate::platform::kill(*p, true, force)?;
+        }
+        Ok("Project Zomboid process terminated successfully.".to_string())
     }
 }
 
@@ -2376,10 +2396,10 @@ pub fn launch_pz_direct(
     extra_args: &[String],
 ) -> Result<u32, String> {
     let install_path = Path::new(pz_install_dir);
-    let exe_path = install_path.join("ProjectZomboid64.exe");
+    let exe_path = crate::platform::game_launcher(install_path);
 
     if !exe_path.exists() {
-        return Err(format!("ProjectZomboid64.exe not found at: {}", exe_path.display()));
+        return Err(format!("{} not found at: {}", crate::platform::GAME_EXE, exe_path.display()));
     }
 
     if windowed {
@@ -2408,7 +2428,7 @@ pub fn launch_pz_direct(
     cmd.stdout(std::process::Stdio::null());
     cmd.stderr(std::process::Stdio::null());
 
-    let child = cmd.spawn().map_err(|e| format!("Failed to spawn ProjectZomboid64.exe: {}", e))?;
+    let child = cmd.spawn().map_err(|e| format!("Failed to spawn {}: {}", crate::platform::GAME_EXE, e))?;
     let child_pid = child.id();
     thread::sleep(Duration::from_millis(300));
     Ok(find_running_pz_pid().unwrap_or(child_pid))

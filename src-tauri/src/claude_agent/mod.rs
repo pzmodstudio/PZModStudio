@@ -734,7 +734,8 @@ fn encode_png(
 }
 
 #[cfg(not(windows))]
-const NOT_WINDOWS: &str = "Game window control is only supported on Windows.";
+const NOT_WINDOWS: &str = "Game window control (park, show, screenshots, clicks, keys) is not available on Linux: it uses Windows window handles.";
+#[cfg(windows)]
 const NO_WINDOW: &str = "No Project Zomboid game window found (is ProjectZomboid64.exe running?).";
 
 /// Information about the game's main window.

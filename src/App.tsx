@@ -42,6 +42,7 @@ import { syncFavouritesWithGame } from './services/modLists';
 import { mergeLinks } from './components/common/SupportLinks';
 import { ContextMenuProvider } from './components/common/ContextMenu';
 import { SimpleHome } from './components/home/SimpleHome';
+import { SimpleOffer } from './components/layout/SimpleOffer';
 import { useUiMode } from './hooks/useUiMode';
 import { readUiMode, tabAfterSwitch } from './utils/uiMode';
 
@@ -155,9 +156,16 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!paths.is_valid || !paths.user_zomboid_dir || !healthIssues) return;
     const plain = (text: string) => text.replace(/`|\*\*/g, '').replace(/\s+/g, ' ').trim();
-    const lines: [string, string, string][] = healthIssues
+    // The issue code goes last (the Link reads it since 1.19.2): a file two mods ship is said there
+    // as "Overrides" on the mod whose copy the game uses and "Overridden" on each of the others.
+    const lines: [string, string, string, string][] = healthIssues
       .filter((i) => i.mod_id && ['act', 'recommended'].includes(issueStateOf(i)))
-      .map((i) => [issueStateOf(i) === 'act' ? 'error' : 'warning', i.mod_id as string, plain(`${labelFor(i)}: ${issueText(i)}`)]);
+      .flatMap((i): [string, string, string, string][] => {
+        const severity = issueStateOf(i) === 'act' ? 'error' : 'warning';
+        if (i.code !== 'file_conflict') return [[severity, i.mod_id as string, plain(`${labelFor(i)}: ${issueText(i)}`), i.code]];
+        const text = plain(issueText(i));
+        return [[severity, i.mod_id as string, text, i.code], ...i.related.map((id): [string, string, string, string] => [severity, id, text, 'file_conflict_overridden'])];
+      });
     void TauriService.writeLinkHealth(paths, lines);
   }, [paths, healthIssues, i18next.language]);
 
@@ -1039,8 +1047,11 @@ export const App: React.FC = () => {
     // Without a package nothing is wrong by itself: the warning is for files the active mods share
     // that no package merges (or merges from older versions of the mods), as Mod Health finds them.
     // Then, more softly, things two mods define differently: one of them wins without a word.
-    const skipFiles = localStorage.getItem('pz_skip_no_merge_warning') === 'true';
-    const skipDefinitions = localStorage.getItem('pz_skip_definition_warning') === 'true';
+    // Simple has no Merger, and its Home already said there is nothing to do: these two are
+    // optional there (the game runs, the last mod wins), so they never stop its Play.
+    const simpleView = readUiMode() === 'simple';
+    const skipFiles = simpleView || localStorage.getItem('pz_skip_no_merge_warning') === 'true';
+    const skipDefinitions = simpleView || localStorage.getItem('pz_skip_definition_warning') === 'true';
     setSkipNoMergeWarning(skipFiles);
     setSkipDefinitionWarning(skipDefinitions);
     if ((!skipFiles && unmergedFiles.length > 0) || (!skipDefinitions && unsettledDefinitions.length > 0)) {
@@ -1330,6 +1341,8 @@ export const App: React.FC = () => {
       />
       {/* A newer PZ Mod Studio on GitHub (once a day; Settings can switch it off). */}
       {!isInitializing && <UpdateNotice userZomboidDir={paths.user_zomboid_dir} />}
+      {/* Once, for a player who used the Studio before Simple existed: try it? */}
+      {!isInitializing && !welcomeOpen && <SimpleOffer />}
       {/* The help of the screen in front: "?" in the corner, or F1. */}
       <HelpButton tab={activeTab} />
       <WelcomeTour
@@ -1391,7 +1404,11 @@ export const App: React.FC = () => {
               report={health.report}
               checking={health.checking}
               onPlay={(mode, target) => void handleRunSandbox(mode, target)}
-              onGo={(tab) => setActiveTab(tab)}
+              onGo={(tab) => {
+                // From Home, Diagnostics opens on the list of what to fix, not on its front page.
+                if (tab === 'HEALTH') setHealthTabFocus('problems');
+                setActiveTab(tab);
+              }}
             />
           )}
           {activeTab === 'SAVES' && <SavesModule paths={paths} onOpenWorkshopItem={openInBrowser} onSearchWorkshop={searchInBrowser} />}

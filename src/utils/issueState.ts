@@ -62,7 +62,7 @@ export const UNDO_ACTIONS = new Set<HealthFix['action']>(['remove_compatible_cop
  * who is themselves. Unknown codes get none.
  */
 export type IssueScope = 'mod' | 'combo' | 'install' | 'own';
-const SCOPE_MOD = new Set(['community_unneeded', 'not_for_build', 'outside_version_range', 'invalid_mod_info', 'community_known_issue', 'api_missing', 'floods_console', 'zb_excluded', 'learned_issue', 'java_link_broken']);
+const SCOPE_MOD = new Set(['community_unneeded', 'not_for_build', 'outside_version_range', 'invalid_mod_info', 'require_spaced', 'community_known_issue', 'api_missing', 'floods_console', 'zb_excluded', 'learned_issue', 'java_link_broken']);
 const SCOPE_COMBO = new Set([
   'incompatible', 'community_incompatible', 'dependency_after', 'dependency_not_enabled', 'dependency_unavailable', 'missing_dependency',
   'load_after_order', 'load_before_order', 'community_rule_order', 'user_rule_order', 'translation_conflict', 'two_mod_managers', 'community_successor',

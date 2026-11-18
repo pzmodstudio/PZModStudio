@@ -22,6 +22,25 @@ describe('backendSays', () => {
     expect(backendSays('The archive has more than 20000 entries.')).toBe('El archivo tiene más de 20000 entradas.');
   });
 
+  it('says why an isolated profile cannot move its files now', () => {
+    const why =
+      'the saves, game options and mod settings of isolated profiles are moved only while no Project Zomboid game or server runs, so nothing is moved while one of them has the files open.';
+    expect(backendSays(`Close Project Zomboid first (process 812): ${why}`)).toMatch(/^Cerrá Project Zomboid primero \(proceso 812\)/);
+    expect(backendSays(`The Project Zomboid server "Knox" is running (process 77). Stop it first (Servers screen, or its console): ${why}`)).toMatch(
+      /^El servidor de Project Zomboid "Knox" está en marcha \(proceso 77\)/,
+    );
+    expect(backendSays(`A Project Zomboid server is running (process 77). Stop it first (Servers screen, or its console): ${why}`)).toMatch(
+      /^Hay un servidor de Project Zomboid en marcha \(proceso 77\)/,
+    );
+    expect(backendSays('Cannot move C:\\Zomboid\\Saves\\Sandbox\\W to D:\\x\\W: Access is denied.')).toBe(
+      'No se pudo mover C:\\Zomboid\\Saves\\Sandbox\\W a D:\\x\\W: Access is denied.',
+    );
+    expect(backendSays('Cannot move the copy away: busy')).toBe('Cannot move the copy away: busy');
+    expect(backendSays('Cannot move MyMod away (is the game or a server using it?): busy')).toBe(
+      'Cannot move MyMod away (is the game or a server using it?): busy',
+    );
+  });
+
   it('leaves an unknown text as it came', () => {
     expect(backendSays('Something nobody wrote a pattern for')).toBe('Something nobody wrote a pattern for');
   });

@@ -198,8 +198,8 @@ fn disk_space_of(path: &Path) -> Option<(u64, u64)> {
 }
 
 #[cfg(not(windows))]
-fn disk_space_of(_path: &Path) -> Option<(u64, u64)> {
-    None
+fn disk_space_of(path: &Path) -> Option<(u64, u64)> {
+    crate::platform::disk_space(path)
 }
 
 /// The backups of a save, newest first. Zips without their `.json` are not counted: they never

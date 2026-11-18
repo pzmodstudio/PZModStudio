@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { DiagnosticsCard } from './DiagnosticsCard';
+import { KeptVersionsCard } from './KeptVersionsCard';
 import { Settings, FolderOpen, CheckCircle, AlertTriangle, RefreshCw, HardDrive, Wrench, Bell, Bot, Copy, Check, Terminal, Radio, Code2, Layers, Info, Lightbulb, ExternalLink, Loader2, Languages } from 'lucide-react';
 import { AppUpdateStatus, PolyfillSection, ShimPatch } from '../../types';
 import { TauriService } from '../../services/tauri';
 import { useTranslation } from 'react-i18next';
 import { useChangeRevision } from '../../services/changes';
-import { LANGUAGES, setLanguage } from '../../i18n';
+import { AVAILABLE_LANGUAGES, currentLanguageCode, setLanguage } from '../../i18n';
 import { tHtml } from '../../i18n/html';
 import { UpdateNowButton } from '../layout/UpdateNotice';
 import { useUiMode } from '../../hooks/useUiMode';
+import { isWindows } from '../../utils/platform';
 
 export interface StudioPathsUI {
   pz_install_dir: string;
@@ -119,7 +121,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [definitionWarningSilenced, setDefinitionWarningSilenced] = useState<boolean>(
     localStorage.getItem('pz_skip_definition_warning') === 'true'
   );
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   /** Whether the launch button starts on the mode used last time (on) or always on Debug (off). */
   const [rememberLaunchMode, setRememberLaunchMode] = useState<boolean>(
     localStorage.getItem('pz_remember_launch_mode') !== 'false'
@@ -295,13 +297,15 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
 
   const getMcpConfigSnippet = () => {
     const binaryPath = mcpBinaryPath;
+    // The console server takes no arguments; the app itself (an AppImage, or no console server beside it) serves MCP with --mcp.
+    const mcpArgs = /pz-mcp-server(\.exe)?$/i.test(binaryPath) ? [] : ['--mcp'];
     if (selectedMcpClient === 'CLAUDE') {
       return JSON.stringify(
         {
           mcpServers: {
             'pz-mod-studio': {
               command: binaryPath,
-              args: [],
+              args: mcpArgs,
             },
           },
         },
@@ -314,7 +318,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           mcpServers: {
             'pz-mod-studio': {
               command: binaryPath,
-              args: [],
+              args: mcpArgs,
             },
           },
         },
@@ -327,7 +331,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           mcpServers: {
             'pz-mod-studio': {
               command: binaryPath,
-              args: [],
+              args: mcpArgs,
               disabled: false,
               autoApprove: [],
             },
@@ -342,7 +346,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           mcpServers: {
             'pz-mod-studio': {
               command: binaryPath,
-              args: [],
+              args: mcpArgs,
               description: 'Project Zomboid Mod Studio MCP Server (Build 41/42)',
             },
           },
@@ -357,7 +361,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           mcpServers: {
             'pz-mod-studio': {
               command: binaryPath,
-              args: [],
+              args: mcpArgs,
               env: {},
             },
           },
@@ -381,7 +385,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Settings className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
           <h1 className="text-base font-bold text-slate-100">{t('settings.title')}</h1>
-          <span className="text-[11px] text-slate-400">{t('settings.blurb')}</span>
+          <span className="text-[11px] text-slate-400">{simple ? t('simple.settings.headerBlurb') : t('settings.blurb')}</span>
         </div>
         {/* Simple or Complete: how much of the Studio is shown. Nothing is removed in Simple. */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
@@ -571,7 +575,8 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
               </div>
             </div>
 
-            {/* Card 4: ModListData.ini Path */}
+            {/* Card 4: ModListData.ini Path. Simple shows it only while it is missing: it is found by itself. */}
+            {!(simple && formData.mod_list_ini_path) && (
             <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-2">
               <label className="text-xs font-bold text-slate-200">
                 {t('settings.modListFile')}
@@ -593,6 +598,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
                 </button>
               </div>
             </div>
+            )}
 
           </div>
         )}
@@ -832,12 +838,12 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
               <p className="text-[11px] text-slate-500 max-w-2xl">{t('settings.language.contribute')}</p>
             </div>
             <select
-              value={i18n.language.slice(0, 2)}
+              value={currentLanguageCode()}
               onChange={(e) => setLanguage(e.target.value)}
               aria-label={t('settings.language.title')}
               className="shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 cursor-pointer"
             >
-              {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
+              {AVAILABLE_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
             </select>
           </div>
         )}
@@ -907,7 +913,8 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
                   ) : appUpdate.newer && appUpdate.latest ? (
                     <>
                       <span className="text-[11px] text-emerald-300">{t('settings.updateAvailable', { latest: appUpdate.latest, current: appUpdate.current })}</span>
-                      <UpdateNowButton version={appUpdate.latest} compact />
+                      {/* The update in place swaps the Windows exe; on Linux the release page is opened instead. */}
+                      {isWindows && <UpdateNowButton version={appUpdate.latest} compact />}
                       <button type="button" onClick={() => appUpdate.url && TauriService.openExternalUrl(appUpdate.url)}
                         className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-700 hover:bg-emerald-900/50 text-[11px] text-emerald-200 font-semibold cursor-pointer">
                         <ExternalLink className="w-3 h-3" aria-hidden="true" /> {t('settings.updateDownload')}
@@ -933,6 +940,8 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
             </button>
           </div>
         )}
+
+        {activeSubTab === 'APP' && <KeptVersionsCard paths={paths} />}
 
         {activeSubTab === 'ADVANCED' && <DiagnosticsCard paths={paths} />}
 

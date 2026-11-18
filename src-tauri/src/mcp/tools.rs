@@ -460,13 +460,66 @@ fn available_tools() -> Vec<McpTool> {
         },
         McpTool {
             name: "keep_mod_version".to_string(),
-            description: "Keeps a copy of a mod as it is installed today under Zomboid/PZModStudio_Snapshots, for when a Workshop update breaks a save. Returns the kept version (path, date, modversion). The Studio's Mod List can put it back as a local copy that wins over the Workshop one.".to_string(),
+            description: "Keeps the mod as it is installed today in the Studio's version store (Zomboid/PZModStudio_Versions, or the folder chosen with mod_versions_settings; each file once by content, so it costs only what differs from versions already kept), for when a Workshop update breaks a save. Kept by hand, the store's cap never drops it. The app also keeps the installed version of every Workshop mod a profile uses by itself. Returns the kept version (path, date, modversion); use_mod_version puts it back.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
                     "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" },
                     "mod_id": { "type": "string", "description": "The mod id as in mod.info" }
+                },
+                "required": ["mod_id"]
+            }),
+        },
+        McpTool {
+            name: "list_mod_versions".to_string(),
+            description: "The earlier versions of mods the Studio kept on this PC (Steam keeps none and offers no way to download one). With mod_id: that mod's versions, newest first, each with kept_at, version (modversion), published (when its author published it), kind (auto: kept by the app by itself; kept: by hand; copy: a plain copy from before the store), current (the one Steam has installed now), in_use (put back: the game uses it from Zomboid/mods), bytes and path (pass it to use_mod_version), and the store's folder. Without: the store's folder (folder, default_folder, folder_chosen), its settings (enabled, cap_bytes: 10 GB by default) and drive (guard: disk, free_bytes, total_bytes, reserve_bytes = 15% of the drive, which is always left free, cap_effective, limited = the drive's free space is what limits the cap) and its last round (items used/kept, mods left out for lack of room, bytes, earlier versions, cap_effective, limited_by_disk). keep_now: true runs a round of keeping first (refused while the game runs). Read-only otherwise.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_id": { "type": "string", "description": "The mod id as in mod.info (optional)" },
+                    "keep_now": { "type": "boolean", "description": "Keep the installed version of every used Workshop mod first (default false)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "mod_versions_settings".to_string(),
+            description: "The kept-versions store's settings, as in Settings > App. Without arguments: the summary list_mod_versions gives. store_dir moves the store to that folder (an empty or new folder is used as it is; one with other files, or a drive's root, gets a PZModStudio_Versions folder inside): every file is copied and read back against its hash, then the old folder is removed (on one drive it is renamed), and local copies in use are pointed at the new folder. Refused while the game runs, while a round of keeping runs, and inside Steam's Workshop folder, the game's folder, Zomboid/mods or Zomboid/Saves. cap_gb sets the cap (the player's choice from then on); enabled switches keeping by itself. Whatever the cap, a round never leaves the store's drive with less than 15% of its size free. Returns { moved, summary }.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "store_dir": { "type": "string", "description": "Folder to move the store to, e.g. D:/PZModStudio_Versions (optional)" },
+                    "cap_gb": { "type": "number", "description": "The cap in GB (optional; at least 0.25)" },
+                    "enabled": { "type": "boolean", "description": "Keep versions by itself in the background (optional)" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" },
+                    "pz_install_dir": { "type": "string", "description": "Optional game install directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "use_mod_version".to_string(),
+            description: "Puts a kept version of a mod back: written into Zomboid/mods as a local copy that the game reads instead of the Workshop one (the Studio starts the game with -modfolders mods,workshop,steam). The Workshop folder is never touched, so Steam does not undo it. Refused while the game runs, and when Zomboid/mods already has a folder of that name the Studio did not put there. Diagnostics then says kept_version_in_use; back_to_workshop_version undoes it.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "The version's path from list_mod_versions" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                },
+                "required": ["path"]
+            }),
+        },
+        McpTool {
+            name: "back_to_workshop_version".to_string(),
+            description: "Undoes use_mod_version: the kept version in use for that mod goes from Zomboid/mods to Zomboid/PZModStudio_Backups/mods and the game reads the Workshop copy again. The kept version stays in the store. Refused while the game runs and while a server's Mods= lists the mod.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_id": { "type": "string", "description": "The mod id as in mod.info" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
                 },
                 "required": ["mod_id"]
             }),
@@ -634,6 +687,16 @@ fn available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "game_live".to_string(),
+            description: "The game as it runs now, the same snapshot as the Monitor's Live panel: running and PID; the process's memory (Windows), its Java limit (-Xmx) and CPU share; from the Studio Link (every 2 s in a game while the app runs): FPS and frame time of the last 2 s, the longest frame of the last 10 s, Java heap used, the session's Lua errors by the mod blamed, whether its overlay shows and the overlay's own cost (ms per second); from the profiler when it runs (PZModStudio_Profiler, pz_profile_live.json every 2 s): each mod's Lua time over the last 10 s (ms, ms per second, share, calls, longest call); profiler_on (in the active list: runs from the next start; get_mod_game_time on:true turns it on); and history, points of the last 10 minutes (fps, longest frame, memory, heap, CPU, Lua ms/s, errors) kept by the app while it runs. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
             name: "server_settings".to_string(),
             description: "Every option of a server's settings (Zomboid/Server/<name>.ini and <name>_SandboxVars.lua), as the game lists them: read with name, or set options with set_server / set_sandbox (objects name -> value; sandbox names dotted, e.g. ZombieLore.Speed; enums by choice number from 1). The option list (type, default, range, label, help, choices, the mods' sandbox options) is what the Studio Link wrote at the game's main menu (Lua/PZModStudio_LinkSettings.txt); values are checked against it. Writing changes only those lines, keeps comments and order, adds a missing option where it belongs, backs both files up to PZModStudio_Backups/server_settings, and is refused while the Studio runs that server. Without name: the option list only.".to_string(),
             input_schema: json!({
@@ -695,6 +758,7 @@ fn available_tools() -> Vec<McpTool> {
                 "type": "object",
                 "properties": {
                     "mod_ids": { "type": "array", "items": { "type": "string" }, "description": "Mod ids to check (default: the active list)" },
+                    "active_mod_ids": { "type": "array", "items": { "type": "string" }, "description": "The list whose mods' definitions count as known, as the game loads it (requirements that are off included); default: default.txt" },
                     "pz_install_dir": { "type": "string", "description": "Optional game install directory" },
                     "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
                     "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
@@ -1087,6 +1151,7 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
             json_result::<Vec<crate::overrides::SharedFunction>>(Ok(shared))
         }
         "game_resources" => json_result::<crate::resources::Resources>(Ok(crate::resources::read(&resolve_paths(&args)))),
+        "game_live" => json_result::<crate::live::LiveSnapshot>(Ok(crate::live::snapshot(&resolve_paths(&args)))),
         "zb_exclusions" => {
             let paths = resolve_paths(&args);
             let file = if args.get("log").and_then(|v| v.as_str()) == Some("server") { "server-console.txt" } else { "console.txt" };
@@ -1103,6 +1168,10 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
             json_result(crate::game_archive::status(&paths, args.get("archive_now").and_then(|v| v.as_bool()).unwrap_or(false)))
         }
         "keep_mod_version" => handle_keep_mod_version(args),
+        "list_mod_versions" => handle_list_mod_versions(args),
+        "mod_versions_settings" => handle_mod_versions_settings(args),
+        "use_mod_version" => handle_use_mod_version(args),
+        "back_to_workshop_version" => handle_back_to_workshop_version(args),
         "make_compatible_copy" => handle_make_compatible_copy(args),
         "remove_compatible_copy" => handle_remove_compatible_copy(args),
         "remove_local_mod" => handle_remove_local_mod(args),
@@ -1271,7 +1340,7 @@ fn handle_get_game_status() -> ToolCallResult {
     let result = json!({
         "is_running": pid_opt.is_some(),
         "process_id": pid_opt,
-        "process_name": "ProjectZomboid64.exe",
+        "process_name": crate::platform::GAME_EXE,
         "description": if pid_opt.is_some() {
             "Project Zomboid is actively running."
         } else {
@@ -1777,7 +1846,7 @@ fn handle_launch_game(args: Value) -> ToolCallResult {
                         "park": park,
                         "no_focus_steal": no_focus_steal,
                         "extra_args": extra_args,
-                        "message": if park || no_focus_steal {
+                        "message": if (park || no_focus_steal) && cfg!(windows) {
                             format!("Project Zomboid launched with PID: {}. A windowed game is maximized while it boots.", pid)
                         } else {
                             format!("Project Zomboid launched successfully with PID: {}", pid)
@@ -2386,17 +2455,78 @@ fn handle_keep_mod_version(args: Value) -> ToolCallResult {
         return json_result::<()>(Err("'mod_id' is required.".to_string()));
     }
     let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
-    let result = catalog
-        .resolve(mod_id)
-        .ok_or_else(|| format!("{} is not installed.", mod_id))
-        .and_then(|m| {
-            let workshop_id = match &m.source {
-                crate::catalog::ModSource::Workshop { workshop_id } => Some(workshop_id.clone()),
-                _ => None,
-            };
-            crate::snapshots::keep_version(&paths.user_zomboid_dir, &m.id, &m.name, Path::new(&m.root_dir), m.info.mod_version.clone(), workshop_id)
-        });
-    json_result(result)
+    json_result(crate::snapshots::keep_mod(&catalog, &paths.user_zomboid_dir, &paths.workshop_dir, mod_id))
+}
+
+fn handle_list_mod_versions(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let mut round = Value::Null;
+    if args.get("keep_now").and_then(|v| v.as_bool()).unwrap_or(false) {
+        round = match crate::snapshots::keep_round(&paths, true) {
+            Ok(status) => json!(status),
+            Err(e) => return json_result::<()>(Err(e)),
+        };
+    }
+    let mod_id = arg_str(&args, "mod_id");
+    if mod_id.is_empty() {
+        return json_result(crate::snapshots::summary(&paths.user_zomboid_dir).map(|s| json!({ "store": s, "round": round })));
+    }
+    let versions: Vec<_> = crate::snapshots::list_kept_versions(&paths.user_zomboid_dir, &paths.workshop_dir).into_iter().filter(|v| v.mod_id == mod_id).collect();
+    let folder = crate::snapshots::summary(&paths.user_zomboid_dir).map(|s| s.folder).ok();
+    json_result::<Value>(Ok(json!({ "mod_id": mod_id, "versions": versions, "folder": folder, "round": round })))
+}
+
+fn handle_mod_versions_settings(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let mut moved = Value::Null;
+    let store_dir = arg_str(&args, "store_dir");
+    if !store_dir.is_empty() {
+        moved = match crate::snapshots::set_folder(&paths, store_dir) {
+            Ok(m) => json!(m.moved),
+            Err(e) => return json_result::<()>(Err(e)),
+        };
+    }
+    let cap_gb = args.get("cap_gb").and_then(|v| v.as_f64());
+    let enabled = args.get("enabled").and_then(|v| v.as_bool());
+    if cap_gb.is_some() || enabled.is_some() {
+        let now = match crate::snapshots::summary(&paths.user_zomboid_dir) {
+            Ok(s) => s.settings,
+            Err(e) => return json_result::<()>(Err(e)),
+        };
+        let cap = cap_gb.map(|g| (g.max(0.0) * (1u64 << 30) as f64) as u64).unwrap_or(now.cap_bytes);
+        if let Err(e) = crate::snapshots::set_settings(&paths.user_zomboid_dir, enabled.unwrap_or(now.enabled), cap) {
+            return json_result::<()>(Err(e));
+        }
+    }
+    json_result(crate::snapshots::summary(&paths.user_zomboid_dir).map(|s| json!({ "moved": moved, "summary": s })))
+}
+
+fn handle_use_mod_version(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let path = arg_str(&args, "path");
+    if path.is_empty() {
+        return json_result::<()>(Err("'path' is required (from list_mod_versions).".to_string()));
+    }
+    if let Some(pid) = find_running_pz_pid() {
+        return json_result::<()>(Err(format!("The game is running (PID {}): close it first, it holds the mod's files.", pid)));
+    }
+    json_result(crate::snapshots::restore_kept_version(&paths.user_zomboid_dir, path))
+}
+
+fn handle_back_to_workshop_version(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let mod_id = arg_str(&args, "mod_id");
+    if mod_id.is_empty() {
+        return json_result::<()>(Err("'mod_id' is required.".to_string()));
+    }
+    if let Some(pid) = find_running_pz_pid() {
+        return json_result::<()>(Err(format!("The game is running (PID {}): close it first, it holds the mod's files.", pid)));
+    }
+    if let Some(servers) = crate::catalog::listed_by_a_server(&paths.user_zomboid_dir, mod_id) {
+        return json_result::<()>(Err(format!("The kept version of {} stays: the server {} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.", mod_id, servers)));
+    }
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    json_result(crate::snapshots::back_to_workshop(&catalog, &paths.user_zomboid_dir, mod_id).map(|folder| json!({ "folder": folder, "moved_to": "Zomboid/PZModStudio_Backups/mods" })))
 }
 
 /// The Diagnostics fix "make_compatible_copy", as the app's button does it.
@@ -2635,7 +2765,11 @@ fn handle_java_patches(args: Value) -> ToolCallResult {
 fn handle_check_mod_api(args: Value) -> ToolCallResult {
     let paths = resolve_paths(&args);
     let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
-    let active = crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default();
+    // The list whose definitions count as known: `active_mod_ids`, else default.txt.
+    let active: Vec<String> = match args.get("active_mod_ids").and_then(|v| v.as_array()) {
+        Some(a) if !a.is_empty() => a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
+        _ => crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default(),
+    };
     let ids: Vec<String> = match args.get("mod_ids").and_then(|v| v.as_array()) {
         Some(a) if !a.is_empty() => a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
         _ => active.clone(),
@@ -2782,7 +2916,7 @@ fn handle_mod_group(args: Value) -> ToolCallResult {
 pub const DOCTOR_READ_TOOLS: &[&str] = &[
     "get_studio_paths", "get_game_status", "get_monitor_logs", "list_available_logs", "get_crash_diagnostics", "get_error_report", "zb_exclusions",
     "server_status", "mp_test_status", "list_installed_mods", "get_mod_health", "sort_mod_load_order", "scan_mod_conflicts", "list_mod_profiles",
-    "list_merged_packages", "game_resources", "function_overrides", "mp_check_mods", "scan_mod_security", "java_patches", "java_links", "session_changes", "check_mod_api",
+    "list_merged_packages", "game_resources", "game_live", "function_overrides", "mp_check_mods", "scan_mod_security", "java_patches", "java_links", "session_changes", "check_mod_api",
     "get_frame_report", "workshop_item", "workshop_comments", "workshop_search", "community_index_lookup", "learned_on_this_pc", "brain_overview",
     "brain_mod_history", "mod_notes_and_groups", "list_load_rules", "save_inside", "learned_index_drafts", "brain_suspects", "brain_period", "brain_marks",
 ];

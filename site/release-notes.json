@@ -1,4 +1,17 @@
 {
+ "1.11.0": [
+  "The app in Português (Brasil), Français, Deutsch, Русский and 简体中文",
+  "The Doctor understands questions in all seven languages",
+  "Help pages and the in-game Link in every language",
+  "Linux version: AppImage and .deb",
+  "Servers: install the official dedicated server, restarts on a schedule, after a crash or a mod update",
+  "Kept versions: the version of each mod before a Steam update stays on this PC",
+  "Live panel and in-game overlay: FPS, memory and the mods whose Lua takes the most time",
+  "Diagnostics follow the order the game really loads mods in, fewer false findings",
+  "Diagnostics: a require= with a space after a comma keeps a mod out of the game",
+  "Simple view: plain findings and one-press fixes",
+  "Link 1.20.0: translated, live overlay, Diagnostics codes on each finding"
+ ],
  "1.10.0": [
   "Simple view for beginners: a Home screen with Play and what to fix first",
   "Profiles: each keeps its own saves, game options and mod settings",

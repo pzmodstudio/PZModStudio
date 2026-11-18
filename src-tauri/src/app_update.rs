@@ -143,7 +143,8 @@ fn status(state: &State, error: Option<String>) -> UpdateStatus {
         newer,
         checked_at: state.checked_at,
         error,
-        self_update: state.source.as_deref() != Some("itch"),
+        // The update in place swaps the Windows exe; on Linux the release page is opened instead.
+        self_update: cfg!(windows) && state.source.as_deref() != Some("itch"),
     }
 }
 

@@ -13,6 +13,9 @@ import { Activity, BookOpen, Check, ChevronRight, Info, Layers, MessageSquare, N
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { tHtml } from '../../i18n/html';
+import { useUiMode } from '../../hooks/useUiMode';
+import { simpleRowIssues } from '../../utils/uiMode';
+import { ModVersionsLine } from './KeptVersions';
 
 /** The first problem of each kind the health check found for the selected mod, if any. */
 export interface InspectorProblems {
@@ -58,6 +61,8 @@ interface ModInspectorProps {
   groups: string[];
   onEditNote?: (mod: ModInfo) => void;
   onEditGroups?: (mod: ModInfo) => void;
+  /** Opens the versions of the mod the Studio kept (shown when an earlier one is kept or one is in use). */
+  onOpenVersions?: (mod: ModInfo) => void;
 }
 
 type InspectorTab = 'studio' | 'page' | 'comments';
@@ -159,8 +164,8 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   fixContext,
   catalogEntry,
   errorStat,
-  loadMs,
-  gameShare,
+  loadMs: allLoadMs,
+  gameShare: allGameShare,
   profileNames,
   activeProfileName,
   note,
@@ -170,8 +175,16 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   groups,
   onEditNote,
   onEditGroups,
+  onOpenVersions,
 }) => {
   const { t } = useTranslation();
+  /**
+   * Simple: what the mod is, what it needs, what to fix and last session's errors. Notes, groups,
+   * what the Studio learned of it, load and play times and its Java are Complete's.
+   */
+  const simple = useUiMode()[0] === 'simple';
+  const loadMs = simple ? undefined : allLoadMs;
+  const gameShare = simple ? undefined : allGameShare;
   const [imageError, setImageError] = useState<boolean>(false);
   /** The poster shown full size over the screen. */
   const [posterBig, setPosterBig] = useState(false);
@@ -321,7 +334,7 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   const showOrderCard = orderViolation && !codes.has('dependency_after') && !codes.has('load_after_order');
   const showDisabledCard = disabledDependency && !codes.has('dependency_not_enabled');
   const showIncompatCard = incompatibility && !codes.has('incompatible') && !codes.has('community_incompatible');
-  const visibleIssues = issues.filter((i) => issueStateOf(i) !== 'handled');
+  const visibleIssues = simple ? simpleRowIssues(issues) : issues.filter((i) => issueStateOf(i) !== 'handled');
   const worst = visibleIssues.reduce<IssueState | null>(
     (w, i) => (w === null || STATE_ORDER.indexOf(issueStateOf(i)) < STATE_ORDER.indexOf(w) ? issueStateOf(i) : w),
     null
@@ -396,7 +409,8 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
           >
             {mod.name}
           </h3>
-          <div className="text-[11px] font-mono text-emerald-400/90 truncate" title={mod.mod_id}>{mod.mod_id}</div>
+          {/* The id is for mod makers and server files: Simple leaves it to Complete. */}
+          {!simple && <div className="text-[11px] font-mono text-emerald-400/90 truncate" title={mod.mod_id}>{mod.mod_id}</div>}
           <div className="text-[11px] text-slate-400 truncate">
             {[mod.author || t('inspector.unknown'), mod.version ? `v${mod.version}` : null].filter(Boolean).join(' · ')}
           </div>
@@ -457,8 +471,20 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
       <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
         {shownTab === 'studio' && (
           <>
+        {/* Simple: the player's note, when there is one, to read (it is edited in Complete). */}
+        {simple && note && (
+          <div className="rounded-lg border border-sky-800/60 bg-sky-950/30 px-3 py-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-sky-300">
+              <StickyNote className="w-3 h-3" aria-hidden="true" />
+              {t('inspector.sections.notes')}
+            </div>
+            <div className="mt-1 text-[12px] text-sky-100 whitespace-pre-wrap break-words leading-relaxed">{note}</div>
+          </div>
+        )}
+        {/* An earlier version kept, or one in use: going back after an update. */}
+        {onOpenVersions && <ModVersionsLine paths={paths} modId={mod.mod_id} onOpen={() => onOpenVersions(mod)} />}
         {/* The player's own: note, groups, profiles */}
-        <Section icon={StickyNote} iconClass="text-sky-300" title={t('inspector.sections.notes')}>
+        {!simple && <Section icon={StickyNote} iconClass="text-sky-300" title={t('inspector.sections.notes')}>
           <div className="space-y-2.5">
             {note ? (
               <div className="rounded-lg border border-sky-800/60 bg-sky-950/30 px-3 py-2">
@@ -523,7 +549,7 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
               </div>
             </div>
           </div>
-        </Section>
+        </Section>}
 
         {/* What to do: every finding of the health check, worst first, with its fix */}
         {problemCount > 0 ? (
@@ -589,9 +615,11 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
         )}
 
         {/* On this PC: what the brain learned of it across sessions */}
-        <Section icon={Brain} iconClass="text-violet-300" title={t('brain.history.title')} foldId="brain">
-          <ModBrainSection paths={paths} modId={mod.mod_id} name={nameOf ?? ((id) => id)} />
-        </Section>
+        {!simple && (
+          <Section icon={Brain} iconClass="text-violet-300" title={t('brain.history.title')} foldId="brain">
+            <ModBrainSection paths={paths} modId={mod.mod_id} name={nameOf ?? ((id) => id)} />
+          </Section>
+        )}
 
         {/* Last session: what the game logged and what it cost */}
         {hasSession && (
@@ -717,7 +745,7 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
         </Section>
 
         {/* What the mod's Java changes: folded, it is for the curious */}
-        {javaPatches && (
+        {javaPatches && !simple && (
           <details className="group">
             <summary className="list-none cursor-pointer select-none flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200">
               <ChevronRight className="w-3.5 h-3.5 transition group-open:rotate-90" />

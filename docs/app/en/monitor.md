@@ -7,10 +7,26 @@ The Monitor shows the game's log as it is written and turns each error into a ca
 - On the left, the log viewer, with one tab per log.
 - On the right, **ERRORS AND WARNINGS**: the error cards, and above them the **Find the mod that does it** panel.
 - At the top, **See how the game runs** opens Diagnostics > Game > Live: memory, CPU and which screen the game is on.
+- Above the log, while the game runs (Full view), the **Live** panel: see below.
 - At the top, **📁 Logs Folder** opens the folder with `console.txt` and the `Logs` subfolder in Windows Explorer.
 - Next to it, the spam filter button. While it reads **Spam Filter: ACTIVE** it hides the lines about missing translations; press it to switch to **Filter: SHOW ALL**.
 
 If the game folder is not set yet, the screen only shows **Configure Directory Paths in Settings**.
+
+## Live (while the game runs)
+
+In the Full view, while the game is open, a **Live** panel sits above the log. Its title line sums it up (FPS, Java memory, CPU, Lua errors); a click folds it. It is read every 2 seconds:
+
+- **FPS, last minutes**: a line of the last 10 minutes (move the mouse over it to read a moment); the dashed line is 30 FPS. Under it the average frame and the longest frame of the last 10 seconds, the memory Java uses against its limit, the whole process's memory with what the PC has free, and the CPU. A second line follows the memory.
+- **Lua time now, by mod**: the 5 mods whose Lua took the most time over the last 10 seconds, in milliseconds per second of play. It comes from the Studio profiler. When the profiler is off nothing is timed, and the panel says so with **Turn it on for the next start**: the profiler goes first in the mod list (and in the save you played last) and measures from the next time you start the game.
+- **Lua errors this session**: how many, and which mods the game blamed, as the Studio Link counts them in the game; under it the newest error cards, marked **new** when they came while you watched.
+- A last line says whether the Link's overlay shows in the game and what its own code costs.
+
+FPS, Java memory and errors come from the Studio Link (version 1.20 or newer), once you are in a game. The panel goes away when the game closes.
+
+### The overlay in the game
+
+The Studio Link can show the same numbers over the game: FPS and frame time, Java memory against its limit, CPU, the 5 mods with the most Lua time in the last 10 seconds (with the profiler on) and the session's Lua errors with the mods blamed. Open it from the pause menu with **Live overlay**, or give it a key in the game's **Options > Mods > PZ Mod Studio Link** (it has none until you choose one, so it never takes a key of the game's). Drag it where you want it; it stays there and comes back in the next game. Its last line says what it costs itself, in milliseconds per second. The memory limit and the CPU are known only while PZ Mod Studio is open.
 
 ## The log viewer
 

@@ -25,6 +25,7 @@ pub mod profile_saves;
 pub mod zb_watermark;
 pub mod zb_exclusions;
 pub mod lists;
+pub mod live;
 pub mod load_order;
 pub mod map_cells;
 pub mod mod_cache;
@@ -37,6 +38,7 @@ pub mod nexus;
 pub mod origins;
 pub mod overrides;
 pub mod patch_generator;
+pub mod platform;
 pub mod preset_manager;
 pub mod profile_snapshots;
 pub mod resources;
@@ -801,18 +803,50 @@ fn recopy_workshop_cmd(paths: StudioPaths, mod_id: String) -> Result<Vec<String>
 #[tauri::command(async)]
 fn keep_mod_version_cmd(paths: StudioPaths, mod_id: String) -> Result<snapshots::KeptVersion, String> {
     let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
-    let m = catalog.resolve(&mod_id).ok_or_else(|| format!("{} is not installed.", mod_id))?;
-    let workshop_id = match &m.source {
-        catalog::ModSource::Workshop { workshop_id } => Some(workshop_id.clone()),
-        _ => None,
-    };
-    snapshots::keep_version(&paths.user_zomboid_dir, &m.id, &m.name, std::path::Path::new(&m.root_dir), m.info.mod_version.clone(), workshop_id)
+    snapshots::keep_mod(&catalog, &paths.user_zomboid_dir, &paths.workshop_dir, &mod_id)
+}
+
+/// "Back to the Workshop version": the kept version in use as a local copy goes to the backups.
+#[tauri::command(async)]
+fn back_to_workshop_version_cmd(paths: StudioPaths, mod_id: String) -> Result<String, String> {
+    if sandbox::find_running_pz_pid().is_some() {
+        return Err("The game is running: close it first, it holds the mod's files.".to_string());
+    }
+    let catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    if let Some(servers) = catalog::listed_by_a_server(&paths.user_zomboid_dir, &mod_id) {
+        return Err(format!("The kept version of {} stays: the server {} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.", mod_id, servers));
+    }
+    snapshots::back_to_workshop(&catalog, &paths.user_zomboid_dir, &mod_id)
+}
+
+/// The kept-versions store: its settings and what its last round found.
+#[tauri::command(async)]
+fn kept_versions_summary_cmd(paths: StudioPaths) -> Result<snapshots::StoreSummary, String> {
+    snapshots::summary(&paths.user_zomboid_dir)
+}
+
+#[tauri::command(async)]
+fn set_kept_versions_settings_cmd(paths: StudioPaths, enabled: bool, cap_bytes: u64) -> Result<snapshots::StoreSummary, String> {
+    snapshots::set_settings(&paths.user_zomboid_dir, enabled, cap_bytes)
+}
+
+/// Moves the kept-versions store to another folder (Settings' "Choose folder").
+#[tauri::command(async)]
+fn set_kept_versions_folder_cmd(paths: StudioPaths, folder: String) -> Result<snapshots::FolderMoved, String> {
+    snapshots::set_folder(&paths, &folder)
+}
+
+/// A round of keeping now (Settings' "Keep now"), then the summary.
+#[tauri::command(async)]
+fn kept_versions_round_cmd(paths: StudioPaths) -> Result<snapshots::StoreSummary, String> {
+    snapshots::keep_round(&paths, true)?;
+    snapshots::summary(&paths.user_zomboid_dir)
 }
 
 /// Mod Health's warnings for the game's Mods screen (the Link mod draws them on each mod):
-/// `(severity, mod id, text)`, the text already in the player's language.
+/// `(severity, mod id, text, issue code)`, the text already in the player's language.
 #[tauri::command(async)]
-fn write_link_health_cmd(paths: StudioPaths, lines: Vec<(String, String, String)>) -> Result<(), String> {
+fn write_link_health_cmd(paths: StudioPaths, lines: Vec<(String, String, String, String)>) -> Result<(), String> {
     let Some(z_dir) = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
         return Ok(());
     };
@@ -1230,7 +1264,13 @@ fn inside_studio_folders(target: &std::path::Path) -> bool {
         .filter(|d| !d.is_empty())
         .filter_map(|d| std::fs::canonicalize(d).ok())
         .any(|root| target.starts_with(root));
-    inside || vfs::linked_mod_roots(&paths.user_zomboid_dir).iter().any(|root| target.starts_with(root))
+    // The kept versions of mods, wherever the player put them.
+    let store = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir)
+        .into_iter()
+        .next()
+        .and_then(|z| std::fs::canonicalize(snapshots::store::Store::at(&z).root).ok())
+        .is_some_and(|root| target.starts_with(root));
+    inside || store || vfs::linked_mod_roots(&paths.user_zomboid_dir).iter().any(|root| target.starts_with(root))
 }
 
 /// The names a mod's Lua calls that the installed build does not have (globals, methods,
@@ -1530,6 +1570,13 @@ fn profile_saves_cmd(paths: StudioPaths, set: String) -> Vec<String> {
     zomboid_dir_of(&paths).map(|z| profile_saves::worlds_of(&z, &set)).unwrap_or_default()
 }
 
+/// What isolating profiles left shared because it was too big to copy (a file over 20 MB or a
+/// folder over 50 MB that is not a setting): the same for every profile.
+#[tauri::command(async)]
+fn profile_left_shared_cmd(paths: StudioPaths) -> Vec<profile_saves::LeftShared> {
+    zomboid_dir_of(&paths).map(|z| profile_saves::left_shared(&z)).unwrap_or_default()
+}
+
 /// Whether ProjectZomboid64.exe is running, and its pid.
 #[tauri::command(async)]
 fn game_status_cmd() -> Option<u32> {
@@ -1597,6 +1644,13 @@ fn boot_history_cmd(paths: StudioPaths) -> Vec<sandbox::load_times::BootTimes> {
     sandbox::load_times::boot_history(&paths.user_zomboid_dir, 12)
 }
 
+/// The game as it runs now: frames, memory, CPU, the mods whose Lua takes the most time, the
+/// session's errors, and the last minutes (crate::live).
+#[tauri::command(async)]
+fn game_live_cmd(paths: StudioPaths) -> live::LiveSnapshot {
+    live::snapshot(&paths)
+}
+
 /// Whether the in-game profiler is on, and what it measured last.
 #[tauri::command(async)]
 fn profiler_status_cmd(paths: StudioPaths) -> sandbox::profiler::ProfilerStatus {
@@ -1624,12 +1678,15 @@ fn mark_profile_played_cmd(user_zomboid_dir: String, instance_id: String) -> Res
 
 #[tauri::command(async)]
 fn list_kept_versions_cmd(paths: StudioPaths) -> Vec<snapshots::KeptVersion> {
-    snapshots::list_kept_versions(&paths.user_zomboid_dir)
+    snapshots::list_kept_versions(&paths.user_zomboid_dir, &paths.workshop_dir)
 }
 
 /// Puts a kept version back as a local copy that wins over the Workshop original.
 #[tauri::command(async)]
 fn restore_kept_version_cmd(paths: StudioPaths, path: String) -> Result<snapshots::KeptVersion, String> {
+    if sandbox::find_running_pz_pid().is_some() {
+        return Err("The game is running: close it first, it holds the mod's files.".to_string());
+    }
     snapshots::restore_kept_version(&paths.user_zomboid_dir, &path)
 }
 
@@ -2121,8 +2178,12 @@ fn has_extension(path: &str, allowed: &[&str]) -> bool {
 /// Where the Studio's own MCP server sits, so the config the user copies is one that works.
 #[tauri::command(async)]
 fn mcp_server_path_cmd() -> Result<String, String> {
+    // An AppImage runs from a mount that changes every start: the AppImage file itself (with --mcp).
+    if let Some(appimage) = std::env::var_os("APPIMAGE").filter(|_| !cfg!(windows)) {
+        return Ok(appimage.to_string_lossy().to_string());
+    }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let beside = exe.with_file_name("pz-mcp-server.exe");
+    let beside = exe.with_file_name(if cfg!(windows) { "pz-mcp-server.exe" } else { "pz-mcp-server" });
     // In a portable copy the console server sits next to the app; falling back to the app itself
     // is still right, because it serves MCP with --mcp.
     Ok(if beside.is_file() { beside } else { exe }.to_string_lossy().to_string())
@@ -2342,6 +2403,8 @@ pub fn run() {
             }
             // What changes on disk while the game runs (its own folder, Zomboid, ZombieBuddy's).
             integrity::watch_in_background();
+            // The installed version of every used Workshop mod, kept before Steam replaces it.
+            snapshots::watch_in_background();
             // Follow console.txt from the start: the game is often launched from Steam.
             sandbox::watch_console_log(app.handle().clone());
             // The Studio server's and player 2's logs make cards too, marked with their log.
@@ -2351,6 +2414,8 @@ pub fn run() {
             // The hosted server's news to its Discord channel, when the player set one.
             discord::watch();
             discord_commands::watch();
+            // Scheduled, mod-update and asked restarts of the Studio's server, and its crash restarts.
+            server_manager::restarts::watch();
             // The window opens where and how it was left (it starts hidden so it does not jump).
             if let Some(window) = app.get_webview_window("main") {
                 window_prefs::restore(&window);
@@ -2496,6 +2561,7 @@ pub fn run() {
             open_backups_folder_cmd,
             mod_load_times_cmd,
             profiler_status_cmd,
+            game_live_cmd,
             smooth_frames_cmd,
             boot_history_cmd,
             game_memory_cmd,
@@ -2542,6 +2608,11 @@ pub fn run() {
             sync_game_favourites_cmd,
             restore_kept_version_cmd,
             delete_kept_version_cmd,
+            back_to_workshop_version_cmd,
+            kept_versions_summary_cmd,
+            set_kept_versions_settings_cmd,
+            set_kept_versions_folder_cmd,
+            kept_versions_round_cmd,
             nexus_search_cmd,
             nexus_categories_cmd,
             nexus_mod_details_cmd,
@@ -2629,6 +2700,13 @@ pub fn run() {
             send_server_command,
             get_server_quick_settings,
             save_server_quick_settings,
+            server_manager::dedicated::dedicated_server_view,
+            server_manager::dedicated::dedicated_server_set,
+            server_manager::dedicated::dedicated_server_install,
+            server_manager::dedicated::dedicated_server_cancel,
+            server_manager::restarts::server_restarts_view,
+            server_manager::restarts::server_schedule_save,
+            server_manager::restarts::server_restart_request,
             list_instances,
             create_instance,
             activate_instance,
@@ -2636,6 +2714,7 @@ pub fn run() {
             update_instance,
             set_own_saves,
             profile_saves_cmd,
+            profile_left_shared_cmd,
             save_master_load_order,
             instance_manager::set_profile_members
         ])
