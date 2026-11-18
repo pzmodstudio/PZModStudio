@@ -188,6 +188,28 @@ pub fn copy_workshop_mods_for_server(
     java_mods::copy_into_mods(&primary_dir(&paths.user_zomboid_dir), &found)
 }
 
+/// Copies ZombieBuddy's `zbNative.dll` and `ZombieBuddy.jar` from the game's folder into the
+/// dedicated server's folder (when servers start from it), so its servers load Java mods.
+/// Refused while the Studio's server runs from that folder.
+pub fn copy_zombiebuddy_to_dedicated(user_zomboid_dir: &str) -> Result<Vec<String>, String> {
+    let (program_dir, dedicated) = server_program_dir();
+    if !dedicated {
+        return Err("Servers start from the game's own folder: ZombieBuddy's files are already there when the game ran with it.".to_string());
+    }
+    if let Ok(st) = get_dedicated_server_status(primary_dir(user_zomboid_dir).to_string_lossy().to_string()) {
+        let same = st.program_dir.as_deref().map(|d| Path::new(d) == program_dir).unwrap_or(false);
+        if st.is_running && same {
+            return Err("The Studio's server is running from the dedicated server's folder: stop it first, then copy.".to_string());
+        }
+    }
+    java_mods::copy_agent_files(Path::new(&crate::vfs::trusted_install_dir()), &program_dir)
+}
+
+#[tauri::command(async)]
+pub fn copy_zombiebuddy_to_dedicated_cmd(paths: crate::vfs::StudioPaths) -> Result<Vec<String>, String> {
+    copy_zombiebuddy_to_dedicated(&paths.user_zomboid_dir)
+}
+
 /// The name the Studio keeps a server's admin password under in Windows Credential Manager, so
 /// an MCP client can start that server again without being handed the password.
 pub fn admin_password_secret(server_name: &str) -> String {

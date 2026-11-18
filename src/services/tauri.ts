@@ -2184,6 +2184,10 @@ export const TauriService = {
   copyWorkshopModsForServer: (paths: StudioPathsUI, filePath: string, nosteam = false): Promise<string[]> =>
     invoke<string[]>('copy_workshop_mods_for_server', { paths, filePath, nosteam }),
 
+  /** ZombieBuddy's zbNative.dll and ZombieBuddy.jar from the game's folder into the dedicated server's. */
+  copyZombieBuddyToDedicated: (paths: StudioPathsUI): Promise<string[]> =>
+    invoke<string[]>('copy_zombiebuddy_to_dedicated_cmd', { paths }),
+
   /** `nosteam`: the server will be started without Steam, so mods only in the Workshop folder are flagged. */
   checkServerMods: async (paths: StudioPathsUI, filePath: string, nosteam = false): Promise<ServerModReport | null> => {
     try {

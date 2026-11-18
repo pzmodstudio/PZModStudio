@@ -2684,6 +2684,9 @@
       "syncButton": "Escribir mi lista en este servidor (Mods, WorkshopItems y Map)",
       "copyWorkshop": "Copiar {{count}} mod(s) del Workshop en Zomboid/mods",
       "copyWorkshopTitle": "Copia la carpeta del Workshop de cada uno de estos mods en Zomboid/mods, para que un servidor NoSteam los encuentre. Un enlace a la carpeta del Workshop se reemplaza por una copia, y una copia desactualizada que hizo el Studio se vuelve a copiar; cualquier otra carpeta con el mismo nombre nunca se toca.",
+      "zbCopy": "Copiar los archivos de ZombieBuddy al servidor dedicado",
+      "zbCopyTitle": "Copia zbNative.dll y ZombieBuddy.jar de la carpeta del juego a la del servidor dedicado, así sus servidores cargan los mods Java. No cambia nada más.",
+      "zbCopied": "Copiados {{list}} a {{folder}}: el próximo arranque carga los mods Java.",
       "copying": "Copiando…",
       "copied": "Copiados en Zomboid/mods: {{list}}",
       "copyError": "No se pudo copiar: {{error}}"

@@ -47,7 +47,7 @@
 
 **更新**会对那个文件夹和分支再次运行 SteamCMD（如果你改了分支则切换分支）。对于完整的安装，它只获取有变化的部分，几秒钟就能完成（没有变化时显示“Already up to date”）；如果之前的安装被中断，或文件检查被停止，它会检查每个文件，需要很多分钟。框中还会说明服务器启动时的游戏版本，以及它是否与你的游戏一致：游戏只能加入与自己版本相同的服务器。
 
-带 ZombieBuddy 的 Java 模组还需要那个文件夹中有 ZombieBuddy 的 `zbNative.dll` 和 `ZombieBuddy.jar`：从游戏文件夹中复制过去（游戏用它启动时，ZombieBuddy 会把它们放在那里）。在它们到位之前，服务器会在没有代理的情况下启动，**模组与同步**会说明这一点。
+带 ZombieBuddy 的 Java 模组还需要那个文件夹中有 ZombieBuddy 的 `zbNative.dll` 和 `ZombieBuddy.jar`：从游戏文件夹中复制过去（**模组与同步**里的**把 ZombieBuddy 的文件复制到专用服务器**按钮会帮你完成）（游戏用它启动时，ZombieBuddy 会把它们放在那里）。在它们到位之前，服务器会在没有代理的情况下启动，**模组与同步**会说明这一点。
 
 **Java 模组（ZombieBuddy）。**带 Java 代码的 Build 42 模组需要 ZombieBuddy，而 ZombieBuddy 需要在服务器的命令行中加入它的代理。当服务器的 `Mods=` 中有 ZombieBuddy（也写作 `\ZombieBuddy`）时，Studio 会用 `-agentlib:zbNative=policy=deny-new` 启动它，这个标签页上会有一条说明。*deny-new* 表示服务器只加载这台电脑已经在 ZombieBuddy 窗口中批准过的 jar（它们保存在你用户文件夹中的 `.zombie_buddy/mod_approvals.json`），其余的不经询问一律拒绝：服务器没有窗口，询问会让它永远卡住。**模组与同步**会说明哪些 jar 还没有被批准。
 

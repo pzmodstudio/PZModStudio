@@ -73,7 +73,7 @@ use load_order::mod_info::{scan_all_installed_mods, ModManifest};
 use patch_generator::{generate_master_patch, MasterPatchRequest, MasterPatchResult};
 use preset_manager::{check_missing_preset_mods, export_preset_file, import_preset_file};
 use sandbox::{launch_sandbox_and_watch, SandboxLaunchConfig};
-use server_manager::{check_server_mods, copy_workshop_mods_for_server};
+use server_manager::{check_server_mods, copy_workshop_mods_for_server, copy_zombiebuddy_to_dedicated_cmd};
 use server_manager::{
     create_new_server_config, delete_server_config, get_connected_players,
     get_dedicated_server_logs, get_dedicated_server_status, get_server_quick_settings,
@@ -2689,6 +2689,7 @@ pub fn run() {
             sync_client_to_server,
             check_server_mods,
             copy_workshop_mods_for_server,
+            copy_zombiebuddy_to_dedicated_cmd,
             create_new_server_config,
             delete_server_config,
             launch_dedicated_server,

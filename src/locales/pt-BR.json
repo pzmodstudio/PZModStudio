@@ -2734,6 +2734,9 @@
       "syncButton": "Gravar minha lista neste servidor (Mods, WorkshopItems e Map)",
       "copyWorkshop": "Copiar {{count}} mod(s) da Oficina para Zomboid/mods",
       "copyWorkshopTitle": "Copia a pasta da Oficina de cada um destes mods para Zomboid/mods, para um servidor sem Steam encontrar. Um vínculo à pasta da Oficina é trocado por uma cópia, e uma cópia desatualizada feita pelo Studio é copiada de novo; qualquer outra pasta com o mesmo nome nunca é tocada.",
+      "zbCopy": "Copiar os arquivos do ZombieBuddy para o servidor dedicado",
+      "zbCopyTitle": "Copia zbNative.dll e ZombieBuddy.jar da pasta do jogo para a pasta do servidor dedicado, para os servidores dele carregarem mods Java. Nada mais é alterado.",
+      "zbCopied": "Copiados {{list}} para {{folder}}: a próxima inicialização carrega os mods Java.",
       "copying": "Copiando…",
       "copied": "Copiado para Zomboid/mods: {{list}}",
       "copyError": "Não foi possível copiar: {{error}}"

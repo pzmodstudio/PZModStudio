@@ -1,4 +1,7 @@
 {
+ "1.11.1": [
+  "Servers: one button copies the Java mod loader's files into the dedicated server's folder"
+ ],
  "1.11.0": [
   "The app in Português (Brasil), Français, Deutsch, Русский and 简体中文",
   "The Doctor understands questions in all seven languages",

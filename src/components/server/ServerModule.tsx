@@ -271,6 +271,21 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
       setCopying(false);
     }
   };
+  /** The dedicated server's folder lacks ZombieBuddy's files and the game's folder has them: one press copies them. */
+  const zbToCopy = (modReport?.issues ?? []).find((i) => i.code === 'server_java_no_agent_dedicated');
+  const [copyingZb, setCopyingZb] = useState(false);
+  const handleCopyZombieBuddy = async () => {
+    setCopyingZb(true);
+    try {
+      const copied = await TauriService.copyZombieBuddyToDedicated(paths);
+      setStatusMessage(t('servers.mods.zbCopied', { list: copied.join(', '), folder: zbToCopy?.params?.folder ?? '' }));
+      await checkSelectedServer();
+    } catch (err: any) {
+      alert(t('servers.mods.copyError', { error: explainError(err) }));
+    } finally {
+      setCopyingZb(false);
+    }
+  };
   /** ZombieBuddy in Mods=: the launcher adds its agent (B42 Java mods). */
   const listsZombieBuddy = (selectedServer?.mods ?? []).some((m) => m.replace(/^\\/, '').toLowerCase() === 'zombiebuddy');
 
@@ -912,6 +927,19 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
                               className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/50 text-amber-100 cursor-pointer disabled:opacity-50"
                             >
                               {copying ? t('servers.mods.copying') : t('servers.mods.copyWorkshop', { count: toCopy.length })}
+                            </button>
+                          </div>
+                        )}
+                        {zbToCopy && (
+                          <div className="px-3 py-2 border-t border-slate-800">
+                            <button
+                              type="button"
+                              disabled={copyingZb}
+                              onClick={() => void handleCopyZombieBuddy()}
+                              title={t('servers.mods.zbCopyTitle')}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/50 text-amber-100 cursor-pointer disabled:opacity-50"
+                            >
+                              {copyingZb ? t('servers.mods.copying') : t('servers.mods.zbCopy')}
                             </button>
                           </div>
                         )}

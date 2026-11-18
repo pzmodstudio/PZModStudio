@@ -740,6 +740,42 @@ pub fn agent_issue(ini_content: &str, program_dir: &Path, game_dir: &Path, dedic
     Some(issue(Severity::Warning, code, message, &[("folder", &folder), ("game", &game)], ZOMBIEBUDDY_ID))
 }
 
+/// Copies ZombieBuddy's agent and jar from the game's folder into another program folder (the
+/// dedicated server's), so a server started from there loads its Java mods. Each file goes in
+/// under a temporary name first, then takes the old one's place. Returns the files copied.
+pub fn copy_agent_files(game_dir: &Path, program_dir: &Path) -> Result<Vec<String>, String> {
+    let same = match (game_dir.canonicalize(), program_dir.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => game_dir == program_dir,
+    };
+    if same {
+        return Err("Servers start from the game's own folder: ZombieBuddy's files are already there when the game ran with it.".to_string());
+    }
+    if !program_dir.is_dir() {
+        return Err(format!("The dedicated server's folder ({}) is not there.", program_dir.display()));
+    }
+    if let Some(missing) = ZOMBIEBUDDY_FILES.iter().find(|f| !game_dir.join(f).is_file()) {
+        return Err(format!(
+            "The game's folder ({}) has no {}: start the game once with ZombieBuddy on (it puts its files there), then copy them.",
+            game_dir.display(),
+            missing
+        ));
+    }
+    let mut copied = Vec::new();
+    for f in ZOMBIEBUDDY_FILES {
+        let target = program_dir.join(f);
+        let part = program_dir.join(format!("{}.pzms-new", f));
+        std::fs::copy(game_dir.join(f), &part).map_err(|e| format!("Could not copy {}: {}", f, e))?;
+        if let Err(e) = std::fs::rename(&part, &target) {
+            let _ = std::fs::remove_file(&part);
+            return Err(format!("Could not put {} in {} (is a server running from that folder?): {}", f, program_dir.display(), e));
+        }
+        copied.push(f.to_string());
+    }
+    crate::diagnostics::log("INFO", &format!("[Servers] ZombieBuddy's files copied from {} to {}: {}", game_dir.display(), program_dir.display(), copied.join(", ")));
+    Ok(copied)
+}
+
 fn issue(severity: Severity, code: &str, message: String, params: &[(&str, &str)], mod_id: &str) -> HealthIssue {
     HealthIssue {
         params: crate::catalog::issue_params(params),
@@ -812,8 +848,16 @@ mod tests {
         assert_eq!(i.code, "server_java_no_agent_dedicated");
         assert!(i.message.contains(&*ded.to_string_lossy()) && i.message.contains(&*game.to_string_lossy()) && i.message.contains("ZombieBuddy.jar"));
         assert!(i.code.starts_with("server_java_"), "server_start's will_not_load lists it");
-        fs::write(ded.join(ZOMBIEBUDDY_FILES[0]), b"x").unwrap();
+        // The button's copy: refused onto the game's own folder, then both files, replacing an old jar.
+        assert!(copy_agent_files(&game, &game).is_err());
+        fs::write(ded.join(ZOMBIEBUDDY_FILES[1]), b"old").unwrap();
+        assert_eq!(copy_agent_files(&game, &ded).unwrap(), ZOMBIEBUDDY_FILES.map(String::from).to_vec());
+        assert_eq!(fs::read(ded.join(ZOMBIEBUDDY_FILES[1])).unwrap(), b"x");
+        assert!(!ded.join(format!("{}.pzms-new", ZOMBIEBUDDY_FILES[0])).exists());
         assert_eq!(code(&ded, true), None);
+        let empty = base.join("empty-game");
+        fs::create_dir_all(&empty).unwrap();
+        assert!(copy_agent_files(&empty, &ded).unwrap_err().contains("start the game once"));
         let _ = fs::remove_dir_all(&base);
     }
 

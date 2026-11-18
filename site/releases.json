@@ -1,8 +1,15 @@
 {
- "latest": "1.11.0",
- "count": 37,
+ "latest": "1.11.1",
+ "count": 38,
  "built": "2026-11-18",
  "releases": [
+  {
+   "version": "1.11.1",
+   "date": "2026-11-18",
+   "notes": [
+    "Servers: one button copies the Java mod loader's files into the dedicated server's folder"
+   ]
+  },
   {
    "version": "1.11.0",
    "date": "2026-11-18",
@@ -149,17 +156,6 @@
    "notes": [
     "Packages: a file you add stays in every publish",
     "Monitor: clearer card when a zombie breaks a door"
-   ]
-  },
-  {
-   "version": "1.8.0",
-   "date": "2026-10-31",
-   "notes": [
-    "Rules and mod index built into the app",
-    "Explore: unsubscribing takes the mods out of the list",
-    "Merger: translation files merged into one JSON",
-    "Monitor: a Java mod's own error gets its own card",
-    "Monitor: harmless require lines marked as noise"
    ]
   }
  ]

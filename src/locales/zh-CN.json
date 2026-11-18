@@ -2684,6 +2684,9 @@
       "syncButton": "把我的列表写入这个服务器（Mods、WorkshopItems 和 Map）",
       "copyWorkshop": "把 {{count}} 个创意工坊模组复制到 Zomboid/mods",
       "copyWorkshopTitle": "把这些模组各自的创意工坊文件夹复制到 Zomboid/mods，让 NoSteam 服务器能找到它们。指向创意工坊文件夹的链接会被替换为副本，Studio 制作的过时副本会重新复制；其他同名文件夹不会被动。",
+      "zbCopy": "把 ZombieBuddy 的文件复制到专用服务器",
+      "zbCopyTitle": "把 zbNative.dll 和 ZombieBuddy.jar 从游戏文件夹复制到专用服务器文件夹，这样它的服务器就能加载 Java 模组。不会改动其他任何东西。",
+      "zbCopied": "已把 {{list}} 复制到 {{folder}}：下次启动会加载 Java 模组。",
       "copying": "正在复制…",
       "copied": "已复制到 Zomboid/mods：{{list}}",
       "copyError": "无法复制：{{error}}"
