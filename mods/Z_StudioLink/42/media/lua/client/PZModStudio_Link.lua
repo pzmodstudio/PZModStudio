@@ -22,6 +22,13 @@
 --                                       before it, for "Undo last Accept"
 --   PZModStudio_LinkApplied.txt   this: what the last Accept (or its undo) turned on and off,
 --                                       shown once on the main menu after the game reloads
+--   PZModStudio_LinkDoctor.txt    app:  warn=<text> / line=<text>: what the app's Doctor says
+--                                       first, in the player's language, for the menu's card
+--   PZModStudio_LinkDiary.txt     this: <event>\t<unix seconds>\t<save>\t<x,y,z> per event, appended:
+--                                       start (a save loaded), menu (back to the main menu from
+--                                       a game), mark (the player marked the moment from the
+--                                       pause menu). The app learns from it, even when it was
+--                                       closed while the game ran.
 --
 -- What it does with them:
 -- - Mods screen: only the profile's mods ("Show all subscribed mods" brings the rest back); a
@@ -274,7 +281,7 @@ local TEXT = {
     errSeeStudio = "See in the Studio",
     errClose = "Close",
     errMenuButton = "Lua errors ({1})",
-    errMenuButtonTip = "This session's Lua errors again: which mod, where it failed and how it got there.",
+    errMenuButtonTip = "Every Lua error of this session, each kind once with how many times it came: which mod, where it failed. Copy one or all.",
     errDetails = "Details",
     errDetailsHide = "Less",
     errFailedAt = "Failed at {1}",
@@ -346,6 +353,52 @@ local TEXT = {
     appliedOk = "OK",
     savesShowAll = "Show all ({1} more)",
     savesOnlyProfile = "Only {1}'s",
+    cardDoctor = "Doctor: {1}",
+    markButton = "Mark this moment",
+    marked = "Marked",
+    markTip = "Something odd just happened? PZ Mod Studio's Doctor will look at what the game's log says for this minute.",
+    errModeSp = "single player",
+    errModeMp = "multiplayer",
+    errSteam = "Steam",
+    errNoSteam = "no Steam",
+    errModsOn = "{1} mods on",
+    errReportAllTitle = "Lua errors in Project Zomboid {1} ({2})",
+    errAll = "All ({1})",
+    errCopyAll = "Copy all",
+    errCopiedAll = "All copied: paste it where the mods' authors can see it.",
+    errListTitle = "This session's Lua errors: {1}, of {2} kind(s)",
+    errListHint = "A click on one copies its report.",
+    errReportVersion = "version {1}",
+    errReportFrom = "Added by {1}:",
+    errReportFailed = "(its own report failed: {1})",
+    errLog = "Error log",
+    errLogTip = "Every Lua error also goes, as it comes, to Zomboid/Lua/PZModStudio_LinkErrorLog.txt: a crash or a disconnect does not lose them, and earlier sessions are there too. Opens that folder and copies the file's path.",
+    errLogShown = "Folder opened, the file's path copied.",
+    errLogWhere = "In {1} (path copied).",
+    modsServerLines = "Server lines",
+    modsServerLinesTip = "Copies Mods=, WorkshopItems= and Map= of the mods that are on here, in load order, for a dedicated server's settings file (its .ini in Zomboid/Server): paste them over those lines.",
+    modsServerCopied = "Copied: {1} mods, {2} Workshop items, {3} map folder(s). Paste them over the same lines of the server's .ini.",
+    modsServerLocal = "# Not on the Workshop (copy these to the server's Zomboid/mods folder): {1}",
+    modsServerNone = "No mods are on: there is nothing to copy.",
+    modsServerFailed = "The lines could not be copied.",
+    joinTitle = "Could not join: a mod differs from the server's",
+    joinVersion = "Your copy is not the same version as the server's. If you updated it today, the server has not yet: it gets it when it restarts. If the server's is newer, restart Steam (or unsubscribe and subscribe again) so Steam downloads it.",
+    joinDownload = "Steam could not download it. Check your free disk space and that Steam is online, then try again.",
+    joinSubscribe = "Steam could not subscribe to it: it may have been removed or made private. The server's admin has to take it out of the server's list.",
+    joinOther = "The game's reason: {1}.",
+    joinUnknownMod = "A mod you do not have yet",
+    joinBuild = "Your game is {1} and the server's is {2}. Both have to be the same build: update the game in Steam, or choose the server's build in its Properties > Betas.",
+    joinCopyLinks = "Copy Workshop links",
+    joinCopied = "Links copied: paste them in your browser.",
+    hostTitle = "Hosting with the settings \"{1}\":",
+    hostMissing = "Its mod list lacks {1} mod(s) you have on now: {2}. Hosting loads the server's list, not the Mods screen's, so they will not be in the game.",
+    hostNotInstalled = "It names {1} mod(s) this PC does not have: {2}.",
+    hostWhat = "Host anyway? \"No\" goes back: Edit Settings changes its mods.",
+    hostAndMore = "and {1} more",
+    modsUpdateNotes = "What its author wrote about the update:",
+    modsUpdateBreaks = "This update may break a save in progress (a map mod, or its notes say so). Back up first, or try it on a copy.",
+    modsUpdateRead = "Its notes mention things redone or taken out: worth reading before loading a save.",
+    settingsServerPage = "Server",
 }
 
 local translated = {}
@@ -767,6 +820,8 @@ function Link.cardData()
             if entry.severity == "error" then errors = errors + 1 elseif entry.severity == "warning" then warnings = warnings + 1 end
         end
         card.errors, card.warnings = errors, warnings
+        -- What the app's Doctor says first (written by the app, in the player's language).
+        card.doctor = Link.readDoctor()
         -- The save Continue loads, and what changed in its mods since it was last played.
         local world, mode = MainScreen.latestSaveWorld, MainScreen.latestSaveGameMode
         -- The game remembers the last save by name (latestSave.ini) even after it is deleted:
@@ -811,6 +866,14 @@ function Link.drawCard(screen)
     else
         table.insert(lines, { text("cardHealthOk"), 0.55, 0.9, 0.6 })
     end
+    -- The Doctor: a warning in amber, the rest as it is (at most four lines, as the app wrote them).
+    for _, d in ipairs(card.doctor or {}) do
+        if d.warn then
+            table.insert(lines, { text("cardDoctor", d.text), 1, 0.75, 0.35 })
+        else
+            table.insert(lines, { text("cardDoctor", d.text), 0.8, 0.8, 0.95 })
+        end
+    end
     if card.world then
         table.insert(lines, { text("cardContinue", card.world), 0.85, 0.85, 0.85 })
         if card.never then
@@ -843,6 +906,24 @@ function Link.drawCard(screen)
         screen:drawText(l[1], x + 12, ly, l[2], l[3], l[4], 1, font)
         ly = ly + lineH
     end
+end
+
+--- What the app's Doctor left for the menu: { text, warn } per line, at most four.
+local DOCTOR_FILE = "PZModStudio_LinkDoctor.txt"
+function Link.readDoctor()
+    local out = {}
+    local file = getFileReader(DOCTOR_FILE, false)
+    if not file then return out end
+    local line = file:readLine()
+    while line ~= nil and #out < 4 do
+        local kind, value = string.match(line, "^(%a+)=(.+)$")
+        if kind == "warn" or kind == "line" then
+            table.insert(out, { text = value, warn = kind == "warn" })
+        end
+        line = file:readLine()
+    end
+    file:close()
+    return out
 end
 
 --- Whether PZ Mod Studio has ever run on this PC (it writes its heartbeat file when it does).
@@ -978,9 +1059,51 @@ end
 -- Asked from the main menu's own drawing (OnTick does not run in the menu), a moment after it
 -- shows, and only in the menu (the same screen is the pause menu in a game).
 local askFrames = -1
+
+--- "Mark this moment" on the game's pause menu, above Report Bug: the diary gets the time, the
+--- save and the place, and the app's Doctor later says what the game's log has for that minute.
+function Link.markButton(screen)
+    local button = Link.markBtn
+    if not Link.inGame then
+        if button then button:setVisible(false) end
+        return
+    end
+    if not button or button.screen ~= screen then
+        button = ISButton:new(0, 0, 100, 22, "", screen, function(b)
+            Link.diary("mark")
+            Link.markedAt = now()
+        end)
+        button:initialise()
+        button:instantiate()
+        button:setFont(UIFont.Small)
+        button.borderColor = { r = 0.35, g = 0.75, b = 1.0, a = 0.9 }
+        button.screen = screen
+        screen:addChild(button)
+        Link.markBtn = button
+    end
+    local label = (Link.markedAt and now() - Link.markedAt < 4) and text("marked") or text("markButton")
+    local w = math.max(getTextManager():MeasureStringX(UIFont.Small, text("markButton")), getTextManager():MeasureStringX(UIFont.Small, text("marked"))) + 18
+    local beside = screen.reportBug
+    local h = beside and beside:getHeight() or 22
+    local x = beside and (beside:getX() + beside:getWidth() - w) or (screen.width - w - 20)
+    local y = beside and (beside:getY() - h - 6) or (screen.height - 90)
+    button:setTitle(label)
+    button.tooltip = text("markTip")
+    button:setWidth(w)
+    button:setHeight(h)
+    button:setX(x)
+    button:setY(y)
+    button:setVisible(true)
+end
+
 local mainPrerender = MainScreen.prerender
 function MainScreen:prerender(...)
     mainPrerender(self, ...)
+    local okMark, errMark = pcall(Link.markButton, self)
+    if not okMark and not Link.markFailed then
+        Link.markFailed = true
+        print("[StudioLink] the mark button failed: " .. tostring(errMark))
+    end
     -- The card, in the main menu proper (its buttons showing), not in a game's pause menu.
     if not Link.inGame and self.bottomPanel and self.bottomPanel:isVisible() then
         -- With the app on this PC: what it knows. Without it: only the invitation to get it.
@@ -1034,8 +1157,48 @@ function Link.writeGameState(state)
     if not ok then print("[StudioLink] could not write the game state: " .. tostring(err)) end
 end
 
+-- ------------------------------------------------------------------ the diary
+-- What the log does not say, for the app's brain: which save a session loaded, that the player
+-- went back to the menu (rather than closing the window), and the moments they marked.
+local DIARY_FILE = "PZModStudio_LinkDiary.txt"
+
+--- The save being played, as <mode>/<world> ("" in the menu).
+function Link.currentSave()
+    local name = ""
+    pcall(function()
+        local world = getWorld()
+        local w = tostring(world:getWorld() or "")
+        if w ~= "" then name = tostring(world:getGameMode()) .. "/" .. w end
+    end)
+    return name
+end
+
+--- Where the player stands, as x,y,z ("" when there is no player).
+function Link.currentPlace()
+    local place = ""
+    pcall(function()
+        local p = getPlayer()
+        if p then place = math.floor(p:getX()) .. "," .. math.floor(p:getY()) .. "," .. math.floor(p:getZ()) end
+    end)
+    return place
+end
+
+--- Appends one event to the diary: event, time, save, place (tabs; the save never has one).
+function Link.diary(event)
+    local ok, err = pcall(function()
+        local writer = getFileWriter(DIARY_FILE, true, true)
+        if not writer then return end
+        local save = string.gsub(Link.currentSave(), "\t", " ")
+        writer:write(event .. "\t" .. now() .. "\t" .. save .. "\t" .. Link.currentPlace() .. "\n")
+        writer:close()
+    end)
+    if not ok then print("[StudioLink] could not write the diary: " .. tostring(err)) end
+end
+
 -- Named, so another mod (or a reload of this one) can take them out again.
 function Link.onMainMenuEnter()
+    -- back from a game to the menu (not the menu the game starts on)
+    if Link.inGame then Link.diary("menu") end
     Link.inGame = false
     Link.latestExists = nil
     Link.card = nil
@@ -1053,6 +1216,7 @@ function Link.onGameStart()
         end
     end)
     Link.writeGameState("ingame")
+    Link.diary("start")
 end
 Events.OnMainMenuEnter.Add(Link.onMainMenuEnter)
 Events.OnGameStart.Add(Link.onGameStart)

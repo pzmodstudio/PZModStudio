@@ -46,9 +46,10 @@ The main menu's **MODS** button opens the Link's Mods screen instead of the game
 - turning mods on and off together with what they require, several at once with Ctrl or Shift;
 - the load order: sorted by it, moved up and down, or dragged, never above what a mod requires;
 - groups by author or category, each mod's options (**Mod options**), the **Map order**, and **Undo** / **Redo**;
+- **Server lines** copies the mods that are on as a dedicated server's `Mods=`, `WorkshopItems=` and `Map=` lines, in load order (each mod after what it requires, the maps in the map order), to paste over those lines of the server's `.ini` in `Zomboid/Server`; mods with no Workshop item are named on a comment line, to copy into the server's own mods folder;
 - **Accept** saves to the list the game reads, as the game's own screen does. **The game's screen** opens the original one.
 
-With the app, the same screen also shows only the profile's mods (**Profile's mods** / **All installed**), Diagnostics's warnings on each mod, mods updated since your last session, your notes and groups, and a button to add new mods that are in no profile. **Sync with PZ Mod Studio** takes in what the app changed, and **Open PZ Mod Studio** brings the app to the front.
+With the app, the same screen also shows only the profile's mods (**Profile's mods** / **All installed**), Diagnostics's warnings on each mod, mods updated since your last session (in their details, their author's newest change notes and whether the update may break a save), your notes and groups, and a button to add new mods that are in no profile. **Sync with PZ Mod Studio** takes in what the app changed, and **Open PZ Mod Studio** brings the app to the front.
 
 If another mod manager that owns the Mods screen is on, the Link asks which screen you want and leaves it to the other one if you say so.
 
@@ -58,11 +59,27 @@ When the app has run on this PC, a card on the main menu shows whether the app i
 
 ### The error notice
 
-When the game records a Lua error, a notice names the mod it came from (and which mod called it), with the last message. **Copy report** puts the error on the clipboard to send to the mod's author, **Show in Mods** opens the Mods screen on that mod, and **See in the Studio** opens the Monitor Center on its card. The notice stays quiet when another mod that already shows these errors is on.
+When the game records a Lua error, a notice names the mod it came from (and which mod called it), with the last message. **Copy report** puts the error on the clipboard to send to the mod's author, **Show in Mods** opens the Mods screen on that mod, and **See in the Studio** opens the Monitor Center on its card. The notice stays quiet when another mod that already shows these errors is on. **All (N)**, and **Lua errors (N)** on the pause menu, open every error of the session, each kind once with how many times it came, its mod and file:line: a click copies one, **Copy all** copies them all with the game build, the mode and how many mods are on. A report names each mod with its id, version and Workshop item.
+
+Every error also goes to `Zomboid/Lua/PZModStudio_LinkErrorLog.txt` within a second of happening, so a crash, a disconnect or going back to the menu does not lose it: each kind once in full (mod, file:line, message, stack) and its repeats counted, under a heading with the date, the build and whether it was the menu or which save, with a line where the game went back to the main menu or the server dropped it. The file keeps about the last 3000 lines. **Error log** in the list opens its folder and copies its path.
+
+For mod authors: `PZModStudioLink.registerReport("YourModId", fn)` (or `PZModStudioLinkReports["YourModId"] = fn` from Lua that runs before the Link's) adds your own information to the reports. `fn(err)` returns a string, a list of lines or a table of name = value pairs; it runs only when a report is made, inside `pcall`. Its text goes into **Copy all**, and into **Copy report** and the error log for an error of your mod.
+
+The game's own red **ERROR** counter in the bottom-right corner is drawn by the game's Java, which Lua cannot reach: the Link cannot hide it.
+
+### Joining a server
+
+When the game drops the connection because a Workshop mod differs from the server's, the Link names the mod (the game gives only a number), says what to do for the case (the server updates when it restarts, or Steam has to download the new version) and offers **Copy Workshop links**. When the game build differs from the server's, it says so with both builds.
+
+When hosting (**HOST**, **Start**), the game loads that server settings' own mod list, not the Mods screen's. If that list lacks mods you have on, or names mods this PC does not have, the Link asks first: **Yes** hosts anyway, **No** goes back (**Edit Settings** changes its mods).
+
+### Functions two mods change
+
+When Diagnostics sees two mods redefine the same function, the Link asks the game, a few seconds after the main menu and after a save loads, which file the function that stayed comes from. Diagnostics shows it as **Seen in the running game**.
 
 ### With and without the app
 
-- Without the app: the Link's Mods screen, the error notice (without **See in the Studio**), and the invitation card.
+- Without the app: the Link's Mods screen (with **Server lines**), the error notice and its error log (without **See in the Studio**), and the invitation card.
 - With a profile active, even while the app is closed: the Mods screen shows the profile as the app last left it; on the load screen each save is marked by whether its mods match the profile; a save that uses mods outside the profile does not load; a save with an empty mod list asks first.
 - Only while the app is open: backups of a save before it loads with changed mods and when you leave it, playing a save on a copy, adding new mods to the profile, **Sync**, **Open PZ Mod Studio** and **See in the Studio**.
 - Notes, groups, profiles and Diagnostics are made in the app; the game only shows them.

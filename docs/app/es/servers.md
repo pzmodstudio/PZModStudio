@@ -68,6 +68,10 @@ La respuesta del servidor aparece debajo del cuadro.
 
 Editá la configuración principal y apretá **Guardar la configuración en el .ini**: **Nombre público del servidor**, **Contraseña del servidor (para entrar)** (vacía para un servidor abierto), **Contraseña de admin (-adminpassword)**, **Jugadores máximos**, **Puerto por defecto**, **Descripción pública**, **Combate PVP** y **Pausar cuando está vacío**.
 
+## Todas las opciones
+
+Todas las opciones del servidor y del sandbox, como las muestra el juego: por páginas, con su ayuda, su valor por defecto y las opciones de sandbox de tus mods. **Servidor** y **Sandbox** cambian de lista, el buscador encuentra una opción por nombre o ayuda, y **Solo las que no están en su valor por defecto** muestra las que tocaste. La flecha de una opción la vuelve a su valor por defecto. **Guardar** escribe solo lo que cambiaste, con una copia de los dos archivos antes (en `PZModStudio_Backups/server_settings`), y no deja guardar con ese servidor andando. La lista de opciones la anota el Studio Link la primera vez que abrís el juego hasta el menú principal (y otra vez cuando cambia la versión, el idioma o tus mods).
+
 ## Discord
 
 Un webhook de Discord deja que el servidor publique en un canal: cuando arranca, se detiene, se cae o vuelve después de reiniciarse, quién entra y quién sale, y cuando sus mods del Workshop se actualizaron y necesita reiniciarse. No menciona a nadie.

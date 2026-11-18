@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "pz-mod-studio"
-version = "1.9.1"
+version = "1.10.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",

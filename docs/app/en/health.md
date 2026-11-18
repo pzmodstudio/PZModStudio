@@ -49,10 +49,15 @@ Each section can be folded by clicking its title.
 - `two_mod_managers`: another mod manager that draws the game's Mods screen is on next to Studio Link.
 - `workshop_update_pending`: Steam has a newer version that is not downloaded yet. Servers reject players whose mod versions differ.
 - `file_conflict`: two mods ship the same file and the game only uses the last one.
+- `function_overridden` (**Cuts another mod off**): a mod replaces a function of the game, or of another mod, after another mod changed it, so that change never runs. When many functions of one mod are cut off by another (two versions of the same mod on at once), it is one row. With Studio Link on it is checked in the running game: the row says **Seen in the running game**, or `function_seen_other` (**Another version in the game**) shows when the game has another mod's version.
+- `java_link_broken` (**Java older than this build**): the mod's Java uses classes, methods or fields the installed game no longer has (an update changed them). That code fails when it runs. If the Monitor shows it failing, look for an update of the mod or turn it off; if it works, the mod checks first.
+- `tiledef_clash`: two mods file their tiles under the same `tiledef` number with different sheets, so some tiles show as the other mod's or go missing. Keep one on, or ask an author to change the number. `file_conflict` rows also say whether the log of the last session (with this same list) confirms which copy the game used.
+- `game_folder_changed` (**The game's folder changed**): while the game ran, files of its own folder changed, where the game never writes. The app compares the game's folder, the Zomboid folder (without saves or logs) and ZombieBuddy's when the game opens and when it closes, only while the app is open.
 - `script_definition_conflict` and `translation_conflict`: two mods define the same item, recipe or name differently; the one that loads last wins. Rows ending in `_stale` mean you merged it before, but a mod changed since; `_settled` means your package already settles it.
 - `floods_console` (shown in the Mod List as **Fills the console**): in your last session this mod wrote more than 1,000 lines of errors to the console. That slows the game and hides other mods' errors. Look at them in the Monitor Center, or switch the mod off.
 - `user_rule_order`: one of your own load-order rules is broken.
 - `community_rule_order`, `community_incompatible`, `community_known_issue`, `community_successor`: what the Studio's rules and mod index say about your mods. A known issue has **No longer happens**: it is not shown again on this PC.
+- `learned_issue`: an error a mod gave in 3 or more of your sessions with the same version (see "What this PC learns").
 - `package_built_for_other_list`: your Studio package was built with a different mod list than this profile.
 - `package_file_stale`: your package carries an old copy of a mod's file, and the mod has changed that file since. The game reads the old copy.
 - `package_file_differs`, `package_file_orphan`: your package carries a file that only one mod in the list ships, or that no mod in the list ships. Take it out if you no longer need it.
@@ -83,6 +88,45 @@ A green line confirms each change, with **Saved to your mod list.**
 ### The Studio's rules and index
 
 The Studio carries load-order rules, pairs of mods that do not go together, and an index of known issues with their fix. They come with each version of the app; nothing is downloaded, and nothing is sent. They show up as `community_*` rows. A known issue is left out by itself when the mod's own files show it is gone (an update fixed the file it was about), or when the mod changed after the issue was seen and its log line no longer appears in your session. **No longer happens** leaves one out by hand.
+
+### What this PC learns
+
+Besides the index it ships with, each app learns from its own PC. In the background it reads the game and server session logs the game keeps (`Zomboid/Logs`) and notes which mods were on, in which version, and which errors the game blamed on them (the same ones the Monitor shows). It keeps this in `Zomboid/PZModStudio_Learned.json` and sends nothing.
+
+When a mod gives the same error in 3 or more sessions, with the same version and on the installed build, it shows in Diagnostics as **Learned on this PC** (`learned_issue`), with the count as its evidence: "in 8 of 14 of your sessions". When the app's index already speaks of that problem, only the index's row shows. A Java patch the log blames on several mods at once is not learned, as it cannot tell whose it is. When the mod updates, the count starts from zero; when its last 5 sessions went without it (fixed, or a fix that worked), it is no longer shown. **No longer happens** takes it out by hand. The Diagnostics front page says how many sessions it learned from.
+
+
+### The Doctor and the brain
+
+The Diagnostics front page has **Ask the Doctor**, a chat that answers with no AI: it tells what you ask by its words and builds the answer from what this PC learned and from the app's tools (the same as the MCP server's). Each answer says which tool it came from. Ask it what it knows, why the game closed, what changed when an error began, which mods fail, whether loading is slower, whether fixes worked, what the last game update did, or name a mod to see its history.
+
+It forgives typos and other ways of saying it ("it crashed", "it froze", "waht changed"), reads dates ("what changed since yesterday?", "this week", "since 12/11"), "which one takes longest to load?" or "which mod gives the most errors?", and follows the conversation: after a mod you can say "and since when?", "switch it off", "note it" or "show it". When unsure it asks "which of these?" with buttons; when it does not understand and you show it with a button what you meant, it remembers that phrase on this PC. Each answer leads with the conclusion, then one piece of advice with its evidence (for instance that almost all crashes were the PC running out of memory with the game and a server open), the details folded, and buttons to go to the Mod List or the part of Diagnostics it is about.
+
+Also:
+
+- **Which mod causes it?** It compares the sessions with and without each mod: "with X 3 of 7 went badly; without it, 24 of 196", and says how sure it is (fairly sure, likely, could be chance). A mod that is in nearly every session cannot be compared and is not named.
+- **Hunt it by halves** from the chat: it switches half your mods off (what the others need stays on), lets you play the trial and you answer "it still happens" or "it no longer happens" until one is left. Your list is kept and comes back at the end.
+- **The report**: when you open the chat after playing, it tells how your last session went (time played, how it ended, new errors, fixes that worked). "What happened this week?" does the same for a period.
+- **Questions about the app** ("how do I make a profile?", "what is a compatible copy?"): it answers with the paragraph of this guide and a button to that screen.
+- **Groups, profiles and the Workshop**: "VP Base" tells how that group is doing, "profile Knox Lives" whether its last sessions went well; "is there a new version of X?" and "what do the comments of X say?" read its page.
+- **Several questions at once** ("what changed and which mods fail?"), **nicknames** it learns when you pick among several mods, **"undo that"** for its last change, and **memory**: next time it reminds you which mod you talked about and how it is now.
+
+**With the game (Studio Link):**
+
+- On the game's main menu, the PZ Mod Studio card (top right) shows what the Doctor would say first: whether the last sessions with this list went badly, whether the last one crashed, which errors repeat. The app writes it every time it checks, so the card says the last thing it knew even when the app is closed.
+- The Link keeps a diary of which save you loaded and whether you went back to the menu (rather than closing the window). So each session says "save X · went back to the menu", also those played with the app closed.
+- On the pause menu (Esc) there is **Mark this moment**: when something odd happens, press it. Then ask the Doctor "what happened when I marked?" and it tells you what the game's log wrote in that minute (a minute and a half before to half a minute after).
+
+It can also change things, always with your **Do it**: make, rename or delete groups of the active profile and put mods in or take them out ("group A, B in Maps", "take A out of group Maps", "rename group Maps to World", "delete group Maps"), suggest groups for your active mods with none (those that share a name or what they require), and write or remove **Studio notes** ("note on A: text", "remove the Studio note of A", "note what you learned"). Studio notes are kept apart from yours and shown in violet with their own button to remove them; your notes it never writes, changes or removes.
+
+What the brain tells from the sessions:
+
+- **What changed**: when an error repeats, when it began and what was different from the last session that went without it (mods added, taken out or updated, its place in the order, the game's build). It says it as what changed then, not as the cause. It shows on the Diagnostics row and in the mod's history.
+- **Fixes remembered**: each fix you apply from Diagnostics is noted, and the sessions after it say whether the mod's error stopped.
+- **Before playing**: when the last sessions with nearly the same list did not even reach the menu or ran out of memory, the app says so when you press Play, with what differs from the last one that got into a save, and asks whether to play anyway.
+- **A mod's history**: in the Mod List, the **On this PC** section of the right panel.
+- **Slower loading** and a **game update** that made several mods fail at once.
+- **Real crashes**: when Java falls over it leaves a report (`hs_err_pid…log`) in the game's folder; the brain reads it and ties it to its session ("it fell over: the PC ran out of memory" or "a fatal Java error in that library"). Closing the game with X or Alt+F4 leaves none, so that never counts as a crash.
 
 ### Security
 

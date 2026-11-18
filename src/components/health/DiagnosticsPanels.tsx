@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowRight, Gamepad2, HeartPulse, Info, Loader2, Server } from 'lucide-react';
-import { BootTimes, GameMemory, HealthReport, MpTestProcess, MpTestStatus } from '../../types';
+import { ArrowRight, Brain, Gamepad2, HeartPulse, Info, Loader2, Server } from 'lucide-react';
+import { BootTimes, GameMemory, HealthReport, LearnedSummary, ModInfo, MpTestProcess, MpTestStatus } from '../../types';
+import { DoctorChat } from './DoctorChat';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { ResourceMeter } from '../common/ResourceMeter';
@@ -64,7 +65,13 @@ export const DiagnosticsHome: React.FC<{
   checking: boolean;
   onOpen: (section: DiagSection) => void;
   doctor?: React.ReactNode;
-}> = ({ paths, report, checking, onOpen, doctor }) => {
+  /** The installed mods (on and off), for the Doctor's chat. */
+  mods?: ModInfo[];
+  onShowInModList?: (modId: string) => void;
+  onToggleMod?: (modId: string) => void;
+  onOpenPage?: (page: string) => void;
+  onModsChanged?: () => void;
+}> = ({ paths, report, checking, onOpen, doctor, mods = [], onShowInModList, onToggleMod, onOpenPage, onModsChanged }) => {
   const { t } = useTranslation();
   const procs = useProcesses(paths, 4000);
   const { memory, boots } = useGameFacts(paths);
@@ -102,6 +109,19 @@ export const DiagnosticsHome: React.FC<{
       : t('diag.home.server.off');
   const serverTone = servers.length > 0 ? (servers[0].errors > 0 ? 'amber' : 'green') : 'slate';
 
+  // What this PC has learned from its own sessions (read in the background as the game writes them).
+  const [learned, setLearned] = useState<LearnedSummary | null>(null);
+  useEffect(() => {
+    let live = true;
+    void TauriService.learnedSummary(paths).then((s) => live && setLearned(s));
+    return () => {
+      live = false;
+    };
+  }, [paths, report]);
+  // What Mods shows of it: the open ones of mods that are on, less what the app's index already says.
+  const learnedOpen = report?.issues.filter((i) => i.code === 'learned_issue').length ?? 0;
+  const learnedClosed = learned?.issues.filter((i) => i.closed).length ?? 0;
+
   const TONE: Record<string, string> = {
     red: 'border-red-700/60 bg-red-950/20',
     amber: 'border-amber-700/50 bg-amber-950/15',
@@ -136,7 +156,22 @@ export const DiagnosticsHome: React.FC<{
         {card('game', Gamepad2, gameLine, gameSub, gameTone)}
         {card('server', Server, serverLine, servers.length > 0 ? t('diag.home.server.sub', { errors: servers[0].errors }) : t('diag.home.server.offSub'), serverTone)}
       </div>
+      {learned && (
+        <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-[11.5px] text-slate-300 leading-relaxed">
+          <Brain className="w-4 h-4 mt-0.5 shrink-0 text-violet-300" aria-hidden="true" />
+          <span>
+            {learned.sessions_on_build > 0
+              ? t('diag.home.learned.line', { count: learned.sessions_on_build, build: learned.build })
+              : t('diag.home.learned.none')}{' '}
+            {learned.sessions_on_build > 0 &&
+              (learnedOpen > 0 ? t('diag.home.learned.open', { count: learnedOpen }) : t('diag.home.learned.noOpen'))}{' '}
+            {learnedClosed > 0 && t('diag.home.learned.closed', { count: learnedClosed })}{' '}
+            <span className="text-slate-500">{t('diag.home.learned.how')}</span>
+          </span>
+        </div>
+      )}
       {doctor}
+      <DoctorChat paths={paths} mods={mods} report={report} onShowInModList={onShowInModList} onToggleMod={onToggleMod} onOpenSection={(s) => onOpen(s)} onOpenPage={onOpenPage} onModsChanged={onModsChanged} />
     </div>
   );
 };

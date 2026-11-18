@@ -2,32 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AuthorLink, CatalogModSummary, HealthIssue, IssueState, ModChangelog, ModErrorStat, ModInfo, ModJavaPatches } from '../../types';
 import { SourceBadge } from '../common/SourceBadge';
 import { ModWorkshopPage } from './ModWorkshopPage';
+import { ModBrainSection } from './ModBrainSection';
 import { FixContext, IssueCards } from './RowHealth';
 import { STATE_ORDER, STATE_STYLE, issueStateOf } from '../../utils/issueState';
 import { SupportLinks } from '../common/SupportLinks';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { TauriService } from '../../services/tauri';
 import { findInstalledDependencyInMods } from './modLookup';
-import {
-  Activity,
-  BookOpen,
-  Check,
-  ChevronRight,
-  Info,
-  Layers,
-  MessageSquare,
-  Newspaper,
-  Link2,
-  ListOrdered,
-  MapPin,
-  Package,
-  Pencil,
-  Power,
-  ShieldAlert,
-  ShieldCheck,
-  StickyNote,
-  Wand2,
-} from 'lucide-react';
+import { Activity, BookOpen, Check, ChevronRight, Info, Layers, MessageSquare, Newspaper, Link2, ListOrdered, MapPin, Package, Pencil, Power, ShieldAlert, ShieldCheck, StickyNote, Wand2, Brain, X } from 'lucide-react';
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { tHtml } from '../../i18n/html';
@@ -68,6 +50,11 @@ interface ModInspectorProps {
   profileNames: string[];
   activeProfileName?: string;
   note?: string;
+  /** The Studio's note (the Doctor's), shown apart from the player's; it can be removed here. */
+  studioNote?: string;
+  onRemoveStudioNote?: (mod: ModInfo) => void;
+  /** A mod id as its name, for the history's "what changed". */
+  nameOf?: (id: string) => string;
   groups: string[];
   onEditNote?: (mod: ModInfo) => void;
   onEditGroups?: (mod: ModInfo) => void;
@@ -177,6 +164,9 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
   profileNames,
   activeProfileName,
   note,
+  studioNote,
+  onRemoveStudioNote,
+  nameOf,
   groups,
   onEditNote,
   onEditGroups,
@@ -488,6 +478,21 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
                 </button>
               )
             )}
+            {studioNote && (
+              <div className="rounded-lg border border-violet-800/60 bg-violet-950/25 px-3 py-2" title={t('brain.studioNote.hint')}>
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-violet-300">
+                  <Brain className="w-3 h-3" aria-hidden="true" />
+                  {t('brain.studioNote.label')}
+                </div>
+                <div className="mt-1 text-[12px] text-violet-100 whitespace-pre-wrap break-words leading-relaxed">{studioNote}</div>
+                {onRemoveStudioNote && (
+                  <button onClick={() => onRemoveStudioNote(mod)} className="mt-1.5 flex items-center gap-1 text-[11px] text-violet-300 hover:text-violet-200 cursor-pointer">
+                    <X className="w-3 h-3" aria-hidden="true" />
+                    {t('brain.studioNote.remove')}
+                  </button>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-1.5 text-[11.5px] items-start">
               <span className="text-slate-500 pt-0.5">{t('inspector.sections.groups')}</span>
               <div className="flex flex-wrap items-center gap-1">
@@ -582,6 +587,11 @@ export const ModInspector: React.FC<ModInspectorProps> = ({
             {t('inspector.sections.allGood')}
           </div>
         )}
+
+        {/* On this PC: what the brain learned of it across sessions */}
+        <Section icon={Brain} iconClass="text-violet-300" title={t('brain.history.title')} foldId="brain">
+          <ModBrainSection paths={paths} modId={mod.mod_id} name={nameOf ?? ((id) => id)} />
+        </Section>
 
         {/* Last session: what the game logged and what it cost */}
         {hasSession && (

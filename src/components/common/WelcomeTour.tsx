@@ -16,6 +16,7 @@ import {
   ListOrdered,
   Map as MapIcon,
   Newspaper,
+  Play,
   Puzzle,
   Server,
   Settings,
@@ -26,6 +27,7 @@ import {
 import { ActiveTab, HealthReport } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { LANGUAGES, setLanguage } from '../../i18n';
+import { useUiMode } from '../../hooks/useUiMode';
 
 /** Seen once: the tour does not open by itself again (Help can open it). */
 export const WELCOME_DONE_KEY = 'pz_welcome_done';
@@ -66,6 +68,16 @@ const STEPS: Step[] = [
   { key: 'help', icon: HelpCircle },
 ];
 
+/**
+ * Simple mode's welcome, three steps: where the game was found (and the language), a profile, play.
+ * The rest of the tour is about screens Simple does not show.
+ */
+const SIMPLE_STEPS: Step[] = [
+  { key: 'folders', icon: FolderSearch, tab: 'SETTINGS' },
+  { key: 'simpleProfiles', icon: Layers, tab: 'PROFILES' },
+  { key: 'play', icon: Play, tab: 'HOME' },
+];
+
 interface WelcomeTourProps {
   open: boolean;
   onClose: () => void;
@@ -91,8 +103,10 @@ const OPEN_WITHOUT_PROFILE: ActiveTab[] = ['PROFILES', 'SETTINGS'];
  */
 export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, activeProfileName, profileCount, installedMods, health, onShowTab, onHighlight }) => {
   const { t, i18n } = useTranslation();
+  const [uiMode] = useUiMode();
+  const steps = uiMode === 'simple' ? SIMPLE_STEPS : STEPS;
   const [index, setIndex] = useState(0);
-  const step = STEPS[index];
+  const step = steps[Math.min(index, steps.length - 1)];
   const reachable = (tab?: ActiveTab) => !!tab && (!!activeProfileName || OPEN_WITHOUT_PROFILE.includes(tab));
 
   useEffect(() => {
@@ -107,17 +121,17 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
     onHighlight(step.tab && step.tab !== 'SETTINGS' ? step.tab : null);
     if (reachable(step.tab)) onShowTab(step.tab as ActiveTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, index, activeProfileName]);
+  }, [open, index, activeProfileName, uiMode]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setIndex((i) => Math.min(STEPS.length - 1, i + 1));
+      if (e.key === 'ArrowRight') setIndex((i) => Math.min(steps.length - 1, i + 1));
       else if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, steps.length]);
 
   if (!open) return null;
 
@@ -133,7 +147,7 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
   const Icon = step.icon;
   const points = t(`welcome.steps.${step.key}.points`, { returnObjects: true }) as unknown;
   const list = Array.isArray(points) ? (points as string[]) : [];
-  const last = index === STEPS.length - 1;
+  const last = index >= steps.length - 1;
 
   const pathRow = (label: string, value: string) => (
     <div className="flex items-start gap-2 text-[11px]">
@@ -169,6 +183,21 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
       case 'folders':
         return (
           <div className="flex flex-col gap-1.5">
+            {uiMode === 'simple' && (
+              <div className="flex items-center gap-2 text-[11px] pb-1 mb-0.5 border-b border-slate-800">
+                <span className="text-slate-400">{t('welcome.language')}</span>
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => void setLanguage(l.code)}
+                    className={`px-2 py-0.5 rounded border cursor-pointer ${i18n.language.startsWith(l.code) ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                  >
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+            )}
             {pathRow(t('welcome.paths.game'), paths.pz_install_dir)}
             {pathRow(t('welcome.paths.workshop'), paths.workshop_dir)}
             {pathRow(t('welcome.paths.zomboid'), paths.user_zomboid_dir)}
@@ -176,6 +205,7 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
           </div>
         );
       case 'profiles':
+      case 'simpleProfiles':
         return (
           <div className={`text-[11px] ${activeProfileName ? 'text-emerald-300' : 'text-amber-300'}`}>
             {activeProfileName ? t('welcome.profileActive', { name: activeProfileName, count: profileCount }) : t('welcome.profileNone')}
@@ -205,7 +235,7 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
     >
       <div className="flex items-center justify-between gap-2 px-4 pt-3">
         <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400">
-          {t('welcome.title')} · {t('welcome.progress', { n: index + 1, total: STEPS.length })}
+          {t('welcome.title')} · {t('welcome.progress', { n: Math.min(index, steps.length - 1) + 1, total: steps.length })}
         </div>
         <button type="button" onClick={finish} className="p-1 rounded hover:bg-slate-800 text-slate-400 cursor-pointer" aria-label={t('welcome.skip')} title={t('welcome.skip')}>
           <X className="w-4 h-4" aria-hidden="true" />
@@ -235,7 +265,7 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ open, onClose, paths, 
 
       <div className="flex items-center gap-2 px-4 py-2.5 border-t border-slate-800">
         <div className="flex gap-1 flex-1 flex-wrap">
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <button
               key={s.key}
               type="button"

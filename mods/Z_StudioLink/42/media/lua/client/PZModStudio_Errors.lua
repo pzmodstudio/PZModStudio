@@ -21,6 +21,13 @@
 -- In game it starts left of the clock and the speed controls, not over their buttons; it and
 -- the badge can be dragged anywhere, and come back where they were left.
 -- With another mod that already shows these errors on, it shows nothing.
+--
+-- Every error is also written to Zomboid/Lua/PZModStudio_LinkErrorLog.txt within a second of
+-- coming (see "kept on disk" below), so a crash, a disconnect or the game reloading its Lua does
+-- not lose them; "Error log" in the list of the session's errors opens its folder.
+--
+-- For other mods (see "what other mods add"): PZModStudioLink.registerReport(modId, fn). What fn
+-- returns goes into "Copy all", and for an error of that mod into "Copy report" and the log.
 
 require "PZModStudio_Link"
 require "ISUI/ISPanel"
@@ -117,6 +124,8 @@ local function add(err)
     -- Every error of the session, for the pause menu's button to show again after a Close.
     table.insert(Errors.history, err)
     if #Errors.history > MAX_KEPT then table.remove(Errors.history, 1) end
+    -- On disk too, once the rest of its entries had their chance to come (Errors.logFlush).
+    if Errors.logAdd then pcall(Errors.logAdd, err) end
 end
 
 --- Reads what the game added to its list since the last look. True when there is something new.
@@ -200,8 +209,9 @@ end
 function Errors.report(group)
     local err = group.last
     local lines = {}
-    table.insert(lines, text("errReportTitle", gameVersion()))
-    table.insert(lines, text("errReportMod", group.mod or text("errNoMod")))
+    table.insert(lines, text("errReportTitle", gameVersion()) .. " (" .. Errors.setting() .. ")")
+    local mod = group.mod and (group.mod .. Errors.modFacts(group.mod)) or text("errNoMod")
+    table.insert(lines, text("errReportMod", mod))
     if #err.callers > 0 then table.insert(lines, text("errReportCalled", table.concat(err.callers, ", "))) end
     table.insert(lines, text("errReportTimes", group.count))
     table.insert(lines, "")
@@ -210,17 +220,51 @@ function Errors.report(group)
         table.insert(lines, "")
         for _, f in ipairs(err.frames) do table.insert(lines, "    " .. f.line) end
     end
+    -- What the mod itself adds to its reports (PZModStudioLink.registerReport).
+    local id = Errors.idOf(group.mod)
+    local own = id and Errors.reportOf(id, err)
+    if own then
+        table.insert(lines, "")
+        table.insert(lines, text("errReportFrom", id))
+        for _, line in ipairs(own) do table.insert(lines, "    " .. line) end
+    end
     return table.concat(lines, "\n")
 end
 
---- The mod id of a name the game wrote in a stack (its mod.info name), or nil.
+--- The mod id of a name the game wrote in a stack (its mod.info name), or nil. Kept: looking
+--- through every installed mod for each line of a report would be slow with hundreds of them.
+local idByName = {}
 function Errors.idOf(name)
     if not name then return nil end
-    for _, dir in ipairs(getModDirectoryTable()) do
-        local info = getModInfo(dir)
-        if info and info:getName() == name then return plainId(info:getId()) end
-    end
-    return nil
+    local known = idByName[name]
+    if known ~= nil then return known or nil end
+    idByName[name] = false
+    pcall(function()
+        for _, dir in ipairs(getModDirectoryTable()) do
+            local info = getModInfo(dir)
+            if info and info:getName() == name then
+                idByName[name] = plainId(info:getId())
+                return
+            end
+        end
+    end)
+    return idByName[name] or nil
+end
+
+--- " (id, version 1.2, Workshop 123)" of a mod named in a stack: what its author asks first.
+--- english: in English whatever the player's language (for the error log).
+function Errors.modFacts(name, english)
+    local id = Errors.idOf(name)
+    if not id then return "" end
+    local parts = { id }
+    pcall(function()
+        local info = getModInfoByID(id)
+        local version = info and info:getModVersion()
+        if version and tostring(version) ~= "" then table.insert(parts, english and ("version " .. tostring(version)) or text("errReportVersion", tostring(version))) end
+        local ws = info and info:getWorkshopID()
+        if ws and tostring(ws) ~= "" and tostring(ws) ~= "0" then table.insert(parts, "Workshop " .. tostring(ws)) end
+    end)
+    return " (" .. table.concat(parts, ", ") .. ")"
 end
 
 --- Another mod already shows these errors: two popups for one error is one too many.
@@ -318,6 +362,10 @@ function Notice:createChildren()
         Errors.detailsOpen = not Errors.detailsOpen
         Errors.reopen()
     end)
+    -- Every kind of error of the session, when there is more than the one shown.
+    if #Errors.history > 1 then
+        self:addButton(text("errAll", #Errors.history), function() Errors.showList() end)
+    end
     self:addButton(text("errClose"), function() Errors.close() end)
     -- Hide, top right: the notice becomes a small badge there, which brings it back.
     local size = 18
@@ -382,6 +430,459 @@ function Notice:prerender()
             self:drawText(fit(text("errMoreSteps", #frames - DETAIL_STEPS), small, w), 14, y, 0.55, 0.55, 0.6, 1, small)
         end
     end
+end
+
+-- ------------------------------------------------------------------ every error of the session
+-- The session's errors, each kind once: the same mod, message and place count as one, with how
+-- many times it came. A row copies that error's report; "Copy all" copies them all, with the game's
+-- version, the mode and how many mods are on at the top.
+
+--- How the game runs now: "single player, Steam" and the like, in the player's language.
+function Errors.setting()
+    local mp = false
+    pcall(function() mp = isClient() == true end)
+    local steam = true
+    pcall(function() steam = getSteamModeActive() == true end)
+    local mods = 0
+    pcall(function() mods = getActivatedMods():size() end)
+    return text(mp and "errModeMp" or "errModeSp") .. ", " .. text(steam and "errSteam" or "errNoSteam") .. ", " .. text("errModsOn", mods)
+end
+
+local function kindKey(err)
+    return (err.mod or "") .. "\1" .. (err.message or "") .. "\1" .. (failedAt(err) or "")
+end
+
+--- Each kind of error of the session once: { mod, count, last, at }, the most frequent first.
+function Errors.kinds()
+    local byKey, order = {}, {}
+    for _, err in ipairs(Errors.history) do
+        local key = kindKey(err)
+        local kind = byKey[key]
+        if not kind then
+            kind = { mod = err.mod, count = 0 }
+            byKey[key] = kind
+            table.insert(order, kind)
+        end
+        kind.count = kind.count + 1
+        kind.last = err
+        kind.at = failedAt(err)
+    end
+    table.sort(order, function(a, b) return a.count > b.count end)
+    return order
+end
+
+--- Every kind on the clipboard, numbered, with what a mod's author needs.
+function Errors.reportAll()
+    local lines = { text("errReportAllTitle", gameVersion(), Errors.setting()), "" }
+    for i, kind in ipairs(Errors.kinds()) do
+        local err = kind.last
+        local head = "#" .. tostring(i) .. "  x" .. tostring(kind.count) .. "  " .. (kind.mod and (kind.mod .. Errors.modFacts(kind.mod)) or text("errNoMod"))
+        if err.callers and #err.callers > 0 then head = head .. "  (" .. text("errReportCalled", table.concat(err.callers, ", ")) .. ")" end
+        table.insert(lines, head)
+        table.insert(lines, err.message or "")
+        for _, f in ipairs(err.frames or {}) do table.insert(lines, "    " .. f.line) end
+        table.insert(lines, "")
+    end
+    -- What mods add to the reports (PZModStudioLink.registerReport), every one that registered.
+    for _, id in ipairs(Errors.reporters()) do
+        local own = Errors.reportOf(id, nil)
+        if own then
+            table.insert(lines, text("errReportFrom", id))
+            for _, line in ipairs(own) do table.insert(lines, "    " .. line) end
+            table.insert(lines, "")
+        end
+    end
+    return table.concat(lines, "\n")
+end
+
+-- ------------------------------------------------------------------ what other mods add
+-- A mod can attach its own debug information to the Link's reports:
+--
+--     if PZModStudioLink and PZModStudioLink.registerReport then
+--         PZModStudioLink.registerReport("MyModId", function(err)
+--             return { "version 1.4", "players: " .. tostring(getNumActivePlayers()) }
+--         end)
+--     end
+--
+-- fn is called only when a report is made (Copy report and Copy all in the error notice and its
+-- list, and the first time an error of that mod goes to the error log), inside pcall. It gets the
+-- error ({ mod, message, at = "File.lua:48" }) or nil (Copy all), and returns a string, a list of
+-- lines, or a table of name = value pairs; the first REPORT_MAX_LINES lines are kept. A mod whose
+-- Lua runs before the Link's can set PZModStudioLinkReports["MyModId"] = fn instead: the same.
+-- Its text goes in "Copy all" always, and in a single error's report when the error is that mod's.
+
+PZModStudioLinkReports = PZModStudioLinkReports or {}
+local REPORT_MAX_LINES = 60
+local REPORT_MAX_CHARS = 4000
+
+--- Registers (or, with fn nil, takes back) what modId adds to the reports. True when taken.
+function Link.registerReport(modId, fn)
+    if type(modId) ~= "string" or modId == "" then return false end
+    if fn ~= nil and type(fn) ~= "function" then return false end
+    PZModStudioLinkReports[plainId(modId)] = fn
+    return true
+end
+
+--- The ids of the mods that registered a report, sorted.
+function Errors.reporters()
+    local ids = {}
+    if type(PZModStudioLinkReports) ~= "table" then return ids end
+    for id, fn in pairs(PZModStudioLinkReports) do
+        if type(fn) == "function" then table.insert(ids, tostring(id)) end
+    end
+    table.sort(ids)
+    return ids
+end
+
+--- The lines modId adds for err (nil: for every error), or nil when it registered none.
+function Errors.reportOf(modId, err)
+    local reports = PZModStudioLinkReports
+    local fn = type(reports) == "table" and (reports[modId] or reports[plainId(modId)]) or nil
+    if type(fn) ~= "function" then return nil end
+    local arg = nil
+    if err then arg = { mod = err.mod, message = err.message, at = failedAt(err) } end
+    local ok, value = pcall(fn, arg)
+    if not ok then return { text("errReportFailed", tostring(value)) } end
+    local lines, chars = {}, 0
+    local function addText(s)
+        for line in string.gmatch(tostring(s) .. "\n", "([^\n]*)\n") do
+            if #lines < REPORT_MAX_LINES and chars < REPORT_MAX_CHARS then
+                local cut = string.sub(string.gsub(line, "\r", ""), 1, REPORT_MAX_CHARS - chars)
+                table.insert(lines, cut)
+                chars = chars + string.len(cut)
+            end
+        end
+    end
+    if type(value) == "table" then
+        if #value > 0 then
+            for _, v in ipairs(value) do addText(v) end
+        else
+            local pairsOf = {}
+            for k, v in pairs(value) do table.insert(pairsOf, { key = tostring(k), value = v }) end
+            table.sort(pairsOf, function(a, b) return a.key < b.key end)
+            for _, p in ipairs(pairsOf) do addText(p.key .. " = " .. tostring(p.value)) end
+        end
+    elseif value ~= nil then
+        addText(value)
+    end
+    if #lines == 0 then return nil end
+    return lines
+end
+
+-- ------------------------------------------------------------------ kept on disk
+-- Every error also goes to Zomboid/Lua/PZModStudio_LinkErrorLog.txt (the only folder the game's
+-- Lua can write), appended within a second of coming:
+--   ==== <date time>  Project Zomboid <build> (<mode>, <Steam or not>, <n> mods on)  <where>
+--   [<time>] <mod> (<id>, version <v>, Workshop <n>) called from <mod>  at <File.lua:48>
+--       <message>
+--           <the stack, the failing step first>
+--       <what the mod adds, PZModStudioLink.registerReport>
+--   [<time>] x<n> again: <mod>: <message>  at <File.lua:48>
+--   ---- <time> back to the main menu / disconnected from the server
+-- A heading starts each load of the game's Lua that has an error to write (the game reloads it
+-- going into a save and back). Each kind of error is written in full once per load; repeats are
+-- counted and said every LOG_REPEAT_SECONDS. In English, as the game's console.txt: it is for
+-- the mods' authors. Past LOG_MAX_LINES lines the file keeps its last LOG_KEEP_LINES.
+
+local LOG_FILE = "PZModStudio_LinkErrorLog.txt"
+local LOG_REPEAT_SECONDS = 30
+local LOG_MAX_LINES = 6000
+local LOG_KEEP_LINES = 3000
+local LOG_FULL_PER_LOAD = 100
+local LOG_STEPS = 30
+
+local Log = { pending = {}, kinds = {}, repeats = {}, repeatOrder = {}, tick = 0, written = false, full = 0, repeatAt = 0 }
+Errors.Log = Log
+Errors.LOG_FILE = LOG_FILE
+
+--- The PC's local time (as the game's own new-save names have it); os.date is UTC in the game.
+local formats = {}
+local function clock(withDate)
+    local pattern = withDate and "yyyy-MM-dd HH:mm:ss" or "HH:mm:ss"
+    local okLocal, here = pcall(function()
+        if not formats[pattern] then formats[pattern] = SimpleDateFormat.new(pattern, Locale.ENGLISH) end
+        return formats[pattern]:format(Calendar.getInstance():getTime())
+    end)
+    if okLocal and here then return tostring(here) end
+    local ok, s = pcall(os.date, withDate and "!%Y-%m-%d %H:%M:%S UTC" or "!%H:%M:%S")
+    if ok and s then return tostring(s) end
+    return tostring(Link.now())
+end
+
+--- The setting in English, for the log.
+local function logSetting()
+    local mp, steam, mods = false, true, 0
+    pcall(function() mp = isClient() == true end)
+    pcall(function() steam = getSteamModeActive() == true end)
+    pcall(function() mods = getActivatedMods():size() end)
+    return (mp and "multiplayer" or "single player") .. ", " .. (steam and "Steam" or "no Steam") .. ", " .. tostring(mods) .. " mods on"
+end
+
+local function logWhere()
+    if not Link.inGame then return "main menu" end
+    local save = Link.currentSave and Link.currentSave() or ""
+    return save ~= "" and ("in game: " .. save) or "in game"
+end
+
+--- Past LOG_MAX_LINES, the file from a heading near its last LOG_KEEP_LINES lines.
+local function trimLog()
+    local file = getFileReader(LOG_FILE, false)
+    if not file then return end
+    local lines = {}
+    local line = file:readLine()
+    while line ~= nil do
+        table.insert(lines, line)
+        line = file:readLine()
+    end
+    file:close()
+    if #lines <= LOG_MAX_LINES then return end
+    local from = #lines - LOG_KEEP_LINES + 1
+    for i = from, #lines do
+        if string.find(lines[i], "^====") then
+            from = i
+            break
+        end
+    end
+    local writer = getFileWriter(LOG_FILE, true, false)
+    if not writer then return end
+    for i = from, #lines do writer:write(lines[i] .. "\n") end
+    writer:close()
+end
+
+local function appendLog(lines)
+    if #lines == 0 then return end
+    if not Log.written then
+        Log.written = true
+        pcall(trimLog)
+        table.insert(lines, 1, "==== " .. clock(true) .. "  Project Zomboid " .. gameVersion() .. " (" .. logSetting() .. ")  " .. logWhere())
+    end
+    local writer = getFileWriter(LOG_FILE, true, true)
+    if not writer then return end
+    writer:write(table.concat(lines, "\n") .. "\n")
+    writer:close()
+end
+
+local function shortOf(err)
+    local s = (err.mod or "the game's own code") .. ": " .. string.gsub(firstLine(err.message or ""), "^%s+", "")
+    local at = failedAt(err)
+    if at then s = s .. "  at " .. at end
+    return s
+end
+
+local function entryLines(err, out)
+    local head = "[" .. clock() .. "] " .. (err.mod and (err.mod .. Errors.modFacts(err.mod, true)) or "the game's own code (no mod named)")
+    if err.callers and #err.callers > 0 then head = head .. " called from " .. table.concat(err.callers, ", ") end
+    local at = failedAt(err)
+    if at then head = head .. "  at " .. at end
+    table.insert(out, head)
+    for line in string.gmatch((err.message or "") .. "\n", "([^\n]*)\n") do
+        if line ~= "" then table.insert(out, "    " .. string.gsub(line, "\r", "")) end
+    end
+    local frames = err.frames or {}
+    for i = 1, math.min(#frames, LOG_STEPS) do table.insert(out, "        " .. frames[i].line) end
+    if #frames > LOG_STEPS then table.insert(out, "        ... " .. tostring(#frames - LOG_STEPS) .. " more step(s)") end
+    local id = Errors.idOf(err.mod)
+    local own = id and Errors.reportOf(id, err)
+    if own then
+        table.insert(out, "    Added by " .. id .. ":")
+        for _, line in ipairs(own) do table.insert(out, "        " .. line) end
+    end
+end
+
+function Errors.logAdd(err)
+    err.logTick = Log.tick
+    table.insert(Log.pending, err)
+end
+
+--- Writes what is ready: an error read on an earlier look (its stack has come by now) or closed.
+--- all: everything, and the repeats counted so far (before a marker).
+function Errors.logFlush(all)
+    local out, keep = {}, {}
+    for _, err in ipairs(Log.pending) do
+        if all or err.closed or err.logTick < Log.tick then
+            local key = kindKey(err)
+            if not Log.kinds[key] and Log.full < LOG_FULL_PER_LOAD then
+                Log.kinds[key] = true
+                Log.full = Log.full + 1
+                entryLines(err, out)
+            else
+                local r = Log.repeats[key]
+                if not r then
+                    r = { count = 0, err = err }
+                    Log.repeats[key] = r
+                    table.insert(Log.repeatOrder, key)
+                end
+                r.count = r.count + 1
+            end
+        else
+            table.insert(keep, err)
+        end
+    end
+    Log.pending = keep
+    Log.tick = Log.tick + 1
+    local t = Link.now()
+    if #Log.repeatOrder > 0 and (all or t - Log.repeatAt >= LOG_REPEAT_SECONDS) then
+        Log.repeatAt = t
+        for _, key in ipairs(Log.repeatOrder) do
+            local r = Log.repeats[key]
+            table.insert(out, "[" .. clock() .. "] x" .. tostring(r.count) .. " again: " .. shortOf(r.err))
+        end
+        Log.repeats, Log.repeatOrder = {}, {}
+    end
+    appendLog(out)
+end
+
+--- A line between what came before and after (back to the menu, a disconnect), when this load
+--- of the game's Lua wrote something.
+function Errors.logMark(what)
+    pcall(Errors.logFlush, true)
+    if not Log.written then return end
+    appendLog({ "---- " .. clock() .. " " .. what })
+end
+
+--- The folder of the log opened (Windows Explorer and the like) and the file's path on the
+--- clipboard. Returns whether the folder opened, and the path.
+function Errors.openLog()
+    pcall(Errors.logFlush, true)
+    local folder = nil
+    pcall(function() folder = tostring(getMyDocumentFolder()) end)
+    local sep = "/"
+    pcall(function() sep = tostring(getFileSeparator()) end)
+    if not folder or folder == "" or folder == "nil" then return false, "Zomboid" .. sep .. "Lua" .. sep .. LOG_FILE end
+    local dir = folder .. sep .. "Lua"
+    local path = dir .. sep .. LOG_FILE
+    pcall(function() Clipboard.setClipboard(path) end)
+    local opened = false
+    pcall(function()
+        if isDesktopOpenSupported() then
+            showFolderInDesktop(dir)
+            opened = true
+        end
+    end)
+    return opened, path
+end
+
+local ListWindow = ISPanel:derive("StudioLinkErrorList")
+local LIST_W, LIST_H = 640, 420
+
+function ListWindow:new(x, y)
+    local o = ISPanel.new(self, x, y, LIST_W, LIST_H)
+    o.backgroundColor = { r = 0.06, g = 0.05, b = 0.06, a = 0.95 }
+    o.borderColor = { r = 0.97, g = 0.44, b = 0.44, a = 0.85 }
+    o.moveWithMouse = true
+    return o
+end
+
+local function drawKind(list, y, item, alt)
+    local kind = item.item
+    local small = UIFont.Small
+    local fh = getTextManager():getFontHeight(small)
+    local w = list.width - 16
+    if list.selected == item.index then
+        list:drawRect(0, y, list.width, item.height - 1, 0.25, 0.97, 0.44, 0.44)
+    elseif alt then
+        list:drawRect(0, y, list.width, item.height - 1, 0.15, 0.2, 0.2, 0.25)
+    end
+    local head = "x" .. tostring(kind.count) .. "   " .. (kind.mod or text("errNoMod"))
+    if kind.at then head = head .. "   " .. kind.at end
+    list:drawText(fit(head, small, w), 8, y + 4, 0.95, 0.95, 0.95, 1, small)
+    list:drawText(fit(kind.last.message or "", small, w), 8, y + 6 + fh, 0.7, 0.7, 0.75, 1, small)
+    return y + item.height
+end
+
+function ListWindow:createChildren()
+    local small = UIFont.Small
+    local fh = getTextManager():getFontHeight(small)
+    local top = 8 + getTextManager():getFontHeight(UIFont.Medium) + 8
+    local list = ISScrollingListBox:new(10, top, self.width - 20, self.height - top - 44)
+    list:initialise()
+    list:instantiate()
+    list.itemheight = fh * 2 + 12
+    list.font = small
+    list.drawBorder = true
+    list.backgroundColor = { r = 0, g = 0, b = 0, a = 0.4 }
+    list.doDrawItem = drawKind
+    list:setOnMouseDownFunction(self, function(panel, kind)
+        local ok = pcall(function() Clipboard.setClipboard(Errors.report(kind)) end)
+        panel.said = ok and text("errCopied") or nil
+        panel.saidAt = Link.now()
+    end)
+    self:addChild(list)
+    self.list = list
+    for _, kind in ipairs(Errors.kinds()) do list:addItem(kind.mod or "", kind) end
+    local x = 10
+    local function button(label, onClick)
+        local bw = getTextManager():MeasureStringX(small, label) + 18
+        local b = ISButton:new(x, self.height - 32, bw, 22, label, self, onClick)
+        b:initialise()
+        b:instantiate()
+        b:setFont(small)
+        b.borderColor = { r = 0.5, g = 0.5, b = 0.55, a = 0.9 }
+        self:addChild(b)
+        x = x + bw + 6
+        return b
+    end
+    button(text("errCopyAll"), function(panel)
+        local ok = pcall(function() Clipboard.setClipboard(Errors.reportAll()) end)
+        panel.said = ok and text("errCopiedAll") or nil
+        panel.saidAt = Link.now()
+    end)
+    -- The file every error also goes to: its folder opened, its path copied.
+    local logButton = button(text("errLog"), function(panel)
+        local opened, path = Errors.openLog()
+        panel.said = opened and text("errLogShown") or text("errLogWhere", path)
+        panel.saidAt = Link.now()
+    end)
+    logButton.tooltip = text("errLogTip")
+    button(text("errClose"), function(panel) Errors.closeList() end)
+    self.hintX = x + 6
+end
+
+function ListWindow:prerender()
+    ISPanel.prerender(self)
+    local kinds = #self.list.items
+    self:drawText(text("errListTitle", #Errors.history, kinds), 10, 8, 0.97, 0.55, 0.55, 1, UIFont.Medium)
+    local said = self.said and self.saidAt and Link.now() - self.saidAt < 6 and self.said
+    local hint = said or text("errListHint")
+    local small = UIFont.Small
+    local hx = self.width - 10 - getTextManager():MeasureStringX(small, hint)
+    hint = fit(hint, small, self.width - 10 - (self.hintX or 200))
+    hx = self.width - 10 - getTextManager():MeasureStringX(small, hint)
+    self:drawText(hint, math.max(self.hintX or 200, hx), self.height - 28, said and 0.45 or 0.6, said and 0.9 or 0.6, said and 0.65 or 0.65, 1, small)
+end
+
+function Errors.closeList()
+    local w = Errors.listWindow
+    if not w then return end
+    Errors.listAt = { x = w:getX(), y = w:getY() }
+    w:setVisible(false)
+    if w.onMenu and MainScreen.instance then pcall(function() MainScreen.instance:removeChild(w) end) end
+    w:removeFromUIManager()
+    Errors.listWindow = nil
+end
+
+--- The list of every kind of error of the session, over everything (the pause menu too).
+function Errors.showList()
+    Errors.closeList()
+    if #Errors.history == 0 then return end
+    local sw, sh = getCore():getScreenWidth(), getCore():getScreenHeight()
+    local at = Errors.listAt or { x = math.floor((sw - LIST_W) / 2), y = math.floor((sh - LIST_H) / 2) }
+    local x = math.max(0, math.min(at.x, sw - LIST_W))
+    local y = math.max(0, math.min(at.y, sh - LIST_H))
+    local w = ListWindow:new(x, y)
+    w:initialise()
+    w:instantiate()
+    local menuUp = false
+    pcall(function() menuUp = Link.inGame and MainScreen.instance ~= nil and MainScreen.instance:getIsVisible() end)
+    if menuUp then
+        w.onMenu = true
+        MainScreen.instance:addChild(w)
+        w:bringToTop()
+    else
+        w:addToUIManager()
+        w:setAlwaysOnTop(true)
+    end
+    Errors.listWindow = w
 end
 
 -- ------------------------------------------------------------------ the badge
@@ -588,7 +1089,7 @@ function Errors.menuButton(screen)
         return
     end
     if not button or button.screen ~= screen then
-        button = ISButton:new(0, 0, 100, 22, "", screen, function() Errors.showAll() end)
+        button = ISButton:new(0, 0, 100, 22, "", screen, function() Errors.showList() end)
         button:initialise()
         button:instantiate()
         button:setFont(UIFont.Small)
@@ -633,7 +1134,14 @@ local function check()
     if Errors.seen and (not Errors.wroteAt or t - Errors.wroteAt >= SEEN_WRITE_SECONDS) then pcall(writeSeen) end
     -- The pause menu came up or went away: the notice moves to where it can be seen.
     if Errors.panel and (Errors.panel.onMenu == true) ~= pauseMenuUp() then Errors.reopen() end
-    if not Errors.collect() then return end
+    local fresh = Errors.collect()
+    -- On disk what is ready, every look: a crash a second later still finds it there.
+    local okLog, errLog = pcall(Errors.logFlush, false)
+    if not okLog and not Errors.logFailed then
+        Errors.logFailed = true
+        print("[StudioLink] the error log failed: " .. tostring(errLog))
+    end
+    if not fresh then return end
     if #Errors.batch > 0 and not Errors.otherShows() then Errors.show() end
 end
 
@@ -667,5 +1175,21 @@ if Events.OnGameStart then
         Errors.badge = nil
         Errors.at = nil
         Errors.badgeAt = nil
+        Errors.logInGame = true
+    end)
+end
+-- The log's markers: back to the main menu from a game, and a server that dropped the game.
+if Events.OnMainMenuEnter then
+    Events.OnMainMenuEnter.Add(function()
+        if Errors.logInGame then
+            Errors.logInGame = false
+            pcall(Errors.logMark, "back to the main menu")
+        end
+    end)
+end
+if Events.OnDisconnect then
+    Events.OnDisconnect.Add(function(reason)
+        local why = type(reason) == "string" and reason ~= "" and (": " .. reason) or ""
+        pcall(Errors.logMark, "disconnected from the server" .. why)
     end)
 end

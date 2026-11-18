@@ -68,6 +68,10 @@ The server's answer appears under the box.
 
 Edit the main settings and press **Save Settings to .ini**: **Public Server Name**, **Server Password (Join)** (blank for an open server), **Admin Password (-adminpassword)**, **Max Players**, **Default Port**, **Public Description**, **PVP Combat** and **Pause When Empty**.
 
+## All options
+
+Every server and sandbox option, as the game shows them: by page, with its help, its default and your mods' sandbox options. **Server** and **Sandbox** switch lists, the search finds an option by name or help, and **Only the ones not at their default** shows what you changed. An option's arrow puts it back to its default. **Save** writes only what you changed, both files backed up first (to `PZModStudio_Backups/server_settings`), and refuses while that server runs. The Studio Link notes the list of options the first time you open the game to the main menu (and again when the build, the language or your mods change).
+
 ## Discord
 
 A Discord webhook lets the server post to one channel: when it is up, stopped, crashed or back after a restart, who joins and leaves, and when its Workshop mods were updated and it needs a restart. No one is pinged.

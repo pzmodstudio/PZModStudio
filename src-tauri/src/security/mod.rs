@@ -12,8 +12,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Bumped when a rule changes: older scans are made again.
-const ENGINE: &str = "security-v5";
+/// Bumped when a rule changes: older scans are made again (v6: Lua outside `media/lua` is not
+/// read, the game never runs it).
+const ENGINE: &str = "security-v6";
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_JAR_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -449,7 +450,10 @@ pub fn scan_tree(mod_id: &str, root: &Path) -> ModScan {
             }
             continue;
         }
-        if ext == "lua" && size <= MAX_TEXT_BYTES {
+        // The game runs Lua from a `media/lua` folder only: an author's tools beside it
+        // (`source/tools/keys/sim.lua` with its `dofile`) never run in the game.
+        let under_media_lua = format!("/{}", rel.to_lowercase()).contains("/media/lua/");
+        if ext == "lua" && size <= MAX_TEXT_BYTES && under_media_lua {
             if let Ok(text) = std::fs::read_to_string(path) {
                 findings.extend(scan_lua(&rel, &text));
             }
@@ -593,13 +597,19 @@ mod tests {
         std::fs::write(dir.join("build.ps1"), b"x").unwrap();
         std::fs::write(dir.join("Hat_Miner.xml"), b"x").unwrap();
         std::fs::write(lua.join("VPWindshield_Inject.lua"), "print(1)").unwrap();
+        // An author's tool beside the mod, which the game never runs (measured 2026-11-18: a
+        // mod's whole security_lua card was `source/tools/keys/sim.lua`'s dofile).
+        let tools = dir.join("source").join("tools");
+        std::fs::create_dir_all(&tools).unwrap();
+        std::fs::write(tools.join("sim.lua"), "dofile(\"x.lua\")").unwrap();
         let scan = scan_tree("Test", &dir);
         assert_eq!(scan.risk, Risk::High);
         assert!(!scan.clean);
         let rules: Vec<&str> = scan.findings.iter().map(|f| f.rule.as_str()).collect();
         assert!(rules.contains(&"executable") && rules.contains(&"known_native") && rules.contains(&"lua_loadstring") && rules.contains(&"script"));
         assert!(!rules.contains(&"suspect_name"), "a miner's hat is not a miner: names count on code files only");
-        assert_eq!(scan.files_scanned, 7);
+        assert!(!rules.contains(&"lua_dofile"), "Lua outside media/lua never runs in the game");
+        assert_eq!(scan.files_scanned, 8);
         assert!(is_studio_mod("Z_ClaudeAgent") && !is_studio_mod("ZombieBuddy"));
         // the cache answers the second time
         let z = dir.join("z");

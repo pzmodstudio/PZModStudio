@@ -2,6 +2,21 @@
 
 App Settings is where you tell the Studio where your game and mods live, and choose how the Studio behaves: language, window, warnings, how it starts, and a few optional extras. Every change is saved as soon as you make it.
 
+## Simple and Complete
+
+The card at the top, **How much of the Studio to show**, picks one of two views. The same switch is always at the foot of the left bar, under **View**. Changing it never deletes or switches off anything: it only shows or hides screens, and you can go back and forth whenever you like.
+
+- **Simple** shows what you need to play with mods:
+  - **Home**: the profile in use, **Play**, **Continue** (your last game with this profile, once you have one) and the check-up in one line: green when there is nothing to do, red with **See what to do** when something needs fixing first.
+  - **Profiles**, **Mod List** (on/off, order, Auto-Sort), **Browse Mods**, **Saves** and **Diagnostics**.
+  - **Diagnostics** lists only what you need to act on, each with one button. Optional suggestions (the game works without them) and what is only good to know or already fixed are counted under the list, not shown; **Show everything (Complete)** shows them.
+  - Here, Settings keeps the **Directory Paths**, **Alerts** and **The app** tabs.
+- **Complete** is the whole Studio: every screen in the sidebar (Monitor Center, What's new, Maps, Mod Merger, Servers, Developer), every Diagnostics tab and every Settings tab.
+
+A new install starts in **Simple**, with a three-step welcome: where your game was found, make or choose a profile, play. If the Studio was already used on this PC, it starts in **Complete**, as it always looked. The choice is remembered on this PC.
+
+A link from another screen can still open a screen Simple hides (the Doctor's steps, for example); it shows in the sidebar while it is open.
+
 ## What you see
 
 The screen has tabs at the top, side by side:

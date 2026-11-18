@@ -30,6 +30,11 @@ pub struct AppInstance {
     /// The memory (MB) the game gets with this profile on (`-Xmx`); None: whatever was chosen last.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game_memory_mb: Option<u64>,
+    /// An isolated profile ("Isolate this profile"; the name is from when it was saves only): its
+    /// single-player saves, game options and mod settings are its own, put in place when it is
+    /// switched on and put away when another is (profile_saves). The mods themselves are shared.
+    #[serde(default)]
+    pub own_saves: bool,
 }
 
 impl AppInstance {
@@ -365,6 +370,7 @@ pub fn create_instance(
         last_played_build: None,
         target_build: None,
         game_memory_mb: None,
+        own_saves: false,
     };
     instance.with_link();
 
@@ -389,12 +395,15 @@ pub fn activate_instance(user_zomboid_dir: String, instance_id: String) -> Resul
     target_instance.is_active = true;
     target_instance.with_link();
 
-    // 1. The game's list first: if it cannot be written, nothing has switched, and the profile
-    // still marked active is the one whose mods are on.
     let z_dir = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&user_zomboid_dir)
         .into_iter()
         .next()
         .ok_or_else(|| format!("Zomboid folder not found: {}", user_zomboid_dir))?;
+    // 0. Its saves in place (own, or the shared ones): refused while the game runs, before anything.
+    crate::profile_saves::switch_to(&z_dir, &crate::profile_saves::set_of(target_instance.own_saves, &target_instance.id))?;
+
+    // 1. The game's list first: if it cannot be written, nothing has switched, and the profile
+    // still marked active is the one whose mods are on.
     let _ = fs::create_dir_all(z_dir.join("mods"));
     crate::load_order::ini_parser::write_mod_list_ini(
         &z_dir.join("ModListData.ini").to_string_lossy(),
@@ -540,7 +549,15 @@ pub fn delete_instance(user_zomboid_dir: String, instance_id: String) -> Result<
     if !instance_file.exists() {
         return Ok(());
     }
-    let was_active = read_instance(&instance_file).is_some_and(|i| i.is_active);
+    let stored = read_instance(&instance_file);
+    let was_active = stored.as_ref().is_some_and(|i| i.is_active);
+    // Isolated: its saves become shared ones first and its settings go to the backups: deleting a
+    // profile never loses a world or a setting.
+    if stored.as_ref().is_some_and(|i| i.own_saves) {
+        if let Some(z) = dir.parent() {
+            crate::profile_saves::give_back(z, &instance_id)?;
+        }
+    }
     // Kept in the backups, not gone: a profile is a whole mod list put together by hand.
     let backups = dir.parent().map(|z| z.join("PZModStudio_Backups").join("profiles"));
     let kept = backups.as_ref().is_some_and(|b| {
@@ -578,9 +595,12 @@ pub fn update_instance(
 
     // The screen's copy may be older than the game memory set since: kept unless it says another.
     let mut instance = instance;
+    let stored = read_instance(&instance_file);
     if instance.game_memory_mb.is_none() {
-        instance.game_memory_mb = read_instance(&instance_file).and_then(|stored| stored.game_memory_mb);
+        instance.game_memory_mb = stored.as_ref().and_then(|s| s.game_memory_mb);
     }
+    // Isolation changes only with set_own_saves (worlds and settings are moved then).
+    instance.own_saves = stored.as_ref().is_some_and(|s| s.own_saves);
     let json = serde_json::to_string_pretty(&instance).map_err(|e| e.to_string())?;
     crate::load_order::ini_parser::atomic_write(&instance_file, json).map_err(|e| e.to_string())?;
 
@@ -592,6 +612,28 @@ pub fn update_instance(
     Ok(instance)
 }
 
+
+/// A profile is isolated (`bring`: shared worlds that go with it; it starts with a copy of the
+/// options and mod settings in place) or stops being so (its worlds become shared, its settings
+/// are kept in the backups).
+#[tauri::command]
+pub fn set_own_saves(user_zomboid_dir: String, instance_id: String, own: bool, bring: Vec<String>) -> Result<AppInstance, String> {
+    let dir = get_instances_dir(&user_zomboid_dir);
+    let instance_file = instance_file_path(&dir, &instance_id)?;
+    let mut instance = read_instance(&instance_file).ok_or_else(|| "The profile does not exist.".to_string())?;
+    let z = dir.parent().ok_or_else(|| "Zomboid folder not found".to_string())?.to_path_buf();
+    if own == instance.own_saves {
+        return Ok(instance);
+    }
+    if own {
+        crate::profile_saves::take_own(&z, &instance.id, instance.is_active, &bring)?;
+    } else {
+        crate::profile_saves::give_back(&z, &instance.id)?;
+    }
+    instance.own_saves = own;
+    crate::load_order::ini_parser::atomic_write(&instance_file, serde_json::to_string_pretty(&instance).unwrap_or_default()).map_err(|e| e.to_string())?;
+    Ok(instance)
+}
 
 /// Notes the build a profile was just played on: the one in Zomboid/version.txt now.
 pub fn mark_instance_played(user_zomboid_dir: String, instance_id: String) -> Result<Option<String>, String> {
@@ -729,4 +771,79 @@ mod build_tests {
         assert!(take_server_mods(&user, &made.id, &ids(&["A", "B", "C"]), &ids(&["D"]), &[]).unwrap().is_none(), "nothing new, nothing written");
         let _ = fs::remove_dir_all(&z);
     }
+    /// The whole flow of a profile with saves of its own, through the same calls the app makes:
+    /// give it its own saves (taking one shared world), switch profiles both ways, take them back,
+    /// delete it. No world is ever lost or duplicated.
+    #[test]
+    fn a_profile_with_saves_of_its_own_from_start_to_deletion() {
+        let z = std::env::temp_dir().join(format!("pzms-own-saves-flow-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&z);
+        fs::create_dir_all(z.join("mods")).unwrap();
+        let user = z.to_string_lossy().to_string();
+        let world = |name: &str| {
+            let d = z.join("Saves").join("Sandbox").join(name);
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join("map_ver.bin"), name).unwrap();
+        };
+        world("Shared One");
+        world("Goes With Mine");
+        fs::create_dir_all(z.join("Saves/Multiplayer/servertest")).unwrap();
+        // The game's options and a mod's settings: each isolated profile has its own.
+        fs::create_dir_all(z.join("Lua")).unwrap();
+        fs::write(z.join("options.ini"), "shared").unwrap();
+        fs::write(z.join("Lua/ModOptions.ini"), "shared").unwrap();
+        let setting = |rel: &str| fs::read_to_string(z.join(rel)).unwrap_or_default();
+        let in_place = || -> Vec<String> {
+            let mut v: Vec<String> = fs::read_dir(z.join("Saves/Sandbox")).map(|r| r.flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect()).unwrap_or_default();
+            v.sort();
+            v
+        };
+        let shared = create_instance(user.clone(), "Shared".into(), None, vec![], vec![]).unwrap();
+        let mine = create_instance(user.clone(), "Mine".into(), None, vec![], vec![]).unwrap();
+        activate_instance(user.clone(), shared.id.clone()).unwrap();
+
+        // Mine (not active) gets its own saves, taking one shared world.
+        let mine = set_own_saves(user.clone(), mine.id.clone(), true, vec!["Sandbox/Goes With Mine".into()]).unwrap();
+        assert!(mine.own_saves);
+        assert_eq!(in_place(), vec!["Shared One".to_string()]);
+
+        // Switching to it: only its world; the server's never moves.
+        activate_instance(user.clone(), mine.id.clone()).unwrap();
+        assert_eq!(in_place(), vec!["Goes With Mine".to_string()]);
+        assert!(z.join("Saves/Multiplayer/servertest").is_dir());
+        assert_eq!(setting("options.ini"), "shared", "it starts with a copy");
+        // A new world made while it is on stays its own, and so do its options.
+        world("Made In Mine");
+        fs::write(z.join("options.ini"), "mine").unwrap();
+        fs::write(z.join("Lua/ModOptions.ini"), "mine").unwrap();
+
+        // Back to the shared profile, and to Mine again.
+        activate_instance(user.clone(), shared.id.clone()).unwrap();
+        assert_eq!(in_place(), vec!["Shared One".to_string()]);
+        assert_eq!((setting("options.ini"), setting("Lua/ModOptions.ini")), ("shared".to_string(), "shared".to_string()));
+        activate_instance(user.clone(), mine.id.clone()).unwrap();
+        assert_eq!(in_place(), vec!["Goes With Mine".to_string(), "Made In Mine".to_string()]);
+        assert_eq!((setting("options.ini"), setting("Lua/ModOptions.ini")), ("mine".to_string(), "mine".to_string()));
+        assert!(z.join("Lua").join(crate::studio_link::LINK_FILE).is_file(), "the Link's files never move");
+
+        // An edit from the screen cannot flip it without moving the worlds.
+        let mut edited = mine.clone();
+        edited.own_saves = false;
+        edited.is_active = true;
+        assert!(update_instance(user.clone(), edited).unwrap().own_saves, "kept: only set_own_saves changes it");
+
+        // Deleting it while it is on: its worlds join the shared ones, nothing lost.
+        delete_instance(user.clone(), mine.id.clone()).unwrap();
+        assert_eq!(in_place(), vec!["Goes With Mine".to_string(), "Made In Mine".to_string(), "Shared One".to_string()]);
+        assert_eq!(crate::profile_saves::state(&z).current, crate::profile_saves::SHARED);
+        for w in ["Goes With Mine", "Made In Mine", "Shared One"] {
+            assert_eq!(fs::read_to_string(z.join("Saves/Sandbox").join(w).join("map_ver.bin")).unwrap(), w, "{} intact", w);
+        }
+        // The shared options are back in place; its own are kept in the backups, not laid over them.
+        assert_eq!(setting("options.ini"), "shared");
+        let kept = fs::read_dir(z.join("PZModStudio_Backups/ProfileSettings").join(&mine.id)).unwrap().flatten().next().unwrap().path();
+        assert_eq!(fs::read_to_string(kept.join("options.ini")).unwrap(), "mine");
+        let _ = fs::remove_dir_all(&z);
+    }
+
 }

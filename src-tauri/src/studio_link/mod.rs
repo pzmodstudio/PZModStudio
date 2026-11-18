@@ -56,11 +56,15 @@ const SCREEN_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/c
 const ERRORS_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Errors.lua");
 const MPLOGIN_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_MpLogin.lua");
 const MPAUTO_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_MpAuto.lua");
+const CHECK_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Check.lua");
+const JOIN_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Join.lua");
+const HOST_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Host.lua");
+const SETTINGS_LUA: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/client/PZModStudio_Settings.lua");
 
 const UI_EN: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/EN/UI.json");
 const UI_ES: &str = include_str!("../../../mods/Z_StudioLink/42/media/lua/shared/Translate/ES/UI.json");
 
-fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 9] {
+fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 13] {
     let target = user_zomboid_dir.join("mods").join(LINK_MOD_ID);
     let lua = target.join("42").join("media").join("lua");
     let translate = lua.join("shared").join("Translate");
@@ -72,6 +76,10 @@ fn link_files(user_zomboid_dir: &Path) -> [(PathBuf, &'static str); 9] {
         (lua.join("client").join("PZModStudio_Errors.lua"), ERRORS_LUA),
         (lua.join("client").join("PZModStudio_MpLogin.lua"), MPLOGIN_LUA),
         (lua.join("client").join("PZModStudio_MpAuto.lua"), MPAUTO_LUA),
+        (lua.join("client").join("PZModStudio_Check.lua"), CHECK_LUA),
+        (lua.join("client").join("PZModStudio_Join.lua"), JOIN_LUA),
+        (lua.join("client").join("PZModStudio_Host.lua"), HOST_LUA),
+        (lua.join("client").join("PZModStudio_Settings.lua"), SETTINGS_LUA),
         (translate.join("EN").join("UI.json"), UI_EN),
         (translate.join("ES").join("UI.json"), UI_ES),
     ]
@@ -728,13 +736,66 @@ pub fn saves_file_text(user_zomboid_dir: &Path) -> String {
 /// `waiting=<mod id>` lines. Nothing leaves the PC (Steam's own record on disk).
 pub const UPDATED_FILE: &str = "PZModStudio_LinkUpdated.txt";
 
+/// A change note on one line for the game's rich text: Workshop tags dropped, no "<" (the rich
+/// text's own tags), at most 400 characters.
+fn link_note_text(text: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    for c in text.chars() {
+        match c {
+            '[' => in_tag = true,
+            ']' if in_tag => in_tag = false,
+            _ if in_tag => {}
+            '\r' | '\n' | '\t' => out.push(' '),
+            '<' => out.push('('),
+            '>' => out.push(')'),
+            _ => out.push(c),
+        }
+    }
+    let squeezed: String = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    if squeezed.chars().count() > 400 {
+        format!("{}...", squeezed.chars().take(400).collect::<String>())
+    } else {
+        squeezed
+    }
+}
+
+/// `updated=<id>` / `waiting=<id>` for the mods Steam updated since the last session or has an
+/// update waiting for; `note=<id>\t<date>\t<text>` for their newest change notes (two at most);
+/// `risk=<id>\t<breaks|read>` when the update may break a save or is worth reading first.
 pub fn updated_file_text(items: &[crate::whats_new::UpdatedItem]) -> String {
     let mut out = String::new();
     // (a local mod with new changelog entries was not updated on the Workshop)
     for item in items.iter().filter(|i| !i.local) {
         let key = if item.pending { "waiting" } else if item.since_last_play { "updated" } else { continue };
+        // The newest change notes, as the Mods screen's details can show them (rich text: no tags).
+        let notes: Vec<String> = item
+            .notes
+            .iter()
+            .take(2)
+            .map(|n| {
+                let date = chrono::DateTime::from_timestamp(n.at as i64, 0).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+                (date, link_note_text(&n.text))
+            })
+            .filter(|(_, t)| !t.is_empty())
+            .map(|(d, t)| format!("{}\t{}", d, t))
+            .collect();
+        let risk = if item.risks.iter().any(|r| r.level == "breaks") {
+            Some("breaks")
+        } else if item.risks.iter().any(|r| r.level == "read") {
+            Some("read")
+        } else {
+            None
+        };
         for id in &item.mod_ids {
-            out.push_str(&format!("{}={}\n", key, crate::load_order::mod_info::sanitize_mod_id(id)));
+            let id = crate::load_order::mod_info::sanitize_mod_id(id);
+            out.push_str(&format!("{}={}\n", key, id));
+            for n in &notes {
+                out.push_str(&format!("note={}\t{}\n", id, n));
+            }
+            if let Some(r) = risk {
+                out.push_str(&format!("risk={}\t{}\n", id, r));
+            }
         }
     }
     out
@@ -844,6 +905,28 @@ pub fn write_health_file(user_zomboid_dir: &Path, lines: &[(String, String, Stri
         .map(|(severity, id, msg)| format!("{}\t{}\t{}\n", clean(severity), clean(id), clean(msg)))
         .collect();
     let path = lua_dir.join(HEALTH_FILE);
+    if std::fs::read_to_string(&path).is_ok_and(|now| now == text) {
+        return Ok(());
+    }
+    crate::load_order::ini_parser::atomic_write(&path, text).map_err(|e| format!("Cannot write {}: {}", path.display(), e))
+}
+
+/// What the app's Doctor says first, for the main menu's card (the Link shows at most four lines):
+/// `warn=<text>` or `line=<text>`, in the player's language.
+pub const DOCTOR_FILE: &str = "PZModStudio_LinkDoctor.txt";
+
+pub fn write_doctor_file(user_zomboid_dir: &Path, lines: &[(String, String)]) -> Result<(), String> {
+    let lua_dir = user_zomboid_dir.join("Lua");
+    if !lua_dir.is_dir() {
+        return Ok(());
+    }
+    let clean = |s: &str| s.replace(['\t', '\r', '\n'], " ");
+    let text: String = lines
+        .iter()
+        .take(4)
+        .map(|(kind, msg)| format!("{}={}\n", if kind == "warn" { "warn" } else { "line" }, clean(msg)))
+        .collect();
+    let path = lua_dir.join(DOCTOR_FILE);
     if std::fs::read_to_string(&path).is_ok_and(|now| now == text) {
         return Ok(());
     }
@@ -1315,6 +1398,18 @@ mod tests {
 updated=B
 waiting=C
 ");
+        // With notes and a risk: the newest two, on one line each, for the game's rich text.
+        let mut noted = item(&["E"], false, true);
+        noted.notes = vec![
+            crate::whats_new::ChangeNote { at: 1_794_960_000, text: "[b]Fixed[/b] the <crash>\nwhen driving".into() },
+            crate::whats_new::ChangeNote { at: 1_794_000_000, text: "Older".into() },
+            crate::whats_new::ChangeNote { at: 1_793_000_000, text: "Oldest".into() },
+        ];
+        noted.risks = vec![crate::whats_new::Risk { code: "notes".into(), level: "read".into(), detail: String::new() }];
+        let text = updated_file_text(&[noted]);
+        assert!(text.contains("note=E\t2026-11-18\tFixed the (crash) when driving\n"), "{}", text);
+        assert!(text.contains("\tOlder\n") && !text.contains("Oldest"));
+        assert!(text.ends_with("risk=E\tread\n"));
     }
 
     #[test]
@@ -1348,7 +1443,7 @@ waiting=C
             }
             out
         };
-        for (file, source) in [("PZModStudio_Link.lua", CLIENT_LUA), ("PZModStudio_ModsScreen.lua", SCREEN_LUA), ("PZModStudio_Errors.lua", ERRORS_LUA)] {
+        for (file, source) in [("PZModStudio_Link.lua", CLIENT_LUA), ("PZModStudio_ModsScreen.lua", SCREEN_LUA), ("PZModStudio_Errors.lua", ERRORS_LUA), ("PZModStudio_Check.lua", CHECK_LUA), ("PZModStudio_Join.lua", JOIN_LUA), ("PZModStudio_Host.lua", HOST_LUA), ("PZModStudio_Settings.lua", SETTINGS_LUA)] {
             for missing in ["next(", "goto ", "//"] {
                 let used = source.lines().any(|l| code(l).contains(missing));
                 assert!(!used, "{} uses {}", file, missing);

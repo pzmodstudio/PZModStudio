@@ -16,6 +16,18 @@ describe('backendText', () => {
     );
   });
 
+  it('says a finding learned on this PC with the Monitor card it came from, in the locale', () => {
+    const params = {
+      mod: 'Viewpoint - Light Fix', seen: '7', on: '11', last: '2026-11-16', what: 'Viewpoint - Light Fix switched itself off', evidence: '',
+      cardCode: 'java_mod_turned_off', cardParams: JSON.stringify({ mod: 'Viewpoint - Light Fix', tag: 'ViewpointHeadlightPlacement', what: 'Disabled' }),
+    };
+    const text = issueText({ code: 'learned_issue', params, message: 'english' });
+    expect(text).toContain('Aprendido en esta PC: Viewpoint - Light Fix dio el mismo error en 7 de 11 partidas tuyas');
+    expect(text).not.toContain('switched itself off');
+    // card values that do not parse leave the English title
+    expect(issueText({ code: 'learned_issue', params: { ...params, cardParams: '{' }, message: 'english' })).toContain('Aprendido en esta PC');
+  });
+
   it('picks the variant and fills phrases, including one inside another', () => {
     const params = {
       package: 'P', sep: '',

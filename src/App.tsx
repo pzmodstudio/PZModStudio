@@ -1,3 +1,4 @@
+import { doctorBrief, prelaunchText } from './utils/brain';
 import { HelpButton } from './components/common/HelpPanel';
 import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { ActiveTab, VfsConflict, ModInfo, TranslatedErrorCard, GameLaunchMode, LaunchTarget, AppProfile, ModErrorStat, HealthIssue, AuthorLink, profileBuildMajor, profileMembers, STUDIO_LINK_MOD_ID, PZServerConfig } from './types';
@@ -40,6 +41,9 @@ import { issuesByModOf, linkModsText, modTagsOf } from './components/load_order/
 import { syncFavouritesWithGame } from './services/modLists';
 import { mergeLinks } from './components/common/SupportLinks';
 import { ContextMenuProvider } from './components/common/ContextMenu';
+import { SimpleHome } from './components/home/SimpleHome';
+import { useUiMode } from './hooks/useUiMode';
+import { readUiMode, tabAfterSwitch } from './utils/uiMode';
 
 // The Merger bundles the Monaco editor (~4 MB): load it only when its tab is opened.
 const MergerModule = lazy(() => import('./components/merger/MergerModule').then((m) => ({ default: m.MergerModule })));
@@ -55,6 +59,8 @@ import { issueStateOf } from './utils/issueState';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('PROFILES');
+  /** Simple or Complete (Settings, or the switch at the foot of the sidebar). */
+  const [uiMode] = useUiMode();
   const [conflicts, setConflicts] = useState<VfsConflict[]>([]);
   const [mods, setMods] = useState<ModInfo[]>([]);
   const [activeProfile, setActiveProfile] = useState<AppProfile | null>(null);
@@ -153,6 +159,22 @@ export const App: React.FC = () => {
       .filter((i) => i.mod_id && ['act', 'recommended'].includes(issueStateOf(i)))
       .map((i) => [issueStateOf(i) === 'act' ? 'error' : 'warning', i.mod_id as string, plain(`${labelFor(i)}: ${issueText(i)}`)]);
     void TauriService.writeLinkHealth(paths, lines);
+  }, [paths, healthIssues, i18next.language]);
+
+  /**
+   * The Doctor's first words go to the game too: the Studio Link puts them on the main menu's card
+   * (the last session that went badly, the warning before playing, errors that repeat). Written
+   * again whenever the health check runs, so the card says what the app knew last, also when the
+   * app is closed while the game runs.
+   */
+  useEffect(() => {
+    if (!paths.is_valid || !paths.user_zomboid_dir || !healthIssues) return;
+    const active = mods.filter((m) => m.enabled).map((m) => m.mod_id);
+    const names = new Map(mods.map((m) => [m.mod_id, m.name]));
+    void TauriService.brainOverview(paths, active).then((o) => {
+      if (o) void TauriService.writeLinkDoctor(paths, doctorBrief(o, active, (id) => names.get(id) ?? o.names[id] ?? id, i18next.t));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paths, healthIssues, i18next.language]);
 
   /**
@@ -296,6 +318,15 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (profilesRead && !activeProfile && activeTab !== 'PROFILES' && activeTab !== 'SETTINGS') setActiveTab('PROFILES');
   }, [profilesRead, activeProfile, activeTab]);
+  // Switching Simple / Complete keeps the screen in front when the new mode shows it, else goes
+  // to that mode's front page.
+  const shownMode = useRef(uiMode);
+  useEffect(() => {
+    if (shownMode.current === uiMode) return;
+    shownMode.current = uiMode;
+    setActiveTab((tab) => tabAfterSwitch(tab, uiMode, !!activeProfile));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiMode]);
 
   // Load saved profile or auto-detect paths from Rust backend on initial load
   useEffect(() => {
@@ -326,6 +357,9 @@ export const App: React.FC = () => {
           const startupBehavior = localStorage.getItem('pz_startup_behavior') || 'SHOW_STARTUP_SCREEN';
           if (!active) {
             setActiveTab('PROFILES');
+          } else if (readUiMode() === 'simple') {
+            // Simple starts on its own front page: the profile, Play and the Doctor's verdict.
+            setActiveTab('HOME');
           } else if (startupBehavior === 'OPEN_LAST_PROFILE') {
             setActiveTab('MOD_LIST');
           } else {
@@ -426,6 +460,8 @@ export const App: React.FC = () => {
     let unlistenNavigate: (() => void) | null = null;
     TauriService.listenStudioNavigate((screen) => {
       if (screen === 'monitor') setActiveTab('MONITOR');
+      // Joining a server failed over a mod's version: What's new has its updates.
+      if (screen === 'whats-new') setActiveTab('WHATS_NEW');
     }).then((u) => {
       unlistenNavigate = u;
     });
@@ -942,7 +978,8 @@ export const App: React.FC = () => {
         void refreshActiveProfile();
       }
 
-      if (mode.includes('DEBUG') || mode === 'MONITORED' || mode === 'WINDOWED') {
+      // Simple keeps the player where they are: the Monitor is a Complete screen.
+      if ((mode.includes('DEBUG') || mode === 'MONITORED' || mode === 'WINDOWED') && readUiMode() !== 'simple') {
         setActiveTab('MONITOR');
       }
     } catch {
@@ -958,7 +995,7 @@ export const App: React.FC = () => {
     if (target.kind === 'server') {
       try {
         await TauriService.joinServer(paths, target.address, target.name, null, null, mode);
-        if (mode.includes('DEBUG')) setActiveTab('MONITOR');
+        if (mode.includes('DEBUG') && readUiMode() !== 'simple') setActiveTab('MONITOR');
       } catch (err) {
         reportBackendError(i18next.t('header.target.serverFailed', { name: target.name }), err);
       }
@@ -974,6 +1011,15 @@ export const App: React.FC = () => {
         : i18next.t('app.build.lastPlayed', { name: activeProfile!.name, build: activeProfile!.last_played_build });
       const ok = window.confirm(i18next.t('app.build.confirm', { why, installed, profile: profileMajor, major: installed.split('.')[0] }));
       if (!ok) return;
+    }
+
+    // The brain: when the last sessions with (nearly) this list failed to start or ran out of
+    // memory, say so and what is different from the last one that got into a save.
+    const warn = await TauriService.brainPrelaunch(paths, mods.filter((m) => m.enabled).map((m) => m.mod_id));
+    if (warn) {
+      const names = new Map(mods.map((m) => [m.mod_id, m.name]));
+      const text = prelaunchText(warn, (id) => names.get(id) ?? id, i18next.t);
+      if (!window.confirm(`${text}\n\n${i18next.t('brain.prelaunch.confirm')}`)) return;
     }
 
     // Check if there is an active CLOSED/PACKAGED synthetic merge package (excluding Carrier and Bridge)
@@ -1327,7 +1373,7 @@ export const App: React.FC = () => {
                 }}
                 onProfileActivated={(inst) => {
                   setActiveProfile(inst);
-                  setActiveTab('MOD_LIST');
+                  setActiveTab(uiMode === 'simple' ? 'HOME' : 'MOD_LIST');
                 }}
                 onGoToBrowse={activeProfile ? () => setActiveTab('BROWSE') : undefined}
                 onGoToModList={() => setActiveTab('MOD_LIST')}
@@ -1337,6 +1383,17 @@ export const App: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'HOME' && activeProfile && (
+            <SimpleHome
+              paths={paths}
+              profile={activeProfile}
+              mods={mods}
+              report={health.report}
+              checking={health.checking}
+              onPlay={(mode, target) => void handleRunSandbox(mode, target)}
+              onGo={(tab) => setActiveTab(tab)}
+            />
+          )}
           {activeTab === 'SAVES' && <SavesModule paths={paths} onOpenWorkshopItem={openInBrowser} onSearchWorkshop={searchInBrowser} />}
           {activeTab === 'WHATS_NEW' && <WhatsNewModule paths={paths} />}
           {activeTab === 'MAPS' && (
@@ -1487,6 +1544,15 @@ export const App: React.FC = () => {
               onSearchInBrowser={searchInBrowser}
               focusTab={healthTabFocus}
               onFocusTabHandled={() => setHealthTabFocus(null)}
+              onShowInModList={(modId) => {
+                setModListFocus(modId);
+                setActiveTab('MOD_LIST');
+              }}
+              onToggleMod={handleToggleMod}
+              onOpenPage={(page) => {
+                const tab: Record<string, ActiveTab> = { profiles: 'PROFILES', saves: 'SAVES', monitor: 'MONITOR', 'mod-list': 'MOD_LIST', health: 'HEALTH', browse: 'BROWSE', maps: 'MAPS', merger: 'MERGER', servers: 'SERVERS', settings: 'SETTINGS', 'whats-new': 'WHATS_NEW', developer: 'DEVELOPER' };
+                if (tab[page]) setActiveTab(tab[page]);
+              }}
               onGoServers={() => {
                 setServersView('HOST');
                 setActiveTab('SERVERS');

@@ -98,8 +98,15 @@ pub fn saves_dir(user_zomboid_dir: &Path) -> PathBuf {
     user_zomboid_dir.join("Saves")
 }
 
+/// Where the backups of the saves in place are kept: the shared ones' at the root, a profile's own
+/// in `@<profile>` beside them (two profiles' worlds can share a name; their backups must not).
 fn backups_root(user_zomboid_dir: &Path) -> PathBuf {
-    user_zomboid_dir.join(BACKUP_DIR)
+    let set = crate::profile_saves::state(user_zomboid_dir).current;
+    if set == crate::profile_saves::SHARED {
+        user_zomboid_dir.join(BACKUP_DIR)
+    } else {
+        user_zomboid_dir.join(BACKUP_DIR).join(format!("@{}", set))
+    }
 }
 
 /// `<mode>/<world>` -> the two names, refusing anything that is not exactly two plain names.
@@ -749,12 +756,17 @@ pub struct LostSave {
 pub fn lost_saves(user_zomboid_dir: &Path) -> Vec<LostSave> {
     let mut out = Vec::new();
     let Ok(modes) = fs::read_dir(backups_root(user_zomboid_dir)) else { return out };
-    for mode in modes.flatten().filter(|e| e.path().is_dir()) {
+    // `@<profile>`: another profile's own backups, not a game mode.
+    for mode in modes.flatten().filter(|e| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('@')) {
         let Ok(worlds) = fs::read_dir(mode.path()) else { continue };
         for world in worlds.flatten().filter(|e| e.path().is_dir()) {
             let id = format!("{}/{}", mode.file_name().to_string_lossy(), world.file_name().to_string_lossy());
             let Ok((m, w)) = split_id(&id) else { continue };
             if save_dir(user_zomboid_dir, &id).is_ok_and(|d| d.exists()) {
+                continue;
+            }
+            // Another profile's own save, put away while this one is on: not lost.
+            if crate::profile_saves::is_put_away(user_zomboid_dir, &id) {
                 continue;
             }
             let backups = backups_of(user_zomboid_dir, &id);

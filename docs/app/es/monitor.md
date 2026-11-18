@@ -71,15 +71,15 @@ Cuando empieza una sesión nueva del juego, se borran las tarjetas de la anterio
 
 Para problemas que el log no nombra: un congelamiento, una receta que nunca aparece, una partida que no abre.
 
-1. Abrí el panel, apretá **Empezar a partir la lista** y confirmá.
-2. Queda activa la mitad de los sospechosos. Los mods que otro mod requiere siguen activos en todas las rondas, así nada se rompe por ese motivo.
+1. Abrí el panel. Si el problema no pasa siempre, marcá **No pasa siempre**. Si el log muestra un texto del error, escribilo: después de cada partida de prueba la app mira el log y te sugiere la respuesta. Apretá **Empezar a partir la lista** y confirmá.
+2. Queda activa una parte de los sospechosos; los que esta PC ya sospecha (por partidas que fallaron o errores que se repiten) se prueban primero. Los mods que otro mod requiere siguen activos en todas las rondas, así nada se rompe por ese motivo.
 3. Apretá **Lanzar el juego**, jugá como cuando pasó y cerralo.
 4. Respondé **Sigue pasando** o **Ya no pasa**. La lista se vuelve a partir. La etiqueta muestra la ronda y cuántos inicios quedan (unos 8 para cien mods).
 5. Cuando queda un solo mod, jugá una vez más para confirmarlo.
 
 Al final el panel nombra el mod, muestra las líneas que el log tenga sobre él (con **Parchear Archivo.lua** cuando una línea nombra un archivo, y **Mostrar sus líneas en la consola**) y ofrece **Parchear un archivo suyo**, **Apagarlo** o **Dejarlo activo**. Tu lista original se restaura termine como termine la búsqueda. **Parar y restaurar mi lista** la corta antes.
 
-Si ningún mod solo tiene la culpa, el panel explica por qué: pueden ser dos mods juntos, uno de los mods requeridos, o algo que no es un mod.
+Si el último mod solo no lo provoca, la búsqueda sigue sola: lo deja prendido y busca el otro mod que lo provoca junto con él, y al final nombra el par. Si no encuentra ni un mod ni un par, el panel explica por qué: uno de los mods requeridos, más de dos mods, o algo que no es un mod.
 
 ## Para tener en cuenta
 

@@ -8,6 +8,7 @@ import { useChangeRevision } from '../../services/changes';
 import { LANGUAGES, setLanguage } from '../../i18n';
 import { tHtml } from '../../i18n/html';
 import { UpdateNowButton } from '../layout/UpdateNotice';
+import { useUiMode } from '../../hooks/useUiMode';
 
 export interface StudioPathsUI {
   pz_install_dir: string;
@@ -70,6 +71,12 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
     void (async () => setShimSections(await TauriService.polyfillSections()))();
   }, []);
   const [activeSubTab, setActiveSubTab] = useState<SettingsTab>('PATHS');
+  /** Simple or Complete. Simple keeps the tabs a player needs: folders, notices, the app. */
+  const [uiMode, setUiMode] = useUiMode();
+  const simple = uiMode === 'simple';
+  useEffect(() => {
+    if (simple && (activeSubTab === 'ADVANCED' || activeSubTab === 'POLYFILLS' || activeSubTab === 'MCP')) setActiveSubTab('PATHS');
+  }, [simple, activeSubTab]);
   /**
    * The MCP server, the Claude Agent and the in-game bridge are for people building things on
    * top of the Studio. A player has no use for them and they only raise questions, so they stay
@@ -376,15 +383,44 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           <h1 className="text-base font-bold text-slate-100">{t('settings.title')}</h1>
           <span className="text-[11px] text-slate-400">{t('settings.blurb')}</span>
         </div>
+        {/* Simple or Complete: how much of the Studio is shown. Nothing is removed in Simple. */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div>
+            <div className="text-xs font-bold text-slate-200">{t('simple.settings.title')}</div>
+            <p className="text-[11px] text-slate-400 max-w-3xl">{t('simple.settings.blurb')}</p>
+          </div>
+          <div role="radiogroup" aria-label={t('simple.settings.title')} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(['simple', 'advanced'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={uiMode === mode}
+                onClick={() => setUiMode(mode)}
+                className={`p-3.5 rounded-xl border text-left transition cursor-pointer ${
+                  uiMode === mode
+                    ? 'bg-emerald-950/40 border-emerald-500 text-slate-100 ring-1 ring-emerald-500/50'
+                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  {uiMode === mode && <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />}
+                  {t(`simple.mode.${mode}`)}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{t(`simple.settings.${mode}`)}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div role="tablist" className="flex flex-wrap items-center gap-1.5">
           {(
             [
               ['PATHS', HardDrive, 'settings.tabPaths'],
               ['ALERTS', Bell, 'settings.tabAlerts'],
               ['APP', Layers, 'settings.tabApp'],
-              ['ADVANCED', Code2, 'settings.tabAdvanced'],
-              ['POLYFILLS', Wrench, 'settings.tabShim'],
-              ...(showAdvanced ? [['MCP', Bot, 'settings.tabMcp'] as const] : []),
+              ...(simple ? [] : ([['ADVANCED', Code2, 'settings.tabAdvanced'], ['POLYFILLS', Wrench, 'settings.tabShim']] as const)),
+              ...(showAdvanced && !simple ? [['MCP', Bot, 'settings.tabMcp'] as const] : []),
             ] as const
           ).map(([id, Icon, label]) => (
             <button

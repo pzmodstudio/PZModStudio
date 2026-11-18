@@ -7,7 +7,7 @@ import { SourceBadge, sourceOf } from '../common/SourceBadge';
 import { Tip, TipBody } from '../common/Tip';
 import { RichText } from '../common/RichText';
 import { RowHealthChips } from './RowHealth';
-import { ArrowDown, ArrowUp, Check, ChevronsDown, ChevronsUp, Hash, Layers, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
+import { ArrowDown, ArrowUp, Brain, Check, ChevronsDown, ChevronsUp, Hash, Layers, ListOrdered, MapPin, Package, Star, StickyNote } from 'lucide-react';
 
 /** Below this a mod's loading time is a few milliseconds of mod.info and translations: not worth a tag. */
 export const SLOW_LOAD_MS = 250;
@@ -37,6 +37,8 @@ export interface ModRowBodyProps {
   isFavorite?: boolean;
   /** The player's note on it, and the groups they put it in. */
   note?: string;
+  /** The Studio's note (the Doctor's): an icon whose tip says it, apart from the player's note. */
+  studioNote?: string;
   groups?: string[];
   /** Opens the note editor on this mod (the note on the row is a button). */
   onEditNote?: (mod: ModInfo) => void;
@@ -89,6 +91,7 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
   gameShares,
   isFavorite = false,
   note,
+  studioNote,
   groups = [],
   onEditNote,
   showEveryMod,
@@ -212,6 +215,13 @@ export const ModRowBody: React.FC<ModRowBodyProps> = ({
                 <StickyNote className="w-3 h-3 shrink-0" aria-hidden="true" />
                 <span className="truncate">{note.split('\n')[0]}</span>
               </button>
+            </Tip>
+          )}
+          {studioNote && (
+            <Tip className="shrink-0" content={<TipBody title={t('brain.studioNote.label')} tone="violet"><div className="whitespace-pre-wrap">{studioNote}</div></TipBody>}>
+              <span className="flex items-center text-violet-300/80" aria-label={t('brain.studioNote.label')}>
+                <Brain className="w-3 h-3" aria-hidden="true" />
+              </span>
             </Tip>
           )}
         </div>

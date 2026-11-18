@@ -507,6 +507,35 @@ export interface ConnectedPlayer {
   steam_id: string;
 }
 
+/** One option of a server's settings, as the game lists it (the Studio Link writes the list). */
+export interface ServerOptionDef {
+  kind: 'server' | 'sandbox';
+  name: string;
+  type: 'boolean' | 'integer' | 'double' | 'enum' | 'string' | 'text';
+  default: string;
+  min: number | null;
+  max: number | null;
+  label: string;
+  help: string;
+  /** An enum's choices; the value is the choice's number, from 1. */
+  values: string[];
+  page: string;
+}
+
+export interface ServerSettingsSchema {
+  key: string;
+  /** [kind, page name], in the game's order. */
+  pages: [string, string][];
+  options: ServerOptionDef[];
+}
+
+export interface ServerSettingsValues {
+  server: Record<string, string>;
+  sandbox: Record<string, string>;
+  ini_path: string;
+  sandbox_path: string;
+}
+
 export interface ServerQuickSettings {
   public_name: string;
   public_description: string;
@@ -545,6 +574,8 @@ export interface AppInstance {
   members?: string[] | null;
   /** The memory (MB) the game gets with this profile on; null: the last chosen. */
   game_memory_mb?: number | null;
+  /** Isolated ("Isolate this profile"): its single-player saves, game options and mod settings are its own, put in place when it is switched on. The mods are shared. */
+  own_saves?: boolean;
 }
 
 /** The mod the Studio keeps on in every profile so the game's Mods screen shows the profile. */
@@ -563,7 +594,7 @@ export const profileBuildMajor = (p: AppInstance | null | undefined): string | n
 
 export type AppProfile = AppInstance;
 
-export type ActiveTab = 'MOD_LIST' | 'HEALTH' | 'BROWSE' | 'SERVERS' | 'PROFILES' | 'SAVES' | 'WHATS_NEW' | 'MAPS' | 'MERGER' | 'MONITOR' | 'DEVELOPER' | 'SETTINGS';
+export type ActiveTab = 'HOME' | 'MOD_LIST' | 'HEALTH' | 'BROWSE' | 'SERVERS' | 'PROFILES' | 'SAVES' | 'WHATS_NEW' | 'MAPS' | 'MERGER' | 'MONITOR' | 'DEVELOPER' | 'SETTINGS';
 
 /** One map folder of one mod, and its cells (map_cells::MapFolder). */
 export interface MapFolder {
@@ -621,9 +652,16 @@ export interface ModGroup {
   note?: string;
   /** The profile it belongs to (the app only ever gets the active profile's). */
   profile?: string | null;
+  /** The Studio's note on the group (the Doctor's), apart from the player's. */
+  studio_note?: string;
+  /** The Studio made it (the player asked the Doctor). */
+  by_studio?: boolean;
 }
 export interface ModMeta {
+  /** The player's own notes: the Studio never writes or removes one. */
   notes: Record<string, string>;
+  /** The Studio's notes (the Doctor's), shown apart. */
+  studio_notes?: Record<string, string>;
   groups: ModGroup[];
 }
 
@@ -1475,6 +1513,201 @@ export interface CommunityRegistry {
   issues: CommunityIssue[];
 }
 
+/** The brain (rules::brain): what the sessions this PC learned from tell, side by side. */
+export interface BrainChange {
+  kind: 'build' | 'added' | 'removed' | 'updated' | 'moved';
+  mod_id: string;
+  from: string;
+  to: string;
+}
+export interface BrainOnset {
+  first_bad: number;
+  last_good?: number | null;
+  changes: BrainChange[];
+  more: number;
+}
+export interface BrainFixRecord {
+  at: number;
+  mod_id: string;
+  action: string;
+  code: string;
+  key?: string | null;
+}
+export interface BrainFixOutcome {
+  fix: BrainFixRecord;
+  before: number;
+  before_bad: number;
+  after: number;
+  after_bad: number;
+  verdict: 'waiting' | 'worked' | 'not_worked' | 'mod_off' | 'no_errors_before';
+}
+export interface BrainPrelaunch {
+  looked_at: number;
+  bad?: number;
+  failed_to_start: number;
+  out_of_memory: number;
+  crashed?: number;
+  last_bad: number;
+  last_good?: number | null;
+  changes: BrainChange[];
+  more: number;
+}
+export interface BrainInsight {
+  code: 'error_onset' | 'load_slower' | 'game_update';
+  mod_id: string;
+  params: Record<string, string>;
+  onset?: BrainOnset | null;
+  mods: string[];
+}
+export interface BrainSessionBrief {
+  started: number;
+  ended: number;
+  kind: 'client' | 'server';
+  build: string;
+  reached: '' | 'menu' | 'game' | 'started';
+  clean_exit: boolean;
+  oom: boolean;
+  load_secs?: number | null;
+  mods: number;
+  errors: number;
+  live: boolean;
+  /** Java's own crash report for it ('' when none). */
+  crash?: '' | 'out_of_memory' | 'fatal';
+  crash_reason?: string;
+  crash_frame?: string;
+  /** What that library is: graphics_nvidia, window_opengl, audio... ('' when unknown). */
+  crash_cause?: string;
+  /** From the Studio Link's diary: the save it loaded, and that the player went back to the menu. */
+  save?: string;
+  quit_to_menu?: boolean;
+}
+/** A moment the player marked in the game, and what the log says around it (rules::brain::MarkReport). */
+export interface BrainMarkReport {
+  at: number;
+  save: string;
+  place: string;
+  session?: number | null;
+  cards: BrainErrorBrief[];
+  lines: string[];
+}
+/** A mod on in the sessions that went wrong far more than in the others (rules::brain::Suspect). */
+export interface BrainSuspect {
+  mod_id: string;
+  with: number;
+  with_bad: number;
+  without: number;
+  without_bad: number;
+  confidence: 'strong' | 'likely' | 'weak';
+}
+export interface BrainErrorBrief {
+  mod_id: string;
+  title: string;
+  code: string;
+  params: Record<string, string>;
+}
+export interface BrainSessionReport {
+  brief: BrainSessionBrief;
+  minutes: number;
+  new_errors: BrainErrorBrief[];
+  repeated: number;
+  fixes: BrainFixOutcome[];
+}
+export interface BrainPeriodReport {
+  since: number;
+  sessions: number;
+  servers: number;
+  went_badly: number;
+  crashes: number;
+  minutes: number;
+  new_errors: BrainErrorBrief[];
+  fixes: BrainFixOutcome[];
+  changes?: BrainOnset | null;
+}
+/** A section of the app's guide that answers a question (app_docs::DocHit). */
+export interface DocHit {
+  page: string;
+  heading: string;
+  text: string;
+  score: number;
+}
+/** One of Java's crash reports (hs_err_pid*.log in the game's folder). */
+export interface BrainJvmCrash {
+  file: string;
+  at: number;
+  elapsed: number;
+  role: 'client' | 'server';
+  kind: 'out_of_memory' | 'fatal';
+  reason: string;
+  frame: string;
+}
+export interface BrainOverview {
+  summary: LearnedSummary;
+  recent: BrainSessionBrief[];
+  insights: BrainInsight[];
+  fixes: BrainFixOutcome[];
+  prelaunch?: BrainPrelaunch | null;
+  last_report?: BrainSessionReport | null;
+  crashes?: BrainJvmCrash[];
+  names: Record<string, string>;
+}
+export interface BrainModError {
+  title: string;
+  code: string;
+  params: Record<string, string>;
+  key: string;
+  file?: string | null;
+  line?: number | null;
+  sample: string;
+  seen: number;
+  on: number;
+  first: number;
+  last: number;
+  stopped: boolean;
+  onset?: BrainOnset | null;
+}
+export interface BrainModHistory {
+  mod_id: string;
+  sessions: number;
+  first?: number | null;
+  last?: number | null;
+  place?: [number, number] | null;
+  versions: { version: string; sessions: number; first: number; last: number }[];
+  errors: BrainModError[];
+  fixes: BrainFixOutcome[];
+  failed_to_start: number;
+  out_of_memory: number;
+  crashed?: number;
+}
+
+/** What this PC learned from its own game and server sessions (rules::learned). */
+export interface LearnedIssue {
+  mod_id: string;
+  version: string;
+  key: string;
+  title: string;
+  code: string;
+  params: Record<string, string>;
+  file?: string | null;
+  line?: number | null;
+  sample: string;
+  build: string;
+  seen: number;
+  on: number;
+  first_seen: number;
+  last_seen: number;
+  closed: boolean;
+}
+
+export interface LearnedSummary {
+  sessions: number;
+  sessions_on_build: number;
+  build: string;
+  logs_read: number;
+  first_session?: number | null;
+  last_session?: number | null;
+  issues: LearnedIssue[];
+}
+
 export interface CommunityIndex {
   version: number;
   updated: string | null;
@@ -1756,6 +1989,8 @@ export interface SortResult {
   order: string[];
   moved: string[];
   cycle: string[];
+  /** Each rule the old order broke, now kept: mod_id loads after other (before, with load_before). */
+  reasons?: { mod_id: string; other: string; kind: 'require' | 'load_after' | 'load_before' | 'rule' | 'index' | 'package' }[];
 }
 
 /** A module that exists, and where. */
@@ -1847,6 +2082,20 @@ export interface BisectSession {
   history: BisectRound[];
   culprit: string | null;
   note: string | null;
+  /** The mods the hunt started from because of what this PC learned, most suspect first. */
+  leads?: string[];
+  /** It does not happen every time: a "no longer happens" counts once said twice. */
+  flaky?: boolean;
+  /** Looking for this mod's partner (it stays on); with a culprit, the two together do it. */
+  pair_with?: string | null;
+  /** The log text that shows the problem. */
+  target?: string | null;
+  /** What the log of the game played since the trial began suggests. */
+  suggested?: 'still' | 'gone' | null;
+  /** A first "no longer happens" for this trial is being tried once more. */
+  gone_once?: boolean;
+  /** The trial on has none of the suspects: it tells whether this one (the most suspect) does it at all. */
+  empty_check?: string | null;
 }
 
 export interface ModHealth {

@@ -611,6 +611,42 @@ fn available_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "java_links".to_string(),
+            description: "What each Java mod's jar uses of the game that the installed build no longer has, read without running anything: every class, method and field of the game its class files name (constant pool), looked up in the installed projectzomboid.jar through superclasses and interfaces (a lookup that leaves the game's jar, e.g. into the JDK, counts as there), and ZombieBuddy @Patch targets (a class or method gone: ZombieBuddy skips the patch). Per mod: jar, broken (kind class/method/field/patch, class, member, descriptor, used_by: the mod's class), total, checked (references looked up), unknown (jar_missing, no_package, unreadable, no_game_jar). Such code fails with NoClassDefFoundError/NoSuchMethodError/NoSuchFieldError when it runs, unless the mod checks first. Diagnostics shows it as java_link_broken. Cached per mod until its jar or the game's jar changes. Default: the active list.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "mod_ids": { "type": "array", "items": { "type": "string" }, "description": "Mod ids to read (default: the active list)" },
+                    "pz_install_dir": { "type": "string", "description": "Optional game install directory" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "workshop_dir": { "type": "string", "description": "Optional Workshop content directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "session_changes".to_string(),
+            description: "What changed on disk while the game ran, for the last sessions the app watched (it notes every file's size and time when ProjectZomboid64.exe appears and compares when it goes): per place (game: the game's own folder, which the game never writes itself, Java crash reports left out; zomboid: the Zomboid folder without saves, logs, the console, options and the Studio's files; zombiebuddy: ~/.zombie_buddy) the files added, removed and changed (200 listed at most, total). Read-only; Diagnostics shows game-folder changes of the last session as game_folder_changed. Only sessions played while the app was open are known.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
+            name: "server_settings".to_string(),
+            description: "Every option of a server's settings (Zomboid/Server/<name>.ini and <name>_SandboxVars.lua), as the game lists them: read with name, or set options with set_server / set_sandbox (objects name -> value; sandbox names dotted, e.g. ZombieLore.Speed; enums by choice number from 1). The option list (type, default, range, label, help, choices, the mods' sandbox options) is what the Studio Link wrote at the game's main menu (Lua/PZModStudio_LinkSettings.txt); values are checked against it. Writing changes only those lines, keeps comments and order, adds a missing option where it belongs, backs both files up to PZModStudio_Backups/server_settings, and is refused while the Studio runs that server. Without name: the option list only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "The server settings name (the .ini without extension)" },
+                    "set_server": { "type": "object", "description": "Server options to set: name -> value" },
+                    "set_sandbox": { "type": "object", "description": "Sandbox options to set: dotted name -> value" },
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" }
+                }
+            }),
+        },
+        McpTool {
             name: "zb_exclusions".to_string(),
             description: "Java mods ZombieBuddy left out of the last session, read from its log: per mod its id, kind (signature: its .zbs did not verify against the key its author shows on Steam; denied: blocked by policy=prompt, a \"don't allow\" saved for that jar in ~/.zombie_buddy/mod_approvals.json or given in its window, shown again by holding Shift while the game loads (the Studio never edits that file); unapproved: blocked by another policy, e.g. a server's deny-new for a jar never allowed on this PC; other), ZombieBuddy's reason, the addons that failed for want of its classes (NoClassDefFoundError of its package: the tag they log under, or the class being exposed to Lua) and fatal (one of them stopped the game or server at boot). log: \"game\" (console.txt, default) or \"server\" (server-console.txt, the Studio's dedicated server). Read-only; Diagnostics reports the same as zb_excluded for mods on the list.".to_string(),
             input_schema: json!({
@@ -740,6 +776,117 @@ fn available_tools() -> Vec<McpTool> {
                     "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
                     "mod_id": { "type": "string", "description": "The id= line of mod.info; omit for the whole index" }
                 }
+            }),
+        },
+        McpTool {
+            name: "learned_on_this_pc".to_string(),
+            description: "What this PC learned from its own game and server sessions (Zomboid/PZModStudio_Learned.json; nothing is sent): every session log the game keeps (Zomboid/Logs) read once with the Monitor's card maker, which mods were on in which version, and the errors the game blamed on each. Returns sessions read (on the installed build), and per error a mod gave in 3 or more sessions with the same version on this build: mod, version, title, card code, file, line, the log line, seen (sessions with it) of on (sessions with the mod), first/last seen and closed (its last 5 sessions with the mod went without it: fixed, or no longer happening). A mod update starts its count again. Open ones for active mods are Diagnostics findings (learned_issue) unless the app's mod index already says it. learn_now reads new logs first (slow the first time: every kept log of the build).".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "mod_id": { "type": "string", "description": "Only this mod (id= line)" },
+                    "learn_now": { "type": "boolean", "description": "Read the logs not read yet first (default false)" }
+                }
+            }),
+        },
+        McpTool {
+            name: "brain_overview".to_string(),
+            description: "What the Studio's brain tells from this PC's sessions (learned_on_this_pc's facts side by side): the recent sessions (how far each got: game/menu/started/none, clean exit or cut, out of memory, load seconds), insights (error_onset: when an active mod's repeated error began and what changed then, from the last session without it to the first with it: mods added/removed/updated, its place in the order, the game build; load_slower: loading a save takes much longer than before and what changed; game_update: three or more mods began failing right after a game update with none of them updated: the game changed), the fixes Diagnostics applied and whether the mod's error stopped after them (worked / not_worked / waiting / mod_off / no_errors_before), and the pre-launch warning for the active list (its last 3 sessions failed to start or ran out of memory, with what differs from the last one that loaded a save). Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "active_mod_ids": { "type": "array", "items": { "type": "string" }, "description": "The list to judge (default: default.txt)" }
+                }
+            }),
+        },
+        McpTool {
+            name: "brain_mod_history".to_string(),
+            description: "One mod's history on this PC: sessions it was on (first, last), its place in the last load order, the versions seen with their sessions, each error the game blamed on it (seen of on since it began, first/last, stopped, and the onset: what changed when it began), the fixes applied to it and their outcome, sessions with it on that failed to start or ran out of memory. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "mod_id": { "type": "string", "description": "The mod's id= line" }
+                },
+                "required": ["mod_id"]
+            }),
+        },
+        McpTool {
+            name: "mod_notes_and_groups".to_string(),
+            description: "The notes on mods and the active profile's groups, as the Mod List shows them: notes (the player's own, never written by the Studio), studio_notes (the Studio's, written by the Doctor or an agent), and groups (name, mods, the player's note, the Studio's note, by_studio). Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": { "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" } }
+            }),
+        },
+        McpTool {
+            name: "studio_note".to_string(),
+            description: "Writes, changes or (empty text) removes the Studio's note on a mod, shown in the Mod List apart from the player's and marked as the Studio's. The player's own note is never written, changed or removed by this tool. With group, the same for the Studio's note on a group of the active profile.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "mod_id": { "type": "string", "description": "The mod's id= line (or use group)" },
+                    "group": { "type": "string", "description": "A group's name instead of a mod" },
+                    "text": { "type": "string", "description": "The note; empty removes the Studio's note" }
+                }
+            }),
+        },
+        McpTool {
+            name: "mod_group".to_string(),
+            description: "Changes the active profile's groups of mods: action add (puts mod_ids in group, making it, marked as made by the Studio, when new), remove (takes mod_ids out; a group left empty goes), rename (to), delete (the group, not its mods). A group's note written by the player is never changed here (use studio_note with group for the Studio's).".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "action": { "type": "string", "enum": ["add", "remove", "rename", "delete"] },
+                    "group": { "type": "string" },
+                    "mod_ids": { "type": "array", "items": { "type": "string" } },
+                    "to": { "type": "string", "description": "The new name, for rename" }
+                },
+                "required": ["action", "group"]
+            }),
+        },
+        McpTool {
+            name: "brain_suspects".to_string(),
+            description: "Which mods go with what goes wrong on this PC: the mods on in the game sessions (installed build) that went wrong far more often than the sessions without them, each with the counts it is judged by (with / with_bad / without / without_bad) and a confidence (strong: 5+ bad sessions with it and rarely without; likely: 3+; weak). `what`: any (default: failed to start, out of memory or a Java crash), failed_to_start, crash. A mod on in nearly every session cannot be told apart and is left out. A correlation, not proof: halving the list (the Monitor's hunt) confirms it. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "what": { "type": "string", "enum": ["any", "failed_to_start", "crash"] },
+                    "since": { "type": "integer", "description": "Only sessions from this unix second on" }
+                }
+            }),
+        },
+        McpTool {
+            name: "brain_marks".to_string(),
+            description: "The moments the player marked in the game with the Studio Link's \"Mark this moment\" (pause menu), newest first: when, the save, the place (x,y,z), the game session it was in, and what the game's log says from a minute and a half before to half a minute after (the Monitor's cards, and the first ERROR/WARN lines). Read from the Link's diary (Zomboid/Lua/PZModStudio_LinkDiary.txt), so it works for sessions played with the app closed. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": { "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" } }
+            }),
+        },
+        McpTool {
+            name: "brain_period".to_string(),
+            description: "What happened on this PC since a moment: game and server sessions, minutes played, how many went badly, Java crashes, the errors that began in the period (each with mod, title, card code), the fixes applied and their outcome, and what changed from the last session before it to the newest. Read-only.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" },
+                    "since": { "type": "integer", "description": "Unix seconds" }
+                },
+                "required": ["since"]
+            }),
+        },
+        McpTool {
+            name: "learned_index_drafts".to_string(),
+            description: "What this PC confirmed, written as draft entries of the mod index the app is built with (community/index/<id>.json): each open learned error seen in 5 or more sessions with the installed version, that the index does not say yet, with the log line, file, line, build, date, the session count as its source, status verified and mod_versions. The note (one sentence a player can act on) and the fix are left empty / none for a person to write. Read-only: nothing is written to the index.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": { "user_zomboid_dir": { "type": "string", "description": "Optional custom user Zomboid directory" } }
             }),
         },
         McpTool {
@@ -931,6 +1078,9 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
                 None => crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default(),
             };
             let mut shared = crate::overrides::shared_functions(std::path::Path::new(&paths.pz_install_dir), &catalog, &active);
+            if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
+                crate::overrides::attach_checks(&z, &catalog, &mut shared);
+            }
             if args.get("only_cut").and_then(|v| v.as_bool()).unwrap_or(false) {
                 shared.retain(|f| f.winner.is_some());
             }
@@ -967,6 +1117,53 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
             }
         }
         "community_index_lookup" => handle_community_index_lookup(args),
+        "learned_on_this_pc" => handle_learned_on_this_pc(args),
+        "brain_overview" => {
+            let paths = resolve_paths(&args);
+            let active = args.get("active_mod_ids").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect());
+            json_result(Ok(crate::rules::brain::overview_for(&paths, active)))
+        }
+        "brain_mod_history" => {
+            let paths = resolve_paths(&args);
+            let mod_id = arg_str(&args, "mod_id");
+            if mod_id.is_empty() {
+                return error_result("mod_id is required".to_string());
+            }
+            json_result(Ok(crate::rules::brain::mod_history_for(&paths, mod_id)))
+        }
+        "mod_notes_and_groups" => {
+            let paths = resolve_paths(&args);
+            match crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
+                Some(z) => json_result(Ok(crate::mod_meta::read(&z))),
+                None => error_result("No Zomboid folder found".to_string()),
+            }
+        }
+        "studio_note" => handle_studio_note(args),
+        "brain_suspects" => {
+            let paths = resolve_paths(&args);
+            let what = match arg_str(&args, "what") {
+                "" => "any",
+                w => w,
+            };
+            let since = args.get("since").and_then(|v| v.as_u64());
+            json_result(Ok(crate::rules::brain::suspects_for(&paths, what, since)))
+        }
+        "brain_marks" => json_result(Ok(crate::rules::brain::marks_for(&resolve_paths(&args), 10))),
+        "brain_period" => {
+            let paths = resolve_paths(&args);
+            match args.get("since").and_then(|v| v.as_u64()) {
+                Some(since) => json_result(Ok(crate::rules::brain::period_report_for(&paths, since))),
+                None => error_result("since (unix seconds) is required".to_string()),
+            }
+        }
+        "learned_index_drafts" => {
+            let paths = resolve_paths(&args);
+            match crate::rules::brain::context(&paths, Some(vec![])) {
+                Some((z, catalog, _)) => json_result(Ok(crate::rules::brain::index_drafts(&z, &catalog))),
+                None => error_result("No Zomboid folder found".to_string()),
+            }
+        }
+        "mod_group" => handle_mod_group(args),
         "workshop_item" => handle_workshop_item(args),
         "workshop_search" => handle_workshop_search(args),
         "workshop_comments" => handle_workshop_comments(args),
@@ -975,6 +1172,46 @@ pub fn execute_tool(name: &str, args: Value) -> ToolCallResult {
         "save_inside" => handle_save_inside(args),
         "scan_mod_security" => handle_scan_mod_security(args),
         "java_patches" => handle_java_patches(args),
+        "server_settings" => {
+            let paths = resolve_paths(&args);
+            let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
+                return error_result("The Zomboid folder was not found".to_string());
+            };
+            let to_map = |key: &str| -> std::collections::BTreeMap<String, String> {
+                args.get(key)
+                    .and_then(|v| v.as_object())
+                    .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string()))).collect())
+                    .unwrap_or_default()
+            };
+            let (set_server, set_sandbox) = (to_map("set_server"), to_map("set_sandbox"));
+            match args.get("name").and_then(|v| v.as_str()) {
+                Some(name) if !set_server.is_empty() || !set_sandbox.is_empty() => {
+                    json_result(crate::server_settings::write_values(&z, name, &set_server, &set_sandbox).map(|w| json!({ "written": w })))
+                }
+                Some(name) => json_result(crate::server_settings::read_values(&z, name)),
+                None => match crate::server_settings::schema(&z) {
+                    Some(s) => json_result::<crate::server_settings::Schema>(Ok(s)),
+                    None => error_result("The game has not listed its options yet: open the game's main menu once with the Studio Link on".to_string()),
+                },
+            }
+        }
+        "session_changes" => {
+            let paths = resolve_paths(&args);
+            match crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
+                Some(z) => json_result::<Vec<crate::integrity::SessionChanges>>(Ok(crate::integrity::load(&z))),
+                None => error_result("The Zomboid folder was not found".to_string()),
+            }
+        }
+        "java_links" => {
+            let paths = resolve_paths(&args);
+            let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+            let ids: Vec<String> = match args.get("mod_ids").and_then(|v| v.as_array()) {
+                Some(a) if !a.is_empty() => a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
+                _ => crate::load_order::ini_parser::read_mod_list_ini(&paths.mod_list_ini_path).map(|d| d.active_mods).unwrap_or_default(),
+            };
+            let mods = crate::java_links::read_mods(std::path::Path::new(&paths.user_zomboid_dir), std::path::Path::new(&paths.pz_install_dir), &catalog, &ids);
+            json_result::<Vec<crate::java_links::ModLinks>>(Ok(mods))
+        }
         "check_mod_api" => handle_check_mod_api(args),
         "dismiss_index_issue" => handle_dismiss_index_issue(args),
         "list_load_rules" => handle_list_load_rules(args),
@@ -2487,6 +2724,71 @@ fn handle_community_index_lookup(args: Value) -> ToolCallResult {
         "registry": index.get(mod_id).cloned(),
     })))
 }
+
+fn handle_learned_on_this_pc(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let Some(zomboid) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
+        return error_result("No Zomboid folder found".to_string());
+    };
+    let catalog = crate::catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    let mut learned_now = None;
+    if args.get("learn_now").and_then(|v| v.as_bool()).unwrap_or(false) {
+        match crate::rules::learned::learn(&zomboid, &catalog) {
+            Ok(n) => learned_now = Some(n),
+            Err(e) => return error_result(e),
+        }
+    }
+    let mut summary = crate::rules::learned::summary(&zomboid, &catalog);
+    let mod_id = arg_str(&args, "mod_id");
+    if !mod_id.is_empty() {
+        summary.issues.retain(|i| i.mod_id == mod_id);
+    }
+    json_result(Ok(json!({ "learned_now": learned_now, "summary": summary })))
+}
+
+fn handle_studio_note(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
+        return error_result("No Zomboid folder found".to_string());
+    };
+    let text = arg_str(&args, "text");
+    let (mod_id, group) = (arg_str(&args, "mod_id"), arg_str(&args, "group"));
+    if !group.is_empty() {
+        return json_result(crate::mod_meta::set_group_studio_note(&z, group, text));
+    }
+    if mod_id.is_empty() {
+        return error_result("mod_id or group is required".to_string());
+    }
+    json_result(crate::mod_meta::set_studio_note(&z, mod_id, text))
+}
+
+fn handle_mod_group(args: Value) -> ToolCallResult {
+    let paths = resolve_paths(&args);
+    let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
+        return error_result("No Zomboid folder found".to_string());
+    };
+    let group = arg_str(&args, "group");
+    let ids: Vec<String> = args.get("mod_ids").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect()).unwrap_or_default();
+    match arg_str(&args, "action") {
+        "add" if !ids.is_empty() => json_result(crate::mod_meta::set_in_group_by_studio(&z, group, &ids, true)),
+        "remove" if !ids.is_empty() => json_result(crate::mod_meta::set_in_group(&z, group, &ids, false)),
+        "rename" => json_result(crate::mod_meta::rename_group(&z, group, arg_str(&args, "to"))),
+        "delete" => json_result(crate::mod_meta::delete_group(&z, group)),
+        _ => error_result("action is add, remove (both with mod_ids), rename (with to) or delete".to_string()),
+    }
+}
+
+/// The tools the Doctor's chat runs by itself: they only read.
+pub const DOCTOR_READ_TOOLS: &[&str] = &[
+    "get_studio_paths", "get_game_status", "get_monitor_logs", "list_available_logs", "get_crash_diagnostics", "get_error_report", "zb_exclusions",
+    "server_status", "mp_test_status", "list_installed_mods", "get_mod_health", "sort_mod_load_order", "scan_mod_conflicts", "list_mod_profiles",
+    "list_merged_packages", "game_resources", "function_overrides", "mp_check_mods", "scan_mod_security", "java_patches", "java_links", "session_changes", "check_mod_api",
+    "get_frame_report", "workshop_item", "workshop_comments", "workshop_search", "community_index_lookup", "learned_on_this_pc", "brain_overview",
+    "brain_mod_history", "mod_notes_and_groups", "list_load_rules", "save_inside", "learned_index_drafts", "brain_suspects", "brain_period", "brain_marks",
+];
+/// The tools the Doctor's chat runs only after the player confirms: they change the Studio's
+/// own notes, groups, rules and dismissed issues, nothing of the game or the mods.
+pub const DOCTOR_CONFIRM_TOOLS: &[&str] = &["studio_note", "mod_group", "add_load_rule", "remove_load_rule", "dismiss_index_issue"];
 
 fn handle_dismiss_index_issue(args: Value) -> ToolCallResult {
     let paths = resolve_paths(&args);

@@ -27,6 +27,8 @@ import { openRequiredItem } from '../../utils/workshopRequirement';
 import { BootTimePanel } from './BootTimePanel';
 import { MemoryPanel } from './MemoryPanel';
 import { DiskPanel } from './DiskPanel';
+import { useUiMode } from '../../hooks/useUiMode';
+import { setUiMode, simpleFindings } from '../../utils/uiMode';
 
 interface HealthModuleProps {
   paths: StudioPathsUI;
@@ -67,6 +69,11 @@ interface HealthModuleProps {
   doctor?: React.ReactNode;
   /** Opens the Servers screen (to start a server). */
   onGoServers?: () => void;
+  /** For the Doctor's chat: show a mod in the Mod List, switch one on or off. */
+  onShowInModList?: (modId: string) => void;
+  onToggleMod?: (modId: string) => void;
+  /** A screen by its guide page's name (profiles, saves, monitor, mod-list, ...). */
+  onOpenPage?: (page: string) => void;
 }
 
 /** Fixes handled here (not by rewriting the mod list). */
@@ -208,7 +215,7 @@ const groupItems = (issues: HealthIssue[]): SectionItem[] => {
   return out;
 };
 
-export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report: profileReport, checking: profileChecking, checkStage: profileStage = null, onRecheck: profileRecheck, checkedAt: profileCheckedAt = null, changes: profileChanges = null, onApplyModList, onModsChanged, onOpenMerger, onUpdatePatch, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled, profileName = null, profileId = null, catalog = [], focusTab = null, onFocusTabHandled, doctor, onGoServers }) => {
+export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report: profileReport, checking: profileChecking, checkStage: profileStage = null, onRecheck: profileRecheck, checkedAt: profileCheckedAt = null, changes: profileChanges = null, onApplyModList, onModsChanged, onOpenMerger, onUpdatePatch, onOpenInBrowser, onSearchInBrowser, focusIssue = null, onFocusHandled, profileName = null, profileId = null, catalog = [], focusTab = null, onFocusTabHandled, doctor, onGoServers, onShowInModList, onToggleMod, onOpenPage }) => {
   const { t } = useTranslation();
   // Which list is checked: the profile's (the app's own check, shared with the Mod List), or a
   // server's Mods= (checked here, on its own). Everything below reads report / checking.
@@ -297,6 +304,13 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   /** The verdict's "Go": the same way to an issue as a Mod List chip. */
   const [ownFocus, setOwnFocus] = useState<HealthIssue | null>(null);
   const target = focusIssue ?? ownFocus;
+  /**
+   * Simple mode: the mods part is one list of what needs something done, each row with its one
+   * button; the other parts' tabs, the worth-doing and nothing-to-do rows are counted, not shown.
+   */
+  const simple = useUiMode()[0] === 'simple';
+  /** The row another screen pointed at stays on Simple's list even when it is not to act on. */
+  const [simpleKeep, setSimpleKeep] = useState<string | null>(null);
   const focusDone = () => {
     setOwnFocus(null);
     onFocusHandled?.();
@@ -575,6 +589,12 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   const handleFix = (fix: HealthFix, issue?: HealthIssue) => {
     // What changes something gets its row marked; opening a page or the Merger does not.
     const opensOnly = fix.action === 'open_in_merger' || fix.action === 'open_workshop_page' || fix.action === 'subscribe_workshop' || fix.action === 'keep_version';
+    // The brain remembers the fix, and the sessions after it say whether the mod's error stopped.
+    const fixMod = ('mod_id' in fix && typeof fix.mod_id === 'string' ? fix.mod_id : null) ?? issue?.mod_id ?? null;
+    if (!opensOnly && fix.action !== 'dismiss_known_issue' && fixMod && issue) {
+      const learnedKey = issue.code === 'learned_issue' ? issue.fixes.find((f) => f.action === 'dismiss_known_issue') : undefined;
+      void TauriService.brainNoteFix(paths, fixMod, fix.action, issue.code, learnedKey && 'title' in learnedKey ? learnedKey.title : null);
+    }
     if (!opensOnly && fix.action !== 'disable_mod' && issue) markPending([issue]);
     if (fix.action === 'merge_files') {
       mergeFiles(fix.relative_paths);
@@ -830,7 +850,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   // to scroll to (not saved: the player's own folding stays as it was).
   useEffect(() => {
     if (!target) return;
-    const focusTab = tabOf(target);
+    const focusTab = simple ? 'problems' : tabOf(target);
+    if (simple) setSimpleKeep(issueKey(target));
     setTab(focusTab);
     setCollapsed((prev) => ({ ...prev, [`${focusTab}:${issueStateOf(target)}`]: false }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -850,17 +871,22 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
    * The rows of the tab in front, in sections by state, most pressing first: act, worth doing,
    * worth knowing, already fixed by the Studio. The same four on every tab.
    */
+  const simpleList = useMemo(() => simpleFindings(report?.issues ?? [], simpleKeep, issueKey), [report, simpleKeep]);
+  // In Simple the mods part has one tab: whatever another screen or an earlier visit left open.
+  useEffect(() => {
+    if (simple && sectionOf(tab) === 'mods' && tab !== 'problems') setTab('problems');
+  }, [simple, tab]);
   const sections = useMemo(() => {
     if (!isListTab(tab)) return [];
     const by: Record<IssueState, HealthIssue[]> = { act: [], recommended: [], info: [], handled: [] };
-    byTab[tab].forEach((i) => by[issueStateOf(i)].push(i));
+    (simple ? simpleList.shown : byTab[tab]).forEach((i) => by[issueStateOf(i)].push(i));
     // Inside a section, what can be done with a button and is sure first; a suspicion with nothing to press last.
     return STATE_ORDER.map((state) => {
       const issues = inDoFirstOrder(by[state]);
       return { key: state, state, issues, items: groupItems(issues) };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byTab, tab, i18next.language]);
+  }, [byTab, tab, i18next.language, simple, simpleList]);
 
   /** The fixes a row offers, as buttons; "Enable X" + "Move X before Y" are one button doing both. */
   const fixesOf = (issue: HealthIssue) => {
@@ -886,10 +912,12 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   const renderIssue = (issue: HealthIssue, state: IssueState, key: string) => {
     const style = STATE_STYLE[state];
     const Icon = style.icon;
-    const { applicable, enableThenMove, fixes } = fixesOf(issue);
+    const { applicable, enableThenMove, fixes: allFixes } = fixesOf(issue);
     const undoOnly = state === 'handled' || state === 'info';
     // On a mod the player is making, "switch it off" is never the thing to do first: it stays, quiet.
-    const primary = fixes.find((f) => !(undoOnly && UNDO_ACTIONS.has(f.action)) && !(issue.own_mod && f.action === 'disable_mod'));
+    const primary = allFixes.find((f) => !(undoOnly && UNDO_ACTIONS.has(f.action)) && !(issue.own_mod && f.action === 'disable_mod'));
+    // Simple: the one button (the first fix); the others are in Complete.
+    const fixes = simple ? (primary ? [primary] : allFixes.slice(0, 1)) : allFixes;
     return (
       <div
         key={key}
@@ -917,7 +945,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
               <span>{t(effectKey(primary))}</span>
             </div>
           )}
-          <div className="flex items-center gap-2 mt-0.5">
+          {!simple && <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] font-mono text-slate-600">{issue.code}</span>
             <button
               type="button"
@@ -927,8 +955,8 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
             >
               <MessageSquare className="w-3 h-3" aria-hidden="true" /> {t('assistant.copy')}
             </button>
-          </div>
-          {issue.details && issue.details.length > 0 && (
+          </div>}
+          {!simple && issue.details && issue.details.length > 0 && (
             <details className="mt-1.5">
               <summary className="text-[11px] text-sky-300 cursor-pointer select-none">{t('health.byFile', { count: issue.details.length })}</summary>
               <div className="mt-1.5 flex flex-col gap-1.5">
@@ -1227,7 +1255,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
   /** The tabs of the part in front (none on the front page). */
   const renderSubTabs = () => (
   <div role="tablist" className="flex items-end gap-1 border-b border-slate-800">
-    {(section === 'home' ? [] : SECTION_TABS[section]).map((id) => {
+    {(section === 'home' || (simple && section === 'mods') ? [] : SECTION_TABS[section]).map((id) => {
       const Icon = TAB_ICON[id];
       const count = tabCount[id];
       const active = tab === id;
@@ -1327,10 +1355,10 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
 
       {/* The parts: front page, mods, the game, the server */}
       <div role="tablist" className="flex flex-wrap items-center gap-1.5">
-        {(['home', ...SECTIONS] as const).map((sec) => {
+        {(simple ? (['home', 'mods', ...(section === 'game' || section === 'server' ? [section] : [])] as const) : (['home', ...SECTIONS] as const)).map((sec) => {
           const Icon = SECTION_ICON[sec];
           const active = section === sec;
-          const todo = sec === 'mods' ? toDo(report?.issues ?? []).length : 0;
+          const todo = sec === 'mods' ? (simple ? actCount(report?.issues ?? []) : toDo(report?.issues ?? []).length) : 0;
           return (
             <button
               key={sec}
@@ -1350,7 +1378,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
         })}
       </div>
 
-      {section === 'home' && <DiagnosticsHome paths={paths} report={report} checking={checking} onOpen={openSection} doctor={doctor} />}
+      {section === 'home' && <DiagnosticsHome paths={paths} report={report} checking={checking} onOpen={openSection} doctor={doctor} mods={mods} onShowInModList={onShowInModList} onToggleMod={onToggleMod} onOpenPage={onOpenPage} onModsChanged={onModsChanged} />}
 
       {section === 'mods' && (
         <>
@@ -1409,7 +1437,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       )}
 
 
-      {verdict && (
+      {verdict && !(simple && verdict.level !== 'act') && (
         <div
           role="status"
           className={`rounded-lg border px-4 py-2 ${
@@ -1474,7 +1502,7 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
         </div>
       )}
 
-      {!onServer && profileId && (
+      {!onServer && profileId && !simple && (
         <ProfilePhotos paths={paths} profile={{ id: profileId, name: profileName ?? profileId }} mods={mods} catalog={catalog} report={report} nameOf={nameOf} />
       )}
 
@@ -1593,7 +1621,13 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       )}
 
       {/* On the first tab, an "in order" verdict above already says it: the same green line twice reads as noise. */}
-      {report && isListTab(tab) && toDo(byTab[tab]).length === 0 && !(tab === 'problems' && verdict?.level === 'ok') && (
+      {simple && report && isListTab(tab) && simpleList.shown.length === 0 && (
+        <div className="flex items-center gap-3 p-5 rounded-xl border border-emerald-800/60 bg-emerald-950/30 text-emerald-200 text-sm">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+          {t('simple.health.nothingToAct')}
+        </div>
+      )}
+      {!simple && report && isListTab(tab) && toDo(byTab[tab]).length === 0 && !(tab === 'problems' && verdict?.level === 'ok') && (
         <div className="flex items-center gap-3 p-5 rounded-xl border border-emerald-800/60 bg-emerald-950/30 text-emerald-200 text-sm">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-hidden="true" />
           {tab === 'problems' ? t('health.noProblems', { count: report.active_count }) : t(`health.tabs.${tab}Empty`)}
@@ -1634,6 +1668,21 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
           </section>
         );
       })}
+      {simple && report && isListTab(tab) && (simpleList.optional > 0 || simpleList.nothingToDo > 0) && (
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg border border-slate-800 bg-slate-900/50 text-[11px] text-slate-400">
+          <span className="flex-1 min-w-[240px]">
+            {[
+              simpleList.optional > 0 && t('simple.health.optionalHidden', { count: simpleList.optional }),
+              simpleList.nothingToDo > 0 && t('simple.health.nothingToDoHidden', { count: simpleList.nothingToDo }),
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          </span>
+          <button type="button" onClick={() => setUiMode('advanced')} className="px-2.5 py-1 rounded border border-slate-700 text-slate-200 hover:bg-slate-800 cursor-pointer">
+            {t('simple.health.showAll')}
+          </button>
+        </div>
+      )}
       {tab === 'modtime' && <GameTimePanel paths={paths} mods={mods} onModsChanged={onModsChanged} />}
       {tab === 'audit' && report && <AuditPanel mods={mods} issues={report.issues} nameOf={nameOf} onGo={(issue) => setOwnFocus(issue)} />}
         </>

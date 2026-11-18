@@ -51,7 +51,7 @@
           },
           "build": "42.21",
           "date": "2026-11-02",
-          "source": "PZ Mod Studio, seen in the game log on 42.21 until 2026-11-02; 2.5.1 still has the same code",
+          "source": "PZ Mod Studio, seen in the game log on 42.21 until 2026-11-02; 2.5.1 still has the same code, and 42.22.2 still looks the key up the same way: with the Studio fix on, it was in the log in 1 of 195 sessions with the mod",
           "status": "verified",
           "mod_versions": [
             "2.5.1"
@@ -133,7 +133,7 @@
       "issues": [
         {
           "title": "Its check for walls around a room fails on Build 42.22",
-          "note": "It asks a tile for its wall flags with get(IsoFlagType...), which 42.22 does not take (the game's own code uses has): \"No implementation found for function: get(...PropertyContainer..., IsoFlagType WallN)\". That check stops with an error each time; the rest of the mod goes on. Nothing to fix from here: its author has to change those calls (12 of them).",
+          "note": "It asks a tile for its wall flags with get(IsoFlagType...), which 42.22 does not take (the game's own code uses has): \"No implementation found for function: get(...PropertyContainer..., IsoFlagType WallN)\". That check (also reached from its heat simulation, logged as checkpoint) stops with an error each time; the rest of the mod goes on. Nothing to fix from here: its author has to change those calls (12 of them).",
           "file": "media/lua/client/RC_RoomLogic/RC_RoomLogic.lua",
           "line": 439,
           "log": "ERROR: General      f:3> Lua((MOD:Realistic Temperature)).edgeHasBlockingOnSquare> Exception thrown",
@@ -142,7 +142,7 @@
           },
           "build": "42.22",
           "date": "2026-11-17",
-          "source": "PZ Mod Studio, game log on 42.22.2 (8 sessions, 2026-11-16 and 17); the 2.4.0 copy updated 2026-11-17 14:56 still has the call at line 439",
+          "source": "PZ Mod Studio, game log: in 8 of 14 sessions with the mod on 42.22.2 (2026-11-16 and 17); the 2.4.0 copy Steam installed on 2026-11-17 still has the call at line 439 (12 calls in two files)",
           "status": "verified",
           "mod_versions": [
             "2.4.0"
@@ -171,7 +171,7 @@
           },
           "build": "42.22",
           "date": "2026-11-17",
-          "source": "PZ Mod Studio, game log: in 16 of 16 sessions on 42.22.2 with the copy installed 2026-11-12 (no modversion)",
+          "source": "PZ Mod Studio, game log: in 17 of 19 sessions with the mod on 42.22.2 (2026-11-12 to 17), copy installed 2026-10-28 (no modversion)",
           "status": "verified"
         }
       ]
@@ -269,7 +269,7 @@
           },
           "build": "42.22",
           "date": "2026-11-17",
-          "source": "PZ Mod Studio, game log: off in 18 of 18 sessions on 42.22.2, on in 127 of 127 on 42.21 (same 1.4.6)",
+          "source": "PZ Mod Studio, game log: off in 23 of 25 sessions with the mod on 42.22.2 (to 2026-11-17), on in 127 of 127 on 42.21 (same 1.4.6)",
           "status": "verified",
           "mod_versions": [
             "1.4.6"

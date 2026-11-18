@@ -1,7 +1,7 @@
 import { openRequiredItem } from '../../utils/workshopRequirement';
 import { freshProfile } from '../../utils/profiles';
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { ModInfo, HealthIssue, CatalogModSummary, AppInstance, ModErrorStat, profileMembers, STUDIO_LINK_MOD_ID, ModMeta } from '../../types';
+import { ModInfo, HealthIssue, CatalogModSummary, AppInstance, ModErrorStat, profileMembers, STUDIO_LINK_MOD_ID, ModMeta, SortResult } from '../../types';
 import { ModMetaDialog } from './ModMetaDialog';
 import { dependentsOf, enableWithRequirements } from '../../utils/planner';
 import { sourceOf } from '../common/SourceBadge';
@@ -1240,6 +1240,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
   // the user's order everywhere else (Studio packages last). The previous order can be restored.
   const [orderBeforeSort, setOrderBeforeSort] = useState<ModInfo[] | null>(null);
   const [lastSortMoved, setLastSortMoved] = useState<number>(0);
+  const [lastSortReasons, setLastSortReasons] = useState<NonNullable<SortResult['reasons']>>([]);
   const handleAutoSortDependencies = async () => {
     let result;
     try {
@@ -1251,6 +1252,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
     const sorted = result.order.map((id) => byId.get(id)).filter((m): m is ModInfo => !!m);
     if (sorted.length !== mods.length) return; // list changed meanwhile; do nothing
     setLastSortMoved(result.moved.length);
+    setLastSortReasons(result.reasons ?? []);
     if (result.moved.length > 0) {
       setOrderBeforeSort(mods);
       triggerReorder(sorted);
@@ -1520,6 +1522,7 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                       gameShares={gameShares}
                       isFavorite={keep.isFavorite({ workshop_id: mod.workshop_id ?? null, mod_id: mod.workshop_id ? null : mod.mod_id, name: mod.name, installedModIds: [mod.mod_id] })}
                       note={meta.notes[mod.mod_id]}
+                      studioNote={meta.studio_notes?.[mod.mod_id]}
                       groups={(groupsByMod.get(mod.mod_id) ?? []).filter((g) => g !== inGroup)}
                       onEditNote={(m) => setMetaOf({ mods: [m], tab: 'note' })}
                       showEveryMod={showEveryMod}
@@ -2030,6 +2033,9 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
           profileNames={selectedMod ? profilesByMod.get(selectedMod.mod_id) ?? [] : []}
           activeProfileName={activeProfile?.name}
           note={selectedMod ? meta.notes[selectedMod.mod_id] : undefined}
+          studioNote={selectedMod ? meta.studio_notes?.[selectedMod.mod_id] : undefined}
+          onRemoveStudioNote={(m) => void TauriService.setStudioNote(paths, m.mod_id, '').then(setMeta)}
+          nameOf={(id) => mods.find((x) => x.mod_id === id)?.name ?? id}
           groups={selectedMod ? groupsByMod.get(selectedMod.mod_id) ?? [] : []}
           onEditNote={(m) => setMetaOf({ mods: [m], tab: 'note' })}
           onEditGroups={(m) => setMetaOf({ mods: [m], tab: 'groups' })}
@@ -2051,6 +2057,24 @@ export const LoadOrderModule: React.FC<LoadOrderModuleProps> = ({
                 </p>
               </div>
             </div>
+
+            {lastSortReasons.length > 0 && (
+              <div className="text-xs text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="font-bold text-slate-200 mb-1.5">{t('modList.sortWhy')}</div>
+                <ul className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                  {lastSortReasons.slice(0, 40).map((r, n) => {
+                    const name = (id: string) => mods.find((m) => m.mod_id === id)?.name || id;
+                    return (
+                      <li key={`${r.mod_id}-${r.other}-${n}`} className="leading-snug">
+                        {t(`modList.sortReason.${r.kind}`, { mod: name(r.mod_id), other: name(r.other) })}
+                      </li>
+                    );
+                  })}
+                  {lastSortReasons.length > 40 && <li className="text-slate-500">{t('modList.sortWhyMore', { count: lastSortReasons.length - 40 })}</li>}
+                </ul>
+                {lastSortMoved > lastSortReasons.length && <div className="text-[11px] text-slate-500 mt-1.5">{t('modList.sortRoom')}</div>}
+              </div>
+            )}
 
             <ul className="text-xs text-slate-300 space-y-2 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 font-sans leading-relaxed">
               <li dangerouslySetInnerHTML={{ __html: tHtml('modList.sortRule1') }} />

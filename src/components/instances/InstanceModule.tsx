@@ -193,6 +193,28 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
   /** A profile whose switch also changes the game's launch file, waiting to be confirmed. */
   const [pendingActivation, setPendingActivation] = useState<{ inst: AppInstance; plan: NonNullable<Awaited<ReturnType<typeof TauriService.javaAgentsPlan>>> } | null>(null);
 
+  // Isolate this profile: the shared worlds to bring along, chosen before they move (its options
+  // and mod settings start as a copy).
+  const [ownSaves, setOwnSaves] = useState<{ inst: AppInstance; worlds: string[]; bring: string[] } | null>(null);
+  const [ownBusy, setOwnBusy] = useState(false);
+  const openOwnSaves = async (inst: AppInstance) => {
+    const worlds = await TauriService.profileSaves(paths, 'shared').catch(() => [] as string[]);
+    setOwnSaves({ inst, worlds, bring: [] });
+  };
+  const applyOwnSaves = async (inst: AppInstance, own: boolean, bring: string[]) => {
+    setOwnBusy(true);
+    try {
+      await TauriService.setOwnSaves(paths.user_zomboid_dir, inst.id, own, bring);
+      setStatusMessage(t(own ? 'profiles.ownSaves.done' : 'profiles.ownSaves.backDone', { name: inst.name }));
+      setOwnSaves(null);
+      await loadInstances();
+    } catch (err) {
+      setStatusMessage(explainError(err));
+    } finally {
+      setOwnBusy(false);
+    }
+  };
+
   const handleActivateInstance = async (inst: AppInstance) => {
     // The launch file is the game's, outside the mods folder: its change is shown first.
     const plan = await TauriService.javaAgentsPlan(paths, inst.active_mod_ids);
@@ -702,6 +724,33 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                     </div>
                   </div>
 
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    {inst.own_saves ? (
+                      <>
+                        <span className="text-sky-300" title={t('profiles.ownSaves.onTitle')}>{t('profiles.ownSaves.on')}</span>
+                        <button
+                          type="button"
+                          disabled={ownBusy}
+                          onClick={() => {
+                            if (window.confirm(t('profiles.ownSaves.backConfirm', { name: inst.name }))) void applyOwnSaves(inst, false, []);
+                          }}
+                          className="text-slate-400 hover:text-slate-200 underline cursor-pointer disabled:opacity-50"
+                        >
+                          {t('profiles.ownSaves.back')}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void openOwnSaves(inst)}
+                        className="text-slate-400 hover:text-slate-200 underline cursor-pointer"
+                        title={t('profiles.ownSaves.giveTitle')}
+                      >
+                        {t('profiles.ownSaves.give')}
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
                     {inst.is_active && onGoToModList && (
                       <button
@@ -952,6 +1001,56 @@ export const InstanceModule: React.FC<InstanceModuleProps> = ({
                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 {t('profiles.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {ownSaves && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-sky-700/60 rounded-2xl p-5 max-w-lg w-full space-y-3 shadow-2xl">
+            <h3 className="text-sm font-bold text-slate-100">{t('profiles.ownSaves.title', { name: ownSaves.inst.name })}</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">{t('profiles.ownSaves.explain')}</p>
+            <ul className="list-disc pl-5 space-y-1 text-xs text-slate-200 leading-relaxed">
+              <li>{t('profiles.ownSaves.itemSaves')}</li>
+              <li>{t('profiles.ownSaves.itemOptions')}</li>
+              <li>{t('profiles.ownSaves.itemModSettings')}</li>
+            </ul>
+            <p className="text-[11px] text-slate-400 leading-relaxed">{t('profiles.ownSaves.sharedNote')}</p>
+            {ownSaves.worlds.length > 0 ? (
+              <>
+                <div className="text-[11px] font-bold text-slate-300">{t('profiles.ownSaves.bringTitle')}</div>
+                <div className="max-h-56 overflow-y-auto space-y-1 bg-slate-950/60 border border-slate-800 rounded-lg p-2">
+                  {ownSaves.worlds.map((w) => (
+                    <label key={w} className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={ownSaves.bring.includes(w)}
+                        onChange={(e) =>
+                          setOwnSaves({ ...ownSaves, bring: e.target.checked ? [...ownSaves.bring, w] : ownSaves.bring.filter((x) => x !== w) })
+                        }
+                        className="cursor-pointer"
+                      />
+                      <span className="truncate">{w.split('/').slice(1).join('/')}</span>
+                      <span className="text-[10px] text-slate-500">{w.split('/')[0]}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-[11px] text-slate-400">{t('profiles.ownSaves.noneShared')}</p>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setOwnSaves(null)} className="px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-slate-800 cursor-pointer">
+                {t('profiles.ownSaves.cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={ownBusy}
+                onClick={() => void applyOwnSaves(ownSaves.inst, true, ownSaves.bring)}
+                className="px-4 py-2 bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold cursor-pointer"
+              >
+                {t('profiles.ownSaves.confirm', { count: ownSaves.bring.length })}
               </button>
             </div>
           </div>

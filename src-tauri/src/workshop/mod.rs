@@ -436,6 +436,16 @@ pub fn search_public(q: &BrowseQuery) -> Result<WorkshopSearchResult, String> {
 }
 
 /// "Build NN" plus the chosen category, as the Workshop spells its tags.
+/// The required tags for a build ("Build 42") and a category, as the Workshop names them.
+pub fn tag_filters_of(build: Option<&str>, category: Option<&str>) -> Vec<String> {
+    tag_filters(build, category)
+}
+
+/// One item from the fields Steam returns (the Web API's names).
+pub fn item_from_value(v: &Value) -> Option<WorkshopItem> {
+    parse_item(v)
+}
+
 fn tag_filters(build: Option<&str>, category: Option<&str>) -> Vec<String> {
     let mut tags = Vec::new();
     if let Some(b) = build.filter(|b| !b.is_empty() && b.chars().all(|c| c.is_ascii_digit())) {

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ActiveTab } from '../../types';
 import { useTranslation } from 'react-i18next';
-import { GitCompare, ListOrdered, Settings, Activity, Server, Layers, Lock, HeartPulse, Globe, Code2, Archive, Newspaper, Map as MapIcon } from 'lucide-react';
+import { GitCompare, ListOrdered, Settings, Activity, Server, Layers, Lock, HeartPulse, Globe, Code2, Archive, Newspaper, Map as MapIcon, Home } from 'lucide-react';
+import { useUiMode } from '../../hooks/useUiMode';
+import { SIMPLE_TABS } from '../../utils/uiMode';
 
 interface StudioSidebarProps {
   activeTab: ActiveTab;
@@ -35,7 +37,17 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
     window.addEventListener('pzms-advanced-changed', onChange);
     return () => window.removeEventListener('pzms-advanced-changed', onChange);
   }, []);
-  const navItems = [
+  const [uiMode, setUiMode] = useUiMode();
+  const simple = uiMode === 'simple';
+  const allItems = [
+    {
+      id: 'HOME' as ActiveTab,
+      label: t('simple.nav.home'),
+      icon: Home,
+      badge: null,
+      badgeColor: '',
+      requiresProfile: true,
+    },
     {
       id: 'PROFILES' as ActiveTab,
       label: t('nav.profiles'),
@@ -127,6 +139,14 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
       requiresProfile: true,
     },
   ];
+  // Simple shows the screens a player needs, in its own order; Complete is every screen but Home.
+  // A screen Simple hides that a link opened anyway stays listed while it is in front.
+  const navItems = simple
+    ? SIMPLE_TABS.filter((id): boolean => id !== 'SETTINGS')
+        .concat(SIMPLE_TABS.includes(activeTab) ? [] : [activeTab])
+        .map((id) => allItems.find((item) => item.id === id))
+        .filter((item): item is (typeof allItems)[number] => !!item)
+    : allItems.filter((item) => item.id !== 'HOME');
 
   return (
     <aside className="w-56 bg-slate-900/60 border-r border-slate-800 flex flex-col justify-between select-none shrink-0 p-3">
@@ -179,7 +199,28 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
       </div>
 
       {/* Bottom App Settings */}
-      <div className="pt-3 border-t border-slate-800">
+      <div className="pt-3 border-t border-slate-800 space-y-2">
+        {/* Simple or Complete, always in sight: nothing is lost by trying either */}
+        <div className="px-1">
+          <div className="px-1 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">{t('simple.mode.label')}</div>
+          <div role="radiogroup" aria-label={t('simple.mode.label')} className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-slate-950 border border-slate-800">
+            {(['simple', 'advanced'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={uiMode === mode}
+                onClick={() => setUiMode(mode)}
+                title={t(`simple.mode.${mode}Hint`)}
+                className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer transition ${
+                  uiMode === mode ? 'bg-emerald-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {t(`simple.mode.${mode}`)}
+              </button>
+            ))}
+          </div>
+        </div>
         <button
           onClick={() => setActiveTab('SETTINGS')}
           className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium transition cursor-pointer ${

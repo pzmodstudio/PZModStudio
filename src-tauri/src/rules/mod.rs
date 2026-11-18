@@ -8,6 +8,8 @@
 
 pub mod community;
 pub mod index;
+pub mod brain;
+pub mod learned;
 
 use serde::{Deserialize, Serialize};
 use std::fs;

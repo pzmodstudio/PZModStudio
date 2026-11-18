@@ -20,6 +20,17 @@
       "server": "Servidor"
     },
     "home": {
+      "learned": {
+        "line_one": "Esta PC aprendió de {{count}} partida de la {{build}}.",
+        "line_other": "Esta PC aprendió de {{count}} partidas de la {{build}}.",
+        "none": "Esta PC todavía no aprendió de ninguna partida de esta build: lo hace sola cuando el juego o un servidor termina una.",
+        "open_one": "{{count}} error de un mod activo se repite en 3 partidas o más (lo ves en Mods).",
+        "open_other": "{{count}} errores de tus mods activos se repiten en 3 partidas o más (los ves en Mods).",
+        "noOpen": "Ningún mod activo repite un error que el índice de la app no conozca ya.",
+        "closed_one": "{{count}} error que se repetía dejó de salir en sus últimas 5 partidas.",
+        "closed_other": "{{count}} errores que se repetían dejaron de salir en sus últimas 5 partidas.",
+        "how": "Lee los logs del juego y no envía nada; si un mod se actualiza, vuelve a contar desde cero."
+      },
       "see": "Ver",
       "mods": {
         "checking": "Revisando la lista…",
@@ -462,6 +473,27 @@
       "steamNotRunning": "Steam no está abierto o no tiene sesión iniciada, así que ahora no se puede desuscribir nada. Igual podés borrar solo el perfil.",
       "deleteAndUnsubscribe": "Borrar y desuscribir ({{count}})",
       "deleteOnly": "Borrar solo el perfil"
+    },
+    "ownSaves": {
+      "give": "Aislar este perfil",
+      "giveTitle": "Que este perfil tenga sus propias partidas, opciones del juego y configuración de los mods, sin mezclarse con los otros perfiles",
+      "on": "Perfil aislado",
+      "onTitle": "Sus partidas, opciones del juego y configuración de los mods están aparte: el juego las usa solo con este perfil activo. Los mods en sí son los mismos para todos los perfiles.",
+      "back": "Dejar de aislar",
+      "backConfirm": "Las partidas de {{name}} pasan a ser compartidas, junto a las de los otros perfiles. Sus opciones y la configuración de sus mods se guardan en una copia de seguridad, y vuelven las compartidas. No se borra nada. ¿Seguir?",
+      "title": "Aislar {{name}}",
+      "explain": "Con este perfil activo, el juego usa solo lo suyo; con otro perfil, lo de ese. Queda aparte:",
+      "itemSaves": "Sus partidas de un jugador (abajo elegís cuáles se lleva).",
+      "itemOptions": "Las opciones del juego: gráficos, sonido y teclas. Empieza con una copia de las que tenés ahora.",
+      "itemModSettings": "La configuración que guardan los mods. También empieza con una copia.",
+      "sharedNote": "Los mods en sí son los mismos para todos los perfiles: no hay que instalar nada de nuevo. Las partidas de servidores tampoco se separan. Al cambiar de perfil la app pone cada cosa en su lugar, con el juego cerrado.",
+      "bringTitle": "Partidas que se lleva este perfil (las demás quedan compartidas):",
+      "noneShared": "No hay partidas compartidas para llevar: el perfil empieza sin partidas.",
+      "cancel": "Cancelar",
+      "confirm_one": "Aislar este perfil (lleva {{count}} partida)",
+      "confirm_other": "Aislar este perfil (lleva {{count}} partidas)",
+      "done": "{{name}} está aislado: tiene sus propias partidas, opciones y configuración de los mods.",
+      "backDone": "{{name}} ya no está aislado: sus partidas volvieron a las compartidas y su configuración quedó guardada en una copia de seguridad."
     }
   },
   "modList": {
@@ -672,6 +704,7 @@
         "community_rule_order": "Antes de un mod que el Studio dice que debe seguir",
         "community_incompatible": "El Studio dice que chocan",
         "community_known_issue": "Problema conocido",
+        "learned_issue": "Aprendido en esta PC",
         "community_successor": "Hay una versión para esta build",
         "load_before_order": "Carga demasiado tarde",
         "incompatible": "Incompatible",
@@ -711,7 +744,10 @@
         "workshop_copy_renamed": "Copia de antes del cambio de id",
         "workshop_copy_stale": "Copia vieja",
         "workshop_copy_kept": "Copia para servidor",
-        "api_missing": "Llama cosas que esta versión no tiene"
+        "api_missing": "Llama cosas que esta versión no tiene",
+        "function_seen_other": "Otra versión en el juego",
+        "java_link_broken": "Java viejo para esta build",
+        "game_folder_changed": "Cambió la carpeta del juego"
       },
       "fix": {
         "enable": "Activar {{name}}",
@@ -849,6 +885,17 @@
       "unsubscribedPartly": "Desuscripto de {{done}} de {{count}} ítems. El primero que falló: {{reason}}",
       "unsubscribeFailed": "No se pudo desuscribir: {{reason}}",
       "groups": "Agregar {{count}} mods a un grupo…"
+    },
+    "sortWhy": "Por qué:",
+    "sortWhyMore": "y {{count}} más",
+    "sortRoom": "Los demás se corrieron solo para dejar lugar.",
+    "sortReason": {
+      "require": "{{mod}} va después de {{other}}: lo requiere.",
+      "load_after": "{{mod}} va después de {{other}}: su mod.info lo pide.",
+      "load_before": "{{mod}} va antes de {{other}}: su mod.info lo pide.",
+      "rule": "{{mod}} va después de {{other}}: tu propia regla.",
+      "index": "{{mod}} va después de {{other}}: el índice de mods del Studio lo indica.",
+      "package": "{{mod}} va al final: es un paquete del Studio y tiene que cargar después de los mods que arregla."
     }
   },
   "health": {
@@ -1430,7 +1477,9 @@
       "collectionToProfile": "Perfil nuevo con esta colección",
       "collectionToProfileMissing": "Perfil nuevo con esta colección (y suscribirse a los {{count}} que faltan)",
       "showCollection": "Ver la colección",
-      "tryAgain": "Probar de nuevo"
+      "tryAgain": "Probar de nuevo",
+      "viaSteam": "Buscar con Steam",
+      "viaSteamTitle": "Busca a través de Steam en vez de la página del Workshop: datos exactos (suscriptores, favoritos, tamaño), 50 por página. Mientras busca, Steam te muestra jugando a Project Zomboid un momento. Con el juego abierto o para colecciones se usa la página."
     },
     "nexus": {
       "searchPlaceholder": "Buscar en Nexus Mods (palabras del nombre del mod)",
@@ -2072,7 +2121,9 @@
       "packageInUse": "El paquete está en uso y no se pudo reemplazar. Cerrá el juego o cualquier ventana que muestre su carpeta y publicá de nuevo.",
       "copyStaysForServer": "La copia de {{what}} se queda: la lista el servidor {{server}}, y un servidor sin Steam solo lee Zomboid/mods. Sacala primero de los mods de ese servidor.",
       "folderNotCompat": "Ya hay una carpeta {{what}} en Zomboid/mods que no es una copia compatible del Studio: movela o renombrala primero.",
-      "earlierCompat": "Ya hay una copia compatible anterior de {{what}} en Zomboid/mods."
+      "earlierCompat": "Ya hay una copia compatible anterior de {{what}} en Zomboid/mods.",
+      "bisectPairNot": "{{with}} y {{mod}} juntos tampoco lo provocan. Puede que no pase siempre (probá de nuevo marcando \"no pasa siempre\"), o que hagan falta más de dos mods.",
+      "bisectNoPartner": "Ningún otro mod lo provoca junto con {{with}}. Puede que no pase siempre, o que hagan falta más de dos mods."
     },
     "holder": {
       "server": "el servidor \"{{name}}\"",
@@ -2506,7 +2557,8 @@
       "players": "Jugadores",
       "settings": ".ini rápido",
       "discord": "Discord",
-      "mpTest": "Prueba multijugador"
+      "mpTest": "Prueba multijugador",
+      "options": "Todas las opciones"
     },
     "host": {
       "memory": "Memoria (-Xmx)",
@@ -2680,6 +2732,25 @@
       "secondOutdated_other": "Actualizar jugador 2 ({{count}} cosas desactualizadas)",
       "restart": "Reiniciar",
       "restartTitle": "Cierra este juego y lo abre de nuevo con la misma cuenta y lo mismo automatizado; el servidor y el otro juego siguen."
+    },
+    "options": {
+      "loading": "Leyendo las opciones...",
+      "noSchema": "Todavía no está la lista de opciones del juego. Abrí el juego una vez hasta el menú principal con el Studio Link prendido: el Link anota todas las opciones del servidor y del sandbox (también las de tus mods), en tu idioma, y aparecen acá.",
+      "kind": {
+        "server": "Servidor",
+        "sandbox": "Sandbox"
+      },
+      "search": "Buscar una opción",
+      "onlyChanged": "Solo las que no están en su valor por defecto",
+      "none": "Ninguna opción coincide.",
+      "notDefault": "cambiada",
+      "resetTitle": "Volver al valor por defecto: {{value}}",
+      "how": "Solo se escribe lo que cambies acá, con una copia de los dos archivos antes. Con el servidor apagado.",
+      "discard": "Descartar",
+      "save_one": "Guardar {{count}} cambio",
+      "save_other": "Guardar {{count}} cambios",
+      "saved_one": "Guardado: {{count}} opción. Copia de los archivos en PZModStudio_Backups/server_settings.",
+      "saved_other": "Guardado: {{count}} opciones. Copia de los archivos en PZModStudio_Backups/server_settings."
     }
   },
   "developer": {
@@ -3079,7 +3150,7 @@
       "startConfirm": "¿Empezar a partir tu lista de mods a la mitad?\n\nHay {{count}} mods activos. La búsqueda apaga la mitad, vos jugás, y vuelve a partir a la mitad hasta que queda un solo mod — unos 8 inicios para una lista de este tamaño.\n\nTu lista se guarda y se restaura cuando la búsqueda termina, termine como termine.",
       "title": "Encontrar el mod que lo causa",
       "roundBadge": "ronda {{round}} · quedan {{left}} inicios",
-      "intro": "Para lo que el log no te puede decir: un congelamiento, una receta que nunca aparece, una partida que no abre. La mitad de tus mods se apaga, vos jugás, y la mitad que sigue fallando se vuelve a partir. Unos 8 inicios encuentran un mod entre cien.",
+      "intro": "Para lo que el log no te puede decir: un congelamiento, una receta que nunca aparece, una partida que no abre. Se prueba con una parte de tus mods, vos jugás, y se achica la parte que sigue fallando. Unos 8 inicios encuentran un mod entre cien, y también un par de mods que solo fallan juntos. Los mods que esta PC ya tiene como sospechosos se prueban primero.",
       "start": "Empezar a partir la lista",
       "confirming": "Queda un mod: <b class=\"text-cyan-300\">{{mod}}</b>, y es el único sospechoso activo. Jugá y después decí si sigue pasando.",
       "trial": "<b class=\"text-cyan-300\">{{trial}}</b> de <b class=\"text-slate-200\">{{candidates}}</b> sospechosos están activos, más los {{alwaysOn}} mods que otro mod requiere. Jugá como cuando pasó y después respondé.",
@@ -3103,7 +3174,17 @@
       "patchAFile": "Parchear un archivo suyo",
       "switchOff": "Apagarlo",
       "keepOn": "Dejarlo activo",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "flaky": "No pasa siempre: un \"ya no pasa\" se prueba dos veces antes de creerlo",
+      "targetPlaceholder": "Opcional: un texto del error tal como sale en el log",
+      "targetHelp": "Con un texto, después de cada partida de prueba la app mira el log y te sugiere la respuesta.",
+      "pairSearch": "{{mod}} solo no lo provoca: queda prendido en cada prueba mientras se busca el mod que lo provoca junto con él.",
+      "leads": "Empieza por lo que esta PC ya sospecha: {{mods}}.",
+      "goneOnce": "Como no pasa siempre, esta misma prueba se repite una vez antes de creer que ya no pasa.",
+      "suggestStill": "El log de la partida de prueba muestra el error: parece que sigue pasando.",
+      "suggestGone": "El log de la partida de prueba cargó la partida y no muestra el error: parece que ya no pasa.",
+      "culpritPair": "Son <b class=\"text-emerald-300\">{{mod}}</b> y <b class=\"text-emerald-300\">{{other}}</b> juntos: cada uno solo no lo provoca, los dos sí. {{launches}} inicios. Tu lista está restaurada.",
+      "confirmNone": "Ahora va una prueba sin ninguno de los sospechosos (solo lo que tiene que quedar prendido). Si sigue pasando, no es ninguno de estos mods; si ya no pasa, es {{mod}}."
     },
     "require": {
       "theGame": "el juego",
@@ -3155,15 +3236,16 @@
       "community_rule_order_index": "Según las notas que trae el Studio, {{mod}} carga después de {{after}} ({{note}}{{seen}}), y en la lista viene antes",
       "community_incompatible_index": "Según las notas que trae el Studio, {{mod}} y {{other}} no van juntos ({{note}}{{seen}}), y los dos están activados",
       "community_known_issue": "{{mod}} tiene un problema conocido, según las notas que trae el Studio: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
+      "learned_issue": "Aprendido en esta PC: {{mod}} dio el mismo error en {{seen}} de {{on}} partidas tuyas con esta versión (la última, el {{last}}): {{what}}{{evidence}}. Si te molesta, apagalo hasta que su autor lo actualice; cuando deje de pasar, el botón lo oculta",
       "community_successor": "{{mod}} tiene una versión para esta build, según las notas que trae el Studio: {{successor}}{{note}}",
       "package_built_for_other_list": "{{package}} se armó con otra lista: {{missing}}{{sep}}{{extra}}. Un paquete es un mod en sí mismo, así que aparece en todos los perfiles; sus fusiones solo resuelven los mods con los que se armó. El botón azul lo rearma para esta lista (lo mismo que Actualizar parche en el Fusionador); apagarlo en este perfil es la otra opción.",
       "definition": "{{losers}} y {{winner}} {{all}} definen {{properties}} en {{what}}, en archivos distintos ({{files}}). El juego aplica {{each}} a {{things}}, así que se conserva todo lo demás que define cada uno; solo {{props}} el orden de carga, y {{winner}} carga último.{{example}}{{settled}}",
       "definition_nested": "{{losers}} y {{winner}} declaran {{what}}, en archivos distintos ({{files}}), y su contenido difiere. Lo que difiere está dentro de bloques anidados, que el Studio no compara, así que no puede decir qué está en juego: solo que {{winner}} carga último.{{settled}}",
       "script_definition_conflict_more": "{{left}} cosas más, en otros {{pairs}} pares de mods, tienen una propiedad que dos mods definen distinto. En cada una decide el mod que carga último.",
       "translation": "{{losers}} y {{winner}} nombran {{what}} de forma distinta en {{lang}} ({{category}}).{{example}} El juego lee las traducciones de todos los mods y se queda con la última cargada, así que hoy se ven las palabras de {{winner}}.{{settled}}",
-      "file_conflict": "{{others}} y {{winner}} traen {{path}}. Sin una fusión el juego solo usa la copia de {{winner}}, así que la versión de {{others}} se ignora. {{how}}",
+      "file_conflict": "{{others}} y {{winner}} traen {{path}}. Sin una fusión el juego solo usa la copia de {{winner}}, así que la versión de {{others}} se ignora. {{how}}{{checked}}",
       "community_unneeded": "{{mod}} ya no hace falta desde la build {{since}}, según el índice de mods del Studio: {{who}}{{note}}. {{safe}}",
-      "function_overridden": "{{winner}} reemplaza la función del juego {{function}} ({{place}}) después de que {{cut}} la cambió, así que ese cambio nunca corre. {{how}}",
+      "function_overridden": "{{winner}} reemplaza la función del juego {{function}} ({{place}}) después de que {{cut}} la cambió, así que ese cambio nunca corre. {{how}}{{checked}}",
       "file_conflict_stale": "{{path}} se fusionó, pero {{mods}} cambió desde entonces. Fusionalo de nuevo para que el paquete coincida con las versiones actuales.",
       "package_file_stale": "{{package}} tiene una copia de {{path}} hecha el {{copyDate}}, y {{mod}} cambió su propio archivo el {{modDate}}. El juego lee la copia, así que ese cambio nunca corre, y la copia puede llamar a cosas que la versión nueva ya no tiene. Sacá el archivo del paquete, o parcheá la versión nueva en el Fusionador.",
       "package_file_differs": "{{package}} tiene una copia de {{path}} que no es la que trae {{mod}}, y {{mod}} es el único mod de esta lista con ese archivo. O es una fusión hecha cuando otro mod también lo traía (ese mod está apagado ahora), o un parche tuyo. Si la fusión ya no hace falta, sacala: el juego pasa a leer el archivo propio de {{mod}}.",
@@ -3223,7 +3305,13 @@
       "compatible_copy_unneeded_server": "{{mod}} corre desde una copia compatible del Studio en Zomboid/mods, y el original del Workshop ahora carga tal cual en {{build}}. Pero el servidor {{servers}} lo usa, y un servidor sin Steam solo lee Zomboid/mods: la copia queda mientras ese servidor lo use. No hay nada que hacer ahora.",
       "compatible_copy_server": "{{mod}} corre desde una copia compatible que hizo el Studio en Zomboid/mods ({{changes}}). El servidor {{servers}} la lista, y un servidor sin Steam solo lee Zomboid/mods: la copia se queda mientras ese servidor la use.",
       "api_missing": "{{mod}} llama a {{count}} cosas que esta versión del juego no tiene, por nombre: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve.{{tail}}",
-      "api_missing_one": "{{mod}} llama a algo que esta versión del juego no tiene, por nombre: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve.{{tail}}"
+      "api_missing_one": "{{mod}} llama a algo que esta versión del juego no tiene, por nombre: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). Si ese código se ejecuta, falla ahí; un mod que falla en cada cuadro llena el log. La revisión va solo por nombre: un nombre armado mientras el juego corre no se ve.{{tail}}",
+      "function_overridden_mod": "{{winner}} reemplaza {{function}}, de {{owner}} ({{place}}), después de que {{cut}} la cambió, así que ese cambio nunca corre. {{how}}{{checked}}",
+      "function_overridden_reset": "{{winner}} vuelve a crear {{table}} desde cero ({{place}}) después de que {{cut}} cambió {{function}}, y eso borra ese cambio. {{how}}{{checked}}",
+      "function_seen_other": "En el juego abierto, la versión de {{function}} que corre es la de {{actual}} ({{place}}), no la de {{expected}} como dicen sus archivos: un mod la pone más tarde de lo que muestran sus archivos (desde una función o un evento suyo). No hay nada que hacer salvo que notes que falta algo de {{expected}} en el juego.",
+      "function_overridden_mod_many": "{{winner}} reemplaza {{count}} funciones de {{owner}} ({{examples}}...) después de que {{cut}} las cambió, así que esos cambios nunca corren. {{how}}",
+      "java_link_broken": "El Java de {{mod}} usa {{count}} cosa(s) que esta build del juego ya no tiene: {{examples}}{{more}}. Ese código falla cuando corre, muchas veces al arrancar el juego o al cargar una partida.{{patch}} Si el Monitor lo muestra fallando, buscá una actualización de {{mod}} o apagalo; si anda bien, el mod se fija antes y no hay nada que hacer.",
+      "game_folder_changed": "Mientras el juego estuvo abierto (partida que terminó el {{when}}), cambiaron {{count}} archivo(s) de la propia carpeta del juego: {{files}}. El juego nunca escribe ahí: lo hizo un mod Java, un programa de algún mod u otra herramienta. Si no instalaste ni actualizaste nada ahí vos, fijate qué mod pudo haber sido."
     },
     "fragments": {
       "lua_no_impl": "llamó a {{name}} del juego con algo que no acepta",
@@ -3321,7 +3409,13 @@
       "text_whose_mod_many": "Están en los archivos de traducción de {{mod}}.",
       "text_whose_none_one": "El Studio no lo encontró en los textos de los mods que tenés activados; puede ser del propio juego.",
       "text_whose_none_many": "El Studio no los encontró en los textos de los mods que tenés activados; pueden ser del propio juego.",
-      "none_in_jars": "ninguno en los jars cargados"
+      "none_in_jars": "ninguno en los jars cargados",
+      "fo_seen": " Comprobado en el juego abierto: es la versión que tiene.",
+      "fo_the_game": "el propio juego",
+      "jl_more": " y {{more}} más",
+      "jl_patch": " Algunas son lo que cambian sus parches: ZombieBuddy saltea un parche cuyo destino ya no está, así que ese cambio no pasa.",
+      "fc_seen": " El log del juego de su última partida lo confirma.",
+      "fc_seen_other": " Pero el log del juego de su última partida dice que usó la copia de {{seenWinner}}."
     },
     "monitor": {
       "java_mod_error_zb_main": {
@@ -4309,6 +4403,23 @@
           "Las tarjetas del Monitor y las filas de Diagnóstico tienen «Copiar para un asistente»: pegalo en cualquier chat de IA y tiene todo lo necesario.",
           "Empezá por Diagnóstico: si está limpia, tu lista carga."
         ]
+      },
+      "simpleProfiles": {
+        "title": "Creá o elegí un perfil",
+        "body": "Un perfil es tu lista de mods: cuáles están prendidos y en qué orden. Creá uno (puede arrancar con los mods que tenés prendidos ahora) o prendé uno que ya tengas. El juego arranca con sus mods.",
+        "points": [
+          "Podés tener varios: uno por estilo de juego o por servidor.",
+          "Tus partidas se guardan: cambiar de perfil no borra nada."
+        ]
+      },
+      "play": {
+        "title": "A jugar",
+        "body": "En Inicio está el botón Jugar y, cuando ya jugaste, Continuar con tu última partida. El chequeo te dice en una línea si hay algo para arreglar antes.",
+        "points": [
+          "Verde: no hay nada que hacer, jugá.",
+          "Rojo: tocá \"Ver qué hacer\"; cada problema tiene un botón que lo arregla.",
+          "Estás en el modo Simple. Para tener todas las herramientas, pasá a Completo al pie de la barra izquierda o en Configuración."
+        ]
       }
     }
   },
@@ -4513,6 +4624,366 @@
     "report": {
       "head": "Resumen de PZ Mod Studio (lista y última sesión):",
       "memory": "Memoria: {{oom}} sesión(es) sin memoria, {{low}} aviso(s) de Windows."
+    }
+  },
+  "brain": {
+    "change": {
+      "build": "el juego pasó de la {{from}} a la {{to}}",
+      "added": "se agregó {{mod}}",
+      "removed": "se sacó {{mod}}",
+      "updated": "se actualizó {{mod}}",
+      "updatedFromTo": "{{mod}} pasó de {{from}} a {{to}}",
+      "moved": "{{mod}} pasó del lugar {{from}} al {{to}} en el orden",
+      "none": "nada distinto en la lista ni en el juego",
+      "more_one": "y {{count}} cambio más",
+      "more_other": "y {{count}} cambios más"
+    },
+    "onset": {
+      "text": "Empezó el {{first}}; la última partida sin él fue el {{good}}. Entre una y otra: {{changes}} (lo que cambió entonces, no necesariamente la causa).",
+      "fromStart": "Salió desde la primera partida con el mod ({{first}})."
+    },
+    "fix": {
+      "waiting": "{{action}} en {{mod}} ({{when}}): todavía hacen falta partidas con el mod para saber si funcionó ({{after}} hasta ahora).",
+      "worked": "{{action}} en {{mod}} ({{when}}) funcionó: el error salía en {{beforeBad}} de {{before}} partidas y en las {{after}} de después no salió.",
+      "not_worked": "{{action}} en {{mod}} ({{when}}) no alcanzó: el error siguió en {{afterBad}} de {{after}} partidas.",
+      "mod_off": "{{action}} en {{mod}} ({{when}}): está apagado y no se jugó con él desde entonces.",
+      "no_errors_before": "{{action}} en {{mod}} ({{when}}): antes no había errores suyos que comparar ({{after}} partidas después, {{afterBad}} con error)."
+    },
+    "fixAction": {
+      "disable_mod": "Apagarlo",
+      "make_compatible_copy": "La copia compatible",
+      "enable_shim_patch": "El parche del Studio",
+      "move_before": "Moverlo en el orden",
+      "replace_in_list": "Cambiarlo por otro",
+      "remove_from_list": "Sacarlo de la lista",
+      "enable_mod": "Activar lo que necesitaba",
+      "update_package": "Rehacer el paquete",
+      "recopy_workshop": "Volver a copiarlo",
+      "remove_from_package": "Sacar el archivo del paquete",
+      "adopt_workshop_copy": "Usar la copia del Workshop"
+    },
+    "prelaunch": {
+      "head": "Atención: {{bad}} de las últimas {{of}} partidas con esta lista de mods salieron mal (la última, el {{last}}).",
+      "failed_one": "{{count}} no llegó ni al menú.",
+      "failed_other": "{{count}} no llegaron ni al menú.",
+      "oom_one": "{{count}} se quedó sin memoria.",
+      "oom_other": "{{count}} se quedaron sin memoria.",
+      "diff": "La última que llegó a jugar fue el {{good}}; desde entonces: {{changes}}.",
+      "noGood": "No hay ninguna partida con esta lista que haya llegado a jugar.",
+      "confirm": "¿Jugar igual?",
+      "crashed_one": "{{count}} se cayó con un error fatal de Java.",
+      "crashed_other": "{{count}} se cayeron con un error fatal de Java."
+    },
+    "session": {
+      "kind": {
+        "client": "juego",
+        "server": "servidor"
+      },
+      "reached": {
+        "game": "llegó a jugar",
+        "menu": "llegó al menú",
+        "started": "arrancó",
+        "none": "no llegó al menú"
+      },
+      "live": "abierta ahora",
+      "closed": "cerró bien",
+      "cut": "cerró sin pasar por el menú del juego (X, Alt+F4 o cerrado desde afuera)",
+      "oom": "se quedó sin memoria",
+      "load": "cargó en {{secs}} s",
+      "counts": "{{mods}} mods, {{errors}} error(es)",
+      "crashFatal": "se cayó: error fatal de Java ({{reason}} en {{frame}})",
+      "crashMemory": "se cayó: Windows no le dio más memoria a Java (la PC se quedó sin memoria)",
+      "toMenu": "volvió al menú",
+      "save": "partida {{save}}",
+      "crashIn": "se cayó dentro de {{what}} ({{frame}})"
+    },
+    "insight": {
+      "load_slower": "Cargar una partida ahora tarda unos {{now}} s; antes eran unos {{before}} s (desde el {{since}}).",
+      "game_update": "Después de la actualización del juego ({{from}} → {{to}}, el {{since}}), {{count}} mods empezaron a fallar sin haberse actualizado: {{mods}}. Lo que cambió es el juego; lo que queda es esperar sus actualizaciones.",
+      "fixes": "Arreglos: {{worked}} funcionaron, {{notWorked}} no alcanzaron, {{waiting}} esperando partidas."
+    },
+    "history": {
+      "title": "En esta PC",
+      "none": "Todavía no estuvo activo en ninguna partida que la app haya leído.",
+      "sessions": "Activo en {{count}} partida(s), del {{first}} al {{last}}.",
+      "place": "En la última iba en el lugar {{place}} de {{of}}.",
+      "versions": "Versiones vistas: {{list}}.",
+      "version": "{{version}} ({{sessions}})",
+      "bad": "Partidas con él que no llegaron al menú: {{failed}}; sin memoria: {{oom}}; caídas de Java: {{crashed}} (estar activo en una caída no dice que fue él).",
+      "errors": "Errores que le atribuyó el juego",
+      "error": "{{seen}} de {{on}} partidas desde el {{first}}, la última el {{last}}",
+      "stopped": "dejó de salir",
+      "fixes": "Arreglos aplicados",
+      "loading": "Leyendo lo que aprendió esta PC…"
+    },
+    "studioNote": {
+      "label": "Nota del Studio",
+      "remove": "Quitar la nota del Studio",
+      "hint": "La escribió el Doctor o la app; tu nota no se toca."
+    },
+    "crash": {
+      "none": "Java no dejó ningún informe de caída en la carpeta del juego: ninguna partida se cayó de verdad (cerrar con la X o Alt+F4 no deja ninguno).",
+      "summary": "Java dejó {{count}} informe(s) de caída en la carpeta del juego, del {{first}} al {{last}}: {{memory}} porque la PC se quedó sin memoria y {{fatal}} por un error fatal ({{frames}}); {{servers}} de un servidor. Cerrar con la X o Alt+F4 no deja ninguno."
+    },
+    "confidence": {
+      "strong": "bastante seguro",
+      "likely": "probable",
+      "weak": "puede ser casualidad"
+    },
+    "brief": {
+      "prelaunch": "{{bad}} de las últimas {{of}} partidas con esta lista salieron mal.",
+      "lastBad": "La última partida salió mal: {{how}}.",
+      "errors_one": "{{count}} error se repite (de {{mod}}).",
+      "errors_other": "{{count}} errores se repiten (el primero, de {{mod}}).",
+      "fixWorked": "El arreglo de {{mod}} funcionó.",
+      "ok": "Todo en orden ({{count}} partidas leídas)."
+    },
+    "crashCause": {
+      "graphics_nvidia": "el driver de video de NVIDIA: actualizar el driver suele arreglarlo",
+      "graphics_amd": "el driver de video de AMD: actualizar el driver suele arreglarlo",
+      "graphics_intel": "el driver de video de Intel: actualizar el driver suele arreglarlo",
+      "window_opengl": "la parte del juego que maneja la ventana y el dibujo (OpenGL): suele ser el driver de video o un programa que se superpone a la pantalla",
+      "audio": "el sonido del juego: probá con otra salida de audio",
+      "network": "la red del juego",
+      "zombiebuddy": "ZombieBuddy, el cargador de mods Java: mirá qué mods Java estaban prendidos",
+      "java": "el propio Java: muchas veces es falta de memoria o un mod Java",
+      "steam": "Steam o su overlay",
+      "physics": "la física del juego",
+      "windows": "una librería de Windows"
+    }
+  },
+  "doctorChat": {
+    "title": "Preguntale al Doctor",
+    "blurb": "Responde con lo que aprendió esta PC y las herramientas de la app, sin IA: cada respuesta dice de dónde lo sacó. Lo que cambia algo te lo pide antes.",
+    "placeholder": "Escribí una pregunta o una orden (ej.: ¿qué cambió?, historial de Viewpoint, agrupá A, B en Mapas)…",
+    "send": "Enviar",
+    "thinking": "Buscando…",
+    "you": "Vos",
+    "doctor": "Doctor",
+    "confirm": "Hacerlo",
+    "cancel": "No",
+    "done": "Listo.",
+    "cancelled": "No hice nada.",
+    "failed": "No se pudo: {{reason}}",
+    "source": "De: {{source}}",
+    "hello": "Leí {{sessions}} partidas de la {{build}} en esta PC. {{status}} ¿Qué querés saber?",
+    "statusOk": "La última partida {{last}}.",
+    "chips": {
+      "summary": "¿Qué sabés?",
+      "crash": "¿Por qué se cerró?",
+      "changed": "¿Qué cambió?",
+      "errors": "¿Qué mods fallan?",
+      "slow": "¿Está más lento?",
+      "fixes": "¿Funcionaron los arreglos?",
+      "groups": "Sugerí grupos",
+      "notes": "Anotá lo aprendido",
+      "tools": "¿Qué herramientas usás?",
+      "help": "¿Qué puedo pedirte?",
+      "culprit": "¿Qué mod lo causa?",
+      "hunt": "Buscalo por mitades",
+      "week": "¿Qué pasó esta semana?",
+      "undo": "Deshacé lo último",
+      "marks": "¿Qué pasó cuando marqué?"
+    },
+    "help": "Puedo responder: qué sé de esta PC, por qué se cerró el juego, qué cambió cuando empezó un error, qué mods fallan, si la carga está más lenta, si funcionaron los arreglos, qué pasó con la actualización del juego y el historial de un mod (nombralo). Y puedo hacer, con tu confirmación: crear, renombrar o borrar grupos, meter o sacar mods (\"agrupá A, B en Mapas\", \"sacá A del grupo Mapas\", \"renombrá el grupo Mapas a Mundo\", \"borrá el grupo Mapas\"), sugerir grupos, y escribir o borrar notas del Studio (\"nota en A: texto\", \"borrá la nota del Studio de A\", \"anotá lo aprendido\"). Tus notas nunca las toco.",
+    "notUnderstood": "No entendí. Probá con una de estas, o nombrá un mod para ver su historial:",
+    "summary": "{{sessions}} partidas leídas de la {{build}} ({{all}} en total). {{issues}} {{insights}}",
+    "summaryIssues_one": "{{count}} error se repite en tus mods activos.",
+    "summaryIssues_other": "{{count}} errores se repiten en tus mods activos.",
+    "summaryNoIssues": "Ningún mod activo repite errores.",
+    "summaryInsights_one": "Y noté {{count}} cosa más: preguntame qué cambió.",
+    "summaryInsights_other": "Y noté {{count}} cosas más: preguntame qué cambió.",
+    "crashNone": "No tengo partidas leídas todavía.",
+    "crashRecent": "Las últimas partidas:",
+    "crashAllGood": "Las últimas {{count}} partidas llegaron al menú o a jugar; ninguna se quedó sin memoria.",
+    "crashLog": "En el log de la última sesión hay {{count}} tarjeta(s) de error; las primeras: {{list}}.",
+    "changedNone": "No tengo errores repetidos de tus mods activos con un comienzo claro.",
+    "errorsNone": "Ningún mod activo repite un error en 3 partidas o más con la misma versión.",
+    "errorsList": "Errores que se repiten (partidas con el error / con el mod):",
+    "slowNone": "No veo que la carga haya cambiado: las últimas cargas tardaron {{list}} s.",
+    "slowNoData": "No tengo cargas de partidas medidas todavía.",
+    "fixesNone": "Todavía no aplicaste arreglos desde Diagnóstico desde que la app los recuerda.",
+    "updateNone": "{{mod}}: estás al día (última actualización del {{when}}).",
+    "tools": "Para responder uso estas herramientas de la app (las mismas del servidor MCP), solas porque solo leen: {{read}}. Y estas solo con tu confirmación, porque cambian notas, grupos o reglas del Studio: {{change}}.",
+    "modNotFound": "No encontré ningún mod con ese nombre.",
+    "modMany": "Hay varios con ese nombre: {{list}}. ¿Cuál?",
+    "groupsList": "Grupos de este perfil: {{list}}.",
+    "groupsNone": "Este perfil no tiene grupos.",
+    "suggestNone": "No encuentro grupos para sugerir: tus mods activos ya están agrupados o no comparten nombre ni dependencia.",
+    "suggest": "Propongo agrupar {{count}} mods en \"{{group}}\": {{mods}}.",
+    "askAdd": "¿Pongo {{mods}} en el grupo \"{{group}}\"?",
+    "askRemove": "¿Saco {{mods}} del grupo \"{{group}}\"?",
+    "askRename": "¿Renombro el grupo \"{{group}}\" a \"{{to}}\"?",
+    "askDelete": "¿Borro el grupo \"{{group}}\"? Sus mods no se tocan.",
+    "askNote": "¿Escribo esta nota del Studio en {{mod}}?: \"{{text}}\" (tu nota, si tenés, no se toca).",
+    "askNoteRemove": "¿Borro la nota del Studio de {{mod}}? Tu nota no se toca.",
+    "askLearnedNotes_one": "¿Escribo una nota del Studio en {{count}} mod con lo que aprendí de sus errores? Tus notas no se tocan.",
+    "askLearnedNotes_other": "¿Escribo una nota del Studio en {{count}} mods con lo que aprendí de sus errores? Tus notas no se tocan.",
+    "learnedNote": "Aprendido en esta PC: {{title}} en {{seen}} de {{on}} partidas (desde el {{first}}).",
+    "noLearnedNotes": "No hay errores aprendidos en tus mods activos para anotar.",
+    "noStudioNote": "{{mod}} no tiene nota del Studio.",
+    "groupNotFound": "No hay un grupo llamado \"{{group}}\" en este perfil.",
+    "needMods": "Decime qué mods (separados por coma) y en qué grupo: \"agrupá A, B en Mapas\".",
+    "updated": "Encontré lo que cambió con la actualización del juego:",
+    "details": "Ver detalle ({{count}})",
+    "hide": "Ocultar detalle",
+    "noticed": "Noté: {{what}}",
+    "noticedLast": "la última partida salió mal ({{last}}).",
+    "noticedErrors_one": "{{count}} error se repite en tus mods activos (el primero, de {{mod}}).",
+    "noticedErrors_other": "{{count}} errores se repiten en tus mods activos (el primero, de {{mod}}).",
+    "choose": "¿Querés decir alguna de estas?",
+    "whichMod": "¿Cuál de estos?",
+    "learned": "Anotado: la próxima vez entiendo \"{{phrase}}\".",
+    "noFocus": "¿De qué mod hablamos? Nombralo y lo hago.",
+    "sinceLabel": "Desde el {{since}}:",
+    "sinceChanges": "Desde el {{since}} (la última partida antes fue el {{good}}, la más nueva el {{bad}}): {{changes}}.",
+    "sinceNone": "No tengo una partida de antes del {{since}} para comparar.",
+    "crashBad": "De las últimas {{count}} partidas, {{bad}} salieron mal; la última: {{last}}.",
+    "errorsCount_one": "{{count}} error se repite: {{mod}}, {{title}} ({{seen}} de {{on}} partidas).",
+    "errorsCount_other": "{{count}} errores se repiten; el que más: {{mod}}, {{title}} ({{seen}} de {{on}} partidas).",
+    "modSummary_one": "{{mod}}: activo en {{sessions}} partidas, con {{count}} error que se repite: {{title}}.",
+    "modSummary_other": "{{mod}}: activo en {{sessions}} partidas, con {{count}} errores que se repiten; el principal: {{title}}.",
+    "modSummaryOk": "{{mod}}: activo en {{sessions}} partidas, sin errores que se repitan ahora.",
+    "askDisable": "¿Apago {{mod}} en la lista activa?",
+    "askEnable": "¿Activo {{mod}} en la lista activa?",
+    "alreadyOff": "{{mod}} ya está apagado.",
+    "alreadyOn": "{{mod}} ya está activado.",
+    "shown": "Te muestro {{mod}} en la Lista de mods.",
+    "noteNothing": "Sin errores que se repitan en {{sessions}} partidas en esta PC.",
+    "whyNone": "{{mod}} no tiene errores repetidos para decir cuándo empezaron.",
+    "slowest": "Lo que más tardó en cargar en la última sesión: {{mod}}, {{secs}} s.",
+    "slowestNone": "Todavía no tengo tiempos de carga por mod (salen del log de la última sesión).",
+    "mostErrors": "El que más se repite: {{mod}}, en {{count}} partidas con error.",
+    "suggestHead_one": "Encontré {{count}} grupo para proponer:",
+    "suggestHead_other": "Encontré {{count}} grupos para proponer:",
+    "nav": {
+      "showInList": "Ver {{mod}} en la Lista de mods",
+      "openMods": "Abrir Diagnóstico › Mods",
+      "openGame": "Abrir Diagnóstico › Juego",
+      "disable": "Apagar {{mod}}",
+      "enable": "Activar {{mod}}",
+      "noteIt": "Anotar lo aprendido en {{mod}}",
+      "openPage": "Abrir {{page}}"
+    },
+    "advice": {
+      "memory": "Casi todas las caídas ({{memory}} de {{count}}) fueron porque la PC se quedó sin memoria{{together}}, no por un mod. Cerrá lo que no uses (el servidor, el segundo jugador) o dales menos memoria en Servidores.",
+      "together": ", con varios procesos del juego abiertos a la vez",
+      "net": "La caída en ZNetJNI64.dll es de la red del propio juego, no de un mod.",
+      "updatedSelf": "Empezó cuando se actualizó {{mod}}: lo más probable es su versión nueva. Esperá su próxima actualización o avisale a su autor desde su página del Workshop.",
+      "build": "Empezó con la actualización del juego ({{from}} → {{to}}): el mod todavía no está al día con esta build. Esperá su actualización; si molesta, apagalo.",
+      "added_one": "Empezó cuando agregaste {{mods}}: probá una partida sin él para ver si vuelve a andar.",
+      "added_other": "Empezó cuando agregaste {{mods}}: probá una partida sin ellos para ver si vuelve a andar.",
+      "loadAdded_one": "La carga se volvió lenta cuando se sumó {{mods}}: probá una partida sin él.",
+      "loadAdded_other": "La carga se volvió lenta cuando se sumaron {{mods}}: probá una partida sin ellos.",
+      "fixNot": "Un arreglo no alcanzó: lo siguiente es apagar ese mod hasta que su autor lo actualice.",
+      "switchedOff": "{{mod}} se apaga solo, así que en esta build no hace nada: apagarlo acorta la lista sin perder nada.",
+      "culpritStrong": "Es fuerte: probá una partida con {{mod}} apagado; si anda, es él.",
+      "culpritCheck": "Es una pista, no una prueba: probá una partida con {{mod}} apagado, o buscalo por mitades para confirmarlo."
+    },
+    "hello2": "Hola. Llevo leídas {{sessions}} partidas de la {{build}} en esta PC. {{status}} ¿En qué te ayudo?",
+    "hello3": "Acá estoy: {{sessions}} partidas de la {{build}} leídas. {{status}} Preguntame lo que quieras.",
+    "reportHead": "Parte de tu última partida ({{when}}):",
+    "reportLine": "{{minutes}} min · {{how}}",
+    "reportNew_one": "Error nuevo: {{list}}.",
+    "reportNew_other": "{{count}} errores nuevos: {{list}}.",
+    "reportNoNew": "Ningún error nuevo ({{repeated}} que ya conocía).",
+    "lastTimeOpen_one": "La otra vez ({{when}}) hablamos de {{mod}}: sigue con {{count}} error que se repite.",
+    "lastTimeOpen_other": "La otra vez ({{when}}) hablamos de {{mod}}: sigue con {{count}} errores que se repiten.",
+    "lastTimeOk": "La otra vez ({{when}}) hablamos de {{mod}}: ahora no tiene errores que se repitan.",
+    "weekNone": "No hay partidas desde el {{since}}.",
+    "week": "Desde el {{since}}: {{sessions}} partidas ({{hours}} h jugadas) y {{servers}} de servidor; {{bad}} salieron mal, {{crashes}} caídas de Java y {{errors}} errores nuevos.",
+    "weekChanges": "Lo que cambió desde antes: {{changes}}.",
+    "culpritNone": "No encuentro un mod que aparezca más en las partidas que salieron mal que en las otras: o salieron mal muy pocas, o con casi la misma lista. Si algo pasa y el log no nombra a nadie, lo buscamos por mitades.",
+    "culpritLine": "{{mod}}: con él salieron mal {{withBad}} de {{with}} partidas; sin él, {{withoutBad}} de {{without}} ({{sure}}).",
+    "culprit": "El que más aparece cuando algo sale mal: {{line}}",
+    "huntNone": "No hay ninguna búsqueda en curso.",
+    "huntDone": "La búsqueda terminó: es {{mod}}.",
+    "huntDoneNone": "La búsqueda terminó sin un culpable claro.",
+    "huntStep": "Prueba {{round}}: quedan {{trial}} mods activos de {{candidates}} sospechosos; faltan unas {{left}} partidas.",
+    "huntHow": "Jugá esta prueba hasta donde te pasaba el problema y contame: ¿sigue pasando o ya no?",
+    "huntPlay": "Jugar esta prueba",
+    "huntStill": "Sigue pasando",
+    "huntGone": "Ya no pasa",
+    "huntStop": "Parar la búsqueda",
+    "huntStopped": "Paré la búsqueda y volví tu lista como estaba.",
+    "huntOffer": "Lo buscamos por mitades: apago la mitad de tus {{count}} mods activos (lo que necesitan los otros queda prendido), probás una partida y me decís si sigue pasando. Tu lista se guarda y vuelve al terminar.",
+    "huntStart": "Empezar la búsqueda",
+    "guideHead": "En la guía, «{{heading}}»:",
+    "notWorkshop": "{{mod}} no es del Workshop: no tiene página ni comentarios.",
+    "workshopFailed": "No pude leer la página del Workshop ahora.",
+    "updatePending": "{{mod}}: Steam tiene una actualización pendiente (del {{when}}); se baja cuando Steam la procese.",
+    "updateNewer": "{{mod}}: hay una versión del {{when}} y la tuya es del {{have}}. Steam la baja sola; si no, desuscribite y suscribite de nuevo.",
+    "updatedSincePlay": "Se actualizó desde la última vez que jugaste.",
+    "commentsNone": "No pude leer los comentarios de {{mod}} (el autor puede tenerlos cerrados).",
+    "comments": "{{mod}}: leí los últimos {{read}} de {{total}} comentarios; {{trouble}} hablan de errores o de que algo no anda, y el autor respondió {{author}}.",
+    "group": "Grupo {{group}}: {{count}} mods ({{on}} activos), {{errors}} con errores que se repiten y {{suspects}} sospechosos cuando algo sale mal.",
+    "profileNotFound": "No encontré el perfil \"{{profile}}\".",
+    "profileOk": "El perfil {{profile}} ({{count}} mods) no tiene partidas recientes que hayan salido mal; {{errors}} de sus mods repiten errores.",
+    "undoNone": "No hice ningún cambio en esta charla que se pueda deshacer.",
+    "undoAsk": "¿Deshago lo último que hice ({{what}})?",
+    "undoDo": "Deshacer",
+    "whichProfile": "¿Cuál de estos perfiles?",
+    "profileWord": "perfil",
+    "marksNone": "No marcaste ningún momento todavía. En el juego, en el menú de pausa (Esc), tocá \"Marcar este momento\" cuando pase algo raro.",
+    "marks_one": "Marcaste {{count}} momento (el último, {{last}}):",
+    "marks_other": "Marcaste {{count}} momentos (el último, {{last}}):",
+    "marksNew_one": "Marcaste {{count}} momento en el juego desde la última vez. ¿Lo miramos?",
+    "marksNew_other": "Marcaste {{count}} momentos en el juego desde la última vez. ¿Los miramos?",
+    "markQuiet": "el log no tiene errores en ese minuto",
+    "markNoLog": "todavía no leí el log de esa partida",
+    "markAdvice": "En el último, el log dice: {{what}}. Preguntame por ese mod para ver su historial.",
+    "huntDonePair": "La búsqueda terminó: son {{mod}} y {{other}} juntos (cada uno solo no lo provoca)."
+  },
+  "learnedOnset": " {{onset}}",
+  "simple": {
+    "nav": {
+      "home": "Inicio"
+    },
+    "mode": {
+      "label": "Vista",
+      "simple": "Simple",
+      "advanced": "Completo",
+      "simpleHint": "Solo lo que necesitás para jugar con mods. Lo demás está a un clic.",
+      "advancedHint": "Todas las pantallas y herramientas del Studio."
+    },
+    "switchToComplete": "Pasar a Completo",
+    "settings": {
+      "title": "Cuánto del Studio mostrar",
+      "blurb": "Simple muestra lo que necesitás para jugar con mods. Completo muestra todas las pantallas. Al cambiar no se borra ni se apaga nada: podés ir y volver cuando quieras.",
+      "simple": "Inicio con Jugar, tus mods (prender/apagar, orden, Ordenar dependencias), perfiles, Explorar, partidas, y en Diagnóstico solo lo que tenés que arreglar, con un botón cada cosa.",
+      "advanced": "Todo: Monitoreo, Novedades, Mapas, Fusionador, Servidores, Desarrollador, todas las pestañas de Diagnóstico y las herramientas de IA."
+    },
+    "home": {
+      "profile": "Perfil en uso",
+      "modsOn_one": "1 mod prendido",
+      "modsOn_other": "{{count}} mods prendidos",
+      "changeProfile": "Cambiar",
+      "play": "Jugar",
+      "continue": "Continuar: {{world}}",
+      "continueTitle": "Abre el juego y carga {{world}}, tu última partida con este perfil.",
+      "doctor": "Chequeo",
+      "checking": "Revisando tus mods…",
+      "act_one": "1 cosa para arreglar antes de jugar",
+      "act_other": "{{count}} cosas para arreglar antes de jugar",
+      "actHint": "Hay que hacer algo: un mod no carga o algo se rompe hasta que lo arregles.",
+      "seeWhat": "Ver qué hacer",
+      "ok": "Tus mods están en orden: no hay nada que hacer",
+      "okHint": "Podés jugar.",
+      "optional_one": "Podés jugar. Hay 1 sugerencia opcional (el juego anda sin ella) en el modo Completo.",
+      "optional_other": "Podés jugar. Hay {{count}} sugerencias opcionales (el juego anda sin ellas) en el modo Completo.",
+      "modsHint": "Prendé y apagá mods, ordenalos, Ordenar dependencias.",
+      "browseHint": "Buscá mods del Workshop y suscribite.",
+      "savesHint": "Tus partidas y sus copias de seguridad.",
+      "profilesHint": "Creá o cambiá listas de mods.",
+      "moreInComplete": "Este es el modo Simple. El Fusionador, Monitoreo, Servidores, Mapas y las demás herramientas están en el modo Completo."
+    },
+    "health": {
+      "nothingToAct": "Nada para arreglar: tus mods están listos para jugar.",
+      "optionalHidden_one": "Hay 1 sugerencia opcional oculta (el juego anda sin ella).",
+      "optionalHidden_other": "Hay {{count}} sugerencias opcionales ocultas (el juego anda sin ellas).",
+      "nothingToDoHidden_one": "Otra es solo para saber o ya la arregló el Studio: no hay nada que hacer.",
+      "nothingToDoHidden_other": "Otras {{count}} son solo para saber o ya las arregló el Studio: no hay nada que hacer.",
+      "showAll": "Mostrar todo (Completo)"
     }
   }
 }

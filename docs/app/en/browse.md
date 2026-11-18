@@ -19,6 +19,8 @@ Browse Mods is where you find and get new mods: search the Steam Workshop and Ne
 
 If Steam refuses the search, a box explains why. When Steam is just busy, press **Try again**. Otherwise you can paste a personal Steam Web API key and press **Check and save**; it is kept in Windows Credential Manager on this PC only, and **Remove it** deletes it. Pasting links works without a key.
 
+**Search with Steam** searches through Steam instead of the Workshop page: the same results with Steam's exact numbers (subscribers, favourites, size), 50 a page. While it searches, Steam shows you playing Project Zomboid for a moment. With the game open, or for collections, the page is used as always.
+
 ## Nexus Mods
 
 Search by words in the mod name, sort it (**Recently updated**, **Most downloaded**, **Most endorsed**, **Newest**) and pick a category. Adult mods are hidden unless you tick **Adult content**.

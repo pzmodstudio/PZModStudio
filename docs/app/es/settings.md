@@ -2,6 +2,21 @@
 
 En Configuración le decís al Studio dónde están tu juego y tus mods, y elegís cómo se comporta: idioma, ventana, avisos, cómo arranca y algunos extras opcionales. Cada cambio se guarda apenas lo hacés.
 
+## Simple y Completo
+
+La tarjeta de arriba, **Cuánto del Studio mostrar**, elige una de dos vistas. El mismo interruptor está siempre al pie de la barra izquierda, bajo **Vista**. Cambiarlo nunca borra ni apaga nada: solo muestra u oculta pantallas, y podés ir y volver cuando quieras.
+
+- **Simple** muestra lo que necesitás para jugar con mods:
+  - **Inicio**: el perfil en uso, **Jugar**, **Continuar** (tu última partida con este perfil, cuando ya tengas una) y el chequeo en una línea: verde cuando no hay nada que hacer, rojo con **Ver qué hacer** cuando hay algo para arreglar antes.
+  - **Perfiles**, **Lista de mods** (prender/apagar, orden, Ordenar dependencias), **Explorar mods**, **Partidas** y **Diagnóstico**.
+  - **Diagnóstico** muestra solo lo que tenés que arreglar, con un botón cada cosa. Las sugerencias opcionales (el juego anda sin ellas) y lo que es solo para saber o ya arregló el Studio se cuentan debajo de la lista, sin mostrarse; **Mostrar todo (Completo)** las muestra.
+  - Acá, Configuración deja las pestañas **Carpetas**, **Avisos** y **La app**.
+- **Completo** es el Studio entero: todas las pantallas en la barra (Centro de monitoreo, Novedades, Mapas, Fusionador de mods, Servidores, Desarrollador), todas las pestañas de Diagnóstico y todas las de Configuración.
+
+Una instalación nueva arranca en **Simple**, con una bienvenida de tres pasos: dónde se encontró tu juego, crear o elegir un perfil, jugar. Si el Studio ya se usó en esta PC, arranca en **Completo**, como se vio siempre. La elección se recuerda en esta PC.
+
+Un enlace desde otra pantalla igual puede abrir una pantalla que Simple oculta (por ejemplo, los pasos del Doctor); aparece en la barra mientras está abierta.
+
 ## Qué ves
 
 La pantalla tiene pestañas arriba, una al lado de la otra:

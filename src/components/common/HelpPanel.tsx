@@ -12,6 +12,8 @@ import { ActiveTab } from '../../types';
 const PAGES = import.meta.glob('../../../docs/app/*/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 const PAGE_OF_TAB: Record<ActiveTab, string> = {
+  // Simple mode's front page: its help is where the two modes are told.
+  HOME: 'settings',
   PROFILES: 'profiles',
   SAVES: 'saves',
   MONITOR: 'monitor',

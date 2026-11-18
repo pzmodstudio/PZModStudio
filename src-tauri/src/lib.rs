@@ -18,6 +18,10 @@ pub mod game_memory;
 pub mod images;
 pub mod instance_manager;
 pub mod java_patches;
+pub mod java_links;
+pub mod integrity;
+pub mod server_settings;
+pub mod profile_saves;
 pub mod zb_watermark;
 pub mod zb_exclusions;
 pub mod lists;
@@ -61,7 +65,7 @@ pub mod workshop_publish;
 
 use diff_engine::lua::{three_way_merge_lua, validate_lua_syntax, LuaSyntaxCheckResult, MergeChunkResult};
 
-use instance_manager::{activate_instance, create_instance, delete_instance, list_instances, save_master_load_order, update_instance};
+use instance_manager::{activate_instance, create_instance, delete_instance, list_instances, save_master_load_order, set_own_saves, update_instance};
 use load_order::ini_parser::{read_mod_list_ini, write_mod_list_ini, ModListData};
 use load_order::mod_info::{scan_all_installed_mods, ModManifest};
 use patch_generator::{generate_master_patch, MasterPatchRequest, MasterPatchResult};
@@ -415,7 +419,18 @@ fn clear_translation_cache_cmd() -> Result<usize, String> {
 
 /// Searches the Project Zomboid Workshop with the saved key.
 #[tauri::command(async)]
-fn workshop_search_cmd(query: workshop::BrowseQuery) -> Result<workshop::WorkshopSearchResult, String> {
+fn workshop_search_cmd(query: workshop::BrowseQuery, via_steam: Option<bool>) -> Result<workshop::WorkshopSearchResult, String> {
+    // Through the running Steam client when the player chose it (exact numbers, no web page);
+    // the public page when Steam cannot (closed, the game running, collections).
+    if via_steam.unwrap_or(false) && !query.collections && sandbox::find_running_pz_pid().is_none() {
+        let install = vfs::studio_paths().pz_install_dir;
+        if !install.is_empty() {
+            match steam_client::search_workshop(&install, &query) {
+                Ok(found) => return Ok(found),
+                Err(e) => diagnostics::log("WARN", &format!("Workshop search through Steam failed, the web page is used: {}", e)),
+            }
+        }
+    }
     // The public browse page needs no key; the Web API is the fallback when Steam changes it.
     let public = workshop::search_public(&query);
     let Err(err) = public else { return public };
@@ -1485,6 +1500,36 @@ fn discord_test_cmd(paths: StudioPaths, server: String) -> Result<(), String> {
     discord::send_test(&zomboid_dir_of(&paths)?, &server)
 }
 
+/// Every server and sandbox option as the game last listed them (the Studio Link writes the list at
+/// the main menu), or null before it ever did.
+#[tauri::command(async)]
+fn server_settings_schema_cmd(paths: StudioPaths) -> Option<server_settings::Schema> {
+    zomboid_dir_of(&paths).ok().and_then(|z| server_settings::schema(&z))
+}
+
+/// One server's option values, from its .ini and _SandboxVars.lua.
+#[tauri::command(async)]
+fn server_settings_values_cmd(paths: StudioPaths, name: String) -> Result<server_settings::ServerValues, String> {
+    server_settings::read_values(&zomboid_dir_of(&paths)?, &name)
+}
+
+/// Sets options of one server (both files backed up first). Returns the options written.
+#[tauri::command(async)]
+fn server_settings_write_cmd(
+    paths: StudioPaths,
+    name: String,
+    server: std::collections::BTreeMap<String, String>,
+    sandbox: std::collections::BTreeMap<String, String>,
+) -> Result<Vec<String>, String> {
+    server_settings::write_values(&zomboid_dir_of(&paths)?, &name, &server, &sandbox)
+}
+
+/// The single-player saves of each set: the shared ones and each profile's own (mode/world).
+#[tauri::command(async)]
+fn profile_saves_cmd(paths: StudioPaths, set: String) -> Vec<String> {
+    zomboid_dir_of(&paths).map(|z| profile_saves::worlds_of(&z, &set)).unwrap_or_default()
+}
+
 /// Whether ProjectZomboid64.exe is running, and its pid.
 #[tauri::command(async)]
 fn game_status_cmd() -> Option<u32> {
@@ -1598,17 +1643,135 @@ fn delete_kept_version_cmd(paths: StudioPaths, path: String) -> Result<(), Strin
 #[tauri::command(async)]
 fn sort_load_order_cmd(paths: StudioPaths, order: Vec<String>) -> catalog::SortResult {
     let mut catalog = catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None);
+    // What each mod's own mod.info asks, before the rules are added to it.
+    let own: std::collections::HashSet<(String, String)> = catalog
+        .mods
+        .iter()
+        .flat_map(|m| m.info.load_after.iter().map(move |a| (m.id.clone(), a.trim().trim_start_matches('\\').to_string())))
+        .map(|(id, a)| (id, catalog.resolve(&a).map(|x| x.id.clone()).unwrap_or(a)))
+        .collect();
     // The player's own rules, as if each mod had written loadModAfter itself.
-    rules::apply_to_catalog(&mut catalog, &rules::load_rules(&paths.user_zomboid_dir));
+    let user = rules::load_rules(&paths.user_zomboid_dir);
+    rules::apply_to_catalog(&mut catalog, &user);
     rules::apply_to_catalog(&mut catalog, &rules::community::current().as_user_rules());
     rules::apply_to_catalog(&mut catalog, &rules::index::current(&paths.user_zomboid_dir).as_user_rules());
-    catalog::sort_load_order(&catalog, &order)
+    let mut result = catalog::sort_load_order(&catalog, &order);
+    // Said by whose rule it is: the mod's, the player's, or the Studio's index.
+    let user_pairs: std::collections::HashSet<(String, String)> = user.iter().map(|r| (r.mod_id.clone(), r.after.clone())).collect();
+    for r in result.reasons.iter_mut().filter(|r| r.kind == "load_after") {
+        let id = catalog.resolve(&r.mod_id).map(|m| m.id.clone()).unwrap_or_else(|| r.mod_id.clone());
+        let other = catalog.resolve(&r.other).map(|m| m.id.clone()).unwrap_or_else(|| r.other.clone());
+        let pair = (id, other);
+        if !own.contains(&pair) {
+            r.kind = if user_pairs.contains(&pair) { "rule" } else { "index" }.to_string();
+        }
+    }
+    result
 }
 
 /// The Studio's mod index as the app carries it, less the issues this player dismissed: it is small.
 #[tauri::command(async)]
 fn community_index_cmd(paths: StudioPaths) -> rules::index::CommunityIndex {
     rules::index::current(&paths.user_zomboid_dir)
+}
+
+/// The brain's view of this PC's sessions (insights, fixes, the pre-launch warning).
+#[tauri::command(async)]
+fn brain_overview_cmd(paths: StudioPaths, active: Option<Vec<String>>) -> rules::brain::BrainOverview {
+    rules::brain::overview_for(&paths, active)
+}
+
+/// One mod's history on this PC.
+#[tauri::command(async)]
+fn brain_mod_history_cmd(paths: StudioPaths, mod_id: String) -> rules::brain::ModHistory {
+    rules::brain::mod_history_for(&paths, &mod_id)
+}
+
+/// The warning to show before launching this list, when its last sessions went badly.
+#[tauri::command(async)]
+fn brain_prelaunch_cmd(paths: StudioPaths, active: Option<Vec<String>>) -> Option<rules::brain::Prelaunch> {
+    rules::brain::prelaunch_for(&paths, active)
+}
+
+/// The mods on in the sessions that went wrong far more than in the others (`what`: any,
+/// failed_to_start, crash), since `since` when given.
+#[tauri::command(async)]
+fn brain_suspects_cmd(paths: StudioPaths, what: String, since: Option<u64>) -> Vec<rules::brain::Suspect> {
+    rules::brain::suspects_for(&paths, &what, since)
+}
+
+/// The moments the player marked in the game (the Link's diary), each with what the log says then.
+#[tauri::command(async)]
+fn brain_marks_cmd(paths: StudioPaths) -> Vec<rules::brain::MarkReport> {
+    rules::brain::marks_for(&paths, 10)
+}
+
+/// What the Doctor says first, for the game's main menu card (the Studio Link shows it).
+#[tauri::command(async)]
+fn write_link_doctor_cmd(paths: StudioPaths, lines: Vec<(String, String)>) -> Result<(), String> {
+    let Some(z_dir) = load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() else {
+        return Ok(());
+    };
+    studio_link::write_doctor_file(&z_dir, &lines)
+}
+
+/// What happened since `since`: sessions, how many went badly, crashes, new errors, fixes, changes.
+#[tauri::command(async)]
+fn brain_period_cmd(paths: StudioPaths, since: u64) -> rules::brain::PeriodReport {
+    rules::brain::period_report_for(&paths, since)
+}
+
+/// The app's guide, searched: the sections that best answer a question, in the given language.
+#[tauri::command]
+fn app_docs_search_cmd(query: String, language: String) -> Vec<app_docs::DocHit> {
+    app_docs::search(&query, &language, 3)
+}
+
+/// What changed from the last game session before `since` (unix seconds) to the latest one.
+#[tauri::command(async)]
+fn brain_changes_since_cmd(paths: StudioPaths, since: u64) -> Option<rules::brain::Onset> {
+    rules::brain::changes_since_for(&paths, since)
+}
+
+/// Notes a fix Diagnostics applied, so later sessions can tell whether it worked.
+#[tauri::command(async)]
+fn brain_note_fix_cmd(paths: StudioPaths, mod_id: String, action: String, code: String, key: Option<String>) -> Result<(), String> {
+    rules::brain::note_fix(&zomboid_dir_of(&paths)?, &mod_id, &action, &code, key.as_deref())
+}
+
+/// The Studio's note on a mod (empty removes it); the player's note is never touched.
+#[tauri::command(async)]
+fn set_studio_note_cmd(paths: StudioPaths, mod_id: String, note: String) -> Result<mod_meta::ModMeta, String> {
+    mod_meta::set_studio_note(&zomboid_dir_of(&paths)?, &mod_id, &note)
+}
+
+/// One of the app's MCP tools, run for the Doctor's chat: the reading ones by themselves, the
+/// ones that change the Studio's notes, groups and rules only with `confirmed`.
+#[tauri::command(async)]
+fn doctor_tool_cmd(tool: String, args: serde_json::Value, confirmed: bool) -> Result<serde_json::Value, String> {
+    let read = mcp::tools::DOCTOR_READ_TOOLS.contains(&tool.as_str());
+    let change = mcp::tools::DOCTOR_CONFIRM_TOOLS.contains(&tool.as_str());
+    if !read && !change {
+        return Err(format!("The Doctor does not use {}.", tool));
+    }
+    if change && !confirmed {
+        return Err(format!("{} changes something: it needs the player's yes.", tool));
+    }
+    let result = mcp::tools::execute_tool(&tool, args);
+    let text = result.content.into_iter().map(|c| c.text).collect::<Vec<_>>().join("\n");
+    if result.is_error {
+        return Err(text);
+    }
+    Ok(serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text)))
+}
+
+/// What this PC learned from its own sessions: sessions read and the errors seen in three or more.
+#[tauri::command(async)]
+fn learned_summary_cmd(paths: StudioPaths) -> rules::learned::LearnedSummary {
+    match load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
+        Some(z) => rules::learned::summary(&z, &catalog::build_catalog(&paths.workshop_dir, &paths.user_zomboid_dir, None)),
+        None => rules::learned::LearnedSummary::default(),
+    }
 }
 
 /// Shows again every known issue this player dismissed; how many.
@@ -1834,12 +1997,31 @@ fn bisect_state_cmd(paths: StudioPaths) -> Option<bisect::BisectSession> {
 
 /// Starts halving the list. The mods switched on now are the suspects; the list is replaced by
 /// the first trial and kept in the session to be put back at the end.
+/// What this PC already suspects is tried first: mods its sessions went wrong with far more often
+/// than without (the brain's suspects), and mods with an error that repeats (what it learned).
 #[tauri::command(async)]
 fn bisect_start_cmd(
     paths: StudioPaths,
     mods: Vec<bisect::BisectMod>,
+    flaky: Option<bool>,
+    target: Option<String>,
 ) -> Result<bisect::BisectSession, String> {
-    bisect::start(&paths.mod_list_ini_path, &paths.user_zomboid_dir, &mods)
+    let mut priors: std::collections::BTreeMap<String, f64> = std::collections::BTreeMap::new();
+    for s in rules::brain::suspects_for(&paths, "any", None) {
+        let w = match s.confidence.as_str() {
+            "strong" => 8.0,
+            "likely" => 4.0,
+            _ => 2.0,
+        };
+        *priors.entry(s.mod_id).or_insert(1.0) += w;
+    }
+    if let Some((z, catalog, _)) = rules::brain::context(&paths, Some(vec![])) {
+        for issue in rules::learned::current_issues(&z, &catalog) {
+            *priors.entry(issue.mod_id).or_insert(1.0) += 3.0;
+        }
+    }
+    let options = bisect::BisectOptions { priors, flaky: flaky.unwrap_or(false), target };
+    bisect::start_with(&paths.mod_list_ini_path, &paths.user_zomboid_dir, &mods, &options)
 }
 
 /// Did it still happen? Narrows the suspects and switches the next trial on.
@@ -2150,6 +2332,16 @@ pub fn run() {
             diagnostics::log("INFO", &format!("PZ Mod Studio {} started", env!("CARGO_PKG_VERSION")));
             // The installed build's Lua and scripts, kept once per build (for what a game update changes).
             game_archive::archive_in_background();
+            // What this PC learns from its own sessions: the logs kept so far, then each new one.
+            rules::learned::learn_in_background();
+            // A switch of profiles' saves cut short (the PC went off) is finished first.
+            if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&crate::vfs::studio_paths().user_zomboid_dir).into_iter().next() {
+                if let Err(e) = profile_saves::recover(&z) {
+                    diagnostics::log("WARN", &format!("Could not finish moving profiles' saves: {}", e));
+                }
+            }
+            // What changes on disk while the game runs (its own folder, Zomboid, ZombieBuddy's).
+            integrity::watch_in_background();
             // Follow console.txt from the start: the game is often launched from Steam.
             sandbox::watch_console_log(app.handle().clone());
             // The Studio server's and player 2's logs make cards too, marked with their log.
@@ -2205,6 +2397,19 @@ pub fn run() {
             list_load_rules_cmd,
             community_index_cmd,
             dismiss_index_issue_cmd,
+            learned_summary_cmd,
+            brain_overview_cmd,
+            brain_mod_history_cmd,
+            brain_prelaunch_cmd,
+            brain_note_fix_cmd,
+            brain_changes_since_cmd,
+            brain_suspects_cmd,
+            brain_marks_cmd,
+            write_link_doctor_cmd,
+            brain_period_cmd,
+            app_docs_search_cmd,
+            set_studio_note_cmd,
+            doctor_tool_cmd,
             restore_index_issues_cmd,
             app_update_status_cmd,
             self_update_cmd,
@@ -2309,6 +2514,9 @@ pub fn run() {
             write_translation_drafts_cmd,
             open_in_editor_cmd,
             game_status_cmd,
+            server_settings_schema_cmd,
+            server_settings_values_cmd,
+            server_settings_write_cmd,
             create_mod_cmd,
             map_tools_cmd,
             mp_check_mod_cmd,
@@ -2426,6 +2634,8 @@ pub fn run() {
             activate_instance,
             delete_instance,
             update_instance,
+            set_own_saves,
+            profile_saves_cmd,
             save_master_load_order,
             instance_manager::set_profile_members
         ])
@@ -2493,8 +2703,8 @@ mod fixture_dump {
         let mods: crate::workshop::BrowseQuery = serde_json::from_value(serde_json::json!({"perPage": 12, "sort": "trending", "build": "42", "days": 7, "collections": false, "page": 1})).unwrap();
         let colls: crate::workshop::BrowseQuery = serde_json::from_value(serde_json::json!({"perPage": 8, "sort": "trending", "days": 7, "collections": true, "page": 1})).unwrap();
         let dump = serde_json::json!({
-            "mods": super::workshop_search_cmd(mods).ok(),
-            "collections": super::workshop_search_cmd(colls).ok(),
+            "mods": super::workshop_search_cmd(mods, None).ok(),
+            "collections": super::workshop_search_cmd(colls, None).ok(),
         });
         std::fs::write(out, serde_json::to_string(&dump).unwrap()).unwrap();
     }}

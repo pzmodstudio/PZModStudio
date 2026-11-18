@@ -26,13 +26,23 @@ pub struct ModGroup {
     /// profile at all.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
+    /// The Studio's note on the group (the Doctor's), kept apart from the player's `note`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub studio_note: String,
+    /// The Studio made it (the player asked the Doctor to).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub by_studio: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ModMeta {
-    /// Mod id -> the player's note.
+    /// Mod id -> the player's note. The Studio never writes or removes one of these.
     #[serde(default)]
     pub notes: BTreeMap<String, String>,
+    /// Mod id -> the Studio's note (written by the Doctor or the app, shown apart and marked as
+    /// the Studio's). The Studio may change or remove only these.
+    #[serde(default)]
+    pub studio_notes: BTreeMap<String, String>,
     #[serde(default)]
     pub groups: Vec<ModGroup>,
 }
@@ -92,7 +102,11 @@ fn adopt_shared_groups(meta: &mut ModMeta, active: Option<&str>, profiles: &[(St
 
 /// What the active profile sees: every note, its own groups.
 fn scoped(meta: &ModMeta, active: Option<&str>) -> ModMeta {
-    ModMeta { notes: meta.notes.clone(), groups: meta.groups.iter().filter(|g| g.profile.as_deref() == active).cloned().collect() }
+    ModMeta {
+        notes: meta.notes.clone(),
+        studio_notes: meta.studio_notes.clone(),
+        groups: meta.groups.iter().filter(|g| g.profile.as_deref() == active).cloned().collect(),
+    }
 }
 
 /// Everything on disk with the old shared groups given out, and the active profile's id.
@@ -167,6 +181,43 @@ pub fn set_note(user_zomboid_dir: &Path, mod_id: &str, note: &str) -> Result<Mod
     Ok(scoped(&all, active.as_deref()))
 }
 
+/// The Studio's note on a mod: written, changed, or (empty) removed. The player's note on the same
+/// mod is never touched.
+pub fn set_studio_note(user_zomboid_dir: &Path, mod_id: &str, note: &str) -> Result<ModMeta, String> {
+    let (mut all, active) = load(user_zomboid_dir);
+    if note.trim().is_empty() {
+        all.studio_notes.remove(mod_id);
+    } else {
+        all.studio_notes.insert(mod_id.to_string(), note.trim().to_string());
+    }
+    save(user_zomboid_dir, &all, active.as_deref())?;
+    Ok(scoped(&all, active.as_deref()))
+}
+
+/// The Studio's note on a group of the active profile (the player's note on it is never touched).
+pub fn set_group_studio_note(user_zomboid_dir: &Path, name: &str, note: &str) -> Result<ModMeta, String> {
+    let (mut all, active) = load(user_zomboid_dir);
+    let Some(g) = all.groups.iter_mut().find(|g| g.profile == active && g.name.eq_ignore_ascii_case(name)) else { return Err(format!("There is no group called {}.", name)) };
+    g.studio_note = note.trim().to_string();
+    save(user_zomboid_dir, &all, active.as_deref())?;
+    Ok(scoped(&all, active.as_deref()))
+}
+
+/// [`set_in_group`], a group it makes marked as made by the Studio.
+pub fn set_in_group_by_studio(user_zomboid_dir: &Path, group: &str, mod_ids: &[String], inside: bool) -> Result<ModMeta, String> {
+    let existed = read(user_zomboid_dir).groups.iter().any(|g| g.name.eq_ignore_ascii_case(group.trim()));
+    let meta = set_in_group(user_zomboid_dir, group, mod_ids, inside)?;
+    if existed || !inside {
+        return Ok(meta);
+    }
+    let (mut all, active) = load(user_zomboid_dir);
+    if let Some(g) = all.groups.iter_mut().find(|g| g.profile == active && g.name.eq_ignore_ascii_case(group.trim())) {
+        g.by_studio = true;
+    }
+    save(user_zomboid_dir, &all, active.as_deref())?;
+    Ok(scoped(&all, active.as_deref()))
+}
+
 /// Puts a mod in a group of the active profile or takes it out; a group named for the first time
 /// is made, one left empty goes away.
 pub fn set_in_group(user_zomboid_dir: &Path, group: &str, mod_ids: &[String], inside: bool) -> Result<ModMeta, String> {
@@ -179,7 +230,7 @@ pub fn set_in_group(user_zomboid_dir: &Path, group: &str, mod_ids: &[String], in
     let at = match all.groups.iter().position(|g| mine(g) && g.name.eq_ignore_ascii_case(name)) {
         Some(i) => i,
         None => {
-            all.groups.push(ModGroup { name: name.to_string(), mods: Vec::new(), note: String::new(), profile: active.clone() });
+            all.groups.push(ModGroup { name: name.to_string(), mods: Vec::new(), note: String::new(), profile: active.clone(), ..Default::default() });
             all.groups.len() - 1
         }
     };
@@ -268,15 +319,37 @@ mod tests {
     }
 
     #[test]
+    fn the_studio_s_notes_never_touch_the_player_s() {
+        let d = dir();
+        std::fs::create_dir_all(&d).unwrap();
+        set_note(&d, "A", "mine").unwrap();
+        let meta = set_studio_note(&d, "A", "the Studio's").unwrap();
+        assert_eq!((meta.notes["A"].as_str(), meta.studio_notes["A"].as_str()), ("mine", "the Studio's"));
+        let meta = set_studio_note(&d, "A", "").unwrap();
+        assert_eq!(meta.notes["A"], "mine", "removing the Studio's note leaves the player's");
+        assert!(meta.studio_notes.is_empty());
+        let meta = set_in_group_by_studio(&d, "Made", &["A".to_string()], true).unwrap();
+        assert!(meta.groups.iter().any(|g| g.name == "Made" && g.by_studio));
+        set_in_group(&d, "Theirs", &["A".to_string()], true).unwrap();
+        set_group_note(&d, "Theirs", "player's").unwrap();
+        let meta = set_group_studio_note(&d, "Theirs", "studio").unwrap();
+        let g = meta.groups.iter().find(|g| g.name == "Theirs").unwrap();
+        assert_eq!((g.note.as_str(), g.studio_note.as_str(), g.by_studio), ("player's", "studio", false));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
     fn groups_belong_to_a_profile() {
         let group = |name: &str, mods: &[&str], profile: Option<&str>| ModGroup {
             name: name.into(),
             mods: mods.iter().map(|m| m.to_string()).collect(),
             note: String::new(),
             profile: profile.map(String::from),
+            ..Default::default()
         };
         let mut meta = ModMeta {
             notes: BTreeMap::new(),
+            studio_notes: BTreeMap::new(),
             groups: vec![group("Cars", &["A"], None), group("Lost", &["Z"], None), group("Mine", &["B"], Some("p2"))],
         };
         let profiles = vec![("p1".to_string(), vec!["A".to_string()]), ("p2".to_string(), vec!["A".to_string(), "B".to_string()])];

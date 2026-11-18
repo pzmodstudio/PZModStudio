@@ -5,6 +5,8 @@ import { GameLaunchMode, GameInstall, LaunchTarget } from '../../types';
 import { StudioPathsUI } from '../settings/SettingsModule';
 import { CustomLaunchDialog } from './CustomLaunchDialog';
 import { useTranslation } from 'react-i18next';
+import { useUiMode } from '../../hooks/useUiMode';
+import { chosenLaunchMode, defaultLaunchMode } from '../../utils/uiMode';
 
 interface StudioHeaderProps {
   /** Conflicts still needing a decision. */
@@ -57,6 +59,9 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   onOpenDoctor,
 }) => {
   const { t } = useTranslation();
+  // Simple leaves out the Merger's conflict count and the resource meter: Complete has them.
+  const [uiMode] = useUiMode();
+  const simple = uiMode === 'simple';
   const modeText = (id: GameLaunchMode) => ({
     title: t(`header.modes.${id}.title`),
     badge: t(`header.modes.${id}.badge`),
@@ -65,13 +70,12 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   });
   // The launch mode last used, when the player wants it remembered (Settings; on by default).
   // Without it every start of the Studio went back to Debug and the player changed it each time.
-  const [selectedMode, setSelectedModeRaw] = useState<GameLaunchMode>(() => {
-    if (localStorage.getItem('pz_remember_launch_mode') === 'false') return 'DEBUG_FULLSCREEN';
-    const saved = localStorage.getItem('pz_last_launch_mode') as GameLaunchMode | null;
-    return saved && LAUNCH_MODES.some((m) => m.id === saved) ? saved : 'DEBUG_FULLSCREEN';
-  });
+  // A player who never chose one gets the default of the view: a normal game in Simple, Debug in
+  // Complete; it follows a switch between the two until the player picks a mode.
+  const [chosenMode, setChosenMode] = useState<GameLaunchMode | null>(() => chosenLaunchMode());
+  const selectedMode = chosenMode ?? defaultLaunchMode(uiMode);
   const setSelectedMode = (mode: GameLaunchMode) => {
-    setSelectedModeRaw(mode);
+    setChosenMode(mode);
     localStorage.setItem('pz_last_launch_mode', mode);
   };
   // Where the game goes once it starts: the main menu, one save or one server ("Custom"),
@@ -192,6 +196,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           );
         })()}
 
+        {!simple && (
         <button
           type="button"
           onClick={onNavigateToMerger}
@@ -203,8 +208,9 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <span className={`font-bold font-mono ${conflictCount > 0 ? 'text-amber-400' : 'text-emerald-300'}`}>{t('header.pending', { count: conflictCount })}</span>
           {resolvedConflictCount > 0 && <span className="font-mono text-slate-500">{t('header.resolved', { count: resolvedConflictCount })}</span>}
         </button>
+        )}
 
-        {paths && <ResourceMeter paths={paths} compact onOpen={onOpenPerformance} />}
+        {paths && !simple && <ResourceMeter paths={paths} compact onOpen={onOpenPerformance} />}
 
         {onOpenDoctor && (
           <button

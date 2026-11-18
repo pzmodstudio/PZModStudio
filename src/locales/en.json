@@ -20,6 +20,17 @@
       "server": "Server"
     },
     "home": {
+      "learned": {
+        "line_one": "This PC learned from {{count}} session of {{build}}.",
+        "line_other": "This PC learned from {{count}} sessions of {{build}}.",
+        "none": "This PC has not learned from any session of this build yet: it does so by itself when the game or a server ends one.",
+        "open_one": "{{count}} error of an active mod repeats in 3 sessions or more (see Mods).",
+        "open_other": "{{count}} errors of your active mods repeat in 3 sessions or more (see Mods).",
+        "noOpen": "No active mod repeats an error the app's index does not already know.",
+        "closed_one": "{{count}} error that kept coming back stopped showing in its last 5 sessions.",
+        "closed_other": "{{count}} errors that kept coming back stopped showing in their last 5 sessions.",
+        "how": "It reads the game's logs and sends nothing; when a mod updates, it counts again from zero."
+      },
       "see": "Open",
       "mods": {
         "checking": "Checking the list…",
@@ -462,6 +473,27 @@
       "steamNotRunning": "Steam is not running or not signed in, so nothing can be unsubscribed now. You can still delete the profile only.",
       "deleteAndUnsubscribe": "Delete and unsubscribe ({{count}})",
       "deleteOnly": "Delete profile only"
+    },
+    "ownSaves": {
+      "give": "Isolate this profile",
+      "giveTitle": "This profile keeps its own saves, game options and mod settings, apart from the other profiles'",
+      "on": "Isolated",
+      "onTitle": "Its saves, game options and mod settings are apart: the game uses them only while this profile is on. The mods themselves are the same for every profile.",
+      "back": "Stop isolating",
+      "backConfirm": "{{name}}'s saves become shared, beside the other profiles'. Its options and mod settings are kept in a backup, and the shared ones come back. Nothing is deleted. Go on?",
+      "title": "Isolate {{name}}",
+      "explain": "With this profile on, the game uses only its own; with another profile, that one's. Kept apart:",
+      "itemSaves": "Its single-player saves (choose below which ones it takes).",
+      "itemOptions": "The game's options: graphics, sound and keys. It starts with a copy of the ones you have now.",
+      "itemModSettings": "The settings mods save. These start with a copy too.",
+      "sharedNote": "The mods themselves are the same for every profile: nothing to install again. Server saves are not separated either. When you switch profiles the app puts everything in its place, with the game closed.",
+      "bringTitle": "Saves this profile takes along (the rest stay shared):",
+      "noneShared": "There are no shared saves to take: the profile starts with none.",
+      "cancel": "Cancel",
+      "confirm_one": "Isolate this profile (takes {{count}} save)",
+      "confirm_other": "Isolate this profile (takes {{count}} saves)",
+      "done": "{{name}} is isolated: it has its own saves, options and mod settings.",
+      "backDone": "{{name}} is no longer isolated: its saves are back among the shared ones and its settings were kept in a backup."
     }
   },
   "modList": {
@@ -672,6 +704,7 @@
         "community_rule_order": "Before a mod the Studio says it must follow",
         "community_incompatible": "The Studio says these clash",
         "community_known_issue": "Known issue",
+        "learned_issue": "Learned on this PC",
         "community_successor": "There is a version for this build",
         "load_before_order": "Loads too late",
         "incompatible": "Incompatible",
@@ -711,7 +744,10 @@
         "workshop_copy_renamed": "Copy from before the id change",
         "workshop_copy_stale": "Copy out of date",
         "workshop_copy_kept": "Copy for a server",
-        "api_missing": "Calls things this build lacks"
+        "api_missing": "Calls things this build lacks",
+        "function_seen_other": "Another version in the game",
+        "java_link_broken": "Java older than this build",
+        "game_folder_changed": "The game's folder changed"
       },
       "fix": {
         "enable": "Switch on {{name}}",
@@ -849,6 +885,17 @@
       "unsubscribedPartly": "Unsubscribed from {{done}} of {{count}} items. The first that failed: {{reason}}",
       "unsubscribeFailed": "Could not unsubscribe: {{reason}}",
       "groups": "Add {{count}} mods to a group…"
+    },
+    "sortWhy": "Why:",
+    "sortWhyMore": "and {{count}} more",
+    "sortRoom": "The others moved only to make room.",
+    "sortReason": {
+      "require": "{{mod}} goes after {{other}}: it requires it.",
+      "load_after": "{{mod}} goes after {{other}}: its mod.info asks for it.",
+      "load_before": "{{mod}} goes before {{other}}: its mod.info asks for it.",
+      "rule": "{{mod}} goes after {{other}}: your own rule.",
+      "index": "{{mod}} goes after {{other}}: the Studio's mod index says so.",
+      "package": "{{mod}} goes last: it is a Studio package and must load after the mods it fixes."
     }
   },
   "health": {
@@ -1430,7 +1477,9 @@
       "collectionToProfile": "New profile with this collection",
       "collectionToProfileMissing": "New profile with this collection (and subscribe to the {{count}} missing)",
       "showCollection": "Show the collection",
-      "tryAgain": "Try again"
+      "tryAgain": "Try again",
+      "viaSteam": "Search with Steam",
+      "viaSteamTitle": "Searches through Steam instead of the Workshop page: exact numbers (subscribers, favourites, size), 50 a page. While it searches, Steam shows you playing Project Zomboid for a moment. With the game open, or for collections, the page is used."
     },
     "nexus": {
       "searchPlaceholder": "Search Nexus Mods (words in the mod name)",
@@ -2072,7 +2121,9 @@
       "packageInUse": "The package is in use and could not be replaced. Close the game or any window showing its folder, then publish again.",
       "copyStaysForServer": "The copy of {{what}} stays: the server {{server}} lists it, and a server without Steam reads only Zomboid/mods. Take it out of that server's mods first.",
       "folderNotCompat": "There is already a folder {{what}} in Zomboid/mods that is not a Studio compatible copy: move or rename it first.",
-      "earlierCompat": "There is already an earlier compatible copy of {{what}} in Zomboid/mods."
+      "earlierCompat": "There is already an earlier compatible copy of {{what}} in Zomboid/mods.",
+      "bisectPairNot": "{{with}} and {{mod}} together do not do it either. It may not happen every time (try again with \"does not happen every time\" ticked), or it needs more than two mods.",
+      "bisectNoPartner": "No other mod makes it happen together with {{with}}. It may not happen every time, or it needs more than two mods."
     },
     "holder": {
       "server": "the server \"{{name}}\"",
@@ -2506,7 +2557,8 @@
       "players": "Players",
       "settings": "Quick .ini",
       "discord": "Discord",
-      "mpTest": "Multiplayer test"
+      "mpTest": "Multiplayer test",
+      "options": "All options"
     },
     "host": {
       "memory": "Memory (-Xmx)",
@@ -2680,6 +2732,25 @@
       "secondOutdated_other": "Update player 2 ({{count}} things out of date)",
       "restart": "Restart",
       "restartTitle": "Closes this game and opens it again with the same account and automation; the server and the other game keep running."
+    },
+    "options": {
+      "loading": "Reading the options...",
+      "noSchema": "The game's list of options is not here yet. Open the game once to the main menu with the Studio Link on: the Link notes every server and sandbox option (your mods' too), in your language, and they show here.",
+      "kind": {
+        "server": "Server",
+        "sandbox": "Sandbox"
+      },
+      "search": "Search an option",
+      "onlyChanged": "Only the ones not at their default",
+      "none": "No option matches.",
+      "notDefault": "changed",
+      "resetTitle": "Back to the default: {{value}}",
+      "how": "Only what you change here is written, both files backed up first. With the server stopped.",
+      "discard": "Discard",
+      "save_one": "Save {{count}} change",
+      "save_other": "Save {{count}} changes",
+      "saved_one": "Saved: {{count}} option. The files were backed up to PZModStudio_Backups/server_settings.",
+      "saved_other": "Saved: {{count}} options. The files were backed up to PZModStudio_Backups/server_settings."
     }
   },
   "developer": {
@@ -3079,7 +3150,7 @@
       "startConfirm": "Start halving your mod list?\n\n{{count}} mods are switched on. The hunt switches half of them off, you play, and it halves again until one mod is left — about 8 launches for a list this size.\n\nYour list is kept and put back when the hunt ends, whichever way it ends.",
       "title": "Find the mod that does it",
       "roundBadge": "round {{round}} · {{left}} launches left",
-      "intro": "For what the log cannot tell you: a freeze, a recipe that never appears, a save that will not open. Half your mods go off, you play, and the half that still does it is halved again. About 8 launches find one mod among a hundred.",
+      "intro": "For what the log cannot tell you: a freeze, a recipe that never shows, a save that will not open. Part of your mods is tried, you play, and the part that still fails is cut down. About 8 launches find one mod in a hundred, and also a pair of mods that fail only together. Mods this PC already suspects are tried first.",
       "start": "Start halving the list",
       "confirming": "One mod is left: <b class=\"text-cyan-300\">{{mod}}</b>, and it is the only suspect switched on. Play, then say whether it still happens.",
       "trial": "<b class=\"text-cyan-300\">{{trial}}</b> of <b class=\"text-slate-200\">{{candidates}}</b> suspects are switched on, plus the {{alwaysOn}} mods another mod requires. Play the way you did when it happened, then answer.",
@@ -3103,7 +3174,17 @@
       "patchAFile": "Patch a file of it",
       "switchOff": "Switch it off",
       "keepOn": "Keep it on",
-      "close": "Close"
+      "close": "Close",
+      "flaky": "Does not happen every time: a \"no longer happens\" is tried twice before it is believed",
+      "targetPlaceholder": "Optional: some text of the error as the log writes it",
+      "targetHelp": "With a text, after each test game the app reads the log and suggests the answer.",
+      "pairSearch": "{{mod}} on its own does not do it: it stays on in every trial while the mod that does it together with it is sought.",
+      "leads": "Starts with what this PC already suspects: {{mods}}.",
+      "goneOnce": "As it does not happen every time, this same trial runs once more before \"no longer happens\" is believed.",
+      "suggestStill": "The test game's log shows the error: it looks like it still happens.",
+      "suggestGone": "The test game's log loaded the save and does not show the error: it looks like it no longer happens.",
+      "culpritPair": "It is <b class=\"text-emerald-300\">{{mod}}</b> and <b class=\"text-emerald-300\">{{other}}</b> together: neither does it on its own, both do. {{launches}} launches. Your list is back.",
+      "confirmNone": "Now a trial with none of the suspects (only what must stay on). If it still happens, it is none of these mods; if it no longer does, it is {{mod}}."
     },
     "require": {
       "theGame": "the game",
@@ -3155,15 +3236,16 @@
       "community_rule_order_index": "The notes the Studio ships with have it that {{mod}} loads after {{after}} ({{note}}{{seen}}), and it comes before it in the list",
       "community_incompatible_index": "The notes the Studio ships with have it that {{mod}} and {{other}} do not go together ({{note}}{{seen}}), and both are on",
       "community_known_issue": "{{mod}} has a known issue, per the notes the Studio ships with: {{title}}{{evidence}}{{note}}{{how}} [{{seen}}]",
+      "learned_issue": "Learned on this PC: {{mod}} gave the same error in {{seen}} of {{on}} of your sessions with this version (the last on {{last}}): {{what}}{{evidence}}. If it gets in your way, switch it off until its author updates it; once it no longer happens, the button hides it",
       "community_successor": "{{mod}} has a version for this build, per the notes the Studio ships with: {{successor}}{{note}}",
       "package_built_for_other_list": "{{package}} was built with a different list: {{missing}}{{sep}}{{extra}}. A package is a mod of its own, so it shows in every profile; its merges only settle the mods it was built with. The blue button rebuilds it for this list (the same as Update patch in the Mod Merger); switching it off in this profile is the other way.",
       "definition": "{{losers}} and {{winner}} {{all}} set {{properties}} on {{what}}, in different files ({{files}}). The game applies {{each}} to the same {{things}}, so everything else each of them sets is kept; only {{props}} decided by the load order, and {{winner}} loads last.{{example}}{{settled}}",
       "definition_nested": "{{losers}} and {{winner}} all declare {{what}}, in different files ({{files}}), and their contents differ. What differs is inside nested blocks, which the Studio does not compare, so it cannot say what is at stake here — only that {{winner}} loads last.{{settled}}",
       "script_definition_conflict_more": "{{left}} more things, across {{pairs}} other pairs of mods, have a property two mods set differently. Whichever mod loads last decides each one.",
       "translation": "{{losers}} and {{winner}} name {{what}} differently in {{lang}} ({{category}}).{{example}} The game reads every mod's translations and keeps the last loaded, so {{winner}}'s words show today.{{settled}}",
-      "file_conflict": "{{others}} and {{winner}} both ship {{path}}. Without a merge the game only uses {{winner}}'s copy, so {{others}}'s version is ignored. {{how}}",
+      "file_conflict": "{{others}} and {{winner}} both ship {{path}}. Without a merge the game only uses {{winner}}'s copy, so {{others}}'s version is ignored. {{how}}{{checked}}",
       "community_unneeded": "{{mod}} is no longer needed from build {{since}}, per the notes the Studio ships with: {{who}}{{note}}. {{safe}}",
-      "function_overridden": "{{winner}} replaces the game's {{function}} ({{place}}) after {{cut}} changed it, so that change never runs. {{how}}",
+      "function_overridden": "{{winner}} replaces the game's {{function}} ({{place}}) after {{cut}} changed it, so that change never runs. {{how}}{{checked}}",
       "file_conflict_stale": "{{path}} was merged, but {{mods}} changed since. Merge it again so the package matches the current versions.",
       "package_file_stale": "{{package}} carries a copy of {{path}} made on {{copyDate}}, and {{mod}} changed its own file on {{modDate}}. The game reads the copy, so that change never runs, and the copy may call things the new version no longer has. Take the file out of the package, or patch the new version in the Merger.",
       "package_file_differs": "{{package}} carries a copy of {{path}} that is not what {{mod}} ships, and {{mod}} is the only mod in this list with that file. Either a merge made when another mod shipped it too (that mod is off now), or a patch of yours. If the merge is no longer needed, take it out: the game then reads {{mod}}'s own file.",
@@ -3223,7 +3305,13 @@
       "compatible_copy_unneeded_server": "{{mod}} runs from a Studio compatible copy in Zomboid/mods, and the Workshop original now loads on {{build}} as it is. But the server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it. Nothing to do now.",
       "compatible_copy_server": "{{mod}} runs from a compatible copy the Studio made in Zomboid/mods ({{changes}}). The server {{servers}} lists it, and a server without Steam reads only Zomboid/mods: the copy stays while that server uses it.",
       "api_missing": "{{mod}} calls {{count}} things this build of the game does not have, by name: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). If that code runs, it fails there; a mod that fails on every frame fills the log. The check goes by name only: a name made while the game runs is not seen.{{tail}}",
-      "api_missing_one": "{{mod}} calls something this build of the game does not have, by name: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). If that code runs, it fails there; a mod that fails on every frame fills the log. The check goes by name only: a name made while the game runs is not seen.{{tail}}"
+      "api_missing_one": "{{mod}} calls something this build of the game does not have, by name: {{names}}{{moreNames}} ({{file}}:{{line}}{{more}}). If that code runs, it fails there; a mod that fails on every frame fills the log. The check goes by name only: a name made while the game runs is not seen.{{tail}}",
+      "function_overridden_mod": "{{winner}} replaces {{owner}}'s {{function}} ({{place}}) after {{cut}} changed it, so that change never runs. {{how}}{{checked}}",
+      "function_overridden_reset": "{{winner}} makes {{table}} new ({{place}}) after {{cut}} changed {{function}} on it, which wipes that change. {{how}}{{checked}}",
+      "function_seen_other": "In the running game, the version of {{function}} that runs is {{actual}}'s ({{place}}), not {{expected}}'s as their files suggest: a mod sets it later than its files show (from a function or an event of its own). Nothing to do unless something of {{expected}} seems missing in the game.",
+      "function_overridden_mod_many": "{{winner}} replaces {{count}} functions of {{owner}} ({{examples}}...) after {{cut}} changed them, so those changes never run. {{how}}",
+      "java_link_broken": "{{mod}}'s Java uses {{count}} thing(s) this build of the game no longer has: {{examples}}{{more}}. That code fails when it runs, often as the game starts or a save loads.{{patch}} If the Monitor shows it failing, look for an update of {{mod}} or turn it off; if it works, it checks first and there is nothing to do.",
+      "game_folder_changed": "While the game ran (session that ended {{when}}), {{count}} file(s) of the game's own folder changed: {{files}}. The game never writes there itself: a Java mod, a mod's helper program or another tool did. If you did not install or update something there yourself, look at which mod could have."
     },
     "fragments": {
       "lua_concat": "joined text with a value that is not there",
@@ -3321,7 +3409,13 @@
       "text_whose_mod_many": "They are in {{mod}}'s translation files.",
       "text_whose_none_one": "The Studio did not find it in the texts of the mods you have on; it can be the game's own.",
       "text_whose_none_many": "The Studio did not find them in the texts of the mods you have on; they can be the game's own.",
-      "none_in_jars": "none found in the jars loaded"
+      "none_in_jars": "none found in the jars loaded",
+      "fo_seen": " Seen in the running game: that is the version it has.",
+      "fo_the_game": "the game itself",
+      "jl_more": " and {{more}} more",
+      "jl_patch": " Some are what its patches change: ZombieBuddy skips a patch whose target is gone, so that change does not happen.",
+      "fc_seen": " The game's log of its last session confirms it.",
+      "fc_seen_other": " But the game's log of its last session says it used {{seenWinner}}'s copy."
     },
     "monitor": {
       "mod_named_exception_lua": {
@@ -4309,6 +4403,23 @@
           "Monitor cards and Diagnostics rows have \"Copy for an assistant\": paste it into any AI chat and it has everything needed.",
           "Start with Diagnostics: if it is clean, your list loads."
         ]
+      },
+      "simpleProfiles": {
+        "title": "Make or choose a profile",
+        "body": "A profile is your list of mods: which are on and in what order. Make one (it can start with the mods you have on now) or switch one on. The game starts with its mods.",
+        "points": [
+          "You can have several: one per play style or per server.",
+          "Your saves are kept: switching profiles does not delete anything."
+        ]
+      },
+      "play": {
+        "title": "Play",
+        "body": "Home has the Play button and, once you have played, Continue for your last game. The check-up tells you in one line whether there is something to fix first.",
+        "points": [
+          "Green: nothing to do, just play.",
+          "Red: press \"See what to do\"; each problem has one button that fixes it.",
+          "You are in Simple mode. For every tool, switch to Complete at the foot of the left bar or in Settings."
+        ]
       }
     }
   },
@@ -4513,6 +4624,366 @@
     "report": {
       "head": "PZ Mod Studio summary (list and last session):",
       "memory": "Memory: {{oom}} session(s) out of memory, {{low}} Windows warning(s)."
+    }
+  },
+  "brain": {
+    "change": {
+      "build": "the game went from {{from}} to {{to}}",
+      "added": "{{mod}} was added",
+      "removed": "{{mod}} was taken out",
+      "updated": "{{mod}} was updated",
+      "updatedFromTo": "{{mod}} went from {{from}} to {{to}}",
+      "moved": "{{mod}} moved from place {{from}} to {{to}} in the order",
+      "none": "nothing different in the list or the game",
+      "more_one": "and {{count}} more change",
+      "more_other": "and {{count}} more changes"
+    },
+    "onset": {
+      "text": "It began on {{first}}; the last session without it was on {{good}}. In between: {{changes}} (what changed then, not necessarily the cause).",
+      "fromStart": "It showed from the first session with the mod ({{first}})."
+    },
+    "fix": {
+      "waiting": "{{action}} on {{mod}} ({{when}}): more sessions with the mod are needed to tell whether it worked ({{after}} so far).",
+      "worked": "{{action}} on {{mod}} ({{when}}) worked: the error showed in {{beforeBad}} of {{before}} sessions and in none of the {{after}} since.",
+      "not_worked": "{{action}} on {{mod}} ({{when}}) was not enough: the error went on in {{afterBad}} of {{after}} sessions.",
+      "mod_off": "{{action}} on {{mod}} ({{when}}): it is off and has not been played with since.",
+      "no_errors_before": "{{action}} on {{mod}} ({{when}}): it had no errors before to compare ({{after}} sessions since, {{afterBad}} with an error)."
+    },
+    "fixAction": {
+      "disable_mod": "Switching it off",
+      "make_compatible_copy": "The compatible copy",
+      "enable_shim_patch": "The Studio's patch",
+      "move_before": "Moving it in the order",
+      "replace_in_list": "Replacing it",
+      "remove_from_list": "Taking it out of the list",
+      "enable_mod": "Switching on what it needed",
+      "update_package": "Rebuilding the package",
+      "recopy_workshop": "Copying it again",
+      "remove_from_package": "Taking the file out of the package",
+      "adopt_workshop_copy": "Using the Workshop copy"
+    },
+    "prelaunch": {
+      "head": "Careful: {{bad}} of the last {{of}} sessions with this mod list went badly (the last on {{last}}).",
+      "failed_one": "{{count}} did not even reach the menu.",
+      "failed_other": "{{count}} did not even reach the menu.",
+      "oom_one": "{{count}} ran out of memory.",
+      "oom_other": "{{count}} ran out of memory.",
+      "diff": "The last one that got into a save was on {{good}}; since then: {{changes}}.",
+      "noGood": "No session with this list has got into a save.",
+      "confirm": "Play anyway?",
+      "crashed_one": "{{count}} fell over with a fatal Java error.",
+      "crashed_other": "{{count}} fell over with a fatal Java error."
+    },
+    "session": {
+      "kind": {
+        "client": "game",
+        "server": "server"
+      },
+      "reached": {
+        "game": "got into a save",
+        "menu": "reached the menu",
+        "started": "started",
+        "none": "did not reach the menu"
+      },
+      "live": "open now",
+      "closed": "closed properly",
+      "cut": "closed without going through the game's menu (X, Alt+F4 or closed from outside)",
+      "oom": "ran out of memory",
+      "load": "loaded in {{secs}} s",
+      "counts": "{{mods}} mods, {{errors}} error(s)",
+      "crashFatal": "it fell over: a fatal Java error ({{reason}} in {{frame}})",
+      "crashMemory": "it fell over: Windows gave Java no more memory (the PC ran out)",
+      "toMenu": "went back to the menu",
+      "save": "save {{save}}",
+      "crashIn": "fell over inside {{what}} ({{frame}})"
+    },
+    "insight": {
+      "load_slower": "Loading a save now takes about {{now}} s; it used to take about {{before}} s (since {{since}}).",
+      "game_update": "After the game update ({{from}} → {{to}}, on {{since}}), {{count}} mods began failing without having been updated: {{mods}}. What changed is the game; what is left is to wait for their updates.",
+      "fixes": "Fixes: {{worked}} worked, {{notWorked}} were not enough, {{waiting}} waiting for sessions."
+    },
+    "history": {
+      "title": "On this PC",
+      "none": "It has not been on in any session the app has read yet.",
+      "sessions": "On in {{count}} session(s), from {{first}} to {{last}}.",
+      "place": "In the last one it was at place {{place}} of {{of}}.",
+      "versions": "Versions seen: {{list}}.",
+      "version": "{{version}} ({{sessions}})",
+      "bad": "Sessions with it that did not reach the menu: {{failed}}; out of memory: {{oom}}; Java crashes: {{crashed}} (being on in a crash does not say it caused it).",
+      "errors": "Errors the game blamed on it",
+      "error": "{{seen}} of {{on}} sessions since {{first}}, the last on {{last}}",
+      "stopped": "stopped showing",
+      "fixes": "Fixes applied",
+      "loading": "Reading what this PC learned…"
+    },
+    "studioNote": {
+      "label": "Studio note",
+      "remove": "Remove the Studio note",
+      "hint": "Written by the Doctor or the app; your note is not touched."
+    },
+    "crash": {
+      "none": "Java left no crash report in the game's folder: no session really crashed (closing with X or Alt+F4 leaves none).",
+      "summary": "Java left {{count}} crash report(s) in the game's folder, from {{first}} to {{last}}: {{memory}} because the PC ran out of memory and {{fatal}} from a fatal error ({{frames}}); {{servers}} from a server. Closing with X or Alt+F4 leaves none."
+    },
+    "confidence": {
+      "strong": "fairly sure",
+      "likely": "likely",
+      "weak": "could be chance"
+    },
+    "brief": {
+      "prelaunch": "{{bad}} of the last {{of}} sessions with this list went badly.",
+      "lastBad": "The last session went badly: {{how}}.",
+      "errors_one": "{{count}} error repeats (of {{mod}}).",
+      "errors_other": "{{count}} errors repeat (the first, of {{mod}}).",
+      "fixWorked": "The fix on {{mod}} worked.",
+      "ok": "All in order ({{count}} sessions read)."
+    },
+    "crashCause": {
+      "graphics_nvidia": "NVIDIA's video driver: updating the driver usually fixes it",
+      "graphics_amd": "AMD's video driver: updating the driver usually fixes it",
+      "graphics_intel": "Intel's video driver: updating the driver usually fixes it",
+      "window_opengl": "the part of the game that runs the window and drawing (OpenGL): usually the video driver or a program that draws over the screen",
+      "audio": "the game's sound: try another audio output",
+      "network": "the game's networking",
+      "zombiebuddy": "ZombieBuddy, the Java mods' loader: look at which Java mods were on",
+      "java": "Java itself: often a lack of memory or a Java mod",
+      "steam": "Steam or its overlay",
+      "physics": "the game's physics",
+      "windows": "a Windows library"
+    }
+  },
+  "doctorChat": {
+    "title": "Ask the Doctor",
+    "blurb": "It answers with what this PC learned and the app's tools, with no AI: each answer says where it comes from. Anything that changes something asks you first.",
+    "placeholder": "Type a question or an order (e.g. what changed?, history of Viewpoint, group A, B in Maps)…",
+    "send": "Send",
+    "thinking": "Looking…",
+    "you": "You",
+    "doctor": "Doctor",
+    "confirm": "Do it",
+    "cancel": "No",
+    "done": "Done.",
+    "cancelled": "I did nothing.",
+    "failed": "It could not be done: {{reason}}",
+    "source": "From: {{source}}",
+    "hello": "I read {{sessions}} sessions of {{build}} on this PC. {{status}} What do you want to know?",
+    "statusOk": "The last session {{last}}.",
+    "chips": {
+      "summary": "What do you know?",
+      "crash": "Why did it close?",
+      "changed": "What changed?",
+      "errors": "Which mods fail?",
+      "slow": "Is it slower?",
+      "fixes": "Did the fixes work?",
+      "groups": "Suggest groups",
+      "notes": "Note what you learned",
+      "tools": "Which tools do you use?",
+      "help": "What can I ask?",
+      "culprit": "Which mod causes it?",
+      "hunt": "Hunt it by halves",
+      "week": "What happened this week?",
+      "undo": "Undo the last thing",
+      "marks": "What happened when I marked?"
+    },
+    "help": "I can answer: what I know of this PC, why the game closed, what changed when an error began, which mods fail, whether loading is slower, whether fixes worked, what the game update did, and a mod's history (name it). And I can do, with your yes: make, rename or delete groups, put mods in or take them out (\"group A, B in Maps\", \"take A out of group Maps\", \"rename group Maps to World\", \"delete group Maps\"), suggest groups, and write or remove Studio notes (\"note on A: text\", \"remove the Studio note of A\", \"note what you learned\"). Your notes I never touch.",
+    "notUnderstood": "I did not understand. Try one of these, or name a mod to see its history:",
+    "summary": "{{sessions}} sessions read of {{build}} ({{all}} in all). {{issues}} {{insights}}",
+    "summaryIssues_one": "{{count}} error repeats in your active mods.",
+    "summaryIssues_other": "{{count}} errors repeat in your active mods.",
+    "summaryNoIssues": "No active mod repeats errors.",
+    "summaryInsights_one": "And I noticed {{count}} more thing: ask me what changed.",
+    "summaryInsights_other": "And I noticed {{count}} more things: ask me what changed.",
+    "crashNone": "I have no sessions read yet.",
+    "crashRecent": "The last sessions:",
+    "crashAllGood": "The last {{count}} sessions reached the menu or a save; none ran out of memory.",
+    "crashLog": "The last session's log has {{count}} error card(s); the first: {{list}}.",
+    "changedNone": "I have no repeated errors of your active mods with a clear beginning.",
+    "errorsNone": "No active mod repeats an error in 3 sessions or more with the same version.",
+    "errorsList": "Errors that repeat (sessions with the error / with the mod):",
+    "slowNone": "I do not see loading change: the last loads took {{list}} s.",
+    "slowNoData": "I have no measured save loads yet.",
+    "fixesNone": "You have not applied fixes from Diagnostics since the app remembers them.",
+    "updateNone": "{{mod}}: you are up to date (last update on {{when}}).",
+    "tools": "To answer I use these app tools (the same as the MCP server), on my own since they only read: {{read}}. And these only with your yes, since they change the Studio's notes, groups or rules: {{change}}.",
+    "modNotFound": "I found no mod by that name.",
+    "modMany": "Several have that name: {{list}}. Which one?",
+    "groupsList": "This profile's groups: {{list}}.",
+    "groupsNone": "This profile has no groups.",
+    "suggestNone": "I find no groups to suggest: your active mods are already grouped or share no name or requirement.",
+    "suggest": "I suggest grouping {{count}} mods as \"{{group}}\": {{mods}}.",
+    "askAdd": "Put {{mods}} in the group \"{{group}}\"?",
+    "askRemove": "Take {{mods}} out of the group \"{{group}}\"?",
+    "askRename": "Rename the group \"{{group}}\" to \"{{to}}\"?",
+    "askDelete": "Delete the group \"{{group}}\"? Its mods are not touched.",
+    "askNote": "Write this Studio note on {{mod}}?: \"{{text}}\" (your note, if any, is not touched).",
+    "askNoteRemove": "Remove the Studio note of {{mod}}? Your note is not touched.",
+    "askLearnedNotes_one": "Write a Studio note on {{count}} mod with what I learned of its errors? Your notes are not touched.",
+    "askLearnedNotes_other": "Write a Studio note on {{count}} mods with what I learned of their errors? Your notes are not touched.",
+    "learnedNote": "Learned on this PC: {{title}} in {{seen}} of {{on}} sessions (since {{first}}).",
+    "noLearnedNotes": "There are no learned errors in your active mods to note.",
+    "noStudioNote": "{{mod}} has no Studio note.",
+    "groupNotFound": "There is no group called \"{{group}}\" in this profile.",
+    "needMods": "Tell me which mods (comma-separated) and which group: \"group A, B in Maps\".",
+    "updated": "I found what changed with the game update:",
+    "details": "Show details ({{count}})",
+    "hide": "Hide details",
+    "noticed": "I noticed: {{what}}",
+    "noticedLast": "the last session went badly ({{last}}).",
+    "noticedErrors_one": "{{count}} error repeats in your active mods (the first, of {{mod}}).",
+    "noticedErrors_other": "{{count}} errors repeat in your active mods (the first, of {{mod}}).",
+    "choose": "Do you mean one of these?",
+    "whichMod": "Which of these?",
+    "learned": "Noted: next time I understand \"{{phrase}}\".",
+    "noFocus": "Which mod are we talking about? Name it and I will.",
+    "sinceLabel": "Since {{since}}:",
+    "sinceChanges": "Since {{since}} (the last session before was on {{good}}, the newest on {{bad}}): {{changes}}.",
+    "sinceNone": "I have no session from before {{since}} to compare.",
+    "crashBad": "Of the last {{count}} sessions, {{bad}} went badly; the last: {{last}}.",
+    "errorsCount_one": "{{count}} error repeats: {{mod}}, {{title}} ({{seen}} of {{on}} sessions).",
+    "errorsCount_other": "{{count}} errors repeat; the most: {{mod}}, {{title}} ({{seen}} of {{on}} sessions).",
+    "modSummary_one": "{{mod}}: on in {{sessions}} sessions, with {{count}} repeated error: {{title}}.",
+    "modSummary_other": "{{mod}}: on in {{sessions}} sessions, with {{count}} repeated errors; the main one: {{title}}.",
+    "modSummaryOk": "{{mod}}: on in {{sessions}} sessions, with no repeated errors now.",
+    "askDisable": "Switch {{mod}} off in the active list?",
+    "askEnable": "Switch {{mod}} on in the active list?",
+    "alreadyOff": "{{mod}} is already off.",
+    "alreadyOn": "{{mod}} is already on.",
+    "shown": "Showing {{mod}} in the Mod List.",
+    "noteNothing": "No repeated errors in {{sessions}} sessions on this PC.",
+    "whyNone": "{{mod}} has no repeated errors to say when they began.",
+    "slowest": "What took longest to load in the last session: {{mod}}, {{secs}} s.",
+    "slowestNone": "I have no load times per mod yet (they come from the last session's log).",
+    "mostErrors": "The one that repeats most: {{mod}}, in {{count}} sessions with an error.",
+    "suggestHead_one": "I found {{count}} group to suggest:",
+    "suggestHead_other": "I found {{count}} groups to suggest:",
+    "nav": {
+      "showInList": "See {{mod}} in the Mod List",
+      "openMods": "Open Diagnostics › Mods",
+      "openGame": "Open Diagnostics › Game",
+      "disable": "Switch off {{mod}}",
+      "enable": "Switch on {{mod}}",
+      "noteIt": "Note what I learned on {{mod}}",
+      "openPage": "Open {{page}}"
+    },
+    "advice": {
+      "memory": "Almost all crashes ({{memory}} of {{count}}) were the PC running out of memory{{together}}, not a mod. Close what you are not using (the server, the second player) or give them less memory in Servers.",
+      "together": ", with several of the game's processes open at once",
+      "net": "The crash in ZNetJNI64.dll is in the game's own network code, not a mod.",
+      "updatedSelf": "It began when {{mod}} was updated: most likely its new version. Wait for its next update or tell its author on its Workshop page.",
+      "build": "It began with the game update ({{from}} → {{to}}): the mod is not up to date with this build yet. Wait for its update; if it gets in the way, switch it off.",
+      "added_one": "It began when you added {{mods}}: try a session without it to see whether it works again.",
+      "added_other": "It began when you added {{mods}}: try a session without them to see whether it works again.",
+      "loadAdded_one": "Loading got slow when {{mods}} was added: try a session without it.",
+      "loadAdded_other": "Loading got slow when {{mods}} were added: try a session without them.",
+      "fixNot": "A fix was not enough: the next step is switching that mod off until its author updates it.",
+      "switchedOff": "{{mod}} switches itself off, so it does nothing on this build: switching it off shortens the list and loses nothing.",
+      "culpritStrong": "It is strong: try a session with {{mod}} off; if it works, it is it.",
+      "culpritCheck": "It is a lead, not proof: try a session with {{mod}} off, or hunt it by halves to confirm."
+    },
+    "hello2": "Hi. I have read {{sessions}} sessions of {{build}} on this PC. {{status}} How can I help?",
+    "hello3": "Here I am: {{sessions}} sessions of {{build}} read. {{status}} Ask me anything.",
+    "reportHead": "Report of your last session ({{when}}):",
+    "reportLine": "{{minutes}} min · {{how}}",
+    "reportNew_one": "New error: {{list}}.",
+    "reportNew_other": "{{count}} new errors: {{list}}.",
+    "reportNoNew": "No new error ({{repeated}} I already knew).",
+    "lastTimeOpen_one": "Last time ({{when}}) we talked about {{mod}}: it still has {{count}} repeated error.",
+    "lastTimeOpen_other": "Last time ({{when}}) we talked about {{mod}}: it still has {{count}} repeated errors.",
+    "lastTimeOk": "Last time ({{when}}) we talked about {{mod}}: it has no repeated errors now.",
+    "weekNone": "No sessions since {{since}}.",
+    "week": "Since {{since}}: {{sessions}} sessions ({{hours}} h played) and {{servers}} server ones; {{bad}} went badly, {{crashes}} Java crashes and {{errors}} new errors.",
+    "weekChanges": "What changed since before: {{changes}}.",
+    "culpritNone": "I find no mod that shows up more in the sessions that went badly than in the others: either very few went badly, or all with nearly the same list. If something happens and the log names nobody, we can hunt it by halves.",
+    "culpritLine": "{{mod}}: with it {{withBad}} of {{with}} sessions went badly; without it, {{withoutBad}} of {{without}} ({{sure}}).",
+    "culprit": "The one that shows up most when something goes wrong: {{line}}",
+    "huntNone": "There is no hunt going on.",
+    "huntDone": "The hunt ended: it is {{mod}}.",
+    "huntDoneNone": "The hunt ended without a clear culprit.",
+    "huntStep": "Trial {{round}}: {{trial}} mods on out of {{candidates}} suspects; about {{left}} sessions left.",
+    "huntHow": "Play this trial up to where the problem used to happen and tell me: does it still happen or not?",
+    "huntPlay": "Play this trial",
+    "huntStill": "It still happens",
+    "huntGone": "It no longer happens",
+    "huntStop": "Stop the hunt",
+    "huntStopped": "I stopped the hunt and put your list back as it was.",
+    "huntOffer": "Let us hunt it by halves: I switch off half of your {{count}} active mods (what the others need stays on), you play a session and tell me whether it still happens. Your list is kept and comes back at the end.",
+    "huntStart": "Start the hunt",
+    "guideHead": "In the guide, \"{{heading}}\":",
+    "notWorkshop": "{{mod}} is not from the Workshop: it has no page or comments.",
+    "workshopFailed": "I could not read the Workshop page now.",
+    "updatePending": "{{mod}}: Steam has an update pending (from {{when}}); it downloads when Steam gets to it.",
+    "updateNewer": "{{mod}}: there is a version from {{when}} and yours is from {{have}}. Steam downloads it by itself; if not, unsubscribe and subscribe again.",
+    "updatedSincePlay": "It was updated since you last played.",
+    "commentsNone": "I could not read the comments of {{mod}} (its author may have them closed).",
+    "comments": "{{mod}}: I read the last {{read}} of {{total}} comments; {{trouble}} talk about errors or something not working, and the author replied {{author}}.",
+    "group": "Group {{group}}: {{count}} mods ({{on}} on), {{errors}} with repeated errors and {{suspects}} suspects when something goes wrong.",
+    "profileNotFound": "I did not find the profile \"{{profile}}\".",
+    "profileOk": "The profile {{profile}} ({{count}} mods) has no recent sessions that went badly; {{errors}} of its mods repeat errors.",
+    "undoNone": "I made no change in this conversation that can be undone.",
+    "undoAsk": "Undo the last thing I did ({{what}})?",
+    "undoDo": "Undo",
+    "whichProfile": "Which of these profiles?",
+    "profileWord": "profile",
+    "marksNone": "You have not marked any moment yet. In the game, on the pause menu (Esc), press \"Mark this moment\" when something odd happens.",
+    "marks_one": "You marked {{count}} moment (the last on {{last}}):",
+    "marks_other": "You marked {{count}} moments (the last on {{last}}):",
+    "marksNew_one": "You marked {{count}} moment in the game since last time. Shall we look?",
+    "marksNew_other": "You marked {{count}} moments in the game since last time. Shall we look?",
+    "markQuiet": "the log has no errors in that minute",
+    "markNoLog": "I have not read that session's log yet",
+    "markAdvice": "In the last one, the log says: {{what}}. Ask me about that mod to see its history.",
+    "huntDonePair": "The hunt is over: it is {{mod}} and {{other}} together (neither does it on its own)."
+  },
+  "learnedOnset": " {{onset}}",
+  "simple": {
+    "nav": {
+      "home": "Home"
+    },
+    "mode": {
+      "label": "View",
+      "simple": "Simple",
+      "advanced": "Complete",
+      "simpleHint": "Only what you need to play with mods. Everything else is one click away.",
+      "advancedHint": "Every screen and tool of the Studio."
+    },
+    "switchToComplete": "Switch to Complete",
+    "settings": {
+      "title": "How much of the Studio to show",
+      "blurb": "Simple shows what you need to play with mods. Complete shows every screen. Nothing is deleted or switched off when you change: you can go back and forth whenever you like.",
+      "simple": "Home with Play, your mods (on/off, order, Auto-Sort), profiles, Explore, saves, and in Diagnostics only what you need to fix, with one button each.",
+      "advanced": "Everything: Monitor, What's new, Maps, Merger, Servers, Developer, every Diagnostics tab and the AI tools."
+    },
+    "home": {
+      "profile": "Profile in use",
+      "modsOn_one": "1 mod on",
+      "modsOn_other": "{{count}} mods on",
+      "changeProfile": "Change",
+      "play": "Play",
+      "continue": "Continue: {{world}}",
+      "continueTitle": "Opens the game and loads {{world}}, your last game with this profile.",
+      "doctor": "Check-up",
+      "checking": "Checking your mods…",
+      "act_one": "1 thing to fix before playing",
+      "act_other": "{{count}} things to fix before playing",
+      "actHint": "You need to act: a mod will not load or something breaks until you fix it.",
+      "seeWhat": "See what to do",
+      "ok": "Your mods are in order: nothing to do",
+      "okHint": "You can play.",
+      "optional_one": "You can play. 1 optional suggestion (the game works without it) is in Complete mode.",
+      "optional_other": "You can play. {{count}} optional suggestions (the game works without them) are in Complete mode.",
+      "modsHint": "Switch mods on and off, order them, Auto-Sort.",
+      "browseHint": "Find and subscribe to Workshop mods.",
+      "savesHint": "Your games and their backups.",
+      "profilesHint": "Make or switch mod lists.",
+      "moreInComplete": "This is Simple mode. Merger, Monitor, Servers, Maps and the other tools are in Complete mode."
+    },
+    "health": {
+      "nothingToAct": "Nothing to fix: your mods are ready to play.",
+      "optionalHidden_one": "1 optional suggestion is hidden (the game works without it).",
+      "optionalHidden_other": "{{count}} optional suggestions are hidden (the game works without them).",
+      "nothingToDoHidden_one": "1 more is only good to know or already fixed by the Studio: nothing to do.",
+      "nothingToDoHidden_other": "{{count}} more are only good to know or already fixed by the Studio: nothing to do.",
+      "showAll": "Show everything (Complete)"
     }
   }
 }

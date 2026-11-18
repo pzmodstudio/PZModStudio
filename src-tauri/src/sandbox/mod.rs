@@ -919,6 +919,55 @@ pub struct ModBlame {
     /// comes back each time a later mod patches that class (the patches of a class are applied
     /// together) and keeps what was found the first time.
     transform_first: std::collections::HashMap<String, (Option<String>, Vec<String>)>,
+    /// The Lua stack the game dumped last (`STACK TRACE` and its frames): whether its first
+    /// frame is one the game labels `Vanilla` wrongly, the first mod frame in it, and how many
+    /// lines have gone by since its last frame.
+    dump: Option<StackDump>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct StackDump {
+    top_mislabelled: Option<bool>,
+    first_mod: Option<String>,
+    age: usize,
+}
+
+/// Lua files the game runs from a map's folder (`media/maps/<map>/`), never from `media/lua`.
+const MAP_FOLDER_LUA: &[&str] = &["spawnpoints.lua", "objects.lua", "worldmap-annotations.lua", "roomtones.lua", "regions.lua", "basements.lua", "worldgenoverride.lua"];
+
+/// A `Lua(Vanilla).f(file:line)` frame the game labels wrongly: the function is a mod's (or code a
+/// mod ran with `loadstring`), shown under the name of a map's file or as `stdin`. In the logs of
+/// this PC every error whose top frame read `Lua(Vanilla).seatKey(spawnpoints.lua:101)` was a
+/// mod's function (Knox County Lives' `D.seatKey`) or a chunk the Claude Agent mod ran.
+fn mislabelled_vanilla_frame(line: &str) -> bool {
+    let Some(rest) = line.split("Lua(Vanilla).").nth(1) else { return false };
+    let (function, place) = rest.split_once('(').unwrap_or((rest, ""));
+    let file = place.split(':').next().unwrap_or("").rsplit(['/', '\\']).next().unwrap_or("").to_lowercase();
+    function == "stdin" || MAP_FOLDER_LUA.contains(&file.as_str())
+}
+
+/// The mod's name after `(MOD:` in `Lua((MOD:X)).fn`: up to the `))` that closes the frame,
+/// so a name with brackets of its own stays whole (`Lua((MOD:Nomad Grid RV (Legacy))).f` is
+/// "Nomad Grid RV (Legacy)", not "Nomad Grid RV (Legacy"). A line cut short gives what is there.
+fn frame_mod_name(rest: &str) -> Option<&str> {
+    let b = rest.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b')' {
+            let mut j = i;
+            while j < b.len() && b[j] == b')' {
+                j += 1;
+            }
+            let ends = j == b.len() || matches!(b[j], b'.' | b'>' | b' ' | b'\t' | b':');
+            if j - i >= 2 && ends {
+                return Some(&rest[..j - 2]);
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    rest.split_once(')').map(|(name, _)| name)
 }
 
 /// `[ZB] [!] ERROR transforming zombie.characters.IsoZombie: Cannot assign float arg2 to double.`
@@ -1022,9 +1071,28 @@ impl ModBlame {
             // the game throws loading that item from a save.
             self.recent = Some((id, 0));
             self.recent_is_item = true;
-        } else if Self::is_vanilla_frame(line) {
+        } else if Self::is_vanilla_frame(line) && !mislabelled_vanilla_frame(line) {
             // The game's own file is the nearer frame: what follows is not the mod's.
             self.recent = None;
+        }
+        // The dumped stack: its first frame, and the first mod in it.
+        let trimmed = line.trim();
+        if trimmed == "STACK TRACE" {
+            self.dump = Some(StackDump::default());
+        } else if let Some(dump) = self.dump.as_mut() {
+            if trimmed.starts_with("Lua(") {
+                dump.age = 0;
+                // The first frame that is not the `pcall` around it is where it failed.
+                let wrapper = trimmed.contains(").pcall(");
+                if dump.top_mislabelled.is_none() && !wrapper {
+                    dump.top_mislabelled = Some(mislabelled_vanilla_frame(trimmed));
+                }
+                if dump.first_mod.is_none() {
+                    dump.first_mod = Self::named_in(trimmed).filter(|n| !is_studio_mod_name(n));
+                }
+            } else if !trimmed.starts_with("---") {
+                dump.age += 1;
+            }
         }
         let Some(rest) = line.split("> mod \"").nth(1) else { return };
         let Some((mod_name, tail)) = rest.split_once("\" overrides ") else { return };
@@ -1034,8 +1102,7 @@ impl ModBlame {
     /// The mod a line names itself, in `Lua((MOD:X))`.
     fn named_in(line: &str) -> Option<String> {
         let rest = line.split("(MOD:").nth(1)?;
-        let (name, _) = rest.split_once(')')?;
-        let name = name.trim();
+        let name = frame_mod_name(rest)?.trim();
         (!name.is_empty()).then(|| name.to_string())
     }
 
@@ -1153,10 +1220,19 @@ impl ModBlame {
         // A line in one of the game's own files is the game's, whatever mod was named above it
         // (42.21's own TakeSameType.lua requires a module that no longer exists, for one).
         if Self::is_vanilla_frame(line) && !line.contains("(MOD:") {
-            return None;
+            // `Lua(Vanilla).pcall> Exception thrown` right after a stack whose first frame the
+            // game labelled Vanilla wrongly: the error is in the first mod of that stack.
+            if line.contains("Exception thrown") {
+                if let Some(name) = self.mod_of_mislabelled_stack() {
+                    return Some(name);
+                }
+            }
+            if !mislabelled_vanilla_frame(line) {
+                return None;
+            }
         }
         if let Some(rest) = line.split("(MOD:").nth(1) {
-            if let Some((name, _)) = rest.split_once(')') {
+            if let Some(name) = frame_mod_name(rest) {
                 let name = name.trim();
                 if !name.is_empty() {
                     if is_studio_mod_name(name) {
@@ -1193,7 +1269,16 @@ impl ModBlame {
         if !Self::continues_block(line, self.recent_is_item) {
             return None;
         }
-        self.recent.as_ref().map(|(name, _)| name.clone())
+        self.recent.as_ref().map(|(name, _)| name.clone()).or_else(|| self.mod_of_mislabelled_stack())
+    }
+
+    /// The first mod of the stack just dumped, when its failing frame is one the game labelled
+    /// `Vanilla` wrongly (see `mislabelled_vanilla_frame`), for the lines right under it.
+    fn mod_of_mislabelled_stack(&self) -> Option<String> {
+        match &self.dump {
+            Some(StackDump { top_mislabelled: Some(true), first_mod: Some(name), age }) if *age <= 3 => Some(name.clone()),
+            _ => None,
+        }
     }
 
     /// Whether a line that names nobody belongs to the block of the mod named just above it:
@@ -3363,6 +3448,56 @@ mod blame_window_tests {
         assert_eq!(blame.of(lines[2]), None);
         // Nor does the name come back for an anonymous line after them.
         assert_eq!(blame.of("ERROR: General      f:9> Exception thrown"), None);
+    }
+
+    /// A mod whose name has brackets of its own: the frame closes with `))`, not at the first `)`.
+    #[test]
+    fn a_mod_name_with_brackets_is_read_whole() {
+        let mut blame = ModBlame::default();
+        let line = "WARN : Lua          f:0 at Lua((MOD:Nomad Grid RV (Legacy))).GridRVMoveables.lua> require(\"TimedActions/ISTimedActionQueue\") failed";
+        blame.observe(line);
+        assert_eq!(blame.of(line).as_deref(), Some("Nomad Grid RV (Legacy)"));
+        assert_eq!(ModBlame::named_in("\tLua((MOD:Take A Bath And Shower [SP/MP])).isValid(TABAS.lua:48)").as_deref(), Some("Take A Bath And Shower [SP/MP]"));
+        assert_eq!(ModBlame::named_in("\tLua((MOD:Nature's Call)).NC_Main(NC.lua:1)").as_deref(), Some("Nature's Call"));
+    }
+
+    /// From a real log (2026-11-04): the game labels a mod's own functions `Lua(Vanilla)` under
+    /// the name of a map's file, and the ERROR line under the stack says `Lua(Vanilla).pcall`.
+    /// The error is the first mod's of that stack; a stack that starts in a real game file stays
+    /// the game's.
+    #[test]
+    fn a_frame_the_game_labels_vanilla_wrongly_does_not_hide_the_mod() {
+        let stack = |top: &str| -> Vec<String> {
+            vec![
+                "ERROR: General      f:339311 at KahluaThread.flushErrorMessage      > dumping Lua stack trace".to_string(),
+                "-----------------------------------------".to_string(),
+                "STACK TRACE".to_string(),
+                "-----------------------------------------".to_string(),
+                format!("\t{}", top),
+                "\tLua(Vanilla).seatKey(worldmap-annotations.lua:107)".to_string(),
+                "\tLua((MOD:Knox County Lives)).finish(KL_Needs.lua:663)".to_string(),
+                "\tLua((MOD:Knox County Lives)).Add(KL_Director.lua:1131).".to_string(),
+                "ERROR: General      f:339311> Lua(Vanilla).pcall> Exception thrown".to_string(),
+            ]
+        };
+        let blamed = |lines: Vec<String>| {
+            let mut blame = ModBlame::default();
+            let mut last = None;
+            for l in &lines {
+                blame.observe(l);
+                last = blame.of(l);
+            }
+            last
+        };
+        assert_eq!(blamed(stack("Lua(Vanilla).pcall(worldmap-annotations.lua:109)")).as_deref(), Some("Knox County Lives"));
+        assert_eq!(blamed(stack("Lua(Vanilla).stdin(Apocalypse.lua:2)")).as_deref(), Some("Knox County Lives"), "code run with loadstring");
+        assert_eq!(blamed(stack("Lua(Vanilla).start(ISPathFindAction.lua:52)")), None, "a real game file is the game's");
+        // A `pcall` wrapped around it is not where it failed, and the exception line under the
+        // ERROR (the same error seen again later) takes the same mod.
+        let mut again = stack("Lua(Vanilla).pcall(tsarzones.lua:2)");
+        again.insert(5, "\tLua(Vanilla).stdin(tsarzones.lua:2)".to_string());
+        again.push("\tjava.lang.RuntimeException: attempted index: x of non-table: null at KahluaThread.tableget(KahluaThread.java:1430).".to_string());
+        assert_eq!(blamed(again).as_deref(), Some("Knox County Lives"));
     }
 }
 

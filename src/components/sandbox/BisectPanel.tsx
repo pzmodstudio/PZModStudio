@@ -39,6 +39,8 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showTrial, setShowTrial] = useState(false);
   const [open, setOpen] = useState(false);
+  const [flaky, setFlaky] = useState(false);
+  const [target, setTarget] = useState('');
 
   // A hunt outlives the Studio: it is written to disk after every answer.
   useEffect(() => {
@@ -74,7 +76,7 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
       const active = mods.filter((m) => m.enabled).length;
       const ok = window.confirm(t('monitor.bisect.startConfirm', { count: active }));
       if (!ok) return;
-      const started = await TauriService.bisectStart(paths, mods);
+      const started = await TauriService.bisectStart(paths, mods, { flaky, target });
       setSession(started);
       setShowTrial(false);
       onRefreshMods();
@@ -161,6 +163,18 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
           {!session && (
             <>
               <p className="text-[11px] text-slate-400 leading-relaxed">{t('monitor.bisect.intro')}</p>
+              <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" checked={flaky} onChange={(e) => setFlaky(e.target.checked)} className="mt-0.5 cursor-pointer" />
+                <span>{t('monitor.bisect.flaky')}</span>
+              </label>
+              <input
+                type="text"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder={t('monitor.bisect.targetPlaceholder')}
+                className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-200 placeholder:text-slate-500"
+              />
+              <p className="text-[10px] text-slate-500 leading-relaxed">{t('monitor.bisect.targetHelp')}</p>
               <button
                 onClick={handleStart}
                 disabled={busy}
@@ -174,7 +188,9 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
           {hunting && (
             <>
               <div className="text-[11px] text-slate-300 leading-relaxed">
-                {session!.phase === 'Confirming' ? (
+                {session!.phase === 'Confirming' && session!.trial.length === 0 ? (
+                  <span>{t('monitor.bisect.confirmNone', { mod: nameOf(session!.empty_check ?? '') })}</span>
+                ) : session!.phase === 'Confirming' ? (
                   <span
                     dangerouslySetInnerHTML={{
                       __html: tHtml('monitor.bisect.confirming', { mod: nameOf(session!.trial[0]) }),
@@ -192,6 +208,21 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
                   />
                 )}
               </div>
+
+              {session!.pair_with && (
+                <div className="text-[11px] text-amber-200/90 leading-relaxed">{t('monitor.bisect.pairSearch', { mod: nameOf(session!.pair_with) })}</div>
+              )}
+              {session!.round === 1 && (session!.leads?.length ?? 0) > 0 && (
+                <div className="text-[10px] text-slate-400 leading-relaxed">
+                  {t('monitor.bisect.leads', { mods: session!.leads!.slice(0, 5).map(nameOf).join(', ') })}
+                </div>
+              )}
+              {session!.gone_once && <div className="text-[10px] text-slate-400 leading-relaxed">{t('monitor.bisect.goneOnce')}</div>}
+              {session!.suggested && (
+                <div className={`text-[11px] rounded px-2 py-1 border ${session!.suggested === 'still' ? 'border-red-800/70 text-red-200 bg-red-950/30' : 'border-emerald-800/70 text-emerald-200 bg-emerald-950/30'}`}>
+                  {t(session!.suggested === 'still' ? 'monitor.bisect.suggestStill' : 'monitor.bisect.suggestGone')}
+                </div>
+              )}
 
               <p className="text-[10px] text-slate-500 leading-relaxed">{t('monitor.bisect.owns')}</p>
 
@@ -253,10 +284,16 @@ export const BisectPanel: React.FC<BisectPanelProps> = ({
                   <div
                     className="text-[11px] text-slate-200 leading-relaxed"
                     dangerouslySetInnerHTML={{
-                      __html: tHtml('monitor.bisect.culprit', {
-                        mod: nameOf(session!.culprit),
-                        launches: session!.history.length,
-                      }),
+                      __html: session!.pair_with
+                        ? tHtml('monitor.bisect.culpritPair', {
+                            mod: nameOf(session!.culprit),
+                            other: nameOf(session!.pair_with),
+                            launches: session!.history.length,
+                          })
+                        : tHtml('monitor.bisect.culprit', {
+                            mod: nameOf(session!.culprit),
+                            launches: session!.history.length,
+                          }),
                     }}
                   />
 

@@ -464,6 +464,14 @@ pub fn mod_health_checked(paths: &crate::vfs::StudioPaths, active: &[String], qu
             .find_map(|d| std::fs::read(d.join("console.txt")).ok())
             .map(|b| String::from_utf8_lossy(&b).into_owned());
         add_index_issues(&mut report, &catalog, active, &index, &shim_on, &package_root, session.as_deref());
+        if let Some(zomboid) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
+            let learned = crate::rules::learned::current_issues(&zomboid, &catalog);
+            // When each began and what was different then, from the brain.
+            let facts = crate::rules::learned::load(&zomboid);
+            let now = crate::rules::brain::ModsNow::of(&catalog);
+            let onset = |i: &crate::rules::learned::LearnedIssue| crate::rules::brain::error_onset(&facts, &i.mod_id, &i.key, &now);
+            add_learned_issues(&mut report, &catalog, active, &index, &learned, &crate::rules::index::dismissed(&paths.user_zomboid_dir), &onset);
+        }
         report.community = Some(crate::rules::community::summary(&paths.user_zomboid_dir));
     }
         lap("index + console read");
@@ -472,9 +480,21 @@ pub fn mod_health_checked(paths: &crate::vfs::StudioPaths, active: &[String], qu
     } else {
         let before = report.issues.clone();
         let conflicts = crate::vfs::file_conflict_states(paths, &catalog, active);
-        add_file_conflict_issues(&mut report, &conflicts);
+        // The game's own log says which mod's copy it took, when its last session loaded this list.
+        let console = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir)
+            .into_iter()
+            .find_map(|d| std::fs::read(d.join("console.txt")).ok())
+            .map(|b| String::from_utf8_lossy(&b).into_owned());
+        let seen = console.as_deref().and_then(|text| logged_file_winners(text, &catalog, active));
+        add_file_conflict_issues(&mut report, &conflicts, seen.as_ref());
         // Game functions one mod replaces after another changed them.
-        let shared = crate::overrides::shared_functions(std::path::Path::new(&paths.pz_install_dir), &catalog, active);
+        add_tiledef_issues(&mut report, &catalog, active);
+        let mut shared = crate::overrides::shared_functions(std::path::Path::new(&paths.pz_install_dir), &catalog, active);
+        // The Studio Link looks at them in the running game; what it last saw is said with them.
+        if let Some(z) = crate::load_order::mod_info::get_existing_user_zomboid_dirs(&paths.user_zomboid_dir).into_iter().next() {
+            crate::overrides::write_probe(&z, &shared);
+            crate::overrides::attach_checks(&z, &catalog, &mut shared);
+        }
         add_override_issues(&mut report, &catalog, &shared);
         found.0 = added_since(&before, &report.issues);
     }
@@ -491,8 +511,15 @@ pub fn mod_health_checked(paths: &crate::vfs::StudioPaths, active: &[String], qu
         }
         lap("security");
         // Where two active mods' Java (ZombieBuddy patches) changes the same class of the game.
-        report.issues.extend(crate::java_patches::overlap_issues(&crate::java_patches::radar(&z, &catalog, active)));
+        let radar = crate::java_patches::radar(&z, &catalog, active);
+        report.issues.extend(crate::java_patches::overlap_issues(&radar));
         lap("java patches");
+        // What a mod's Java uses of the game that this build no longer has.
+        let links = crate::java_links::read_mods(&z, std::path::Path::new(&paths.pz_install_dir), &catalog, active);
+        report.issues.extend(crate::java_links::issues(&links, radar.zombiebuddy_in_list));
+        lap("java links");
+        // Files of the game's own folder that changed while it ran.
+        report.issues.extend(crate::integrity::issues(&z));
         // Copies of Workshop mods in Zomboid/mods (by hand or by the Studio for a NoSteam server),
         // and the servers whose lists keep a copy in use.
         let servers = crate::server_manager::mod_sync::server_mod_lists(&z);
@@ -1217,7 +1244,38 @@ pub fn issues_for_script_conflicts_with_state(
 
 /// Shared files the game would load from only one mod: "pending" (not merged) and "stale"
 /// (merged, but a mod changed since) become warnings; "merged" ones are fine.
-pub fn add_file_conflict_issues(report: &mut HealthReport, conflicts: &[crate::vfs::FileConflictState]) {
+/// What the game's log says about files mods replace (`mod "X" overrides media/...`, written as
+/// each mod loads): the path (lowercase) and the id of the last mod that replaced it. Only when
+/// that session loaded the same mods as this list: else its log is about another list.
+pub fn logged_file_winners(console: &str, catalog: &ModCatalog, active: &[String]) -> Option<HashMap<String, String>> {
+    let mut loaded: HashSet<String> = HashSet::new();
+    let mut loaded_order: Vec<String> = Vec::new();
+    let mut winners: HashMap<String, String> = HashMap::new();
+    for line in console.lines() {
+        let Some(at) = line.find("> ") else { continue };
+        let rest = &line[at + 2..];
+        if let Some(id) = rest.strip_prefix("loading ") {
+            if loaded.insert(id.trim().to_string()) {
+                loaded_order.push(id.trim().to_string());
+            }
+        } else if let Some(r) = rest.strip_prefix("mod \"") {
+            if let Some((id, path)) = r.split_once("\" overrides ") {
+                winners.insert(path.trim().replace('\\', "/").to_lowercase(), id.to_string());
+            }
+        }
+    }
+    let mut wanted: Vec<String> = Vec::new();
+    for m in active.iter().filter_map(|e| catalog.resolve(e.trim())).filter(|m| m.loadability == Loadability::Loadable) {
+        if !wanted.contains(&m.id) {
+            wanted.push(m.id.clone());
+        }
+    }
+    // The same mods, in the same order: after a reorder the log is about the order before it.
+    let same_order = loaded_order.iter().filter(|id| wanted.contains(id)).cloned().collect::<Vec<_>>() == wanted;
+    (!loaded.is_empty() && !winners.is_empty() && same_order).then_some(winners)
+}
+
+pub fn add_file_conflict_issues(report: &mut HealthReport, conflicts: &[crate::vfs::FileConflictState], seen: Option<&HashMap<String, String>>) {
     let mut list = IssueList(Vec::new());
     for c in conflicts.iter().filter(|c| c.state != "merged") {
         let winner = c.mods.last().cloned().unwrap_or_default();
@@ -1238,9 +1296,28 @@ pub fn add_file_conflict_issues(report: &mut HealthReport, conflicts: &[crate::v
         fixes.push(SuggestedFix::OpenInMerger { relative_path: c.relative_path.clone() });
         let code = if c.state == "stale" { "file_conflict_stale" } else { "file_conflict" };
         list.push(Severity::Warning, code, c.mod_ids.last().map(String::as_str), message, fixes);
+        // What the game's log says it took: the same mod's copy, or another's.
+        let path_key = c.relative_path.replace('\\', "/").to_lowercase();
+        let logged = seen.and_then(|m| m.get(&path_key).or_else(|| m.iter().find(|(k, _)| k.ends_with(&path_key) || path_key.ends_with(k.as_str())).map(|(_, v)| v)));
+        let (checked_key, seen_name) = match logged {
+            Some(id) if c.mod_ids.last() == Some(id) => ("fc_seen", String::new()),
+            Some(id) => {
+                let name = c.mod_ids.iter().position(|m| m == id).and_then(|i| c.mods.get(i).cloned()).unwrap_or_else(|| id.clone());
+                ("fc_seen_other", name)
+            }
+            None => ("", String::new()),
+        };
+        if let Some(last) = list.0.last_mut() {
+            match checked_key {
+                "fc_seen" => last.message.push_str(" The game's log of its last session confirms it."),
+                "fc_seen_other" => last.message.push_str(&format!(" But the game's log of its last session says it used {}'s copy.", seen_name)),
+                _ => {}
+            }
+        }
         list.with(&[
             ("path", &c.relative_path), ("mods", &c.mods.join(" / ")), ("others", &others.join(", ")), ("winner", &winner),
             ("howKey", if c.auto_mergeable { "fc_auto" } else { "fc_manual" }),
+            ("checkedKey", checked_key), ("seenWinner", &seen_name),
         ]);
         if let Some(last) = list.0.last_mut() {
             last.related = c.mod_ids[..c.mod_ids.len().saturating_sub(1)].to_vec();
@@ -1251,16 +1328,82 @@ pub fn add_file_conflict_issues(report: &mut HealthReport, conflicts: &[crate::v
     report.warnings = report.issues.iter().filter(|i| i.severity == Severity::Warning).count();
 }
 
-/// Game functions one active mod replaces after another changed them: that change never runs.
-/// The order alone fixes it when the replacing mod can load first (the others then wrap it);
-/// else the two do the same job and one is to be chosen.
+//// Functions one active mod replaces after another changed them: that change never runs. The
+/// order alone fixes it when the replacing mod can load first (the others then wrap it); else the
+/// two do the same job and one is to be chosen. The game's own functions, and those of a mod that
+/// another mod redefines without requiring it. When the Studio Link has looked in the running
+/// game, what it saw is said too: the same version (seen), or another one (the reading was wrong).
 pub fn add_override_issues(report: &mut HealthReport, catalog: &ModCatalog, shared: &[crate::overrides::SharedFunction]) {
     let name_of = |id: &str| catalog.resolve(id).map(|m| m.name.clone()).unwrap_or_else(|| id.to_string());
     let mut list = IssueList(Vec::new());
+    // A mod's functions that one other mod replaces by the dozen (two versions of one mod both on,
+    // a mod that rewrites another): one finding for the pair, not one per function.
+    let grouped = |f: &crate::overrides::SharedFunction| f.owner.is_some() && f.winner.is_some() && f.checked.as_ref().is_none_or(|c| c.agrees);
+    let mut groups: BTreeMap<(String, Vec<String>), Vec<&crate::overrides::SharedFunction>> = BTreeMap::new();
+    for f in shared.iter().filter(|f| grouped(f)) {
+        groups.entry((f.winner.clone().unwrap_or_default(), f.cut.clone())).or_default().push(f);
+    }
+    for ((winner, cut), fs) in groups.iter().filter(|(_, fs)| fs.len() > 1) {
+        let owner_name = fs[0].owner.as_deref().map(|o| name_of(o)).unwrap_or_default();
+        let cut_names: Vec<String> = cut.iter().map(|id| name_of(id)).collect();
+        let examples: Vec<&str> = fs.iter().take(3).map(|f| f.function.as_str()).collect();
+        let same_fix = fs.iter().all(|f| f.fixed_by_moving_before.is_some() && f.fixed_by_moving_before == fs[0].fixed_by_moving_before);
+        let (fixes, how, how_key) = match fs[0].fixed_by_moving_before.as_ref().filter(|_| same_fix) {
+            Some(before) => (
+                vec![SuggestedFix::MoveBefore { mod_id: winner.clone(), before: before.clone() }],
+                format!("Loading {} before {} fixes it: they then build on its version.", name_of(winner), name_of(before)),
+                "fo_move",
+            ),
+            None => (Vec::new(), format!("Only {}'s version stays. If nothing of {} seems missing in the game, there is nothing to do; if something is, keep only one of the two on.", name_of(winner), cut_names.join(", ")), "fo_choose"),
+        };
+        let message = format!(
+            "{} replaces {} functions of {} ({}...) after {} changed them, so those changes never run. {}",
+            name_of(winner), fs.len(), owner_name, examples.join(", "), cut_names.join(", "), how
+        );
+        let severity = if fixes.is_empty() { Severity::Info } else { Severity::Warning };
+        list.push(severity, "function_overridden", Some(winner), message, fixes);
+        let before_name = fs[0].fixed_by_moving_before.as_deref().filter(|_| same_fix).map(|b| name_of(b)).unwrap_or_default();
+        list.with(&[
+            ("winner", &name_of(winner)),
+            ("count", &fs.len().to_string()),
+            ("owner", &owner_name),
+            ("examples", &examples.join(", ")),
+            ("cut", &cut_names.join(", ")),
+            ("before", &before_name),
+            ("howKey", how_key),
+            ("variant", "mod_many"),
+        ]);
+        if let Some(last) = list.0.last_mut() {
+            last.related = cut.clone();
+        }
+    }
     for f in shared {
+        if grouped(f) && groups.get(&(f.winner.clone().unwrap_or_default(), f.cut.clone())).is_some_and(|g| g.len() > 1) {
+            continue;
+        }
+        let seen = f.checked.as_ref();
+        // The game has another version than the files suggest: said as what the game has.
+        if let Some(c) = seen.filter(|c| !c.agrees) {
+            let expected = f.redefinitions.iter().rev().find(|r| c.when == "game" || crate::overrides::runs_by_menu(r));
+            let actual = c.mod_id.as_deref().map(|id| name_of(id)).unwrap_or_else(|| "the game".to_string());
+            let actual_key = if c.mod_id.is_some() { "" } else { "fo_the_game" };
+            let expected_name = expected.map(|r| name_of(&r.mod_id)).unwrap_or_else(|| "the game".to_string());
+            let place = format!("{}:{}", short_lua_path(&c.file), c.line);
+            let message = format!(
+                "In the running game, the version of {} that runs is {}'s ({}), not {}'s as their files suggest. A mod sets it later than its files show (from a function or an event of its own). Nothing to do unless something of {} seems missing in the game.",
+                f.function, actual, place, expected_name, expected_name
+            );
+            list.push(Severity::Info, "function_seen_other", c.mod_id.as_deref(), message, Vec::new());
+            list.with(&[("function", &f.function), ("actual", &actual), ("actualKey", actual_key), ("place", &place), ("expected", &expected_name)]);
+            if let Some(last) = list.0.last_mut() {
+                last.related = f.redefinitions.iter().map(|r| r.mod_id.clone()).filter(|id| Some(id.as_str()) != c.mod_id.as_deref()).collect::<BTreeSet<_>>().into_iter().collect();
+            }
+            continue;
+        }
         let Some(winner) = f.winner.as_deref() else { continue };
         let at = f.redefinitions.iter().rev().find(|r| r.mod_id == winner && !r.keeps_original);
         let place = at.map(|r| format!("{}:{}", r.file, r.line)).unwrap_or_default();
+        let reset = at.is_some_and(|r| r.reset);
         let cut_names: Vec<String> = f.cut.iter().map(|id| name_of(id)).collect();
         let (fixes, how, how_key) = match &f.fixed_by_moving_before {
             Some(before) => (
@@ -1270,18 +1413,87 @@ pub fn add_override_issues(report: &mut HealthReport, catalog: &ModCatalog, shar
             ),
             None => (Vec::new(), format!("Only {}'s version stays. If nothing of {} seems missing in the game, there is nothing to do; if something is, keep only one of the two on.", name_of(winner), cut_names.join(", ")), "fo_choose"),
         };
-        let message = format!(
-            "{} replaces the game's {} ({}) after {} changed it, so that change never runs. {}",
-            name_of(winner), f.function, place, cut_names.join(", "), how
-        );
+        let table = f.function.split('.').next().unwrap_or("").to_string();
+        let owner_name = f.owner.as_deref().map(|o| name_of(o)).unwrap_or_default();
+        let whose = if f.owner.is_some() { format!("{}'s", owner_name) } else { "the game's".to_string() };
+        let what = if reset {
+            format!("{} makes {} new ({}) after {} changed {} on it, which wipes that change", name_of(winner), table, place, cut_names.join(", "), f.function)
+        } else {
+            format!("{} replaces {} {} ({}) after {} changed it, so that change never runs", name_of(winner), whose, f.function, place, cut_names.join(", "))
+        };
+        let seen_text = if seen.is_some() { " Seen in the running game: that is the version it has." } else { "" };
+        let message = format!("{}. {}{}", what, how, seen_text);
         // With the order as a fix it is worth doing; without one, the text says when to act (only if
         // something is missing in the game), so it is something to know, not a to-do.
         let severity = if fixes.is_empty() { Severity::Info } else { Severity::Warning };
         list.push(severity, "function_overridden", Some(winner), message, fixes);
         let before_name = f.fixed_by_moving_before.as_deref().map(|b| name_of(b)).unwrap_or_default();
-        list.with(&[("winner", &name_of(winner)), ("function", &f.function), ("place", &place), ("cut", &cut_names.join(", ")), ("before", &before_name), ("howKey", how_key)]);
+        let variant = if reset { "reset" } else if f.owner.is_some() { "mod" } else { "" };
+        list.with(&[
+            ("winner", &name_of(winner)),
+            ("function", &f.function),
+            ("place", &place),
+            ("cut", &cut_names.join(", ")),
+            ("before", &before_name),
+            ("howKey", how_key),
+            ("owner", &owner_name),
+            ("table", &table),
+            ("variant", variant),
+            ("checkedKey", if seen.is_some() { "fo_seen" } else { "" }),
+        ]);
         if let Some(last) = list.0.last_mut() {
+            if variant.is_empty() {
+                last.params.remove("variant");
+            }
             last.related = f.cut.clone();
+        }
+    }
+    report.issues.extend(list.0);
+}
+
+/// `client/ISUI/ISFoo.lua` from a full path the game reported (or the path as it is).
+fn short_lua_path(file: &str) -> String {
+    let n = file.replace('\\', "/");
+    match n.to_lowercase().rfind("/media/lua/") {
+        Some(at) => n[at + "/media/lua/".len()..].to_string(),
+        None => n,
+    }
+}
+
+/// Two active mods that file their tiles under the same tiledef number with different sheets:
+/// the game puts both sheets' tiles in one place, so one mod's tiles show as the other's (wrong
+/// walls, floors or furniture), or go missing. The same sheet shipped by two mods is the same
+/// tiles: no clash.
+pub fn add_tiledef_issues(report: &mut HealthReport, catalog: &ModCatalog, active: &[String]) {
+    let mut by_number: BTreeMap<u32, Vec<(String, String, String)>> = BTreeMap::new();
+    let mut seen = HashSet::new();
+    for entry in active {
+        let Some(m) = catalog.resolve(entry.trim()) else { continue };
+        if m.loadability != Loadability::Loadable || !seen.insert(m.id.clone()) {
+            continue;
+        }
+        for (file, number) in &m.info.tiledefs {
+            by_number.entry(*number).or_default().push((m.id.clone(), m.name.clone(), file.clone()));
+        }
+    }
+    let mut list = IssueList(Vec::new());
+    for (number, users) in by_number {
+        let files: BTreeSet<String> = users.iter().map(|u| u.2.to_lowercase()).collect();
+        let mods: BTreeSet<&str> = users.iter().map(|u| u.0.as_str()).collect();
+        if mods.len() < 2 || files.len() < 2 {
+            continue;
+        }
+        let names: Vec<String> = users.iter().map(|u| format!("{} ({})", u.1, u.2)).collect::<BTreeSet<_>>().into_iter().collect();
+        let message = format!(
+            "{} file their tiles under the same number, {}. The game puts both sets of tiles in one place, so some show as the other mod's (wrong walls, floors or furniture) or go missing. Keep one of them on, or ask an author to change the number.",
+            names.join(" and "),
+            number
+        );
+        let first = users[0].0.clone();
+        list.push(Severity::Warning, "tiledef_clash", Some(&first), message, Vec::new());
+        list.with(&[("mods", &names.join(", ")), ("number", &number.to_string())]);
+        if let Some(last) = list.0.last_mut() {
+            last.related = mods.iter().filter(|m| **m != first).map(|m| m.to_string()).collect();
         }
     }
     report.issues.extend(list.0);
@@ -1877,6 +2089,64 @@ fn unneeded_issue(
     list.push(Severity::Warning, "community_unneeded", Some(id), message, fixes);
     list.with(&[("mod", mod_name), ("since", &u.since), ("by", &by), ("note", &note), ("whoKey", if by.is_empty() { "un_game" } else { "un_mod" }), ("requiredBy", &required_by.join(", ")), ("safeKey", safe_key)]);
     list.0.pop()
+}
+
+/// What this PC learned from its own sessions (`rules::learned`): an error an active mod gave in
+/// three or more of them, with this version and on this build, and still giving it. What the
+/// mod index the app is built with already says about the mod is left to it.
+pub fn add_learned_issues(
+    report: &mut HealthReport,
+    catalog: &ModCatalog,
+    active: &[String],
+    index: &crate::rules::index::CommunityIndex,
+    learned: &[crate::rules::learned::LearnedIssue],
+    dismissed: &[crate::rules::index::Dismissed],
+    onset: &dyn Fn(&crate::rules::learned::LearnedIssue) -> Option<crate::rules::brain::Onset>,
+) {
+    let active_ids: BTreeSet<String> = active
+        .iter()
+        .map(|e| resolve_entry(catalog, e.trim()).map(|m| m.id.clone()).unwrap_or_else(|| e.trim().to_string()))
+        .collect();
+    let name = |id: &str| catalog.get(id).map(describe).unwrap_or_else(|| id.to_string());
+    let mut list = IssueList(Vec::new());
+    for issue in learned.iter().filter(|i| !i.closed && active_ids.contains(&i.mod_id)) {
+        if dismissed.iter().any(|d| d.mod_id == issue.mod_id && d.title == issue.key) {
+            continue;
+        }
+        let installed = catalog.get(&issue.mod_id).and_then(|m| m.info.mod_version.as_deref());
+        if index.get(&issue.mod_id).is_some_and(|r| crate::rules::learned::index_says_it(issue, r, installed)) {
+            continue;
+        }
+        let evidence = issue.file.as_deref().map(|f| match issue.line { Some(l) => format!(" ({}:{})", f, l), None => format!(" ({})", f) }).unwrap_or_default();
+        let last = chrono::DateTime::<chrono::Local>::from(std::time::UNIX_EPOCH + std::time::Duration::from_secs(issue.last_seen)).format("%Y-%m-%d").to_string();
+        let (seen, on) = (issue.seen.to_string(), issue.on.to_string());
+        list.push(
+            Severity::Warning,
+            "learned_issue",
+            Some(&issue.mod_id),
+            format!(
+                "Learned on this PC: {} gave the same error in {} of {} of your sessions with this version (the last on {}): {}{}. If it gets in your way, switch it off until its author updates it; once it no longer happens, the button hides it",
+                name(&issue.mod_id), seen, on, last, issue.title, evidence
+            ),
+            vec![SuggestedFix::DisableMod { mod_id: issue.mod_id.clone() }, SuggestedFix::DismissKnownIssue { mod_id: issue.mod_id.clone(), title: issue.key.clone() }],
+        );
+        let card_params = serde_json::to_string(&issue.params).unwrap_or_default();
+        // what changed when it began, with the names of the mods it names
+        let onset_json = onset(issue)
+            .map(|o| {
+                let names: BTreeMap<String, String> = o.changes.iter().filter(|c| !c.mod_id.is_empty()).map(|c| (c.mod_id.clone(), name(&c.mod_id))).collect();
+                serde_json::json!({ "onset": o, "names": names }).to_string()
+            })
+            .unwrap_or_default();
+        list.with(&[("mod", &name(&issue.mod_id)), ("seen", &seen), ("on", &on), ("last", &last), ("what", &issue.title), ("evidence", &evidence),
+            ("cardCode", &issue.code), ("cardParams", &card_params), ("version", &issue.version), ("sample", &issue.sample), ("onsetJson", &onset_json)]);
+    }
+    for issue in list.0 {
+        if issue.severity == Severity::Warning {
+            report.warnings += 1;
+        }
+        report.issues.push(issue);
+    }
 }
 
 pub fn add_index_issues(
@@ -2495,6 +2765,20 @@ pub struct SortResult {
     pub moved: Vec<String>,
     /// Entries caught in a require/loadModAfter/loadModBefore cycle (kept in their old order).
     pub cycle: Vec<String>,
+    /// Why: each rule the old order broke, now kept. The rest moved only to make room.
+    #[serde(default)]
+    pub reasons: Vec<SortReason>,
+}
+
+/// One rule the old order broke: `mod_id` now loads after (or, with load_before, before) `other`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SortReason {
+    pub mod_id: String,
+    pub other: String,
+    /// `require` (it needs the other), `load_after` / `load_before` (its mod.info asks),
+    /// `rule` (the player's own rule), `index` (the Studio's mod index), `package` (a Studio
+    /// package goes last, over what it merges).
+    pub kind: String,
 }
 
 /// Studio merge packages go last so they override the mods they merge.
@@ -2519,10 +2803,15 @@ pub fn sort_load_order(catalog: &ModCatalog, order: &[String]) -> SortResult {
     let mut successors: Vec<Vec<usize>> = vec![Vec::new(); ids.len()];
     let mut in_degree = vec![0usize; ids.len()];
     let mut edges: HashSet<(usize, usize)> = HashSet::new();
-    let mut add_edge = |before: usize, after: usize| {
+    // The rules the old order breaks: (the mod whose rule, the other, kind).
+    let mut broken: Vec<(usize, usize, &'static str)> = Vec::new();
+    let mut add_edge = |before: usize, after: usize, owner: usize, kind: &'static str| {
         if before != after && edges.insert((before, after)) {
             successors[before].push(after);
             in_degree[after] += 1;
+            if before > after {
+                broken.push((owner, if owner == after { before } else { after }, kind));
+            }
         }
     };
     for &i in &regular {
@@ -2530,14 +2819,19 @@ pub fn sort_load_order(catalog: &ModCatalog, order: &[String]) -> SortResult {
             continue; // duplicate entry: only the first one carries constraints
         }
         let Some(m) = catalog.get(&ids[i]) else { continue };
-        for dep in m.info.require.iter().chain(&m.info.load_after) {
+        for dep in &m.info.require {
             if let Some(&d) = index_of.get(dep.as_str()) {
-                add_edge(d, i);
+                add_edge(d, i, i, "require");
+            }
+        }
+        for dep in &m.info.load_after {
+            if let Some(&d) = index_of.get(dep.as_str()) {
+                add_edge(d, i, i, "load_after");
             }
         }
         for later in &m.info.load_before {
             if let Some(&l) = index_of.get(later.as_str()) {
-                add_edge(i, l);
+                add_edge(i, l, i, "load_before");
             }
         }
     }
@@ -2561,7 +2855,21 @@ pub fn sort_load_order(catalog: &ModCatalog, order: &[String]) -> SortResult {
 
     let new_order: Vec<String> = sorted.iter().map(|&i| order[i].clone()).collect();
     let moved = sorted.iter().enumerate().filter(|(pos, &i)| *pos != i).map(|(_, &i)| order[i].clone()).collect();
-    SortResult { order: new_order, moved, cycle: cycle.iter().map(|&i| order[i].clone()).collect() }
+    let in_cycle: HashSet<usize> = cycle.iter().copied().collect();
+    let mut reasons: Vec<SortReason> = broken
+        .into_iter()
+        .filter(|(owner, other, _)| !in_cycle.contains(owner) && !in_cycle.contains(other))
+        .map(|(owner, other, kind)| SortReason { mod_id: order[owner].clone(), other: order[other].clone(), kind: kind.to_string() })
+        .collect();
+    // A Studio package that was not already after every other mod.
+    for &p in &packages {
+        if let Some(&last_regular) = regular.iter().max() {
+            if p < last_regular {
+                reasons.push(SortReason { mod_id: order[p].clone(), other: order[last_regular].clone(), kind: "package".to_string() });
+            }
+        }
+    }
+    SortResult { order: new_order, moved, cycle: cycle.iter().map(|&i| order[i].clone()).collect(), reasons }
 }
 
 #[cfg(test)]
@@ -2909,6 +3217,43 @@ name=Off Noisy
     }
 
     #[test]
+    fn the_games_log_says_which_copy_it_took_only_for_the_same_list() {
+        let f = fixture("logwin");
+        let ws = f.root.join("workshop");
+        write_mod(&ws.join("1/mods/A/42"), "id=A\n");
+        write_mod(&ws.join("2/mods/B/42"), "id=B\n");
+        let (w, z) = paths(&f);
+        let cat = build_catalog(&w, &z, Some(42_021));
+        let log = "LOG  : Mod          f:0> loading A\nLOG  : Mod          f:0> mod \"A\" overrides media/lua/client/X.lua\nLOG  : Mod          f:0> loading B\nLOG  : Mod          f:0> mod \"B\" overrides media/lua/client/X.lua\n";
+        let both = vec!["A".to_string(), "B".to_string()];
+        let seen = logged_file_winners(log, &cat, &both).unwrap();
+        assert_eq!(seen.get("media/lua/client/x.lua").map(String::as_str), Some("B"), "the last mod that replaced it");
+        let more = vec!["A".to_string(), "B".to_string(), "C".to_string()];
+        write_mod(&ws.join("3/mods/C/42"), "id=C\n");
+        let cat = build_catalog(&w, &z, Some(42_021));
+        assert!(logged_file_winners(log, &cat, &more).is_none(), "that session did not load C: its log is about another list");
+    }
+
+    #[test]
+    fn two_mods_with_one_tiledef_number_clash_unless_it_is_the_same_sheet() {
+        let f = fixture("tiledef");
+        let ws = f.root.join("workshop");
+        write_mod(&ws.join("1/mods/Walls/42"), "id=Walls\ntiledef=walls_tiles 7811\n");
+        write_mod(&ws.join("2/mods/Floors/42"), "id=Floors\ntiledef=floor_tiles 7811\n");
+        write_mod(&ws.join("3/mods/WallsCopy/42"), "id=WallsCopy\ntiledef=walls_tiles 7811\n");
+        write_mod(&ws.join("4/mods/Other/42"), "id=Other\ntiledef=other 9000\n");
+        let (w, z) = paths(&f);
+        let cat = build_catalog(&w, &z, Some(42_021));
+        let run = |active: &[&str]| {
+            let mut report = HealthReport { game_version: None, install: None, community: None, active_count: 0, errors: 0, warnings: 0, issues: vec![], incomplete: vec![] };
+            add_tiledef_issues(&mut report, &cat, &active.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+            report.issues.into_iter().map(|i| (i.code, i.params.get("number").cloned().unwrap_or_default())).collect::<Vec<_>>()
+        };
+        assert_eq!(run(&["Walls", "Floors", "Other"]), vec![("tiledef_clash".to_string(), "7811".to_string())]);
+        assert!(run(&["Walls", "WallsCopy", "Other"]).is_empty(), "the same sheet twice is the same tiles");
+    }
+
+    #[test]
     fn sort_moves_only_what_the_rules_require() {
         let f = fixture("sort");
         let ws = f.root.join("workshop");
@@ -2933,6 +3278,13 @@ name=Off Noisy
         assert!(pos("Early") < pos("Alpha"));
         assert_eq!(r.order.last().unwrap(), "Z_PZModStudio_Pack", "Studio packages go last");
         assert!(r.cycle.is_empty());
+        // Why: each rule the old order broke, by whose rule it is.
+        let why = |id: &str| r.reasons.iter().find(|x| x.mod_id == id).map(|x| (x.other.as_str(), x.kind.as_str()));
+        assert_eq!(why("UsesLib"), Some(("Lib", "require")));
+        assert_eq!(why("Late"), Some(("Zed", "load_after")));
+        assert_eq!(why("Early"), Some(("Alpha", "load_before")));
+        assert_eq!(why("Z_PZModStudio_Pack").map(|w| w.1), Some("package"));
+        assert_eq!(r.reasons.len(), 4, "the rest moved only to make room");
 
         // An already valid order is left alone.
         let valid = list(&["Lib", "UsesLib", "Zed", "Late", "Early", "Alpha"]);
@@ -2987,6 +3339,7 @@ name=Off Noisy
         add_file_conflict_issues(
             &mut report,
             &[state("a.lua", "pending", true), state("b.lua", "pending", false), state("c.lua", "merged", true), state("d.lua", "stale", true)],
+            None,
         );
         assert_eq!(report.warnings, 3, "merged files are not reported");
         let a = report.issues.iter().find(|i| i.message.contains("a.lua")).unwrap();

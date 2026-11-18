@@ -12,7 +12,7 @@
   "issues": [
     {
       "title": "Its check for walls around a room fails on Build 42.22",
-      "note": "It asks a tile for its wall flags with get(IsoFlagType...), which 42.22 does not take (the game's own code uses has): \"No implementation found for function: get(...PropertyContainer..., IsoFlagType WallN)\". That check stops with an error each time; the rest of the mod goes on. Nothing to fix from here: its author has to change those calls (12 of them).",
+      "note": "It asks a tile for its wall flags with get(IsoFlagType...), which 42.22 does not take (the game's own code uses has): \"No implementation found for function: get(...PropertyContainer..., IsoFlagType WallN)\". That check (also reached from its heat simulation, logged as checkpoint) stops with an error each time; the rest of the mod goes on. Nothing to fix from here: its author has to change those calls (12 of them).",
       "file": "media/lua/client/RC_RoomLogic/RC_RoomLogic.lua",
       "line": 439,
       "log": "ERROR: General      f:3> Lua((MOD:Realistic Temperature)).edgeHasBlockingOnSquare> Exception thrown",
@@ -21,7 +21,7 @@
       },
       "build": "42.22",
       "date": "2026-11-17",
-      "source": "PZ Mod Studio, game log on 42.22.2 (8 sessions, 2026-11-16 and 17); the 2.4.0 copy updated 2026-11-17 14:56 still has the call at line 439",
+      "source": "PZ Mod Studio, game log: in 8 of 14 sessions with the mod on 42.22.2 (2026-11-16 and 17); the 2.4.0 copy Steam installed on 2026-11-17 still has the call at line 439 (12 calls in two files)",
       "status": "verified",
       "mod_versions": [
         "2.4.0"

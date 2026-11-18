@@ -71,15 +71,15 @@ When a new game session starts, the cards of the last one are cleared. **Discard
 
 For problems the log does not name: a freeze, a recipe that never appears, a save that will not open.
 
-1. Open the panel and press **Start halving the list**, then confirm.
-2. Half of your suspects are switched on. Mods that another mod requires stay on in every round, so nothing breaks for that reason.
+1. Open the panel. If the problem does not happen every time, tick **Does not happen every time**. If the log shows some text of the error, type it: after each test game the app reads the log and suggests the answer. Press **Start halving the list**, then confirm.
+2. Part of your suspects is switched on; the ones this PC already suspects (sessions that went wrong, errors that repeat) are tried first. Mods that another mod requires stay on in every round, so nothing breaks for that reason.
 3. Press **Launch the game**, play the way you did when it happened, and close it.
 4. Answer **It still happens** or **It is gone**. The list is halved again. The badge shows the round and how many launches are left (about 8 for a hundred mods).
 5. When one mod is left, play once more to confirm it.
 
 At the end the panel names the mod, shows any lines the log has about it (with **Patch File.lua** when a line names a file, and **Show its lines in the console**), and offers **Patch a file of it**, **Switch it off** or **Keep it on**. Your original list is put back whichever way the hunt ends. **Stop and put my list back** ends it early.
 
-If no single mod is to blame, the panel says why: it may take two mods together, or be one of the required mods, or not be caused by a mod at all.
+If the last mod does not do it on its own, the hunt goes on by itself: it keeps that mod on and looks for the other mod that does it together with it, then names the pair. If it finds neither a mod nor a pair, the panel says why: one of the required mods, more than two mods, or not a mod at all.
 
 ## Good to know
 

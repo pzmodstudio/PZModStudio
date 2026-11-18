@@ -177,14 +177,31 @@ local function writeFavourites(favs)
 end
 
 --- What the app says was updated since the last session (and what Steam has waiting).
+-- The newest change notes of each updated mod ({ { date, text } }) and whether its update may
+-- break a save ("breaks") or is worth reading first ("read"), from the same file.
+local updateNotes, updateRisks = {}, {}
+
 local function readUpdated()
     local updated = {}
+    updateNotes, updateRisks = {}, {}
     local file = getFileReader(UPDATED_FILE, false)
     if not file then return updated end
     local line = file:readLine()
     while line ~= nil do
-        local key, id = string.match(line, "^(%a+)=(.+)$")
-        if key == "updated" or key == "waiting" then updated[plainId(id)] = key end
+        local key, rest = string.match(line, "^(%a+)=(.+)$")
+        if key == "updated" or key == "waiting" then
+            updated[plainId(rest)] = key
+        elseif key == "note" then
+            local id, date, note = string.match(rest, "^([^\t]+)\t([^\t]*)\t(.*)$")
+            if id then
+                id = plainId(id)
+                updateNotes[id] = updateNotes[id] or {}
+                table.insert(updateNotes[id], { date = date, text = note })
+            end
+        elseif key == "risk" then
+            local id, level = string.match(rest, "^([^\t]+)\t(%a+)$")
+            if id then updateRisks[plainId(id)] = level end
+        end
         line = file:readLine()
     end
     file:close()
@@ -1233,6 +1250,100 @@ function Screen:openMapOrder()
     ui:bringToTop()
 end
 
+-- ------------------------------------------------------------------ server lines
+
+--- Mods=, WorkshopItems= and Map= of the mods that are on in the list being edited, as a
+--- dedicated server's settings file (Zomboid/Server/<name>.ini) has them: the mods in the order
+--- Accept would write (each after what it requires), their Workshop items once each, and the map
+--- folders in the map order (the one chosen here, else the game's), then the game's own map
+--- last. The Link itself stays out: it is for the player's game, not the server's. Mods with no
+--- Workshop item are named on a comment line, for the server's own mods folder.
+function Screen:serverLines()
+    local ids, placed = {}, {}
+    local function place(id)
+        local plain = plainId(id)
+        if placed[plain] or not self.on[plain] then return end
+        placed[plain] = true
+        local mod = self.byId[plain]
+        if mod then
+            for _, req in ipairs(mod.requires) do
+                if self.byId[req] then place(self.byId[req].gameId) end
+            end
+        end
+        if plain ~= Link.SELF_ID then table.insert(ids, plain) end
+    end
+    for _, id in ipairs(self.order) do place(id) end
+    if #ids == 0 then return nil end
+    local items, seenItem, localOnly = {}, {}, {}
+    for _, id in ipairs(ids) do
+        local mod = self.byId[id]
+        local ws = mod and mod.workshop or ""
+        if ws ~= "" and ws ~= "0" then
+            if not seenItem[ws] then
+                seenItem[ws] = true
+                table.insert(items, ws)
+            end
+        else
+            table.insert(localOnly, id)
+        end
+    end
+    -- The map folders of the mods that are on, in the map order first.
+    local folders, ofMods, seenFolder = {}, {}, {}
+    for _, id in ipairs(ids) do
+        local ok, list = pcall(getMapFoldersForMod, id)
+        if ok and list then
+            for i = 0, list:size() - 1 do
+                local f = tostring(list:get(i))
+                if not ofMods[f] then
+                    ofMods[f] = true
+                    table.insert(folders, f)
+                end
+            end
+        end
+    end
+    local maps = {}
+    local order = self.mapOrder
+    if not order then
+        order = {}
+        pcall(function()
+            local list = ActiveMods.getById("default"):getMapOrder()
+            for i = 0, list:size() - 1 do table.insert(order, tostring(list:get(i))) end
+        end)
+    end
+    for _, f in ipairs(order) do
+        if ofMods[f] and not seenFolder[f] then
+            seenFolder[f] = true
+            table.insert(maps, f)
+        end
+    end
+    for _, f in ipairs(folders) do
+        if not seenFolder[f] then
+            seenFolder[f] = true
+            table.insert(maps, f)
+        end
+    end
+    local mapCount = #maps
+    table.insert(maps, "Muldraugh, KY")
+    local lines = {
+        "Mods=" .. table.concat(ids, ";"),
+        "WorkshopItems=" .. table.concat(items, ";"),
+        "Map=" .. table.concat(maps, ";"),
+    }
+    if #localOnly > 0 then table.insert(lines, text("modsServerLocal", table.concat(localOnly, ", "))) end
+    return table.concat(lines, "\n") .. "\n", #ids, #items, mapCount
+end
+
+function Screen:copyServerLines()
+    local ok, lines, mods, items, maps = pcall(self.serverLines, self)
+    if not ok then
+        print("[StudioLink] the server lines failed: " .. tostring(lines))
+        return self:say(text("modsServerFailed"))
+    end
+    if not lines then return self:say(text("modsServerNone")) end
+    local copied = pcall(function() Clipboard.setClipboard(lines) end)
+    self:say(copied and text("modsServerCopied", mods, items, maps) or text("modsServerFailed"))
+end
+
 -- ------------------------------------------------------------------ Mod Options
 
 --- The game's options page of a mod (B42 Mod Options), when it registered one: only mods that
@@ -1698,6 +1809,16 @@ function Screen:select(mod, groupName)
     if not mod.available then line(" <RGB:1,0.6,0.3> " .. text("modsCannotTurnOn") .. " <RGB:1,1,1> <LINE> <LINE> ") end
     if self.updated[mod.id] == "updated" then line(" <RGB:0.35,0.65,0.98> " .. text("modsUpdatedLong") .. " <RGB:1,1,1> <LINE> <LINE> ") end
     if self.updated[mod.id] == "waiting" then line(" <RGB:0.98,0.75,0.14> " .. text("modsWaitingLong") .. " <RGB:1,1,1> <LINE> <LINE> ") end
+    -- What its author wrote about the update, and whether it may break a save (with the app).
+    if self.updated[mod.id] and updateRisks[mod.id] == "breaks" then line(" <RGB:1,0.45,0.45> " .. text("modsUpdateBreaks") .. " <RGB:1,1,1> <LINE> <LINE> ") end
+    if self.updated[mod.id] and updateRisks[mod.id] == "read" then line(" <RGB:1,0.8,0.35> " .. text("modsUpdateRead") .. " <RGB:1,1,1> <LINE> <LINE> ") end
+    if self.updated[mod.id] and updateNotes[mod.id] then
+        line(" <RGB:0.58,0.64,0.72> " .. text("modsUpdateNotes") .. " <RGB:1,1,1> <LINE> ")
+        for _, n in ipairs(updateNotes[mod.id]) do
+            line(" <RGB:0.7,0.75,0.85> " .. (n.date ~= "" and (n.date .. " -") or "-") .. " <RGB:0.9,0.9,0.92> " .. n.text .. " <RGB:1,1,1> <LINE> ")
+        end
+        line(" <LINE> ")
+    end
     if #mod.requires > 0 then
         line(" <RGB:0.58,0.64,0.72> " .. text("modsRequires") .. " <RGB:1,1,1> <LINE> ")
         for _, req in ipairs(mod.requires) do
@@ -2063,14 +2184,17 @@ function Screen:createChildren()
     self.undoButton = button(self, gs:getRight() + 16, fy, measure(UIFont.Small, text("modsUndo")) + 26, bh, text("modsUndo"), function(screen) screen:undo() end)
     self.redoButton = button(self, self.undoButton:getRight() + 6, fy, measure(UIFont.Small, text("modsRedo")) + 26, bh, text("modsRedo"), function(screen) screen:redo() end)
     self.mapOrderButton = button(self, self.redoButton:getRight() + 16, fy, measure(UIFont.Small, text("modsMapOrder")) + 26, bh, text("modsMapOrder"), function(screen) screen:openMapOrder() end)
+    -- The mods that are on as a server's Mods= / WorkshopItems= / Map= lines.
+    self.serverButton = button(self, self.mapOrderButton:getRight() + 6, fy, measure(UIFont.Small, text("modsServerLines")) + 26, bh, text("modsServerLines"), function(screen) screen:copyServerLines() end)
+    self.serverButton.tooltip = text("modsServerLinesTip")
     -- With PZ Mod Studio: take what it changed (or send what changed here), and open it.
     if Link.appInstalled() then
-        self.syncButton = button(self, self.mapOrderButton:getRight() + 16, fy, measure(UIFont.Small, text("modsSync")) + 26, bh, text("modsSync"), function(screen) screen:sync() end)
+        self.syncButton = button(self, self.serverButton:getRight() + 16, fy, measure(UIFont.Small, text("modsSync")) + 26, bh, text("modsSync"), function(screen) screen:sync() end)
         self.syncButton.tooltip = text("modsSyncTip")
         self.openAppButton = button(self, self.syncButton:getRight() + 6, fy, measure(UIFont.Small, text("modsOpenApp")) + 26, bh, text("modsOpenApp"), function(screen) screen:openApp() end)
     elseif not Link.inviteHidden() then
         -- Without the app (and its invitation not hidden): where to get it.
-        self.getAppButton = button(self, self.mapOrderButton:getRight() + 16, fy, measure(UIFont.Small, text("modsGetApp")) + 26, bh, text("modsGetApp"), function(screen)
+        self.getAppButton = button(self, self.serverButton:getRight() + 16, fy, measure(UIFont.Small, text("modsGetApp")) + 26, bh, text("modsGetApp"), function(screen)
             screen:say(Link.copyDownloadLink() and text("modsGetAppCopied", Link.DOWNLOAD_URL) or text("modsGetAppFailed", Link.DOWNLOAD_URL))
         end)
         self.getAppButton.tooltip = text("modsGetAppTip")
@@ -2083,7 +2207,7 @@ function Screen:createChildren()
     if #applies > 0 then
         local label = text("modsUndoApply")
         local w = measure(UIFont.Small, label) + 26
-        local x, y = (self.openAppButton or self.getAppButton or self.mapOrderButton):getRight() + 16, fy
+        local x, y = (self.openAppButton or self.getAppButton or self.serverButton):getRight() + 16, fy
         if x + w > self.width - pad - 470 then x, y = sx - w - 10, sy end
         self.undoApplyButton = button(self, x, y, w, bh, label, function(screen) screen:undoApply() end)
         self.undoApplyButton.tooltip = text("modsUndoApplyTip", Link.ago(math.max(0, Link.now() - applies[#applies].at)), #applies)

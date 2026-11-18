@@ -32,6 +32,22 @@ Tocá **Activar (1 clic)** en una tarjeta. El Studio entonces:
 
 Si un mod del perfil necesita un agente Java en el archivo de inicio del juego (Zombie Buddy, por ejemplo), primero aparece una ventana con lo que sale o vuelve a ese archivo. Tocá **Activar ...** para seguir. Si el juego está abierto, esa parte espera a que se cierre. Antes se guarda una copia del archivo de inicio.
 
+## Aislar este perfil
+
+**Aislar este perfil** deja aparte, para ese perfil:
+
+- sus **partidas** de un jugador;
+- las **opciones del juego**: gráficos, sonido y teclas;
+- la **configuración de los mods**: lo que cada mod guarda en la carpeta Zomboid (sus opciones, sus ajustes, sus datos).
+
+Con el perfil activo el juego usa solo lo suyo, y con otro perfil, lo de ese (o lo compartido, si el otro no está aislado). Al aislarlo elegís cuáles de las partidas compartidas se lleva; el resto queda compartido. Las opciones y la configuración de los mods empiezan con una **copia** de las que tenés ahora, así que el perfil arranca igual que antes y los otros perfiles conservan las suyas.
+
+Los **mods en sí son los mismos para todos los perfiles**: no se copian ni se mueven, y no hay que instalar nada de nuevo. Que un mod (o una parte de un mod) esté prendido en un perfil y apagado en otro funciona como siempre. Tampoco se separan las partidas de servidores (`Saves/Multiplayer`), los registros del juego, los servidores, ni los archivos de la app y del Link.
+
+Al cambiar de perfil la app pone cada cosa en su lugar con un renombre, sin copiar nada, y siempre con el juego cerrado. Lo de los otros perfiles espera en `Zomboid/PZModStudio_ProfileSaves`. Si la PC se apaga a mitad de un cambio, la app lo termina la próxima vez que abre.
+
+**Dejar de aislar** junta sus partidas con las compartidas y vuelve a poner las opciones y la configuración compartidas; las del perfil se guardan en `Zomboid/PZModStudio_Backups/ProfileSettings`, sin pisar nada. Borrar el perfil hace lo mismo, así que nunca se pierde una partida ni un ajuste.
+
 ## Editar, compartir y borrar
 
 - El botón del lápiz (**Renombrar este perfil**) abre **Editar perfil**: cambiá el nombre, la descripción y la **Build del juego**. Dejá la build en **La última jugada** o fijá **Build 41** / **Build 42**. Con una build fijada, el Studio pregunta antes de iniciar este perfil en otra build, aun antes de haberlo jugado. Tocá **Guardar cambios**.

@@ -715,3 +715,155 @@ mod tests {
         println!("Unsubscribing again: {:?}", set_subscriptions(&dir, &ids, false).unwrap());
     }
 }
+
+// ------------------------------------------------------------------ Workshop search
+
+type CreateQuery = unsafe extern "C" fn(*mut c_void, i32, i32, u32, u32, u32) -> u64;
+type QuerySetText = unsafe extern "C" fn(*mut c_void, u64, *const c_char) -> bool;
+type QuerySetU32 = unsafe extern "C" fn(*mut c_void, u64, u32) -> bool;
+type QuerySetBool = unsafe extern "C" fn(*mut c_void, u64, bool) -> bool;
+type QuerySend = unsafe extern "C" fn(*mut c_void, u64) -> u64;
+type QueryResult = unsafe extern "C" fn(*mut c_void, u64, u32, *mut c_void) -> bool;
+type QueryPreview = unsafe extern "C" fn(*mut c_void, u64, u32, *mut c_char, u32) -> bool;
+type QueryStatistic = unsafe extern "C" fn(*mut c_void, u64, u32, i32, *mut u64) -> bool;
+type QueryRelease = unsafe extern "C" fn(*mut c_void, u64) -> bool;
+
+/// `SteamUGCDetails_t` (SDK 1.5x, 8-byte packing): where each field this reads starts.
+mod details {
+    pub const SIZE: usize = 16384;
+    pub const ID: usize = 0;
+    pub const RESULT: usize = 8;
+    pub const TITLE: (usize, usize) = (24, 129);
+    pub const DESCRIPTION: (usize, usize) = (153, 8000);
+    pub const CREATED: usize = 8168;
+    pub const UPDATED: usize = 8172;
+    pub const BANNED: usize = 8184;
+    pub const TAGS: (usize, usize) = (8187, 1025);
+    pub const FILE_SIZE: usize = 9492;
+}
+
+/// Steam's own ranking for each sort (EUGCQuery).
+fn ugc_query(sort: crate::workshop::WorkshopSort) -> i32 {
+    use crate::workshop::WorkshopSort::*;
+    match sort {
+        TopRated => 0,
+        Newest => 1,
+        Trending => 3,
+        Relevance => 11,
+        MostSubscribed => 12,
+        RecentlyUpdated => 19,
+    }
+}
+
+fn le_u32(b: &[u8], at: usize) -> u32 {
+    u32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
+}
+
+/// Searches the Workshop through the running Steam client (no key, no web page): the same results
+/// and numbers Steam itself has, 50 a page. Steam shows the user as playing Project Zomboid for the
+/// second or two it takes. Collections are not searched this way.
+pub fn search_workshop(pz_install_dir: &str, q: &crate::workshop::BrowseQuery) -> Result<crate::workshop::WorkshopSearchResult, String> {
+    use crate::workshop::WorkshopSort;
+    let _only_one = STEAM_LOCK.lock().map_err(|_| "Steam is busy with another request.".to_string())?;
+    let session = SteamSession::open(pz_install_dir)?;
+    let sym = |name: &str| ffi::symbol(session.module, name);
+    let text = q.text.as_deref().map(str::trim).filter(|t| !t.is_empty());
+    let sort = match (text.is_some(), q.sort.unwrap_or(WorkshopSort::Trending)) {
+        (true, _) => WorkshopSort::Relevance,
+        (false, WorkshopSort::Relevance) => WorkshopSort::Trending,
+        (false, s) => s,
+    };
+    let page = q.page.max(1);
+    unsafe {
+        let create: CreateQuery = std::mem::transmute(sym("SteamAPI_ISteamUGC_CreateQueryAllUGCRequestPage")?);
+        let handle = create(session.ugc, ugc_query(sort), 0, APP_ID, APP_ID, page);
+        if handle == u64::MAX {
+            return Err("Steam would not start the search.".to_string());
+        }
+        let release: QueryRelease = std::mem::transmute(sym("SteamAPI_ISteamUGC_ReleaseQueryUGCRequest")?);
+        let result = (|| -> Result<crate::workshop::WorkshopSearchResult, String> {
+            if let Some(t) = text {
+                let set: QuerySetText = std::mem::transmute(sym("SteamAPI_ISteamUGC_SetSearchText")?);
+                let t = c_string(t);
+                set(session.ugc, handle, t.as_ptr());
+            }
+            let add_tag: QuerySetText = std::mem::transmute(sym("SteamAPI_ISteamUGC_AddRequiredTag")?);
+            for tag in crate::workshop::tag_filters_of(q.build.as_deref(), q.category.as_deref()) {
+                let tag = c_string(&tag);
+                add_tag(session.ugc, handle, tag.as_ptr());
+            }
+            if sort == WorkshopSort::Trending {
+                let days: QuerySetU32 = std::mem::transmute(sym("SteamAPI_ISteamUGC_SetRankedByTrendDays")?);
+                days(session.ugc, handle, q.days.filter(|d| [1, 7, 90, 365].contains(d)).unwrap_or(7));
+            }
+            let long: QuerySetBool = std::mem::transmute(sym("SteamAPI_ISteamUGC_SetReturnLongDescription")?);
+            long(session.ugc, handle, false);
+            let send: QuerySend = std::mem::transmute(sym("SteamAPI_ISteamUGC_SendQueryUGCRequest")?);
+            let call = send(session.ugc, handle);
+            session.wait_for(call)?;
+            // SteamUGCQueryCompleted_t (k_iSteamUGCCallbacks + 1): handle, EResult, returned, total.
+            let get: CallResult = std::mem::transmute(sym("SteamAPI_ISteamUtils_GetAPICallResult")?);
+            let mut done = [0u8; 288];
+            let mut failed = false;
+            if !get(session.utils, call, done.as_mut_ptr().cast(), done.len() as i32, 3401, &mut failed) || failed {
+                return Err("Steam did not return the search.".to_string());
+            }
+            let e_result = le_u32(&done, 8) as i32;
+            if e_result != 1 {
+                return Err(format!("Steam refused the search: {}", e_result_text(e_result)));
+            }
+            let returned = le_u32(&done, 12);
+            let total = le_u32(&done, 16) as u64;
+            let item: QueryResult = std::mem::transmute(sym("SteamAPI_ISteamUGC_GetQueryUGCResult")?);
+            let preview: QueryPreview = std::mem::transmute(sym("SteamAPI_ISteamUGC_GetQueryUGCPreviewURL")?);
+            let stat: QueryStatistic = std::mem::transmute(sym("SteamAPI_ISteamUGC_GetQueryUGCStatistic")?);
+            let mut items = Vec::new();
+            let mut buf = vec![0u8; details::SIZE];
+            for i in 0..returned {
+                buf.iter_mut().for_each(|b| *b = 0);
+                if !item(session.ugc, handle, i, buf.as_mut_ptr().cast()) || le_u32(&buf, details::RESULT) != 1 {
+                    continue;
+                }
+                let id = u64::from_le_bytes(buf[details::ID..details::ID + 8].try_into().unwrap_or([0; 8]));
+                let field = |(at, len): (usize, usize)| c_text(&buf[at..at + len]);
+                let mut url = [0 as c_char; 512];
+                let preview_url = if preview(session.ugc, handle, i, url.as_mut_ptr(), url.len() as u32) {
+                    Some(std::ffi::CStr::from_ptr(url.as_ptr()).to_string_lossy().to_string()).filter(|s| !s.is_empty())
+                } else {
+                    None
+                };
+                let mut subs = 0u64;
+                let mut favs = 0u64;
+                stat(session.ugc, handle, i, 0, &mut subs); // k_EItemStatistic_NumSubscriptions
+                stat(session.ugc, handle, i, 1, &mut favs); // k_EItemStatistic_NumFavorites
+                let tags: Vec<serde_json::Value> = field(details::TAGS)
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(|t| serde_json::json!({ "tag": t }))
+                    .collect();
+                let value = serde_json::json!({
+                    "publishedfileid": id.to_string(),
+                    "result": 1,
+                    "title": field(details::TITLE),
+                    "file_description": field(details::DESCRIPTION),
+                    "preview_url": preview_url,
+                    "time_created": le_u32(&buf, details::CREATED),
+                    "time_updated": le_u32(&buf, details::UPDATED),
+                    "subscriptions": subs,
+                    "favorited": favs,
+                    "file_size": le_u32(&buf, details::FILE_SIZE),
+                    "banned": buf[details::BANNED] != 0,
+                    "tags": tags,
+                    "consumer_app_id": APP_ID,
+                });
+                if let Some(it) = crate::workshop::item_from_value(&value) {
+                    items.push(it);
+                }
+            }
+            Ok(crate::workshop::WorkshopSearchResult { total, page, pages: total.div_ceil(50).clamp(1, 1000) as u32, items })
+        })();
+        release(session.ugc, handle);
+        result
+    }
+}

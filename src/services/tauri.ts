@@ -5,8 +5,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import i18next from 'i18next';
 import { ChangeScope, noteChange } from './changes';
 import { StudioPathsUI } from '../components/settings/SettingsModule';
-import { MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources } from '../types';
-import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod } from '../types';
+import { BrainMarkReport, BrainModHistory, BrainOnset, BrainOverview, BrainPeriodReport, BrainPrelaunch, BrainSuspect, DocHit, LearnedSummary, MpAutomation, MpSecondCheck, MpTestStatus, MpTestPrepareReport, MpTestPrepareProgress, GameResources } from '../types';
+import { AppInstance, MissingModsReport, VfsConflict,ModInfo, TranslatedErrorCard,DedicatedServerStatus, ConnectedPlayer, ServerQuickSettings, PZServerConfig, ModHealth, SortResult, NexusSearchResult, NexusSort, InstallResult, ModOrigin, WorkshopItem, WorkshopLookup, SteamDownloads, WorkshopSearchResult, CompatResult, AutoMergeResult, NexusCategory, NexusModDetails, WorkshopItemDetails, WorkshopComments, WorkshopBrowseQuery, SubscribeOutcome, BisectSession, HealthIssue, ServerLines, ServerModReport, ModListVersion, PolyfillSection, ShimPatch, KeptVersion, ModErrorStat, UserRule, CommunityIndex, LoadTimes, BootTimes, GameMemory, ProfilerStatus, ModList, ModListItem, ModValidation, DraftStatus, DraftReport, ModApiReport, WorkshopItemMeta, UploadPreview, PublishOutcome, PublishProgress, ChangedFile, DevReloadEvent, DiscordCommandsStatus, DiscordSettings, DiscordView, GameBot, ModChangelog, ModJavaPatches, NewMod, CreatedMod, MapTools, MpReport, MpModReport, UrlInstallPlan, SandboxPresetInfo, PresetSandbox, ModFile, RequireAnswer, SavesOverview, SaveBackupOutcome, SaveBackupEntry, RequiredChain, SessionDiff, SaveMissingMod, SaveMaps, SaveMapsFix, SaveInside, ErrorHistoryView, PackageFileState, Translation, SmoothFramesReport, DiskReport, Cleanup, GameLaunchMode, WhatsNew, MapCells, MapImage, WindowPrefs, ModMeta, PublicServer, ServerRules, SavedServer, AppUpdateStatus, HealthInputs, ExcludedMod, ServerSettingsSchema, ServerSettingsValues } from '../types';
 
 /** A process holding a file Windows would not let the Studio touch. */
 export interface FileHolder {
@@ -151,6 +151,8 @@ const SAID: [RegExp, string][] = [
   [/^There is no hunt in progress to stop/, 'bisectNoHuntStop'],
   [/^(?<mod>.+?) on its own does not do it\. Two mods together/s, 'bisectPair'],
   [/^No mod under suspicion is doing it/, 'bisectNoSuspect'],
+  [/^(?<with>.+?) and (?<mod>.+?) together do not do it either/s, 'bisectPairNot'],
+  [/^No other mod makes it happen together with (?<with>.+?). It may not/s, 'bisectNoPartner'],
   // Developer tools and the folders they may open
   [/^That folder is outside your game and Zomboid folders/, 'outsideFolders'],
   [/^That file is outside your game and Zomboid folders/, 'outsideFoldersFile'],
@@ -607,6 +609,119 @@ export const TauriService = {
       return null;
     }
   },
+
+  /** What this PC learned from its own sessions (sessions read, errors seen in three or more); null on failure. */
+  learnedSummary: async (paths: StudioPathsUI): Promise<LearnedSummary | null> => {
+    try {
+      return await invoke<LearnedSummary>('learned_summary_cmd', { paths });
+    } catch {
+      return null;
+    }
+  },
+
+  /** The brain's view of this PC's sessions; null on failure. `active`: the list to judge (default.txt by default). */
+  brainOverview: async (paths: StudioPathsUI, active?: string[]): Promise<BrainOverview | null> => {
+    try {
+      return await invoke<BrainOverview>('brain_overview_cmd', { paths, active: active ?? null });
+    } catch {
+      return null;
+    }
+  },
+
+  /** One mod's history on this PC; null on failure. */
+  brainModHistory: async (paths: StudioPathsUI, modId: string): Promise<BrainModHistory | null> => {
+    try {
+      return await invoke<BrainModHistory>('brain_mod_history_cmd', { paths, modId });
+    } catch {
+      return null;
+    }
+  },
+
+  /** The warning before launching this list, when its last sessions went badly; null when none (or on failure). */
+  brainPrelaunch: async (paths: StudioPathsUI, active: string[]): Promise<BrainPrelaunch | null> => {
+    try {
+      return await invoke<BrainPrelaunch | null>('brain_prelaunch_cmd', { paths, active });
+    } catch {
+      return null;
+    }
+  },
+
+  /** What changed from the last game session before `since` (unix seconds) to the latest; null when none. */
+  brainChangesSince: async (paths: StudioPathsUI, since: number): Promise<BrainOnset | null> => {
+    try {
+      return await invoke<BrainOnset | null>('brain_changes_since_cmd', { paths, since });
+    } catch {
+      return null;
+    }
+  },
+
+  /** The mods on in the sessions that went wrong far more than in the others; [] on failure. */
+  brainSuspects: async (paths: StudioPathsUI, what: 'any' | 'failed_to_start' | 'crash' = 'any', since?: number | null): Promise<BrainSuspect[]> => {
+    try {
+      return await invoke<BrainSuspect[]>('brain_suspects_cmd', { paths, what, since: since ?? null });
+    } catch {
+      return [];
+    }
+  },
+
+  /** The moments the player marked in the game (Studio Link), newest first; [] on failure. */
+  brainMarks: async (paths: StudioPathsUI): Promise<BrainMarkReport[]> => {
+    try {
+      return await invoke<BrainMarkReport[]>('brain_marks_cmd', { paths });
+    } catch {
+      return [];
+    }
+  },
+
+  /** What the Doctor says first, for the game's main menu card (Studio Link); failures are quiet. */
+  writeLinkDoctor: async (paths: StudioPathsUI, lines: [string, string][]): Promise<void> => {
+    try {
+      await invoke('write_link_doctor_cmd', { paths, lines });
+    } catch {
+      // the card simply keeps what it had
+    }
+  },
+
+  /** What happened since `since` (unix seconds); null on failure. */
+  brainPeriod: async (paths: StudioPathsUI, since: number): Promise<BrainPeriodReport | null> => {
+    try {
+      return await invoke<BrainPeriodReport>('brain_period_cmd', { paths, since });
+    } catch {
+      return null;
+    }
+  },
+
+  /** The app's guide, searched: the sections that best answer a question. */
+  appDocsSearch: async (query: string, language: string): Promise<DocHit[]> => {
+    try {
+      return await invoke<DocHit[]>('app_docs_search_cmd', { query, language });
+    } catch {
+      return [];
+    }
+  },
+
+  /** Notes a fix Diagnostics applied, so later sessions tell whether it worked (failures are quiet). */
+  brainNoteFix: async (paths: StudioPathsUI, modId: string, action: string, code: string, key?: string | null): Promise<void> => {
+    try {
+      await invoke('brain_note_fix_cmd', { paths, modId, action, code, key: key ?? null });
+    } catch {
+      // only a memory: the fix itself went on
+    }
+  },
+
+  /** The Studio's note on a mod (empty removes it); the player's own note is never touched. */
+  setStudioNote: async (paths: StudioPathsUI, modId: string, note: string): Promise<ModMeta> => {
+    try {
+      return await invoke<ModMeta>('set_studio_note_cmd', { paths, modId, note });
+    } catch (err) {
+      reportBackendError('Saving the Studio note', err);
+      throw err;
+    }
+  },
+
+  /** One of the app's MCP tools for the Doctor's chat: reading ones alone, changing ones with `confirmed`. */
+  doctorTool: async <T = unknown>(tool: string, args: Record<string, unknown>, confirmed = false): Promise<T> =>
+    invoke<T>('doctor_tool_cmd', { tool, args, confirmed }),
 
   /** Shows again every known issue this player dismissed; how many. */
   restoreIndexIssues: async (paths: StudioPathsUI): Promise<number> => {
@@ -1200,10 +1315,11 @@ export const TauriService = {
 
 
   /** Workshop search with the saved key. Throws on failure (no key, rejected key, offline). */
-  workshopSearch: async (query: WorkshopBrowseQuery): Promise<WorkshopSearchResult> => {
-    return await cached(TauriService.workshopSearchKey(query), () =>
+  workshopSearch: async (query: WorkshopBrowseQuery, viaSteam = false): Promise<WorkshopSearchResult> => {
+    return await cached(TauriService.workshopSearchKey(query) + (viaSteam ? ':steam' : ''), () =>
       invoke<WorkshopSearchResult>('workshop_search_cmd', {
         query: { perPage: 30, ...query, text: query.text || null, category: query.category || null, build: query.build || null },
+        viaSteam,
       })
     );
   },
@@ -1619,6 +1735,21 @@ export const TauriService = {
     return await invoke<string[]>('restore_mod_list_version_cmd', { paths, backupFile });
   },
 
+  /** Every server and sandbox option as the game last listed them, or null before it ever did. */
+  serverSettingsSchema: async (paths: StudioPathsUI): Promise<ServerSettingsSchema | null> => {
+    return await invoke<ServerSettingsSchema | null>('server_settings_schema_cmd', { paths });
+  },
+
+  /** One server's option values (its .ini and _SandboxVars.lua). */
+  serverSettingsValues: async (paths: StudioPathsUI, name: string): Promise<ServerSettingsValues> => {
+    return await invoke<ServerSettingsValues>('server_settings_values_cmd', { paths, name });
+  },
+
+  /** Sets options of one server, both files backed up first. Throws with the reason. */
+  serverSettingsWrite: async (paths: StudioPathsUI, name: string, server: Record<string, string>, sandbox: Record<string, string>): Promise<string[]> => {
+    return await invoke<string[]>('server_settings_write_cmd', { paths, name, server, sandbox });
+  },
+
   /** The hunt for a culprit mod that the player left running, if there is one. */
   bisectState: async (paths: StudioPathsUI): Promise<BisectSession | null> => {
     try {
@@ -1630,7 +1761,7 @@ export const TauriService = {
   },
 
   /** Starts halving the list. The mods switched on now are the suspects. Throws with the reason. */
-  bisectStart: async (paths: StudioPathsUI, mods: ModInfo[]): Promise<BisectSession> => {
+  bisectStart: async (paths: StudioPathsUI, mods: ModInfo[], options?: { flaky?: boolean; target?: string }): Promise<BisectSession> => {
     return await invoke<BisectSession>('bisect_start_cmd', {
       paths,
       mods: mods.map((m) => ({
@@ -1638,6 +1769,8 @@ export const TauriService = {
         dependencies: m.dependencies ?? [],
         enabled: m.enabled,
       })),
+      flaky: options?.flaky ?? false,
+      target: options?.target?.trim() || null,
     });
   },
 
@@ -2152,6 +2285,16 @@ export const TauriService = {
     return await invoke('activate_instance', { userZomboidDir, instanceId });
   },
 
+  /** Isolates a profile (its own saves, bringing these shared worlds, game options and mod settings) or stops isolating it. Throws with the reason. */
+  setOwnSaves: async (userZomboidDir: string, instanceId: string, own: boolean, bring: string[]): Promise<AppInstance> => {
+    return await invoke<AppInstance>('set_own_saves', { userZomboidDir, instanceId, own, bring });
+  },
+
+  /** The single-player worlds (mode/world) of a set of saves: "shared" or a profile's id. */
+  profileSaves: async (paths: StudioPathsUI, set: string): Promise<string[]> => {
+    return await invoke<string[]>('profile_saves_cmd', { paths, set });
+  },
+
   deleteInstance: async (userZomboidDir: string, instanceId: string): Promise<void> => {
     return await invoke('delete_instance', { userZomboidDir, instanceId });
   },
@@ -2422,7 +2565,7 @@ const WRITES: Record<string, ChangeScope> = {
   keepModVersion: 'other', deleteKeptVersion: 'other', addLoadRule: 'other', removeLoadRule: 'other',
   createModList: 'other', renameModList: 'other', deleteModList: 'other', addToModList: 'other', removeFromModList: 'other',
   dismissIndexIssue: 'other', restoreIndexIssues: 'other', setAppUpdateCheck: 'other', dismissAppUpdate: 'other',
-  setModNote: 'other', setInModGroup: 'other', renameModGroup: 'other', setModGroupNote: 'other', deleteModGroup: 'other',
+  setModNote: 'other', setInModGroup: 'other', renameModGroup: 'other', setModGroupNote: 'other', deleteModGroup: 'other', setStudioNote: 'other',
   saveServer: 'other', forgetServer: 'other', setServerMadeProfile: 'other', setLinkScreenChoice: 'other', setShimPatch: 'other',
   setSteamKey: 'other', deleteSteamKey: 'other', setDeeplKey: 'other', deleteDeeplKey: 'other', clearTranslationCache: 'other',
   saveDraftResolution: 'other', clearDraftResolutions: 'other', writeSandboxPreset: 'other', importPresetFile: 'other',

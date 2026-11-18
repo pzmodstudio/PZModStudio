@@ -639,10 +639,55 @@ pub struct Call {
     pub guarded: bool,
 }
 
+/// Where a call cannot fail the script: from the `function` given to `pcall(`/`xpcall(` to the
+/// `)` that closes it (`pcall(function() return obj:gone() end)`). A missing name in there is an
+/// error the mod catches, not one the game reports. The arguments before the function are
+/// evaluated first, outside the protection, so they are not in it.
+fn protected_spans(chars: &[char]) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if !is_ident_start(chars[i]) || (i > 0 && (is_ident(chars[i - 1]) || chars[i - 1] == '.' || chars[i - 1] == ':')) {
+            i += 1;
+            continue;
+        }
+        let (word, end) = ident_at(chars, i);
+        let open = skip_ws(chars, end);
+        if (word == "pcall" || word == "xpcall") && chars.get(open) == Some(&'(') {
+            let mut depth = 0usize;
+            let mut start: Option<usize> = None;
+            let mut k = open;
+            while k < chars.len() {
+                match chars[k] {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    'f' if start.is_none() && depth == 1 && (k == 0 || !is_ident(chars[k - 1])) && chars[k..].starts_with(&['f', 'u', 'n', 'c', 't', 'i', 'o', 'n']) && !chars.get(k + 8).copied().is_some_and(is_ident) => {
+                        start = Some(k);
+                    }
+                    _ => {}
+                }
+                k += 1;
+            }
+            if let Some(s) = start {
+                spans.push((s, k));
+            }
+        }
+        i = end;
+    }
+    spans
+}
+
 /// The calls in a (raw) Lua text: global `foo(`, method `:foo(`, `Events.X.Add`.
 pub fn calls(raw: &str) -> Vec<Call> {
     let text = blank_comments_and_strings(raw);
     let chars: Vec<char> = text.chars().collect();
+    let protected = protected_spans(&chars);
+    let in_pcall = |at: usize| protected.iter().any(|(s, e)| *s <= at && at <= *e);
     let mut out = Vec::new();
     let mut bare: BTreeSet<(&str, String)> = BTreeSet::new();
     let mut line = 1u32;
@@ -681,15 +726,18 @@ pub fn calls(raw: &str) -> Vec<Call> {
         let j = skip_ws(&chars, end);
         let called = chars.get(j) == Some(&'(') || chars.get(j) == Some(&'{') || chars.get(j) == Some(&'"');
         if called && !KEYWORDS.contains(&word.as_str()) {
+            let guarded = in_pcall(i);
             if prev == ':' {
-                out.push(Call { kind: "method".into(), name: word, line, guarded: false });
+                out.push(Call { kind: "method".into(), name: word, line, guarded });
             } else if prev != '.' && word_before(&chars, i).as_deref() != Some("function") {
-                out.push(Call { kind: "global".into(), name: word, line, guarded: false });
+                out.push(Call { kind: "global".into(), name: word, line, guarded });
             }
         } else if !called && !KEYWORDS.contains(&word.as_str()) && word_before(&chars, i).as_deref() != Some("function") && word_before(&chars, i).as_deref() != Some("local") {
-            // A bare mention: `if foo then`, `type(foo)`, `foo and foo()`, `obj.foo` before `obj:foo()`.
+            // A bare mention: `if foo then`, `type(foo)`, `foo and foo()`, `obj.foo` before
+            // `obj:foo()`, `obj.foo == nil or obj:foo()` (a comparison, not an assignment).
             let next = chars.get(j).copied().unwrap_or(' ');
-            if next != '=' && next != '.' && next != ':' {
+            let compared = next == '=' && chars.get(j + 1) == Some(&'=');
+            if (next != '=' || compared) && next != '.' && next != ':' {
                 bare.insert((if prev == '.' { "method" } else { "global" }, word));
             }
         }
@@ -820,16 +868,25 @@ pub struct ModLua {
     pub calls: BTreeMap<String, Vec<Call>>,
 }
 
-/// The mod's Lua files the installed build reads: its layers for that build, else the root.
+/// The mod's Lua files the installed build reads: its layers for that build, else the root. A
+/// path both `common/` and the version folder have is read from the version folder only, as the
+/// game does: the `common/` copy never runs, so what it calls is not checked.
 fn mod_lua_files(root: &Path, game_version: Option<u32>) -> Vec<PathBuf> {
     let layers = crate::load_order::mod_info::media_layers_for_build(root, game_version);
-    let mut out = Vec::new();
+    // Layers come common first, then the version folder: the later one replaces a path.
+    let mut by_path: BTreeMap<String, PathBuf> = BTreeMap::new();
     for layer in &layers {
-        out.extend(lua_files(&layer.join("media").join("lua")));
+        let lua = layer.join("media").join("lua");
+        for f in lua_files(&lua) {
+            let rel = f.strip_prefix(&lua).unwrap_or(&f).to_string_lossy().replace('\\', "/").to_lowercase();
+            by_path.insert(rel, f);
+        }
     }
+    let mut out: Vec<PathBuf> = by_path.into_values().collect();
     if out.is_empty() {
         out = lua_files(&root.join("media").join("lua"));
     }
+    out.sort();
     out
 }
 
@@ -901,8 +958,10 @@ fn mod_jars(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// Bumped when what `read_mod` keeps changes, so older caches are read again.
-const MOD_CACHE_VERSION: u32 = 3;
+/// Bumped when what `read_mod` keeps changes, so older caches are read again (v4: calls inside
+/// `pcall(function() ... end)` and `x.f == nil` checks are guarded; a `common/` copy the version
+/// folder replaces is not read).
+const MOD_CACHE_VERSION: u32 = 4;
 
 pub fn read_mod(user_zomboid_dir: &Path, mod_id: &str, root: &Path, game_version: Option<u32>) -> ModLua {
     let (fp, _) = crate::security::fingerprint(root);
@@ -1180,6 +1239,51 @@ pub fn reports_for_health(paths: &crate::vfs::StudioPaths, catalog: &crate::cata
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Measured on a 340-mod list (2026-11-18): 20 of 88 findings were calls inside
+    /// `pcall(function() ... end)`, which the mod catches (Computer Mod's `stats:getBoredom()`,
+    /// THE's `r:thePoll(id)`), and one was asked first with `== nil or`.
+    #[test]
+    fn a_call_the_mod_catches_or_asks_for_first_is_guarded() {
+        let text = "local ok, v = pcall(function() return stats:getBoredom() end)\n\
+                    pcall(function()\n  return owner:havePlayer(p)\nend)\n\
+                    pcall(sendIt, player, item:gone())\n\
+                    if shadow.canAttach == nil or shadow:canAttach(part) then end\n\
+                    bodyDamage:getUnhappynessLevel()";
+        let found: Vec<(String, bool)> = calls(text).into_iter().filter(|c| c.kind == "method").map(|c| (c.name, c.guarded)).collect();
+        assert_eq!(
+            found,
+            vec![
+                ("getBoredom".to_string(), true),
+                ("havePlayer".to_string(), true),
+                // an argument of pcall is evaluated before it, unprotected
+                ("gone".to_string(), false),
+                ("canAttach".to_string(), true),
+                ("getUnhappynessLevel".to_string(), false),
+            ]
+        );
+    }
+
+    /// The game reads a path from the version folder when it has one and `common/` only when it
+    /// does not: a `common/` copy the version folder replaces never runs (Moodle Framework's
+    /// `common/.../MF_ISMoodle.lua` beside its `42.20/` one).
+    #[test]
+    fn a_common_file_the_version_folder_replaces_is_not_read() {
+        let root = std::env::temp_dir().join(format!("pzms-apilint-layers-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (dir, text) in [("common", "old()"), ("42.20", "new()")] {
+            let d = root.join(dir).join("media").join("lua").join("client");
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::write(d.join("MF_ISMoodle.lua"), text).unwrap();
+        }
+        let only_common = root.join("common").join("media").join("lua").join("client");
+        std::fs::write(only_common.join("Other.lua"), "x()").unwrap();
+        let files = mod_lua_files(&root, Some(42_022));
+        let texts: Vec<String> = files.iter().map(|f| std::fs::read_to_string(f).unwrap()).collect();
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(files.len(), 2, "{:?}", files);
+        assert!(texts.contains(&"new()".to_string()) && texts.contains(&"x()".to_string()) && !texts.contains(&"old()".to_string()), "{:?}", texts);
+    }
 
     #[test]
     fn an_event_asked_for_first_or_added_by_name_is_not_missing() {

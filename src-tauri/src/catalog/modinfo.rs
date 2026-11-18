@@ -24,6 +24,10 @@ pub struct GameModInfo {
     pub version_max: Option<u32>,
     /// Set when the game rejects the whole file (e.g. `versionMin=42` without a minor part).
     pub invalid_reason: Option<String>,
+    /// `tiledef=<file> <number>` lines: the mod's tile sheets and the number each one's tiles
+    /// are filed under. Two mods with one number put their tiles in the same place.
+    #[serde(default)]
+    pub tiledefs: Vec<(String, u32)>,
 }
 
 /// GameVersion.parse: `<major>.<minor><anything>`; anything else is an error.
@@ -81,6 +85,11 @@ pub fn parse_game_mod_info(text: &str) -> GameModInfo {
             info.load_after = list_value(line, "loadModAfter=");
         } else if line.contains("loadModBefore=") {
             info.load_before = list_value(line, "loadModBefore=");
+        } else if let Some(rest) = line.trim_start().strip_prefix("tiledef=") {
+            let mut parts = rest.split_whitespace();
+            if let (Some(file), Some(Ok(number))) = (parts.next(), parts.next().map(str::parse::<u32>)) {
+                info.tiledefs.push((file.to_string(), number));
+            }
         } else if line.starts_with("id=") {
             if let Some(v) = non_empty(line.replace("id=", "").trim().to_string()) {
                 info.id = Some(v);
@@ -138,6 +147,8 @@ mod tests {
         assert_eq!(info.incompatible, vec!["Neat_Building"]);
         assert_eq!(info.load_after, vec!["Viewpoint"]);
         assert_eq!(info.version_min, Some(42_013));
+        let tiles = parse_game_mod_info("id=T\ntiledef=my_tiles 7811\ntiledef=more 7812\ntiledef=broken\n");
+        assert_eq!(tiles.tiledefs, vec![("my_tiles".to_string(), 7811), ("more".to_string(), 7812)]);
         assert_eq!(info.version_max, Some(42_020));
         assert!(info.invalid_reason.is_none());
         assert!(info.fits_version(42_015) && !info.fits_version(42_021));

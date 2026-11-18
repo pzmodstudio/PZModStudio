@@ -778,6 +778,12 @@ fn locate(m: &CatalogMod, game_version: Option<u32>) -> Option<JarPlace> {
     fallback
 }
 
+/// The jar ZombieBuddy loads for this mod on the installed build: as mod.info names it, its path,
+/// and why it would not load (`no_package`, `jar_missing`). None: no mod.info of it names a jar.
+pub fn jar_of(m: &CatalogMod, game_version: Option<u32>) -> Option<(String, PathBuf, Option<&'static str>)> {
+    locate(m, game_version).map(|p| (p.jar_rel, p.jar_path, p.missing))
+}
+
 fn read_place(m: &CatalogMod, place: &JarPlace) -> ModPatches {
     let lower = place.jar_rel.replace('\\', "/").to_ascii_lowercase();
     let side = if lower.contains("media/java/client/") {

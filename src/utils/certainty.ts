@@ -10,12 +10,16 @@
  */
 export type Certainty = 'seen' | 'rule' | 'suspicion';
 
-const SEEN = new Set(['floods_console', 'zb_excluded']);
+const SEEN = new Set(['floods_console', 'zb_excluded', 'learned_issue', 'function_seen_other', 'game_folder_changed']);
 const SUSPICION = new Set(['api_missing', 'function_overridden', 'java_patch_overlap', 'two_mod_managers']);
 
 export const certaintyOf = (issue: { code: string; params?: Record<string, string> }): Certainty => {
   const { code } = issue;
   if (SEEN.has(code)) return 'seen';
+  // A function the Studio Link looked at in the running game: what it saw there.
+  if (code === 'function_overridden' && issue.params?.checkedKey) return 'seen';
+  // Two mods' copies of one file: the game's log of its last session said which it took.
+  if (code === 'file_conflict' && issue.params?.checkedKey) return 'seen';
   // The index's entries say whether someone verified them in the game, or only reported them.
   const verified = issue.params?.seenKey?.startsWith('verified');
   if (code === 'community_known_issue') return verified ? 'seen' : 'suspicion';

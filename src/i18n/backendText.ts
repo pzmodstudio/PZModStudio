@@ -1,4 +1,6 @@
 import i18next from 'i18next';
+import { onsetText } from '../utils/brain';
+import type { BrainOnset } from '../types';
 
 /**
  * What Rust writes, in the chosen language. Rust keeps its English text and sends beside it a
@@ -46,8 +48,29 @@ export function backendText(area: string, code: string | undefined, params: Reco
 }
 
 /** A Mod Health or server issue's message. */
-export const issueText = (issue: { code: string; params?: Record<string, string>; message: string }) =>
-  backendText('health', issue.code, issue.params, issue.message);
+export const issueText = (issue: { code: string; params?: Record<string, string>; message: string }) => {
+  // What this PC learned: the error is the Monitor card's title, said the way the Monitor says it.
+  if (issue.code === 'learned_issue' && issue.params?.cardCode) {
+    let cardParams: Record<string, string> = {};
+    try {
+      cardParams = JSON.parse(issue.params.cardParams || '{}');
+    } catch {
+      cardParams = {};
+    }
+    const what = backendText('monitor', issue.params.cardCode, cardParams, issue.params.what ?? '', 'title');
+    const text = backendText('health', issue.code, { ...issue.params, what }, issue.message);
+    // When it began and what was different then (the brain), with the names it carries.
+    let onset = '';
+    try {
+      const o = issue.params.onsetJson ? (JSON.parse(issue.params.onsetJson) as { onset: BrainOnset; names: Record<string, string> }) : null;
+      if (o) onset = onsetText(o.onset, (id) => o.names?.[id] ?? id, i18next.t);
+    } catch {
+      onset = '';
+    }
+    return onset ? `${text}. ${onset}` : text;
+  }
+  return backendText('health', issue.code, issue.params, issue.message);
+};
 
 /** A Monitor card's title, explanation or recommended action. */
 export const cardText = (

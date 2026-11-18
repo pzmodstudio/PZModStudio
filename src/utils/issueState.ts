@@ -62,15 +62,15 @@ export const UNDO_ACTIONS = new Set<HealthFix['action']>(['remove_compatible_cop
  * who is themselves. Unknown codes get none.
  */
 export type IssueScope = 'mod' | 'combo' | 'install' | 'own';
-const SCOPE_MOD = new Set(['community_unneeded', 'not_for_build', 'outside_version_range', 'invalid_mod_info', 'community_known_issue', 'api_missing', 'floods_console', 'zb_excluded']);
+const SCOPE_MOD = new Set(['community_unneeded', 'not_for_build', 'outside_version_range', 'invalid_mod_info', 'community_known_issue', 'api_missing', 'floods_console', 'zb_excluded', 'learned_issue', 'java_link_broken']);
 const SCOPE_COMBO = new Set([
   'incompatible', 'community_incompatible', 'dependency_after', 'dependency_not_enabled', 'dependency_unavailable', 'missing_dependency',
   'load_after_order', 'load_before_order', 'community_rule_order', 'user_rule_order', 'translation_conflict', 'two_mod_managers', 'community_successor',
-  'java_patch_overlap', 'function_overridden',
+  'java_patch_overlap', 'function_overridden', 'function_seen_other',
 ]);
 const SCOPE_INSTALL = new Set([
   'compatible_copy', 'compatible_copy_unneeded', 'compatible_copy_renamed', 'shadowed_copy', 'duplicate_entry', 'missing_mod', 'translation_settled', 'translation_stale',
-  'server_item_unused', 'updated_since_last_play', 'workshop_update_pending', 'script_definition_settled',
+  'server_item_unused', 'updated_since_last_play', 'workshop_update_pending', 'script_definition_settled', 'game_folder_changed',
 ]);
 export const issueScopeOf = (code: string): IssueScope | null =>
   SCOPE_MOD.has(code) ? 'mod'

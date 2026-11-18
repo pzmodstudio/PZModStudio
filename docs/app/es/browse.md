@@ -19,6 +19,8 @@ Explorar mods es donde encontrás y conseguís mods nuevos: buscás en el Steam 
 
 Si Steam rechaza la búsqueda, un recuadro explica por qué. Si Steam solo está ocupado, apretá **Probar de nuevo**. Si no, podés pegar una clave personal de la Steam Web API y apretar **Verificar y guardar**; se guarda en el Administrador de credenciales de Windows, solo en esta PC, y **Quitarla** la borra. Pegar enlaces funciona sin clave.
 
+**Buscar con Steam** busca a través de Steam en vez de la página del Workshop: los mismos resultados con los datos exactos de Steam (suscriptores, favoritos, tamaño), 50 por página. Mientras busca, Steam te muestra jugando a Project Zomboid un momento. Con el juego abierto, o para colecciones, se usa la página como siempre.
+
 ## Nexus Mods
 
 Buscá por palabras del nombre del mod, ordená (**Actualizados hace poco**, **Más descargados**, **Más recomendados**, **Más nuevos**) y elegí una categoría. Los mods para adultos quedan ocultos salvo que marques **Contenido adulto**.

@@ -338,6 +338,8 @@ const WorkshopTab: React.FC<{
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSavedKey, setHasSavedKey] = useState(false);
+  // Search through the running Steam client: exact numbers, 50 a page; Steam shows "playing" a moment.
+  const [viaSteam, setViaSteam] = useState(() => localStorage.getItem('pz_workshop_via_steam') === 'true');
   const [lookup, setLookup] = useState<WorkshopLookup | null>(null);
   const [lookupPage, setLookupPage] = useState(1);
   /** Card summaries in the app's language, by item, once "Translate summaries" was pressed. */
@@ -386,7 +388,7 @@ const WorkshopTab: React.FC<{
     const ticket = ++searchTicket.current;
     setSearching(true);
     try {
-      const r = await TauriService.workshopSearch(toBrowseQuery(q, p));
+      const r = await TauriService.workshopSearch(toBrowseQuery(q, p), viaSteam && !q.collections);
       if (ticket !== searchTicket.current) return;
       setTotal(r.total);
       setPages(r.pages);
@@ -396,7 +398,8 @@ const WorkshopTab: React.FC<{
       TauriService.steamKeyStatus().then(setHasSavedKey).catch(() => undefined);
       // The next page is usually where the user goes: fetch it while they read this one.
       const next = { ...toBrowseQuery(q, p + 1) };
-      if (p + 1 <= r.pages) TauriService.prefetch(TauriService.workshopSearchKey(next), () => TauriService.workshopSearch(next));
+      // Not through Steam: each page there opens Steam for a moment, so only the one asked for.
+      if (p + 1 <= r.pages && !(viaSteam && !q.collections)) TauriService.prefetch(TauriService.workshopSearchKey(next), () => TauriService.workshopSearch(next));
     } catch (err) {
       if (ticket !== searchTicket.current) return;
       setSearchError(explainError(err));
@@ -525,6 +528,20 @@ const WorkshopTab: React.FC<{
         <button type="submit" disabled={searching} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-700 hover:bg-sky-600 text-white cursor-pointer disabled:opacity-60">
           {i18next.t('browse.workshop.search')}
         </button>
+        {steamReady && !query.collections && (
+          <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer select-none" title={i18next.t('browse.workshop.viaSteamTitle')}>
+            <input
+              type="checkbox"
+              checked={viaSteam}
+              onChange={(e) => {
+                setViaSteam(e.target.checked);
+                localStorage.setItem('pz_workshop_via_steam', String(e.target.checked));
+              }}
+              className="cursor-pointer"
+            />
+            {i18next.t('browse.workshop.viaSteam')}
+          </label>
+        )}
         <button type="button" onClick={() => TauriService.openExternalUrl('https://steamcommunity.com/app/108600/workshop/')} title={i18next.t('browse.workshop.webTitle')}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 cursor-pointer">
           <Globe className="w-3.5 h-3.5" aria-hidden="true" /> {i18next.t('browse.workshop.web')}

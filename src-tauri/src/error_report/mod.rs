@@ -110,10 +110,10 @@ fn translation_index(paths: &StudioPaths) -> std::collections::HashMap<String, S
         .unwrap_or_default();
     let language = game_language(&paths.user_zomboid_dir).to_lowercase();
     let game = catalog.game_version_int();
-    let mut owners = std::collections::HashMap::new();
-    for entry in &active {
-        let Some(m) = catalog.resolve(entry.trim()) else { continue };
-        for layer in crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game) {
+    // The keys of the Translate files (English and the game's language) under these folders.
+    let keys_under = |layers: Vec<std::path::PathBuf>| -> Vec<String> {
+        let mut keys = Vec::new();
+        for layer in layers {
             let dir = layer.join("media").join("lua").join("shared").join("Translate");
             for e in walkdir::WalkDir::new(&dir).into_iter().filter_map(|e| e.ok()) {
                 let lower = e.path().to_string_lossy().replace('\\', "/").to_lowercase();
@@ -128,10 +128,42 @@ fn translation_index(paths: &StudioPaths) -> std::collections::HashMap<String, S
                     let key: String = t.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '.').collect();
                     let after = t[key.len()..].trim_start().trim_start_matches('"').trim_start();
                     if !key.is_empty() && (after.starts_with('=') || after.starts_with(':')) {
-                        owners.insert(key, m.name.clone());
+                        keys.push(key);
                     }
                 }
             }
+        }
+        keys
+    };
+    let mut owners = std::collections::HashMap::new();
+    let mut on: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for entry in &active {
+        let Some(m) = catalog.resolve(entry.trim()) else { continue };
+        on.insert(m.id.clone());
+        for key in keys_under(crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game)) {
+            owners.insert(key, m.name.clone());
+        }
+    }
+    // A key no active mod ships: the one installed mod that does (a log of a session played with
+    // another list: the brain reads every session the game kept), unless the game has it too or
+    // more than one mod ships it. Measured on 66 session logs (2026-11-18): 56 of 84 text cards
+    // named nobody, every one of them a key of exactly one installed mod.
+    let game_keys: std::collections::HashSet<String> = keys_under(vec![std::path::PathBuf::from(&paths.pz_install_dir)]).into_iter().collect();
+    let mut elsewhere: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for m in catalog.mods.iter().filter(|m| m.shadowed_by.is_none() && !on.contains(&m.id)) {
+        for key in keys_under(crate::load_order::mod_info::media_layers_for_build(Path::new(&m.root_dir), game)) {
+            if owners.contains_key(&key) || game_keys.contains(&key) {
+                continue;
+            }
+            let names = elsewhere.entry(key).or_default();
+            if !names.contains(&m.name) {
+                names.push(m.name.clone());
+            }
+        }
+    }
+    for (key, names) in elsewhere {
+        if let [only] = names.as_slice() {
+            owners.insert(key, only.clone());
         }
     }
     owners
@@ -426,6 +458,47 @@ mod tests {
         }
     }
 
+
+    /// The Monitor's cards for many session logs, one JSON line per card with the log line that
+    /// made it, to check by hand which mod each card names.
+    /// PZMS_LOG_LIST=<file with one log path per line> PZMS_CARDS_OUT=<jsonl>
+    /// cargo test --lib live_cards_of_many_logs -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn live_cards_of_many_logs() {
+        use std::io::{BufRead, Write};
+        let (Ok(list), Ok(out)) = (std::env::var("PZMS_LOG_LIST"), std::env::var("PZMS_CARDS_OUT")) else {
+            println!("PZMS_LOG_LIST / PZMS_CARDS_OUT not set");
+            return;
+        };
+        let mut w = std::fs::File::create(&out).unwrap();
+        let mut total = 0;
+        for log in std::fs::read_to_string(&list).unwrap().lines().filter(|l| !l.trim().is_empty()) {
+            let Ok(file) = std::fs::File::open(log.trim()) else { continue };
+            let mut reader = std::io::BufReader::new(file);
+            let mut maker = crate::sandbox::CardMaker::new();
+            let mut buf: Vec<u8> = Vec::new();
+            let mut idx = 0usize;
+            let emit = |card: crate::sandbox::TranslatedErrorPayload, idx: usize, w: &mut std::fs::File| {
+                let v = serde_json::json!({ "log": log.trim(), "at": idx, "mod": card.mod_name, "code": card.code, "title": card.title, "raw": card.raw_error, "called_from": card.called_from, "id": card.id });
+                writeln!(w, "{}", v).unwrap();
+            };
+            while reader.read_until(b'\n', &mut buf).unwrap_or(0) > 0 {
+                let line = String::from_utf8_lossy(&buf).trim_end().to_string();
+                buf.clear();
+                for card in maker.line(&line) {
+                    emit(card, idx, &mut w);
+                    total += 1;
+                }
+                idx += 1;
+            }
+            if let Some(card) = maker.flush() {
+                emit(card, idx, &mut w);
+                total += 1;
+            }
+        }
+        println!("{} cards", total);
+    }
 
     /// Writes a report from a real install and a real console.txt, and prints it.
     /// PZMS_PZ_DIR=... PZMS_WORKSHOP_DIR=... PZMS_ZOMBOID_DIR=... PZMS_CONSOLE=...
