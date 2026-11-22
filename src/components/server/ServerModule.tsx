@@ -87,6 +87,12 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
   const [selectedRam, setSelectedRam] = useState<number>(4);
   const [isNoSteam, setIsNoSteam] = useState<boolean>(false);
   const [isLaunching, setIsLaunching] = useState<boolean>(false);
+  // A server seen running: the card says how it was started, and the next start begins the same.
+  const runningPid = serverStatus.is_running ? serverStatus.pid : null;
+  const runningNoSteam = serverStatus.is_running && serverStatus.nosteam != null ? Boolean(serverStatus.nosteam) : null;
+  useEffect(() => {
+    if (runningPid && runningNoSteam !== null) setIsNoSteam(runningNoSteam);
+  }, [runningPid, runningNoSteam]);
   // Not kept between sessions on purpose: a server password does not belong in the browser
   // storage this window runs on. It is typed when the server is started.
   const [adminPassword, setAdminPassword] = useState<string>('');
@@ -784,6 +790,13 @@ export const ServerModule: React.FC<ServerModuleProps> = ({ paths, mods, onShowP
                           <Globe className="w-4 h-4 text-purple-400" />
                           <span>{t('servers.host.authNetwork')}</span>
                         </label>
+                        {runningNoSteam !== null && (
+                          <div className={`flex items-center gap-1.5 text-[11px] font-bold ${runningNoSteam ? 'text-amber-300' : 'text-emerald-300'}`}>
+                            <span className={`w-2 h-2 rounded-full ${runningNoSteam ? 'bg-amber-400' : 'bg-emerald-400'}`} aria-hidden="true" />
+                            {t('servers.host.runningNow', { mode: runningNoSteam ? t('servers.host.runningNoSteam') : t('servers.host.runningSteam') })}
+                          </div>
+                        )}
+                        {runningNoSteam !== null && <div className="text-[11px] text-slate-400">{t('servers.host.nextStart')}</div>}
                         <div className="flex items-center justify-between pt-0.5 text-xs text-slate-300">
                           <button
                             onClick={() => setIsNoSteam(!isNoSteam)}

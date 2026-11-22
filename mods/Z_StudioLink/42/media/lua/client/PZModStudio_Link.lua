@@ -391,6 +391,7 @@ local TEXT = {
     errCopyAll = "Copy all",
     errCopiedAll = "All copied: paste it where the mods' authors can see it.",
     errListTitle = "This session's Lua errors: {1}, of {2} kind(s)",
+    errListTitleSince = "Lua errors since {1}: {2}, of {3} kind(s)",
     errListHint = "A click on one copies its report.",
     errReportVersion = "version {1}",
     errReportFrom = "Added by {1}:",
@@ -398,6 +399,9 @@ local TEXT = {
     errLog = "Error log",
     errLogTip = "Every Lua error also goes, as it comes, to Zomboid/Lua/PZModStudio_LinkErrorLog.txt: a crash or a disconnect does not lose them, and earlier sessions are there too. Opens that folder and copies the file's path.",
     errLogShown = "Folder opened, the file's path copied.",
+    errClear = "Clear",
+    errClearTip = "Leaves the errors so far out of this list, the pause menu's button and the live overlay: from now on they count only new ones, until the next game. The error log on disk keeps them all.",
+    errCleared = "Cleared: only errors from now on are listed. The log keeps them all.",
     errLogWhere = "In {1} (path copied).",
     modsServerLines = "Server lines",
     modsServerLinesTip = "Copies Mods=, WorkshopItems= and Map= of the mods that are on here, in load order, for a dedicated server's settings file (its .ini in Zomboid/Server): paste them over those lines.",
@@ -453,6 +457,8 @@ local TEXT = {
     livePerSecond = "{1} ms/s",
     liveErrors = "Lua errors this session: {1}",
     liveErrorsNone = "Lua errors this session: none",
+    liveErrorsSince = "Lua errors since {1}: {2}",
+    liveErrorsSinceNone = "Lua errors since {1}: none",
     liveErrorGame = "(the game's own code)",
     liveCost = "This overlay: {1} ms/s ({2})",
     liveShow = "Live overlay",
@@ -1149,8 +1155,42 @@ end
 -- shows, and only in the menu (the same screen is the pause menu in a game).
 local askFrames = -1
 
---- "Mark this moment" on the game's pause menu, above Report Bug: the diary gets the time, the
---- save and the place, and the app's Doctor later says what the game's log has for that minute.
+--- The Link's buttons on the pause menu stack in the game's own column above Report Bug, as its
+--- "Mods" button does: bottom to top Report Bug, Mods, Lua errors, Mark this moment, Live overlay;
+--- one width (the widest text, at least Report Bug's), right edges in line, the game's spacing.
+--- `below` is the button under this one (nil: the top of the game's own column).
+function Link.stackTop(screen)
+    local top = screen.reportBug
+    local ok, mods = pcall(function() return screen.modListDetail end)
+    if ok and mods and mods:isVisible() then top = mods end
+    return top
+end
+
+function Link.stackAbove(screen, button, below, textW)
+    local report = screen.reportBug
+    below = below or Link.stackTop(screen)
+    local gap = 6
+    local ok, mods = pcall(function() return screen.modListDetail end)
+    if report and ok and mods and mods:isVisible() then gap = math.max(2, report:getY() - (mods:getY() + mods:getHeight())) end
+    -- One width for the Link's buttons in the column: the widest label of those showing.
+    Link.stackWidths = Link.stackWidths or {}
+    Link.stackWidths[button] = textW + 18
+    local w = report and report:getWidth() or 0
+    for b, bw in pairs(Link.stackWidths) do
+        if b:isVisible() and b:getParent() == screen and bw > w then w = bw end
+    end
+    if textW + 18 > w then w = textW + 18 end
+    local h = report and report:getHeight() or 22
+    local right = report and (report:getX() + report:getWidth()) or (screen.width - 20)
+    button:setWidth(w)
+    button:setHeight(h)
+    button:setX(right - w)
+    button:setY(below and (below:getY() - h - gap) or (screen.height - 60))
+end
+
+--- "Mark this moment" on the game's pause menu, in the column above Report Bug: the diary gets the
+--- time, the save and the place, and the app's Doctor later says what the game's log has for that
+--- minute.
 function Link.markButton(screen)
     local button = Link.markBtn
     if not Link.inGame then
@@ -1171,17 +1211,12 @@ function Link.markButton(screen)
         Link.markBtn = button
     end
     local label = (Link.markedAt and now() - Link.markedAt < 4) and text("marked") or text("markButton")
-    local w = math.max(getTextManager():MeasureStringX(UIFont.Small, text("markButton")), getTextManager():MeasureStringX(UIFont.Small, text("marked"))) + 18
-    local beside = screen.reportBug
-    local h = beside and beside:getHeight() or 22
-    local x = beside and (beside:getX() + beside:getWidth() - w) or (screen.width - w - 20)
-    local y = beside and (beside:getY() - h - 6) or (screen.height - 90)
+    local textW = math.max(getTextManager():MeasureStringX(UIFont.Small, text("markButton")), getTextManager():MeasureStringX(UIFont.Small, text("marked")))
+    -- Above "Lua errors" when it shows, else at the top of the game's column.
+    local errs = Link.errorsMenuBtn
+    Link.stackAbove(screen, button, (errs and errs:isVisible() and errs.screen == screen) and errs or nil, textW)
     button:setTitle(label)
     button.tooltip = text("markTip")
-    button:setWidth(w)
-    button:setHeight(h)
-    button:setX(x)
-    button:setY(y)
     button:setVisible(true)
 end
 
@@ -1624,22 +1659,34 @@ function Link.profileSaves()
     return link.profileid, saves, link
 end
 
+--- Whether a save is the active profile's: the app's word for the saves it knows; a save it does
+--- not know yet (made while the app was closed) is when its mods are all in the profile.
+function Link.saveIsProfiles(id, saves, profile, link, activeMods, folder)
+    local save = saves[id]
+    if save then return save.profile == profile end
+    if not activeMods then
+        local ok, info = pcall(getSaveInfo, folder or id)
+        activeMods = ok and info and info.activeMods or nil
+    end
+    return Link.saveStatus(activeMods, link) == "ok"
+end
+
 --- Points Continue at the newest save of the active profile (nothing, when it has none).
 function Link.latestOfProfile()
-    local profile, saves = Link.profileSaves()
+    local profile, saves, link = Link.profileSaves()
     if not profile then return end
     Link.latestFor = profile
     local mode, world = MainScreen.latestSaveGameMode, MainScreen.latestSaveWorld
     if mode and world then
-        local save = saves[tostring(mode) .. "/" .. tostring(world)]
-        if save and save.profile == profile then return end
+        if Link.saveIsProfiles(tostring(mode) .. "/" .. tostring(world), saves, profile, link, nil, tostring(mode) .. getFileSeparator() .. tostring(world)) then return end
     end
     local best, bestAt = nil, -1
     for _, k in ipairs(getFullSaveDirectoryTable()) do
         local id = string.gsub(tostring(k), "\\", "/")
-        local save = saves[id]
-        if save and save.profile == profile and save.modified > bestAt then
-            best, bestAt = id, save.modified
+        if Link.saveIsProfiles(id, saves, profile, link, nil, k) then
+            -- One the app does not know yet is the newest there is: it was just played.
+            local at = saves[id] and saves[id].modified or 1e15
+            if at > bestAt then best, bestAt = id, at end
         end
     end
     if best then
@@ -1669,8 +1716,8 @@ function Link.filterSaveList(screen)
     end
     local keep = {}
     for _, row in ipairs(screen.listbox.items) do
-        local save = saves[string.gsub(tostring(row.text), "\\", "/")]
-        if Link.showAllSaves or (save and save.profile == profile) then
+        local id = string.gsub(tostring(row.text), "\\", "/")
+        if Link.showAllSaves or Link.saveIsProfiles(id, saves, profile, link, row.item and row.item.activeMods) then
             table.insert(keep, row)
         else
             screen.listCache[row.text] = nil

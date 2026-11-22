@@ -742,12 +742,12 @@ export const HealthModule: React.FC<HealthModuleProps> = ({ paths, mods, report:
       t('assistant.healthAsk'),
       '',
       `Project Zomboid ${report?.game_version ?? ''}, ${report?.active_count ?? '?'} mods on`.trim(),
-      `Mod Health: ${issue.severity} ${issue.code}`,
+      `Diagnostics: ${issue.severity} ${issue.code}`,
       issue.mod_id ? `Mod: ${describe(issue.mod_id)}` : '',
       issue.related.length ? `Also involved: ${issue.related.map(describe).join('; ')}` : '',
       '',
-      issue.message,
-      issueText(issue) !== issue.message ? `(${issueText(issue)})` : '',
+      // Once, in the player's language (the code above says exactly which finding it is).
+      issueText(issue),
       issue.fixes.length ? `\nPZ Mod Studio offers: ${issue.fixes.map((f) => f.action).join(', ')}` : '',
     ].filter((l, i, all) => l !== '' || (i > 0 && all[i - 1] !== ''));
     await navigator.clipboard.writeText(lines.join('\n'));

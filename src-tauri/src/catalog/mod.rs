@@ -129,13 +129,15 @@ fn mod_folders_in_game_order(workshop_dir: &str, user_zomboid_dir: &str) -> Vec<
     let workshop = Path::new(workshop_dir);
     if !workshop_dir.is_empty() && workshop.is_dir() {
         let subscribed = get_subscribed_workshop_ids(workshop);
+        // Items the player unsubscribed from, whose folders Steam has not deleted yet: gone.
+        let unsubscribed = crate::instance_manager::unsubscribed::pending_in(workshop_dir, user_zomboid_dir);
         let mut items: Vec<(u64, PathBuf, String)> = child_dirs(workshop)
             .into_iter()
             .filter_map(|p| {
                 let id = p.file_name()?.to_string_lossy().to_string();
                 Some((id.parse::<u64>().ok()?, p, id))
             })
-            .filter(|(_, _, id)| subscribed.as_ref().is_none_or(|s| s.contains(id)))
+            .filter(|(_, _, id)| subscribed.as_ref().is_none_or(|s| s.contains(id)) && !unsubscribed.contains(id))
             .collect();
         items.sort();
         for (_, item, workshop_id) in items {

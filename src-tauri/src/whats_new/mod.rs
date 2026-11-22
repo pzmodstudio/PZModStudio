@@ -357,7 +357,9 @@ pub fn whats_new(user_zomboid_dir: &Path, workshop_dir: &str, with_notes: bool, 
     // profiles) still name it: the item is still the one they have on.
     let known = crate::catalog::known_workshop_ids(user_zomboid_dir);
     let mut items: Vec<UpdatedItem> = Vec::new();
-    for (wid, s) in &state.items {
+    // Not the items the player unsubscribed from, whose folders Steam has not deleted yet.
+    let unsubscribed = crate::instance_manager::unsubscribed::pending_in(workshop_dir, &user_zomboid_dir.to_string_lossy());
+    for (wid, s) in state.items.iter().filter(|(wid, _)| !unsubscribed.contains(*wid)) {
         let since_last_play = matches!((s.installed_time, since), (Some(i), Some(p)) if i > p);
         if !since_last_play && !s.update_pending {
             continue;

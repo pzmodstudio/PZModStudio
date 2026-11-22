@@ -479,7 +479,7 @@ pub fn issues(mods: &[ModLinks], zombiebuddy_in_list: bool) -> Vec<crate::catalo
             let patches = m.broken.iter().filter(|b| b.kind == "patch").count();
             let patch_text = if patches > 0 { " Some are what its patches change: ZombieBuddy skips a patch whose target is gone, so that change does not happen." } else { "" };
             let message = format!(
-                "{}'s Java uses {} thing(s) this build of the game no longer has: {}{}. That code fails when it runs, often as the game starts or a save loads.{} If the Monitor shows it failing, look for an update of {} or turn it off; if it works, it checks first and there is nothing to do.",
+                "{}'s Java uses {} thing(s) this build of the game no longer has: {}{}. That code fails when it runs, often as the game starts or a save loads.{} If the Monitor shows it failing, look for an update of {} or turn it off. If the game runs fine with it, that part is not used (or the mod checks before using it) and there is nothing to do.",
                 m.name,
                 m.total,
                 examples.join(", "),
@@ -495,7 +495,10 @@ pub fn issues(mods: &[ModLinks], zombiebuddy_in_list: bool) -> Vec<crate::catalo
                 ("patchKey", if patches > 0 { "jl_patch" } else { "" }),
             ]);
             params.insert("count".to_string(), m.total.to_string());
-            params.insert("more".to_string(), more.to_string());
+            // Only when there is more: an empty phrase keeps the value sent, and a 0 was said after the examples.
+            if more > 0 {
+                params.insert("more".to_string(), more.to_string());
+            }
             HealthIssue {
                 severity,
                 state: issue_state(severity, "java_link_broken"),

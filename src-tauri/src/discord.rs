@@ -107,6 +107,23 @@ pub fn view(user_zomboid_dir: &Path, server: &str) -> DiscordView {
     }
 }
 
+/// A restart coming (`restartWarn`: minutes left and why) or called off (`restartCancelled`), said in
+/// the server's channel when Discord is on for it with "Restarts" (the Restarts tab's countdown,
+/// whoever asked: the schedule, a mod update, the app, an assistant or a Discord command).
+pub fn announce_restart(user_zomboid_dir: &Path, server: &str, key: &str, args: &[&str]) {
+    let s = view(user_zomboid_dir, server).settings;
+    if !s.enabled || !s.restarts {
+        return;
+    }
+    let Ok(Some(webhook)) = crate::secrets::get(&secret_name(server)) else { return };
+    let text = say(&s.language, key, args);
+    std::thread::spawn(move || {
+        if let Err(e) = post(&webhook, &text) {
+            crate::diagnostics::error(format!("[Discord] could not say the restart: {}", e));
+        }
+    });
+}
+
 /// A Discord webhook address: `https://discord.com/api/webhooks/<id>/<token>` (or discordapp.com,
 /// ptb., canary.). Nothing else is ever posted to.
 pub fn is_webhook_url(url: &str) -> bool {

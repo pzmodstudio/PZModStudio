@@ -124,7 +124,7 @@ Un **message d'état qui se met à jour tout seul** (activé par défaut) garde 
 Désactivées sauf si vous les activez. Avec le bot ci-dessus configuré, écrivez un **Salon des commandes** et le **Rôle autorisé à les utiliser** (noms tels qu'ils sont dans Discord) et cochez **Activer les commandes**. Le Studio lit ce salon toutes les 5 secondes et y répond ; les membres sans le rôle se voient répondre qu'ils ne peuvent pas.
 
 - `!status` et `!players` : si le serveur est en ligne et qui est connecté.
-- `!restart [minutes]` (1 à 60, 5 si rien n'est dit) : les joueurs sont prévenus dans le jeu à ce moment-là, puis 5 et 1 minute avant ; ensuite le serveur est arrêté de la façon habituelle (il sauvegarde) et relancé. `!restart cancel` l'annule.
+- `!restart [minutes]` (1 à 60, 5 si rien n'est dit) : le même redémarrage annoncé que l'onglet **Redémarrages** : les joueurs reçoivent dans le jeu les avertissements réglés là (ceux qui tiennent dans le délai), le salon est prévenu aussi et il figure dans l'historique ; ensuite le serveur sauvegarde, s'arrête et redémarre. `!restart cancel` annule tout redémarrage en cours de décompte, même programmé.
 - `!save` sauvegarde le monde ; `!msg <text>` dit quelque chose à tout le monde dans le jeu.
 - `!help` les liste. Elles fonctionnent aussi en espagnol (`!estado`, `!jugadores`, `!reiniciar`, `!guardar`, `!mensaje`).
 

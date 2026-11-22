@@ -938,7 +938,7 @@
       "unsubscribeNeededByOn_one": "\n\n{{count}} d'entre eux est activé : le jeu cesse de le charger dès que ce qu'il nécessite a disparu.",
       "unsubscribeNeededByOn_other": "\n\n{{count}} d'entre eux sont activés : le jeu cesse de les charger dès que ce qu'ils nécessitent a disparu.",
       "unsubscribeNeededByOn_many": "\n\n{{count}} d'entre eux sont activés : le jeu cesse de les charger dès que ce qu'ils nécessitent a disparu.",
-      "unsubscribed": "Désabonné de {{count}} objets. Steam les supprime dans un instant.",
+      "unsubscribed": "Désabonné de {{count}} objets. Ils ont quitté tous les profils tout de suite ; Steam supprime les fichiers de lui-même.",
       "unsubscribedPartly": "Désabonné de {{done}} objets sur {{count}}. Le premier échec : {{reason}}",
       "unsubscribeFailed": "Impossible de se désabonner : {{reason}}",
       "groups": "Ajouter {{count}} mods à un groupe…"
@@ -1722,7 +1722,7 @@
       "subscribeTitle": "S'abonne avec votre compte Steam ; Steam télécharge les fichiers",
       "unsubscribeTitle": "Se désabonne ; Steam retire les fichiers",
       "subscribed": "Steam le télécharge ; il apparaît dans votre Liste des mods une fois fini.",
-      "unsubscribed": "Désabonné. Steam supprime les fichiers lors de son prochain rangement : il peut donc rester dans votre Liste des mods jusqu'au redémarrage de Steam.",
+      "unsubscribed": "Désabonné. Il a quitté vos profils et la Liste des mods tout de suite ; Steam supprime les fichiers de lui-même.",
       "downloadNexus": "Télécharger sur Nexus",
       "downloadNexusTitle": "Ouvre l'onglet Files sur Nexus : téléchargez-y, puis utilisez Installer .zip / .7z dans Parcourir les mods",
       "openNexus": "Ouvrir la page Nexus",
@@ -2630,8 +2630,8 @@
         "statusExample": "🟢 Coop est en ligne. · ⚠️ Coop s'est arrêté sans qu'on le demande.",
         "players": "Joueurs qui arrivent et qui partent",
         "playersExample": "➡️ Ana, Beto et Carl sont arrivés (3 connectés).",
-        "restarts": "Redémarrages",
-        "restartsExample": "🔄 Coop a redémarré et est de nouveau en ligne.",
+        "restarts": "Redémarrages : à venir, annulés, de retour",
+        "restartsExample": "🔄 Coop redémarre dans 15 min (programmé). · 🔄 Coop a redémarré et est de nouveau en ligne.",
         "updates": "Mods Workshop en attente d'un redémarrage",
         "updatesExample": "📦 2 mods Workshop de Coop ont été mis à jour depuis son démarrage."
       }
@@ -2705,6 +2705,10 @@
       "authNetwork": "Authentification et réseau",
       "steamEnabled": "Steam activé",
       "noSteam": "NoSteam (LAN)",
+      "runningNow": "En marche : {{mode}}",
+      "runningNoSteam": "Steam désactivé (NoSteam)",
+      "runningSteam": "avec Steam",
+      "nextStart": "Pour le prochain démarrage (le serveur en marche ne change pas) :",
       "publicName": "Nom public :",
       "port": "Port :",
       "pvpMode": "Mode PVP :",
@@ -3643,7 +3647,7 @@
       "function_overridden_reset": "{{winner}} recrée {{table}} ({{place}}) après que {{cut}} y a modifié {{function}}, ce qui efface cette modification. {{how}}{{checked}}",
       "function_seen_other": "Dans le jeu en cours, la version de {{function}} qui s'exécute est celle de {{actual}} ({{place}}), et non celle de {{expected}} comme leurs fichiers le laissent penser : un mod la définit plus tard que ne le montrent ses fichiers (depuis une fonction ou un événement à lui). Rien à faire, sauf si quelque chose de {{expected}} semble manquer en jeu.",
       "function_overridden_mod_many": "{{winner}} remplace {{count}} fonctions de {{owner}} ({{examples}}...) après que {{cut}} les a modifiées, donc ces modifications ne s'exécutent jamais. {{how}}",
-      "java_link_broken": "Le Java de {{mod}} utilise {{count}} chose(s) que cette build du jeu n'a plus : {{examples}}{{more}}. Ce code échoue quand il s'exécute, souvent au démarrage du jeu ou au chargement d'une sauvegarde.{{patch}} Si le Centre de surveillance le montre en échec, cherchez une mise à jour de {{mod}} ou désactivez-le ; s'il fonctionne, c'est qu'il vérifie d'abord et il n'y a rien à faire.",
+      "java_link_broken": "Le Java de {{mod}} utilise {{count}} chose(s) que cette build du jeu n'a plus : {{examples}}{{more}}. Ce code échoue quand il s'exécute, souvent au démarrage du jeu ou au chargement d'une sauvegarde.{{patch}} Si le Centre de surveillance le montre en échec, cherchez une mise à jour de {{mod}} ou désactivez-le. Si le jeu tourne bien avec lui, cette partie n'est pas utilisée (ou le mod vérifie avant de s'en servir) et il n'y a rien à faire.",
       "game_folder_changed": "Pendant que le jeu tournait (session terminée {{when}}), {{count}} fichier(s) du dossier du jeu lui-même ont changé : {{files}}. Le jeu n'y écrit jamais lui-même : c'est un mod Java, le programme d'aide d'un mod ou un autre outil. Si vous n'y avez rien installé ou mis à jour vous-même, regardez quel mod a pu le faire.",
       "kept_version_in_use": "{{mod}} tourne depuis la version conservée le {{kept}} que vous avez remise dans Zomboid/mods ; la version du Workshop est ignorée en attendant. Cela compte quand le jeu est lancé depuis le Studio (depuis Steam, il faut l'option de lancement -modfolders mods,workshop,steam). Rien à faire tant que la plus récente pose problème ; une fois que son auteur l'a corrigée, « Revenir à la version du Workshop » retire la copie.",
       "kept_version_in_use_newer": "{{mod}} tourne depuis la version conservée le {{kept}} que vous avez remise dans Zomboid/mods ; la version du Workshop (modversion {{workshop}}) est ignorée en attendant. Cela compte quand le jeu est lancé depuis le Studio (depuis Steam, il faut l'option de lancement -modfolders mods,workshop,steam). Rien à faire tant que la plus récente pose problème ; une fois que son auteur l'a corrigée, « Revenir à la version du Workshop » retire la copie.",
@@ -4190,7 +4194,9 @@
   },
   "notices": {
     "javaAgentsLater": "Project Zomboid était ouvert quand le profil a changé, donc son fichier de lancement (agents Java comme ZombieBuddy) a attendu. Maintenant que le jeu est fermé, c'est fait. Activés : {{on}}. Désactivés : {{off}}.",
-    "zbListHidden": "Le Studio a masqué la liste des mods Java que ZombieBuddy écrit par-dessus le menu du jeu. Pour la revoir : Paramètres, avec les fonctions développeur activées."
+    "zbListHidden": "Le Studio a masqué la liste des mods Java que ZombieBuddy écrit par-dessus le menu du jeu. Pour la revoir : Paramètres, avec les fonctions développeur activées.",
+    "modsUnsubscribed": "Vous vous êtes désabonné de ces mods, ils ont donc été retirés de tous les profils : {{mods}}",
+    "modsGone": "Ces mods ne sont plus sur le disque, ils ont donc été retirés de tous les profils : {{mods}}"
   },
   "preview": {
     "cancel": "Annuler",

@@ -111,6 +111,24 @@ const TABLE: &[(&str, [&str; 7])] = &[
         "📦 Моды Мастерской на **{1}**, обновлённые после запуска ({0}): {2}. Игроки с новой версией не смогут зайти до перезапуска.",
         "📦 **{1}** 启动后有创意工坊模组更新（{0} 个）：{2}。拥有新版本的玩家要等它重启后才能加入。",
     ]),
+    ("discord.restartWarn", [
+        "🔄 **{0}** restarts in {1} min{2}: players are warned in the game.",
+        "🔄 **{0}** se reinicia en {1} min{2}: los jugadores reciben el aviso en el juego.",
+        "🔄 **{0}** reinicia em {1} min{2}: os jogadores são avisados no jogo.",
+        "🔄 **{0}** redémarre dans {1} min{2} : les joueurs sont prévenus dans le jeu.",
+        "🔄 **{0}** startet in {1} Min. neu{2}: die Spieler werden im Spiel gewarnt.",
+        "🔄 **{0}** перезапустится через {1} мин.{2}: игроки предупреждены в игре.",
+        "🔄 **{0}** 将在 {1} 分钟后重启{2}：已在游戏中提醒玩家。",
+    ]),
+    ("discord.restartCancelled", [
+        "🚫 The restart of **{0}** was called off.",
+        "🚫 Se canceló el reinicio de **{0}**.",
+        "🚫 O reinício de **{0}** foi cancelado.",
+        "🚫 Le redémarrage de **{0}** est annulé.",
+        "🚫 Der Neustart von **{0}** wurde abgesagt.",
+        "🚫 Перезапуск **{0}** отменён.",
+        "🚫 **{0}** 的重启已取消。",
+    ]),
     ("status.nobody", ["nobody on", "nadie conectado", "ninguém online", "personne en ligne", "niemand online", "никого нет", "无人在线"]),
     ("status.online", ["{0} online: {1}", "{0} en línea: {1}", "{0} online: {1}", "{0} en ligne : {1}", "{0} online: {1}", "в сети {0}: {1}", "{0} 人在线：{1}"]),
     ("status.up", ["🟢 **{0}** up since {1} · {2}", "🟢 **{0}** en línea desde {1} · {2}", "🟢 **{0}** online desde {1} · {2}", "🟢 **{0}** en ligne depuis {1} · {2}", "🟢 **{0}** online seit {1} · {2}", "🟢 **{0}** работает с {1} · {2}", "🟢 **{0}** 自 {1} 起在线 · {2}"]),
@@ -159,17 +177,6 @@ const TABLE: &[(&str, [&str; 7])] = &[
     ]),
     ("cmd.restartCancelled", ["The restart of **{0}** was cancelled.", "Se canceló el reinicio de **{0}**.", "O reinício de **{0}** foi cancelado.", "Le redémarrage de **{0}** est annulé.", "Der Neustart von **{0}** wurde abgesagt.", "Перезапуск **{0}** отменён.", "**{0}** 的重启已取消。"]),
     ("cmd.noRestart", ["No restart is waiting.", "No hay ningún reinicio esperando.", "Não há nenhum reinício pendente.", "Aucun redémarrage en attente.", "Kein Neustart steht an.", "Перезапуск не запланирован.", "没有待执行的重启。"]),
-    ("cmd.restartNow", ["🔄 Restarting **{0}** now.", "🔄 Reiniciando **{0}** ahora.", "🔄 Reiniciando **{0}** agora.", "🔄 Redémarrage de **{0}** maintenant.", "🔄 **{0}** startet jetzt neu.", "🔄 Перезапускаю **{0}**.", "🔄 正在重启 **{0}**。"]),
-    ("cmd.restartStarted", [
-        "🟢 **{0}** saved, stopped and is starting again (players can join once it has loaded).",
-        "🟢 **{0}** guardó, se detuvo y está arrancando de nuevo (se puede entrar cuando termine de cargar).",
-        "🟢 **{0}** salvou, parou e está iniciando de novo (dá para entrar quando terminar de carregar).",
-        "🟢 **{0}** a sauvegardé, s'est arrêté et redémarre (on peut entrer une fois chargé).",
-        "🟢 **{0}** hat gespeichert, angehalten und startet neu (Beitritt möglich, sobald er geladen hat).",
-        "🟢 **{0}** сохранил мир, остановился и запускается снова (зайти можно после загрузки).",
-        "🟢 **{0}** 已保存、停止并正在重新启动（加载完成后即可加入）。",
-    ]),
-    ("cmd.restartFailed", ["⚠️ **{0}** could not be started again: {1}", "⚠️ **{0}** no se pudo volver a iniciar: {1}", "⚠️ **{0}** não pôde ser iniciado de novo: {1}", "⚠️ **{0}** n'a pas pu redémarrer : {1}", "⚠️ **{0}** konnte nicht neu gestartet werden: {1}", "⚠️ **{0}** не удалось запустить снова: {1}", "⚠️ **{0}** 无法重新启动：{1}"]),
     ("cmd.saved", ["💾 **{0}** saved the world.", "💾 **{0}** guardó el mundo.", "💾 **{0}** salvou o mundo.", "💾 **{0}** a sauvegardé le monde.", "💾 **{0}** hat die Welt gespeichert.", "💾 **{0}** сохранил мир.", "💾 **{0}** 已保存世界。"]),
     ("cmd.sent", ["Said in the game.", "Dicho en el juego.", "Dito no jogo.", "Dit dans le jeu.", "Im Spiel gesagt.", "Сказано в игре.", "已在游戏中发送。"]),
     ("cmd.noRcon", [
@@ -182,8 +189,6 @@ const TABLE: &[(&str, [&str; 7])] = &[
         "⚠️ **{0}** 没有 RCON 密码，Studio 无法与它通信。请停止它并从 Studio 重新启动：Studio 会设置一个。",
     ]),
     ("cmd.failed", ["⚠️ It did not work: {0}", "⚠️ No funcionó: {0}", "⚠️ Não funcionou: {0}", "⚠️ Ça n'a pas marché : {0}", "⚠️ Hat nicht geklappt: {0}", "⚠️ Не получилось: {0}", "⚠️ 没有成功：{0}"]),
-    ("cmd.gameWarn", ["The server restarts in {0} minute(s).", "El servidor se reinicia en {0} minuto(s).", "O servidor reinicia em {0} min.", "Le serveur redémarre dans {0} min.", "Der Server startet in {0} Min. neu.", "Сервер перезапустится через {0} мин.", "服务器将在 {0} 分钟后重启。"]),
-    ("cmd.gameCancel", ["The restart was cancelled.", "Se canceló el reinicio.", "O reinício foi cancelado.", "Le redémarrage est annulé.", "Der Neustart wurde abgesagt.", "Перезапуск отменён.", "重启已取消。"]),
 ];
 
 /// The text of `key` in that language with `{0}`, `{1}`... filled in; the key itself when unknown.

@@ -322,7 +322,7 @@ pub struct Request {
     /// "restart" or "cancel".
     pub kind: String,
     pub warn_minutes: u32,
-    /// "app" or "assistant".
+    /// "app", "assistant" or "Discord".
     pub by: String,
     pub at: u64,
 }
@@ -539,6 +539,7 @@ fn round(z: &Path, st: &mut RestartState) {
                     st.skipped_at = p.at;
                 }
                 let _ = say(z, &p.server, &game_message(&schedule.language, "cancel", 0, ""));
+                crate::discord::announce_restart(z, &p.server, "restartCancelled", &[&p.server]);
                 st.record(RestartEvent { at: now, server: p.server, reason: p.reason, ok: false, detail: "called off".into() });
             }
         }
@@ -577,6 +578,14 @@ fn round(z: &Path, st: &mut RestartState) {
                 if let Err(e) = say(z, &server, &game_message(&schedule.language, "warn", m, &p.reason)) {
                     crate::diagnostics::error(format!("[Server restarts] Could not warn the players of {}: {}", server, e));
                 }
+                // The channel hears it too, in Discord's own language.
+                let lang = crate::discord::view(z, &server).settings.language;
+                let why = match p.reason.as_str() {
+                    "mod_update" => crate::server_texts::text(&lang, "game.why_mod_update", &[]),
+                    "schedule" => crate::server_texts::text(&lang, "game.why_schedule", &[]),
+                    _ => String::new(),
+                };
+                crate::discord::announce_restart(z, &server, "restartWarn", &[&server, &m.to_string(), &why]);
             }
         }
         None => {

@@ -165,6 +165,31 @@ pub fn write_link_copy(user_zomboid_dir: &Path, meta: &ModMeta) {
     let _ = crate::load_order::ini_parser::atomic_write(file, text);
 }
 
+/// Takes the mods in `gone` (lowercase ids) out of every profile's groups; a group left with no
+/// mod goes. The notes stay: they are the player's. Backed up in `backups` when changed.
+pub fn take_out_of_groups(user_zomboid_dir: &Path, gone: &std::collections::HashSet<String>, backups: &Path) -> bool {
+    let file = path(user_zomboid_dir);
+    if !file.is_file() {
+        return false;
+    }
+    let mut all = read_all(user_zomboid_dir);
+    let before = all.groups.clone();
+    for g in all.groups.iter_mut() {
+        g.mods.retain(|m| !gone.contains(&m.trim_start_matches('\\').to_lowercase()));
+    }
+    all.groups.retain(|g| !g.mods.is_empty() || before.iter().any(|b| b.name == g.name && b.profile == g.profile && b.mods.is_empty()));
+    if all.groups == before {
+        return false;
+    }
+    let Ok(text) = serde_json::to_string_pretty(&all) else { return false };
+    if crate::load_order::ini_parser::write_file_with_backup(&file, &text, backups).is_err() {
+        return false;
+    }
+    let active = active_profile(user_zomboid_dir);
+    write_link_copy(user_zomboid_dir, &scoped(&all, active.as_deref()));
+    true
+}
+
 /// The Link's copy for the profile active now (called when another one is activated).
 pub fn refresh_link_copy(user_zomboid_dir: &Path) {
     write_link_copy(user_zomboid_dir, &read(user_zomboid_dir));
@@ -359,5 +384,21 @@ mod tests {
         assert_eq!(names("p1"), vec!["Cars", "Lost"], "an old group goes where its mods are, else to the active profile");
         assert_eq!(names("p2"), vec!["Cars", "Mine"]);
         assert!(!adopt_shared_groups(&mut meta, Some("p1"), &profiles), "given out once");
+    }
+
+    #[test]
+    fn mods_gone_leave_the_groups_and_the_notes_stay() {
+        let d = dir();
+        set_note(&d, "Gone", "my note").unwrap();
+        set_in_group(&d, "Cars", &["A".into(), "Gone".into()], true).unwrap();
+        set_in_group(&d, "Only", &["gone".into()], true).unwrap();
+        let gone: std::collections::HashSet<String> = ["gone".to_string()].into_iter().collect();
+        assert!(take_out_of_groups(&d, &gone, &d.join("bak")));
+        let meta = read(&d);
+        assert_eq!(meta.groups.len(), 1, "a group left empty goes");
+        assert_eq!(meta.groups[0].mods, vec!["A"]);
+        assert_eq!(meta.notes["Gone"], "my note");
+        assert!(!take_out_of_groups(&d, &gone, &d.join("bak")), "nothing more to take out");
+        let _ = std::fs::remove_dir_all(&d);
     }
 }

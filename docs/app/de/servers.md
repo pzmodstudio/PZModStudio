@@ -124,7 +124,7 @@ Eine **Statusnachricht, die sich selbst bearbeitet** (standardmäßig an), hält
 Aus, bis du sie einschaltest. Mit dem oben eingerichteten Bot schreibst du einen **Befehlskanal** und die **Rolle, die sie nutzen darf** (Namen, wie sie in Discord sind), und hakst **Befehle einschalten** an. Das Studio liest diesen Kanal alle 5 Sekunden und antwortet dort; Mitgliedern ohne die Rolle wird gesagt, dass sie es nicht dürfen.
 
 - `!status` und `!players`: ob der Server läuft und wer drin ist.
-- `!restart [minutes]` (1 bis 60, 5 wenn nicht angegeben): Die Spieler werden dann im Spiel gewarnt, 5 und 1 Minute vorher; dann wird der Server auf die übliche Weise gestoppt (er speichert) und neu gestartet. `!restart cancel` stoppt es.
+- `!restart [minutes]` (1 bis 60, 5 wenn nicht angegeben): derselbe angekündigte Neustart wie im Tab **Neustarts**: Die Spieler bekommen im Spiel die dort eingestellten Warnungen (die in die Zeit passen), der Kanal erfährt es auch, und es steht im Neustart-Verlauf; dann speichert der Server, stoppt und startet neu. `!restart cancel` sagt jeden laufenden Countdown ab, auch einen geplanten.
 - `!save` speichert die Welt; `!msg <text>` sagt allen im Spiel etwas.
 - `!help` listet sie auf. Sie funktionieren auch auf Spanisch (`!estado`, `!jugadores`, `!reiniciar`, `!guardar`, `!mensaje`).
 

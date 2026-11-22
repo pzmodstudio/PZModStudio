@@ -9,7 +9,7 @@
 //! Replies never ping anyone. A member's roles are looked up once every few minutes.
 
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -67,38 +67,7 @@ pub fn servermsg_text(text: &str) -> Option<String> {
     (!clean.is_empty()).then_some(clean)
 }
 
-/// A restart asked for: when it happens, and which warnings were given.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Countdown {
-    pub server: String,
-    pub at: u64,
-    pub warned: BTreeSet<u32>,
-}
 
-impl Countdown {
-    pub fn new(server: &str, now: u64, minutes: u32) -> Self {
-        let mut warned = BTreeSet::new();
-        // The warning for the time asked is the answer itself, and none is due above it.
-        warned.extend([5u32, 1].into_iter().filter(|m| *m >= minutes));
-        Countdown { server: server.to_string(), at: now + minutes as u64 * 60, warned }
-    }
-
-    /// The warnings due now (minutes left: 5 and 1), each once; None once it is time.
-    pub fn step(&mut self, now: u64) -> Option<Vec<u32>> {
-        if now >= self.at {
-            return None;
-        }
-        let left_secs = self.at - now;
-        let mut due = Vec::new();
-        for m in [5u32, 1] {
-            if left_secs <= m as u64 * 60 && !self.warned.contains(&m) {
-                self.warned.insert(m);
-                due.push(m);
-            }
-        }
-        Some(due)
-    }
-}
 
 fn say(language: &str, key: &str, args: &[&str]) -> String {
     crate::server_texts::text(language, &format!("cmd.{}", key), args)
@@ -213,17 +182,6 @@ fn running(z: &Path, server: &str) -> bool {
     crate::server_manager::get_dedicated_server_status(z.to_string_lossy().to_string()).is_ok_and(|s| s.is_running && s.server_name.as_deref() == Some(server))
 }
 
-/// Stops the server and starts it again the way the Studio last did.
-fn restart_now(z: &Path, server: &str) -> Result<(), String> {
-    let z_str = z.to_string_lossy().to_string();
-    crate::server_manager::stop_dedicated_server(z_str.clone(), None)?;
-    // Its ports are let go a moment after the process ends.
-    std::thread::sleep(Duration::from_secs(3));
-    let (name, memory, nosteam) = crate::server_manager::LAST_LAUNCH.lock().ok().and_then(|l| l.clone()).unwrap_or((server.to_string(), None, None));
-    let name = if name == server { name } else { server.to_string() };
-    crate::server_manager::launch_dedicated_server(String::new(), z_str, name, memory, nosteam, None).map(|_| ())
-}
-
 /// What the watcher keeps between looks.
 #[derive(Default)]
 struct State {
@@ -235,7 +193,6 @@ struct State {
     backoff: u64,
     /// The last failure written to the log: the same one again is not written again.
     logged: Option<String>,
-    countdown: Option<Countdown>,
 }
 
 static STARTED: AtomicBool = AtomicBool::new(false);
@@ -307,37 +264,7 @@ fn round(st: &mut State) -> Result<(), String> {
     };
     let lang = s.language.clone();
 
-    // A restart counting down: the warnings in the game, then the restart.
-    if let Some(cd) = st.countdown.as_mut() {
-        match cd.step(now) {
-            Some(due) => {
-                for m in due {
-                    let _ = crate::server_manager::rcon_command(&z, &cd.server, &format!("servermsg \"{}\"", say(&lang, "gameWarn", &[&m.to_string()])));
-                }
-            }
-            None => {
-                let target = cd.server.clone();
-                st.countdown = None;
-                let place = st.place.clone();
-                let z2 = z.clone();
-                let token = crate::discord::game_bot_token(&z, &server).unwrap_or_default();
-                let lang2 = lang.clone();
-                std::thread::spawn(move || {
-                    let post = |text: String| {
-                        if let Some(p) = &place {
-                            let body = json!({ "content": text, "allowed_mentions": { "parse": [] } });
-                            let _ = call(&token, &format!("/channels/{}/messages", p.channel), Some(&body));
-                        }
-                    };
-                    post(say(&lang2, "restartNow", &[&target]));
-                    match restart_now(&z2, &target) {
-                        Ok(()) => post(say(&lang2, "restartStarted", &[&target])),
-                        Err(e) => post(say(&lang2, "restartFailed", &[&target, &e])),
-                    }
-                });
-            }
-        }
-    }
+    // A restart asked here is counted down by the Restarts tab's watcher (its warnings, its history).
 
     if now < st.backoff_until {
         return Ok(());
@@ -379,7 +306,7 @@ fn round(st: &mut State) -> Result<(), String> {
             reply(&token, &place.channel, &id, &say(&lang, "noRole", &[&s.command_role]));
             continue;
         }
-        let answer = run(&z, &server, &lang, cmd, &mut st.countdown, now);
+        let answer = run(&z, &server, &lang, cmd, now);
         reply(&token, &place.channel, &id, &answer);
     }
     Ok(())
@@ -394,7 +321,7 @@ fn failed(lang: &str, server: &str, error: &str) -> String {
 }
 
 /// Does one command and says how it went.
-fn run(z: &Path, server: &str, lang: &str, cmd: Command, countdown: &mut Option<Countdown>, now: u64) -> String {
+fn run(z: &Path, server: &str, lang: &str, cmd: Command, now: u64) -> String {
     let up = running(z, server);
     match cmd {
         Command::Help => say(lang, "help", &[]),
@@ -425,16 +352,25 @@ fn run(z: &Path, server: &str, lang: &str, cmd: Command, countdown: &mut Option<
                 return say(lang, "down", &[server]);
             }
             // Without RCON the players would not be warned and the stop would not save: not done.
-            if let Err(e) = crate::server_manager::rcon_command(z, server, &format!("servermsg \"{}\"", say(lang, "gameWarn", &[&minutes.to_string()]))) {
+            if let Err(e) = crate::server_manager::rcon_command(z, server, "players") {
                 return failed(lang, server, &e);
             }
-            *countdown = Some(Countdown::new(server, now, minutes));
-            say(lang, "restartAsked", &[server, &minutes.to_string()])
+            // The Restarts tab's countdown: its warnings (in the game and here), its history, and a
+            // cancel from either side.
+            let ask = crate::server_manager::restarts::Request { kind: "restart".into(), warn_minutes: minutes, by: "Discord".into(), at: now };
+            match crate::server_manager::restarts::request(z, &ask) {
+                Ok(()) => say(lang, "restartAsked", &[server, &minutes.to_string()]),
+                Err(e) => failed(lang, server, &e),
+            }
         }
         Command::RestartCancel => {
-            if countdown.take().is_some() {
-                let _ = crate::server_manager::rcon_command(z, server, &format!("servermsg \"{}\"", say(lang, "gameCancel", &[])));
-                say(lang, "restartCancelled", &[server])
+            // Any restart counting down, however it was asked (the schedule, the app, Discord).
+            if crate::server_manager::restarts::state(z).pending.is_some() {
+                let ask = crate::server_manager::restarts::Request { kind: "cancel".into(), warn_minutes: 0, by: "Discord".into(), at: now };
+                match crate::server_manager::restarts::request(z, &ask) {
+                    Ok(()) => say(lang, "restartCancelled", &[server]),
+                    Err(e) => failed(lang, server, &e),
+                }
             } else {
                 say(lang, "noRestart", &[])
             }
@@ -481,17 +417,5 @@ Public=false
         assert!(!crate::server_manager::ensure_rcon_password(&ini, &dir.join("b")).unwrap(), "kept when there is one");
         assert!(std::fs::read_to_string(&ini).unwrap().contains(&pass));
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn a_restart_warns_at_five_and_one_minute() {
-        let mut cd = Countdown::new("Coop", 1000, 10);
-        assert_eq!(cd.step(1000), Some(vec![]), "the 10-minute warning was the answer itself");
-        assert_eq!(cd.step(1000 + 5 * 60), Some(vec![5]));
-        assert_eq!(cd.step(1000 + 5 * 60 + 10), Some(vec![]), "each once");
-        assert_eq!(cd.step(1000 + 9 * 60), Some(vec![1]));
-        assert_eq!(cd.step(1000 + 10 * 60), None, "time: restart");
-        let mut short = Countdown::new("Coop", 0, 1);
-        assert_eq!(short.step(10), Some(vec![]), "a 1-minute restart was warned when asked");
     }
 }

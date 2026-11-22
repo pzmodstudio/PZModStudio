@@ -635,10 +635,15 @@ pub const SAVES_FILE: &str = "PZModStudio_LinkSaves.txt";
 pub const SAVES_CHANGED_EVENT: &str = "save-backups-changed";
 
 /// Mod id -> Workshop item, from the mod.info files in the Workshop folder (the B42 one too).
-fn workshop_ids_by_mod(workshop_dir: &Path) -> std::collections::HashMap<String, String> {
+fn workshop_ids_by_mod(workshop_dir: &Path, user_zomboid_dir: &Path) -> std::collections::HashMap<String, String> {
     let mut out = std::collections::HashMap::new();
+    // Not the items the player unsubscribed from, whose folders Steam has not deleted yet.
+    let unsubscribed = crate::instance_manager::unsubscribed::pending_in(&workshop_dir.to_string_lossy(), &user_zomboid_dir.to_string_lossy());
     for item in std::fs::read_dir(workshop_dir).into_iter().flatten().flatten() {
         let wid = item.file_name().to_string_lossy().to_string();
+        if unsubscribed.contains(&wid) {
+            continue;
+        }
         for m in std::fs::read_dir(item.path().join("mods")).into_iter().flatten().flatten() {
             for info in [m.path().join("mod.info"), m.path().join("42").join("mod.info")] {
                 let Ok(text) = std::fs::read_to_string(&info) else { continue };
@@ -744,7 +749,7 @@ fn add_server_sessions(user_zomboid_dir: &Path, refs: &mut std::collections::BTr
 /// For each save with a recorded session: what changed since.
 pub fn session_diffs(user_zomboid_dir: &Path) -> std::collections::BTreeMap<String, SessionDiff> {
     let paths = crate::vfs::studio_paths();
-    let by_mod = if paths.workshop_dir.is_empty() { Default::default() } else { workshop_ids_by_mod(Path::new(&paths.workshop_dir)) };
+    let by_mod = if paths.workshop_dir.is_empty() { Default::default() } else { workshop_ids_by_mod(Path::new(&paths.workshop_dir), user_zomboid_dir) };
     let state = (!paths.workshop_dir.is_empty()).then(|| crate::workshop::local_state(&paths.workshop_dir)).flatten();
     let mut refs = save_references(user_zomboid_dir);
     add_server_sessions(user_zomboid_dir, &mut refs);
@@ -797,7 +802,7 @@ pub fn save_profiles(user_zomboid_dir: &Path) -> std::collections::BTreeMap<Stri
 pub fn saves_file_text(user_zomboid_dir: &Path) -> String {
     let paths = crate::vfs::studio_paths();
     let owners = save_profiles(user_zomboid_dir);
-    let by_mod = if paths.workshop_dir.is_empty() { Default::default() } else { workshop_ids_by_mod(Path::new(&paths.workshop_dir)) };
+    let by_mod = if paths.workshop_dir.is_empty() { Default::default() } else { workshop_ids_by_mod(Path::new(&paths.workshop_dir), user_zomboid_dir) };
     let state = (!paths.workshop_dir.is_empty()).then(|| crate::workshop::local_state(&paths.workshop_dir)).flatten();
     let refs = save_references(user_zomboid_dir);
     let active = crate::instance_manager::active_profile_on(user_zomboid_dir);

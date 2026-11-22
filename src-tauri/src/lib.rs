@@ -123,6 +123,11 @@ fn write_mod_list_ini_cmd(ini_path: String, active_mods: Vec<String>) -> Result<
 
 #[tauri::command(async)]
 fn scan_all_installed_mods_cmd(paths: StudioPaths) -> Vec<ModManifest> {
+    // Now and then, Steam's own list of subscriptions: an item unsubscribed on Steam's site
+    // leaves the profiles though Steam keeps its folder for a while.
+    check_steam_subscriptions(&paths);
+    // What the app made of an unsubscribed item goes too (not while the game runs).
+    clean_up_unsubscribed(&paths);
     let mods = scan_all_installed_mods(&paths);
     // A mod no longer on disk is no longer in the app: out of the profiles and the game's list.
     if instance_manager::forget_missing::forget_missing_mods(&paths, &mods).is_empty() {
@@ -132,10 +137,47 @@ fn scan_all_installed_mods_cmd(paths: StudioPaths) -> Vec<ModManifest> {
     }
 }
 
-/// The mod ids the scans took out of the profiles since the app last asked (gone from disk).
+/// The mod ids the scans took out of the profiles since the app last asked (unsubscribed, or gone from disk).
 #[tauri::command]
-fn take_forgotten_mods_cmd() -> Vec<String> {
+fn take_forgotten_mods_cmd() -> instance_manager::forget_missing::Forgotten {
     instance_manager::forget_missing::take_forgotten()
+}
+
+/// Reads Steam's list of the account's subscriptions when it is due (see
+/// `unsubscribed::take_check_turn`) and puts the items unsubscribed elsewhere on the record the
+/// scan reads. Nothing when Steam is not running or does not answer.
+fn check_steam_subscriptions(paths: &StudioPaths) {
+    let running = sandbox::find_running_pz_pid().is_some();
+    if !instance_manager::unsubscribed::take_check_turn(running) {
+        return;
+    }
+    let install = vfs::trusted_install_dir();
+    if !steam_client::is_ready(&install) {
+        return;
+    }
+    // In a helper, with a time limit: Steam's API starts once per process and may hang.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(steam_helper("--steam-subscribed", &install, &[]));
+    });
+    let Ok(Ok(answer)) = rx.recv_timeout(std::time::Duration::from_secs(25)) else { return };
+    let Ok(items) = serde_json::from_str::<Vec<u64>>(&answer) else { return };
+    // An item missing from the list counts only while Steam's Workshop still has it public: one
+    // its author removed or hid left Steam, and the copies on this PC are the player's last ones.
+    let added = instance_manager::unsubscribed::apply_steam_list(paths, &items, &instance_manager::unsubscribed::steam_public);
+    if !added.is_empty() {
+        eprintln!("Unsubscribed on Steam, left out of the app: {:?}", added);
+    }
+}
+
+/// The versions the store kept by itself of the items the player unsubscribed from are dropped,
+/// and local copies made from them moved to the backups; versions kept by hand stay. Waits for
+/// the game to close.
+fn clean_up_unsubscribed(paths: &StudioPaths) {
+    let done = instance_manager::unsubscribed::clean_up(paths);
+    if done.versions_dropped > 0 || !done.copies_moved.is_empty() {
+        diagnostics::log("INFO", &format!("Unsubscribed items: {} kept versions dropped, copies moved to the backups: {:?}", done.versions_dropped, done.copies_moved));
+    }
 }
 
 /// Read-only health check of `active` (mod ids in load order) against what is installed,
@@ -464,9 +506,20 @@ fn workshop_subscribe_cmd(
     subscribe: bool,
 ) -> Result<steam_client::SubscribeOutcome, String> {
     let flag = if subscribe { "--steam-subscribe" } else { "--steam-unsubscribe" };
-    let _ = paths;
     let output = steam_helper(flag, &vfs::trusted_install_dir(), &ids)?;
-    serde_json::from_str(&output).map_err(|e| format!("Unexpected answer from the Steam helper: {}", e))
+    let outcome: steam_client::SubscribeOutcome =
+        serde_json::from_str(&output).map_err(|e| format!("Unexpected answer from the Steam helper: {}", e))?;
+    if subscribe {
+        instance_manager::unsubscribed::note_subscribed(&paths, &outcome.done);
+    } else if !outcome.done.is_empty() {
+        // Gone for the app now, though Steam keeps the folder a while: out of every profile, the
+        // groups and (when the game is not running) the saves.
+        instance_manager::unsubscribed::note_unsubscribed(&paths, &outcome.done);
+        clean_up_unsubscribed(&paths);
+        let mods = scan_all_installed_mods(&paths);
+        instance_manager::forget_missing::forget_missing_mods(&paths, &mods);
+    }
+    Ok(outcome)
 }
 
 /// Marks the Steam helper's own line, among whatever Steam's library prints.

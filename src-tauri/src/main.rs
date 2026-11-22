@@ -39,6 +39,7 @@ fn steam_cli(args: &[String]) -> i32 {
         .map(|n| n.to_string()),
         "--steam-subscribe" => steam_client::set_subscriptions(&folder, &ids, true).map(|o| serde_json::to_string(&o).unwrap_or_default()),
         "--steam-unsubscribe" => steam_client::set_subscriptions(&folder, &ids, false).map(|o| serde_json::to_string(&o).unwrap_or_default()),
+        "--steam-subscribed" => steam_client::subscribed_items(&folder).map(|v| serde_json::to_string(&v).unwrap_or_default()),
         other => Err(format!("{} is not a Steam command.", other)),
     };
     // Steam's library writes its own lines to stdout, so the answer is marked to stand out.

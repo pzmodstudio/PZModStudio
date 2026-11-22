@@ -204,9 +204,11 @@ pub fn report(pz_install_dir: &str, workshop_dir: &str, user_zomboid_dir: &Path,
     let workshop = Path::new(workshop_dir);
     if !workshop_dir.is_empty() {
         if let Some(subscribed) = crate::load_order::mod_info::get_subscribed_workshop_ids(workshop) {
+            // Items the player unsubscribed from are not shown at all while Steam deletes them.
+            let unsubscribed = crate::instance_manager::unsubscribed::pending_in(workshop_dir, &user_zomboid_dir.to_string_lossy());
             for entry in std::fs::read_dir(workshop).into_iter().flatten().flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if !entry.path().is_dir() || name.is_empty() || !name.chars().all(|c| c.is_ascii_digit()) || subscribed.contains(&name) {
+                if !entry.path().is_dir() || name.is_empty() || !name.chars().all(|c| c.is_ascii_digit()) || subscribed.contains(&name) || unsubscribed.contains(&name) {
                     continue;
                 }
                 let key = entry.path().to_string_lossy().to_string();

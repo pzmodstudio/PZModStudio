@@ -124,7 +124,7 @@ Uma **mensagem de status que se edita sozinha** (ligada por padrão) mantém uma
 Desligados a não ser que você os ligue. Com o bot acima configurado, escreva um **Canal de comandos** e o **Cargo que pode usá-los** (os nomes como estão no Discord) e marque **Ligar os comandos**. O Studio lê aquele canal a cada 5 segundos e responde lá; membros sem o cargo ficam sabendo que não podem.
 
 - `!status` e `!players`: se o servidor está no ar e quem está dentro.
-- `!restart [minutes]` (1 a 60, 5 se não disser): os jogadores são avisados no jogo na hora, e 5 e 1 minuto antes; depois o servidor é parado do jeito de sempre (ele salva) e iniciado de novo. `!restart cancel` interrompe.
+- `!restart [minutes]` (1 a 60, 5 se não disser): o mesmo reinício com aviso da aba **Reinícios**: os jogadores recebem no jogo os avisos configurados lá (os que cabem no tempo), o canal também é avisado e fica no histórico de Reinícios; depois o servidor salva, para e inicia de novo. `!restart cancel` cancela qualquer reinício em contagem, inclusive um programado.
 - `!save` salva o mundo; `!msg <text>` diz algo para todos no jogo.
 - `!help` os lista. Eles também funcionam em espanhol (`!estado`, `!jugadores`, `!reiniciar`, `!guardar`, `!mensaje`).
 

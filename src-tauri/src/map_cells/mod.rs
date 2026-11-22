@@ -135,8 +135,13 @@ fn map_info(dir: &Path) -> (String, Vec<String>) {
 fn mod_roots(workshop_dir: &str, user_zomboid_dir: &Path) -> Vec<(PathBuf, Option<String>)> {
     let mut out = Vec::new();
     if !workshop_dir.is_empty() {
+        // Not the items the player unsubscribed from, whose folders Steam has not deleted yet.
+        let unsubscribed = crate::instance_manager::unsubscribed::pending_in(workshop_dir, &user_zomboid_dir.to_string_lossy());
         for item in std::fs::read_dir(workshop_dir).into_iter().flatten().flatten() {
             let wid = item.file_name().to_string_lossy().to_string();
+            if unsubscribed.contains(&wid) {
+                continue;
+            }
             for m in std::fs::read_dir(item.path().join("mods")).into_iter().flatten().flatten() {
                 out.push((m.path(), Some(wid.clone())));
             }

@@ -929,7 +929,7 @@
       "unsubscribeNeederOn": " [ON]",
       "unsubscribeNeededByOn_one": "\n\n{{count}} of those is on: the game stops loading it once what it needs is gone.",
       "unsubscribeNeededByOn_other": "\n\n{{count}} of those are on: the game stops loading them once what they need is gone.",
-      "unsubscribed": "Unsubscribed from {{count}} items. Steam deletes them in a moment.",
+      "unsubscribed": "Unsubscribed from {{count}} items. They left every profile at once; Steam deletes the files on its own.",
       "unsubscribedPartly": "Unsubscribed from {{done}} of {{count}} items. The first that failed: {{reason}}",
       "unsubscribeFailed": "Could not unsubscribe: {{reason}}",
       "groups": "Add {{count}} mods to a group…"
@@ -1677,7 +1677,7 @@
       "subscribeTitle": "Subscribes with your Steam account; Steam downloads the files",
       "unsubscribeTitle": "Unsubscribes; Steam removes the files",
       "subscribed": "Steam is downloading it; it shows up in your Mod List once it finishes.",
-      "unsubscribed": "Unsubscribed. Steam deletes the files when it next tidies up, so it may still be in your Mod List until you restart Steam.",
+      "unsubscribed": "Unsubscribed. It left your profiles and the Mod List at once; Steam deletes the files on its own.",
       "downloadNexus": "Download on Nexus",
       "downloadNexusTitle": "Opens the Files tab on Nexus: download there, then use Install .zip / .7z in Browse Mods",
       "openNexus": "Open Nexus page",
@@ -2580,8 +2580,8 @@
         "statusExample": "🟢 Coop is up. · ⚠️ Coop stopped without being asked.",
         "players": "Players joining and leaving",
         "playersExample": "➡️ Ana, Beto and Carl joined (3 online).",
-        "restarts": "Restarts",
-        "restartsExample": "🔄 Coop restarted and is up again.",
+        "restarts": "Restarts: coming, called off, back",
+        "restartsExample": "🔄 Coop restarts in 15 min (scheduled). · 🔄 Coop restarted and is up again.",
         "updates": "Workshop mods waiting for a restart",
         "updatesExample": "📦 2 of Coop's Workshop mods were updated since it started."
       }
@@ -2655,6 +2655,10 @@
       "authNetwork": "Auth & Network",
       "steamEnabled": "Steam Enabled",
       "noSteam": "NoSteam (LAN)",
+      "runningNow": "Running now: {{mode}}",
+      "runningNoSteam": "Steam off (NoSteam)",
+      "runningSteam": "with Steam",
+      "nextStart": "For the next start (the running server stays as it is):",
       "publicName": "Public Name:",
       "port": "Port:",
       "pvpMode": "PVP Mode:",
@@ -3571,7 +3575,7 @@
       "function_overridden_reset": "{{winner}} makes {{table}} new ({{place}}) after {{cut}} changed {{function}} on it, which wipes that change. {{how}}{{checked}}",
       "function_seen_other": "In the running game, the version of {{function}} that runs is {{actual}}'s ({{place}}), not {{expected}}'s as their files suggest: a mod sets it later than its files show (from a function or an event of its own). Nothing to do unless something of {{expected}} seems missing in the game.",
       "function_overridden_mod_many": "{{winner}} replaces {{count}} functions of {{owner}} ({{examples}}...) after {{cut}} changed them, so those changes never run. {{how}}",
-      "java_link_broken": "{{mod}}'s Java uses {{count}} thing(s) this build of the game no longer has: {{examples}}{{more}}. That code fails when it runs, often as the game starts or a save loads.{{patch}} If the Monitor shows it failing, look for an update of {{mod}} or turn it off; if it works, it checks first and there is nothing to do.",
+      "java_link_broken": "{{mod}}'s Java uses {{count}} thing(s) this build of the game no longer has: {{examples}}{{more}}. That code fails when it runs, often as the game starts or a save loads.{{patch}} If the Monitor shows it failing, look for an update of {{mod}} or turn it off. If the game runs fine with it, that part is not used (or the mod checks before using it) and there is nothing to do.",
       "game_folder_changed": "While the game ran (session that ended {{when}}), {{count}} file(s) of the game's own folder changed: {{files}}. The game never writes there itself: a Java mod, a mod's helper program or another tool did. If you did not install or update something there yourself, look at which mod could have.",
       "kept_version_in_use": "{{mod}} runs from the version kept on {{kept}} that you put back in Zomboid/mods; the Workshop version is ignored meanwhile. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Nothing to do while the newer one gives trouble; once its author fixes it, \"Back to the Workshop version\" takes the copy out.",
       "kept_version_in_use_newer": "{{mod}} runs from the version kept on {{kept}} that you put back in Zomboid/mods; the Workshop version (modversion {{workshop}}) is ignored meanwhile. It counts when the game is started from the Studio (from Steam it needs the launch option -modfolders mods,workshop,steam). Nothing to do while the newer one gives trouble; once its author fixes it, \"Back to the Workshop version\" takes the copy out.",
@@ -4098,7 +4102,9 @@
   },
   "notices": {
     "javaAgentsLater": "Project Zomboid was open when the profile changed, so its launch file (Java agents such as ZombieBuddy) waited. Now that the game is closed it is done. On: {{on}}. Off: {{off}}.",
-    "zbListHidden": "The Studio hid the list of Java mods ZombieBuddy writes over the game's menu. To see it again: Settings, with developer features on."
+    "zbListHidden": "The Studio hid the list of Java mods ZombieBuddy writes over the game's menu. To see it again: Settings, with developer features on.",
+    "modsUnsubscribed": "You unsubscribed from these mods, so they were taken out of every profile: {{mods}}",
+    "modsGone": "These mods are no longer on disk, so they were taken out of every profile: {{mods}}"
   },
   "preview": {
     "cancel": "Cancel",

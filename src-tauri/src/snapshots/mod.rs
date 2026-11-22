@@ -196,7 +196,13 @@ fn entries_of(v: &store::StoredVersion, installed: &HashMap<String, String>, in_
 pub fn list_kept_versions(user_zomboid_dir: &str, workshop_dir: &str) -> Vec<KeptVersion> {
     let Ok(zomboid) = zomboid_dir(user_zomboid_dir) else { return Vec::new() };
     let in_use = in_use_heads(&zomboid);
-    let installed: HashMap<String, String> = store::read_steam_items(Path::new(workshop_dir)).into_iter().filter_map(|(id, s)| s.ident.map(|i| (id, i))).collect();
+    // An item the player unsubscribed from is no longer installed, though Steam keeps its folder a while.
+    let unsubscribed = crate::instance_manager::unsubscribed::pending_in(workshop_dir, user_zomboid_dir);
+    let installed: HashMap<String, String> = store::read_steam_items(Path::new(workshop_dir))
+        .into_iter()
+        .filter(|(id, _)| !unsubscribed.contains(id))
+        .filter_map(|(id, s)| s.ident.map(|i| (id, i)))
+        .collect();
     let mut found: Vec<(i64, KeptVersion)> = Vec::new();
     for v in Store::at(&zomboid).versions() {
         for k in entries_of(&v, &installed, &in_use) {
@@ -345,6 +351,36 @@ pub fn delete_kept_version(user_zomboid_dir: &str, path: &str) -> Result<(), Str
         }
     }
     Ok(())
+}
+
+/// Drops the versions of Workshop item `item` the store kept by itself (the player unsubscribed
+/// from it): not the ones kept by hand, nor one a local copy in Zomboid/mods still uses. Returns
+/// how many went.
+pub fn drop_auto_versions(user_zomboid_dir: &str, item: &str) -> Result<usize, String> {
+    let zomboid = zomboid_dir(user_zomboid_dir)?;
+    if !Store::at(&zomboid).root.exists() {
+        return Ok(0);
+    }
+    let in_use = in_use_heads(&zomboid);
+    let (store, _lock) = Store::open_locked(&zomboid, 30)?;
+    let gone: Vec<store::StoredVersion> = store
+        .versions_of(item)
+        .into_iter()
+        .filter(|v| !v.head.by_player && !in_use.contains(&v.head_path))
+        .collect();
+    if gone.is_empty() {
+        return Ok(0);
+    }
+    for v in &gone {
+        store.drop_version(v);
+    }
+    let bytes = store.gc();
+    if let Some(mut status) = store.status() {
+        status.bytes = bytes;
+        status.versions = status.versions.saturating_sub(gone.len());
+        store.write_status(&status);
+    }
+    Ok(gone.len())
 }
 
 /// What a local copy in Zomboid/mods put back from a kept version is: when it was kept and its

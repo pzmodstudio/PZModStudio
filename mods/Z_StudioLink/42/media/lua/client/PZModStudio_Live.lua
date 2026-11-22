@@ -18,7 +18,9 @@
 -- Files in Zomboid/Lua:
 --   PZModStudio_LinkLive.txt     this: every 2 s while in a game and the app runs: at=<ms>,
 --                                       fps, frame_ms, worst_ms, frames, heap_mb, heap_total_mb,
---                                       errors, err=<count>\t<mod> per mod blamed, overlay=0|1,
+--                                       errors, err=<count>\t<mod> per mod blamed (the session's,
+--                                       a Clear of the error list aside), cleared_at=<unix s>
+--                                       after one, overlay=0|1,
 --                                       cost_ms, window_ms, profiler=0|1 (overwritten)
 --   PZModStudio_LinkMeter.txt    app:  at=<unix s>, ram_mb, ram_max_mb (the game's -Xmx), cpu
 --   PZModStudio_LinkOverlay.txt  this: shown=0|1, x, y: where the player left it
@@ -119,29 +121,36 @@ local function profilerLive()
     return P and P.live or nil
 end
 
---- The session's errors by the mod the game blamed, the most first: { { mod, count }, ... }.
-local errorsSeen = { total = -1, list = {} }
-function Live.errorsByMod()
+--- The session's errors by the mod the game blamed, the most first: count, { { mod, count }, ... }.
+--- sinceClear: only those after the error list's last Clear (the overlay); without, the whole
+--- session's (the file the app reads).
+local errorsSeen = { all = { total = -1, list = {} }, since = { total = -1, list = {} } }
+function Live.errorsByMod(sinceClear)
     local Errors = Link.Errors
-    if not Errors then return 0, errorsSeen.list end
+    local seen = sinceClear and errorsSeen.since or errorsSeen.all
+    if not Errors then return 0, seen.list end
+    local from = sinceClear and (Errors.clearedN or 0) or 0
+    local count = Errors.total - from
     -- Every 2 s even when the count stayed: an error's stack (its mod) can come a frame later.
     local t = Link.now()
-    if Errors.total == errorsSeen.total and errorsSeen.at and t - errorsSeen.at < 2 then return Errors.total, errorsSeen.list end
-    errorsSeen.total, errorsSeen.at = Errors.total, t
+    if Errors.total == seen.total and from == seen.from and seen.at and t - seen.at < 2 then return count, seen.list end
+    seen.total, seen.from, seen.at = Errors.total, from, t
     local byMod, list = {}, {}
     for _, err in ipairs(Errors.history or {}) do
-        local key = err.mod or ""
-        local g = byMod[key]
-        if not g then
-            g = { mod = err.mod, count = 0 }
-            byMod[key] = g
-            table.insert(list, g)
+        if (err.n or 0) > from then
+            local key = err.mod or ""
+            local g = byMod[key]
+            if not g then
+                g = { mod = err.mod, count = 0 }
+                byMod[key] = g
+                table.insert(list, g)
+            end
+            g.count = g.count + 1
         end
-        g.count = g.count + 1
     end
     table.sort(list, function(a, b) return a.count > b.count end)
-    errorsSeen.list = list
-    return Errors.total, list
+    seen.list = list
+    return count, list
 end
 
 --- A whole number as text (rounded), as string.format("%d") would want it.
@@ -259,15 +268,16 @@ function Overlay:refresh()
         if shown == 0 then line(text("liveLuaNone"), nil, DIM) end
     end
 
-    local count, byMod = Live.errorsByMod()
+    local count, byMod = Live.errorsByMod(true)
+    local since = Link.Errors and Link.Errors.clearedClock
     if count > 0 then
-        line(text("liveErrors", count), nil, RED)
+        line(since and text("liveErrorsSince", since, count) or text("liveErrors", count), nil, RED)
         for k = 1, math.min(#byMod, 2) do
             local g = byMod[k]
             line("  " .. fit(g.mod or text("liveErrorGame"), NAME_WIDTH), "x" .. g.count, RED)
         end
     else
-        line(text("liveErrorsNone"), nil, DIM)
+        line(since and text("liveErrorsSinceNone", since) or text("liveErrorsNone"), nil, DIM)
     end
 
     local perS = (window > 0) and (cost * 1000 / window) or 0
@@ -324,13 +334,21 @@ end
 function Live.open()
     if Live.panel then return end
     local x, y = Live.x, Live.y
-    if not onScreen(x, y) then x, y = 80, 30 end
+    local placed = onScreen(x, y)
+    if not placed then x, y = 0, 0 end
     local panel = Overlay:new(x, y)
     panel:initialise()
     panel:addToUIManager()
     panel:setAlwaysOnTop(true)
     Live.panel = panel
     panel:refresh()
+    -- No place of the player's yet: the bottom right, its foot near the screen's and its right edge
+    -- left of the pause menu's button column (the place it was dragged to while it was being tried).
+    if not placed then
+        local sw, sh = getCore():getScreenWidth(), getCore():getScreenHeight()
+        panel:setX(math.max(0, sw - panel:getWidth() - 168))
+        panel:setY(math.max(0, sh - panel:getHeight() - 4))
+    end
 end
 
 function Live.close()
@@ -374,6 +392,9 @@ function Live.write(t)
     for k = 1, math.min(#byMod, 10) do
         w:write("err=" .. byMod[k].count .. "\t" .. clean(byMod[k].mod or "") .. "\n")
     end
+    -- The in-game error list cleared then (unix s); the counts above stay the session's.
+    local clearedAt = Link.Errors and Link.Errors.clearedAt
+    if clearedAt then w:write("cleared_at=" .. whole(clearedAt) .. "\n") end
     w:write("overlay=" .. (Live.panel and "1" or "0") .. "\n")
     w:write("cost_ms=" .. whole(cost) .. "\n")
     w:write("window_ms=" .. whole(window) .. "\n")
@@ -386,6 +407,18 @@ end
 --- The meter runs in a game while the overlay shows or the app is there to read it.
 local function onFrame()
     if not Link.inGame then return end
+    -- The pause menu opened again: the game hides every window it finds open (and shows them again
+    -- on Resume), and the menu goes in front of everything always on top. The overlay is put back
+    -- above it and shown, as a Hide and Show did by hand.
+    Live.tick = (Live.tick or 0) + 1
+    local onMenu = Live.menuTick ~= nil and Live.tick - Live.menuTick <= 3
+    if onMenu and not Live.onMenu and Live.panel then
+        Live.panel:removeFromUIManager()
+        Live.panel:addToUIManager()
+        Live.panel:setAlwaysOnTop(true)
+    end
+    if onMenu and Live.panel and not Live.panel:isVisible() then Live.panel:setVisible(true) end
+    Live.onMenu = onMenu
     local t = now()
     if fm.slotStart == 0 then fm.slotStart = t end
     local measuring = Live.panel ~= nil or Live.appThere
@@ -445,7 +478,7 @@ local function onKey(key)
     if chosen and chosen ~= 0 and key == chosen then Live.toggle() end
 end
 
---- "Live overlay" on the game's pause menu, left of "Mark this moment".
+--- "Live overlay" on the game's pause menu, at the top of the column, above "Mark this moment".
 function Live.menuButton(screen)
     local button = Live.menuBtn
     if not Link.inGame then
@@ -463,29 +496,18 @@ function Live.menuButton(screen)
         Live.menuBtn = button
     end
     local label = Live.shown and text("liveHide") or text("liveShow")
-    local w = math.max(getTextManager():MeasureStringX(UIFont.Small, text("liveHide")), getTextManager():MeasureStringX(UIFont.Small, text("liveShow"))) + 18
+    local textW = math.max(getTextManager():MeasureStringX(UIFont.Small, text("liveHide")), getTextManager():MeasureStringX(UIFont.Small, text("liveShow")))
     local mark = Link.markBtn
-    local beside = screen.reportBug
-    local h = beside and beside:getHeight() or 22
-    local x, y
-    if mark and mark:isVisible() then
-        x, y = mark:getX() - w - 8, mark:getY()
-    else
-        x = beside and (beside:getX() + beside:getWidth() - w) or (screen.width - w - 20)
-        y = beside and (beside:getY() - 2 * (h + 6)) or (screen.height - 120)
-    end
+    Link.stackAbove(screen, button, (mark and mark:isVisible() and mark.screen == screen) and mark or nil, textW)
     button:setTitle(label)
     button.tooltip = text("liveTip")
-    button:setWidth(w)
-    button:setHeight(h)
-    button:setX(x)
-    button:setY(y)
     button:setVisible(true)
 end
 
 local menuPrerender = MainScreen.prerender
 function MainScreen:prerender(...)
     menuPrerender(self, ...)
+    if Link.inGame then Live.menuTick = Live.tick or 0 end
     local ok, err = pcall(Live.menuButton, self)
     if not ok and not Live.menuFailed then
         Live.menuFailed = true

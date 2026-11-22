@@ -445,11 +445,17 @@ export const TauriService = {
   scanAllInstalledMods: async (paths: StudioPathsUI): Promise<ModInfo[]> => {
     try {
       const rawMods = await invoke<any[]>('scan_all_installed_mods_cmd', { paths });
-      // The scan takes the mods no longer on disk out of the profiles and the game's list: the
-      // screens that show profiles read them again.
-      const forgotten = await invoke<string[]>('take_forgotten_mods_cmd').catch(() => [] as string[]);
-      if (forgotten.length > 0) {
-        console.info(`Mods no longer on disk, taken out of the profiles: ${forgotten.join(', ')}`);
+      // The scan takes the mods unsubscribed or no longer on disk out of the profiles and the
+      // game's list: the player is told, and the screens that show profiles read them again.
+      const forgotten = await invoke<{ unsubscribed: string[]; gone: string[] }>('take_forgotten_mods_cmd').catch(() => null);
+      const listed = (ids: string[]) => ids.slice(0, 12).join(', ') + (ids.length > 12 ? ` (+${ids.length - 12})` : '');
+      if (forgotten && forgotten.unsubscribed.length > 0) {
+        reportNotice(i18next.t('notices.modsUnsubscribed', { mods: listed(forgotten.unsubscribed) }));
+      }
+      if (forgotten && forgotten.gone.length > 0) {
+        reportNotice(i18next.t('notices.modsGone', { mods: listed(forgotten.gone) }));
+      }
+      if (forgotten && forgotten.unsubscribed.length + forgotten.gone.length > 0) {
         noteChange('profiles');
       }
       if (!rawMods || rawMods.length === 0) {

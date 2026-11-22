@@ -135,11 +135,25 @@ fn is_steamcmd_name(name: &str) -> bool {
 
 /// Places steamcmd.exe usually is, the player's choice first.
 pub fn steamcmd_candidates(cfg: &DedicatedConfig) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    if !cfg.steamcmd.trim().is_empty() {
-        out.push(PathBuf::from(cfg.steamcmd.trim()));
+    steamcmd_candidates_with(cfg, &studio_steamcmd_dir())
+}
+
+/// The player's choice as a path to the program: quotes around it dropped, a folder taken as the
+/// program inside it.
+fn configured_steamcmd(cfg: &DedicatedConfig) -> Option<PathBuf> {
+    let s = cfg.steamcmd.trim().trim_matches('"').trim();
+    if s.is_empty() {
+        return None;
     }
-    out.push(studio_steamcmd_dir().join(STEAMCMD_EXE));
+    let p = PathBuf::from(s);
+    Some(if p.is_dir() { p.join(STEAMCMD_EXE) } else { p })
+}
+
+fn steamcmd_candidates_with(cfg: &DedicatedConfig, own_dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    out.extend(configured_steamcmd(cfg));
+    // Empty means the Studio's own copy; a chosen one that is gone falls back to it too.
+    out.push(own_dir.join(STEAMCMD_EXE));
     // Linux: Valve's tarball unpacked in the usual places, or the distribution's package.
     #[cfg(not(windows))]
     {
@@ -166,6 +180,9 @@ pub fn steamcmd_candidates(cfg: &DedicatedConfig) -> Vec<PathBuf> {
     out
 }
 
+/// The SteamCMD program to run: the one the player chose, else the Studio's own copy, else one
+/// in the usual places. Only the program itself counts (not SteamCMD's own `.old` / `.delete`
+/// leftovers from updating itself).
 pub fn find_steamcmd(cfg: &DedicatedConfig) -> Option<PathBuf> {
     steamcmd_candidates(cfg).into_iter().find(|p| p.is_file())
 }
@@ -1181,6 +1198,31 @@ pub fn parse_output(text: &str) -> Vec<LineInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn steamcmd_is_found_where_it_was_chosen_or_in_the_studios_copy() {
+        let root = std::env::temp_dir().join(format!("pzms_steamcmd_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let own = root.join("own");
+        let chosen = root.join("chosen");
+        std::fs::create_dir_all(&own).unwrap();
+        std::fs::create_dir_all(&chosen).unwrap();
+        // SteamCMD leaves these beside itself when it updates.
+        for name in [STEAMCMD_EXE.to_string(), format!("{}.old", STEAMCMD_EXE), format!("{}.1.delete", STEAMCMD_EXE)] {
+            std::fs::write(chosen.join(&name), b"x").unwrap();
+        }
+        let find = |steamcmd: String| steamcmd_candidates_with(&DedicatedConfig { steamcmd, ..Default::default() }, &own).into_iter().find(|p| p.is_file());
+        let exe = chosen.join(STEAMCMD_EXE);
+        assert_eq!(find(exe.to_string_lossy().to_string()), Some(exe.clone()));
+        assert_eq!(find(format!("  \"{}\" ", exe.display())), Some(exe.clone()));
+        assert_eq!(find(chosen.to_string_lossy().to_string()), Some(exe.clone()));
+        // Empty: the Studio's own copy.
+        std::fs::write(own.join(STEAMCMD_EXE), b"x").unwrap();
+        assert_eq!(find(String::new()), Some(own.join(STEAMCMD_EXE)));
+        // A chosen one that is gone: the Studio's own copy.
+        assert_eq!(find(root.join("gone").join(STEAMCMD_EXE).to_string_lossy().to_string()), Some(own.join(STEAMCMD_EXE)));
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn the_steamcmd_command_installs_the_chosen_branch() {

@@ -221,6 +221,30 @@ impl SteamSession {
         let count: CountItems = unsafe { std::mem::transmute(ffi::symbol(self.module, "SteamAPI_ISteamUGC_GetNumSubscribedItems")?) };
         Ok(unsafe { count(self.ugc, true) })
     }
+
+    /// Every Workshop item this account is subscribed to for the game (locally disabled ones too).
+    fn subscribed_items(&self) -> Result<Vec<u64>, String> {
+        let count = self.subscribed_count()?;
+        if count == 0 {
+            return Ok(Vec::new());
+        }
+        let list: SubscribedItems = unsafe { std::mem::transmute(ffi::symbol(self.module, "SteamAPI_ISteamUGC_GetSubscribedItems")?) };
+        let mut ids = vec![0u64; count as usize];
+        let got = unsafe { list(self.ugc, ids.as_mut_ptr(), count, true) };
+        ids.truncate((got as usize).min(count as usize));
+        ids.retain(|id| *id != 0);
+        Ok(ids)
+    }
+}
+
+type SubscribedItems = unsafe extern "C" fn(*mut c_void, *mut u64, u32, bool) -> u32;
+
+/// The Workshop items the signed-in account is subscribed to now, as Steam itself says (not the
+/// files on disk, which Steam may keep for hours after an unsubscribe). Starts Steam's API, so it
+/// belongs in a process that does nothing else afterwards.
+pub fn subscribed_items(pz_install_dir: &str) -> Result<Vec<u64>, String> {
+    let _only_one = STEAM_LOCK.lock().map_err(|_| "Another subscription is still running.".to_string())?;
+    SteamSession::open(pz_install_dir)?.subscribed_items()
 }
 
 impl Drop for SteamSession {
@@ -698,6 +722,24 @@ mod tests {
         let dir = std::env::var("PZMS_PZ_DIR").expect("Set PZMS_PZ_DIR to your Project Zomboid folder.");
         match check(&dir) {
             Ok(count) => println!("Steam answered: {} subscribed Workshop items.", count),
+            Err(e) => panic!("Could not reach Steam: {e}"),
+        }
+    }
+
+    /// Reads the subscribed list itself (read only). In its own process: Steam's API starts once.
+    /// PZMS_PZ_DIR=... cargo test steam_client_lists -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn steam_client_lists_subscriptions() {
+        let dir = std::env::var("PZMS_PZ_DIR").expect("Set PZMS_PZ_DIR to your Project Zomboid folder.");
+        match subscribed_items(&dir) {
+            Ok(ids) => {
+                println!("Steam answered: {} subscribed items, first {:?}", ids.len(), ids.iter().take(5).collect::<Vec<_>>());
+                let content = Path::new(&dir).join("../../workshop/content/108600");
+                let on_disk: Vec<String> = std::fs::read_dir(&content).map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).collect()).unwrap_or_default();
+                let not: Vec<&String> = on_disk.iter().filter(|f| f.parse::<u64>().is_ok_and(|n| !ids.contains(&n))).collect();
+                println!("On disk {} | on disk but not subscribed: {:?}", on_disk.len(), not);
+            }
             Err(e) => panic!("Could not reach Steam: {e}"),
         }
     }

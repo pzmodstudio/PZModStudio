@@ -124,7 +124,7 @@ Un **mensaje de estado que se edita solo** (activado de entrada) deja un solo me
 Apagados salvo que los actives. Con el bot de arriba configurado, escribí un **Canal de comandos** y el **Rol que puede usarlos** (los nombres como están en Discord) y marcá **Activar los comandos**. El Studio lee ese canal cada 5 segundos y contesta ahí; a quien no tiene el rol se le dice que no puede.
 
 - `!estado` y `!jugadores`: si el servidor está en línea y quién está.
-- `!reiniciar [minutos]` (de 1 a 60, 5 si no decís): los jugadores reciben el aviso en el juego en ese momento, y 5 y 1 minuto antes; después el servidor se detiene como siempre (guarda) y vuelve a arrancar. `!reiniciar cancelar` lo detiene.
+- `!reiniciar [minutos]` (de 1 a 60, 5 si no decís): el mismo reinicio con aviso que la pestaña **Reinicios**: los jugadores reciben en el juego los avisos configurados ahí (los que entran en ese tiempo), el canal también se entera y queda en el historial de Reinicios; después el servidor guarda, se detiene y vuelve a arrancar. `!reiniciar cancelar` cancela cualquier reinicio en cuenta regresiva, también uno programado.
 - `!guardar` guarda el mundo; `!mensaje <texto>` le dice algo a todos en el juego.
 - `!ayuda` los lista. También funcionan en inglés (`!status`, `!players`, `!restart`, `!save`, `!msg`).
 

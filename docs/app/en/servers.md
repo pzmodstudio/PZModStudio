@@ -124,7 +124,7 @@ A **status message that edits itself** (on by default) keeps one message in the 
 Off unless you turn them on. With the bot above set up, write a **Commands channel** and the **Role that may use them** (names as they are in Discord) and tick **Turn the commands on**. The Studio reads that channel every 5 seconds and answers there; members without the role are told they cannot.
 
 - `!status` and `!players`: whether the server is up and who is in.
-- `!restart [minutes]` (1 to 60, 5 if not said): players are warned in the game then, 5 and 1 minute before; then the server is stopped the usual way (it saves) and started again. `!restart cancel` stops it.
+- `!restart [minutes]` (1 to 60, 5 if not said): the same warned restart as the **Restarts** tab: players are warned in the game with the warnings set there (those that fit in the time), the channel is told too, and it shows in the Restarts history; then the server saves, stops and starts again. `!restart cancel` calls off any restart counting down, a scheduled one too.
 - `!save` saves the world; `!msg <text>` says something to everyone in the game.
 - `!help` lists them. They also work in Spanish (`!estado`, `!jugadores`, `!reiniciar`, `!guardar`, `!mensaje`).
 

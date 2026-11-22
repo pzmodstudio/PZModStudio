@@ -929,7 +929,7 @@
       "unsubscribeNeederOn": " [已启用]",
       "unsubscribeNeededByOn_one": "\n\n其中 {{count}} 个已启用：所需模组没了之后，游戏就不再加载它们。",
       "unsubscribeNeededByOn_other": "\n\n其中 {{count}} 个已启用：所需模组没了之后，游戏就不再加载它们。",
-      "unsubscribed": "已取消订阅 {{count}} 个项目。Steam 稍后会删除它们。",
+      "unsubscribed": "已取消订阅 {{count}} 个项目。它们已立即从所有配置中移除；Steam 会自行删除文件。",
       "unsubscribedPartly": "已取消订阅 {{done}} / {{count}} 个项目。第一个失败的原因：{{reason}}",
       "unsubscribeFailed": "无法取消订阅：{{reason}}",
       "groups": "把 {{count}} 个模组加入分组…"
@@ -1677,7 +1677,7 @@
       "subscribeTitle": "用你的 Steam 账号订阅；Steam 会下载文件",
       "unsubscribeTitle": "取消订阅；Steam 会删除文件",
       "subscribed": "Steam 正在下载；完成后会出现在你的模组列表中。",
-      "unsubscribed": "已取消订阅。Steam 下次整理时会删除文件，所以在你重启 Steam 之前它可能还在模组列表中。",
+      "unsubscribed": "已取消订阅。它已立即从你的配置和模组列表中移除；Steam 会自行删除文件。",
       "downloadNexus": "在 Nexus 下载",
       "downloadNexusTitle": "打开 Nexus 的 Files 选项卡：在那里下载，然后在“浏览模组”中使用“安装 .zip / .7z”",
       "openNexus": "打开 Nexus 页面",
@@ -2580,8 +2580,8 @@
         "statusExample": "🟢 Coop 已启动。· ⚠️ Coop 在未要求的情况下停止了。",
         "players": "玩家加入和离开",
         "playersExample": "➡️ Ana、Beto 和 Carl 加入了（3 人在线）。",
-        "restarts": "重启",
-        "restartsExample": "🔄 Coop 已重启并重新运行。",
+        "restarts": "重启：即将进行、已取消、已恢复",
+        "restartsExample": "🔄 Coop 将在 15 分钟后重启（计划内）。· 🔄 Coop 已重启，重新上线。",
         "updates": "等待重启的创意工坊模组",
         "updatesExample": "📦 Coop 启动后有 2 个创意工坊模组更新了。"
       }
@@ -2655,6 +2655,10 @@
       "authNetwork": "认证与网络",
       "steamEnabled": "启用 Steam",
       "noSteam": "NoSteam（局域网）",
+      "runningNow": "正在运行：{{mode}}",
+      "runningNoSteam": "Steam 已关闭（NoSteam）",
+      "runningSteam": "使用 Steam",
+      "nextStart": "用于下次启动（正在运行的服务器不变）：",
       "publicName": "公开名称：",
       "port": "端口：",
       "pvpMode": "PVP 模式：",
@@ -3571,7 +3575,7 @@
       "function_overridden_reset": "{{winner}} 在 {{cut}} 修改了其中的 {{function}} 之后，把 {{table}} 重新创建了（{{place}}），抹掉了那个修改。{{how}}{{checked}}",
       "function_seen_other": "在运行中的游戏里，实际运行的 {{function}} 是 {{actual}} 的版本（{{place}}），而不是按文件推断的 {{expected}} 的：某个模组设置它的时机比文件显示的更晚（在它自己的函数或事件中）。除非 {{expected}} 的某些功能在游戏中似乎缺失，否则无需处理。",
       "function_overridden_mod_many": "{{winner}} 在 {{cut}} 修改 {{owner}} 的 {{count}} 个函数（{{examples}}...）之后又替换了它们，所以那些修改永远不会运行。{{how}}",
-      "java_link_broken": "{{mod}} 的 Java 用到了 {{count}} 个此游戏版本已没有的东西：{{examples}}{{more}}。那段代码运行时会失败，通常在游戏启动或存档载入时。{{patch}} 如果监控中心显示它失败，去找 {{mod}} 的更新或禁用它；如果它能正常工作，说明它会先做检查，无需处理。",
+      "java_link_broken": "{{mod}} 的 Java 用到了 {{count}} 个此游戏版本已没有的东西：{{examples}}{{more}}。那段代码运行时会失败，通常在游戏启动或存档载入时。{{patch}} 如果监控中心显示它失败，去找 {{mod}} 的更新或禁用它。如果游戏用着它一切正常，说明这部分没有被用到（或模组用之前会先检查），无需处理。",
       "game_folder_changed": "游戏运行期间（会话结束于 {{when}}），游戏自身文件夹中有 {{count}} 个文件发生了变化：{{files}}。游戏自己从不在那里写入：是某个 Java 模组、模组的辅助程序或其他工具做的。如果不是你自己在那里安装或更新了什么，看看是哪个模组可能做的。",
       "kept_version_in_use": "{{mod}} 从你放回 Zomboid/mods 的、{{kept}} 保留的版本运行；在此期间创意工坊版本被忽略。从 Studio 启动游戏时生效（从 Steam 启动需要启动选项 -modfolders mods,workshop,steam）。新版本有问题期间无需处理；作者修复后，“改回创意工坊版本”会移除副本。",
       "kept_version_in_use_newer": "{{mod}} 从你放回 Zomboid/mods 的、{{kept}} 保留的版本运行；在此期间创意工坊版本（modversion {{workshop}}）被忽略。从 Studio 启动游戏时生效（从 Steam 启动需要启动选项 -modfolders mods,workshop,steam）。新版本有问题期间无需处理；作者修复后，“改回创意工坊版本”会移除副本。",
@@ -4098,7 +4102,9 @@
   },
   "notices": {
     "javaAgentsLater": "切换配置方案时 Project Zomboid 开着，所以它的启动文件（ZombieBuddy 等 Java 代理）的修改延后了。现在游戏已关闭，已经完成。启用：{{on}}。禁用：{{off}}。",
-    "zbListHidden": "Studio 隐藏了 ZombieBuddy 写在游戏菜单上的 Java 模组列表。要重新显示：在设置中开启开发者功能。"
+    "zbListHidden": "Studio 隐藏了 ZombieBuddy 写在游戏菜单上的 Java 模组列表。要重新显示：在设置中开启开发者功能。",
+    "modsUnsubscribed": "你已取消订阅这些模组，因此已将它们从所有配置中移除：{{mods}}",
+    "modsGone": "这些模组已不在磁盘上，因此已将它们从所有配置中移除：{{mods}}"
   },
   "preview": {
     "cancel": "取消",

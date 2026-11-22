@@ -832,6 +832,8 @@ pub fn scan_all_installed_mods(paths: &StudioPaths) -> Vec<ModManifest> {
     // 1. Scan Steam Workshop mods (content/108600/) with depth 8
     let workshop_path = Path::new(&paths.workshop_dir);
     let subscribed_ids = get_subscribed_workshop_ids(workshop_path);
+    // Items the player unsubscribed from whose folders Steam has not deleted yet.
+    let unsubscribed = crate::instance_manager::unsubscribed::pending(paths);
 
     if workshop_path.exists() {
         for entry in WalkDir::new(workshop_path).max_depth(8).into_iter().filter_map(|e| e.ok()) {
@@ -846,6 +848,9 @@ pub fn scan_all_installed_mods(paths: &StudioPaths) -> Vec<ModManifest> {
                             continue; // Skip unsubscribed orphaned workshop mod
                         }
                     }
+                }
+                if workshop_id.as_ref().is_some_and(|w| unsubscribed.contains(w)) {
+                    continue;
                 }
 
                 // Steam owns everything under the Workshop folder: never create or copy files here.

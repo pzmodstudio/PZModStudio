@@ -36,6 +36,20 @@ export const DedicatedServerPanel: React.FC<{ paths: StudioPathsUI; serverRunnin
     });
   }, [load]);
 
+  // What is on disk changes outside this screen (an install from another window or an agent,
+  // SteamCMD updating itself): looked at again whenever the window comes back to the front.
+  useEffect(() => {
+    const again = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      window.removeEventListener('focus', again);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, [load]);
+
   const running = Boolean(view?.progress?.running);
   useEffect(() => {
     if (!running) return;
@@ -69,7 +83,17 @@ export const DedicatedServerPanel: React.FC<{ paths: StudioPathsUI; serverRunnin
       await load();
     } catch (err) {
       // Valve's download is the Windows program: on Linux SteamCMD comes from the distribution.
-      if (String(err).startsWith('steamcmd_missing') && isWindows) setAskDownload(true);
+      // Asked only when SteamCMD is really not there now (the screen may have looked before it was).
+      const fresh = String(err).startsWith('steamcmd_missing') ? await load().catch(() => null) : null;
+      if (fresh?.steamcmd && !allowDownload) {
+        // It is there now: the same install again, no question.
+        try {
+          await TauriService.dedicatedServerInstall(paths, { dir, branch, validate: !chosen?.ready || Boolean(chosen?.incomplete) || Boolean(chosen?.check_due), allow_download: false });
+          await load();
+        } catch (again) {
+          setNote({ ok: false, text: explain(again) });
+        }
+      } else if (String(err).startsWith('steamcmd_missing') && isWindows) setAskDownload(true);
       else if (String(err).startsWith('steamcmd_missing')) setNote({ ok: false, text: t('servers.dedicated.errors.steamcmd_missing_linux') });
       else setNote({ ok: false, text: explain(err) });
     } finally {
@@ -187,7 +211,7 @@ export const DedicatedServerPanel: React.FC<{ paths: StudioPathsUI; serverRunnin
             {view.steamcmd ? t('servers.dedicated.steamcmdFound', { path: view.steamcmd }) : t('servers.dedicated.steamcmdMissing')}
           </div>
 
-          {askDownload && (
+          {askDownload && !view.steamcmd && (
             <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-700/60 text-[11px] text-amber-100 space-y-2">
               <p>{t('servers.dedicated.askDownload', { url: view.steamcmd_url })}</p>
               <div className="flex gap-2">

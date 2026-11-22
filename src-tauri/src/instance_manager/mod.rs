@@ -1,4 +1,5 @@
 pub mod forget_missing;
+pub mod unsubscribed;
 
 use serde::{Deserialize, Serialize};
 use std::fs;

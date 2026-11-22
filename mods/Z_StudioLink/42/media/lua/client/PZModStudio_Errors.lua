@@ -18,8 +18,12 @@
 --     game's pause menu brings them back;
 --   - "-" (top right): hidden as a small badge with the count, which takes no clicks around it;
 --     a click on the badge shows the notice again, a drag moves it. New errors keep it a badge.
--- In game it starts left of the clock and the speed controls, not over their buttons; it and
--- the badge can be dragged anywhere, and come back where they were left.
+-- In game it starts at the bottom right, above the corner's debug lines; it, the badge and the
+-- list of the session's errors can be dragged anywhere, and come back where they were left, in
+-- the next games too (see "where the player left them").
+-- A Java call a mod makes inside pcall that throws leaves only the exception and its stack (the
+-- exception's first line is the message); one whose stack never comes takes the mod of the same
+-- exception seen before, instead of reading as the game's own code.
 -- With another mod that already shows these errors on, it shows nothing.
 --
 -- Every error is also written to Zomboid/Lua/PZModStudio_LinkErrorLog.txt within a second of
@@ -47,7 +51,9 @@ local SEEN_WRITE_SECONDS = 15
 local CHECK_SECONDS = 1
 local MAX_KEPT = 200
 
-local Errors = { batch = {}, total = 0, history = {} }
+-- clearedN: how many errors had come when the list was last cleared (its Clear button);
+-- clearedClock: when, as "14:05". Until a Clear, 0 and nil.
+local Errors = { batch = {}, total = 0, history = {}, clearedN = 0 }
 Link.Errors = Errors
 
 -- ------------------------------------------------------------------ reading the list
@@ -118,12 +124,34 @@ local function settle(err)
     end
 end
 
+--- A Java exception's first line without its class ("Index 10001 out of bounds..."), the way the
+--- message reads whichever entry it came from.
+local function plainMessage(line)
+    return (string.gsub(line or "", "^[%w%.%$]+Exception: ", ""))
+end
+
 local function add(err)
     err.frames = err.frames or {}
     settle(err)
+    -- Without its stack yet: the same exception came before with one (a pcall'd Java call that
+    -- throws on every key press, say), so it is that mod's until its own stack comes. The game
+    -- sometimes never adds the stack of the last one; it then read as "the game's own code".
+    if #err.frames == 0 and err.message then
+        for i = #Errors.history, 1, -1 do
+            local before = Errors.history[i]
+            if before.mod and before.message == err.message and #before.frames > 0 then
+                err.frames = before.frames
+                err.borrowed = true
+                settle(err)
+                break
+            end
+        end
+    end
     -- Kept even when the notice is closed: the rest of its entries may still come.
     Errors.lastRead = err
     Errors.total = Errors.total + 1
+    -- Its place in the session: a Clear leaves out the errors up to Errors.clearedN.
+    err.n = Errors.total
     table.insert(Errors.batch, err)
     if #Errors.batch > MAX_KEPT then table.remove(Errors.batch, 1) end
     -- Every error of the session, for the pause menu's button to show again after a Close.
@@ -131,6 +159,16 @@ local function add(err)
     if #Errors.history > MAX_KEPT then table.remove(Errors.history, 1) end
     -- On disk too, once the rest of its entries had their chance to come (Errors.logFlush).
     if Errors.logAdd then pcall(Errors.logAdd, err) end
+end
+
+--- The session's errors after the last Clear (all of them before one), oldest first. The ones
+--- before it stay in Errors.history: a later error with no stack still takes its mod from them.
+function Errors.recent()
+    local out = {}
+    for _, err in ipairs(Errors.history) do
+        if (err.n or 0) > Errors.clearedN then table.insert(out, err) end
+    end
+    return out
 end
 
 --- Reads what the game added to its list since the last look. True when there is something new.
@@ -164,9 +202,13 @@ function Errors.collect()
             local message = string.match(entry, "^[^\n]*\n(.*)$") or entry
             add({ message = string.match(message, "^%s*(.-)%s*$") })
         elseif string.find(entry, "STACK TRACE", 1, true) then
-            if last and #last.frames == 0 then
+            if last and (#last.frames == 0 or last.borrowed) then
                 last.frames = framesOf(entry)
+                last.borrowed = nil
+                last.mod = nil
                 settle(last)
+                -- A pcall'd Java call that threw leaves only the exception and this stack: done.
+                if last.fromJava then last.closed = true end
             elseif last and last.sawJava then
                 last.closed = true
             else
@@ -175,11 +217,16 @@ function Errors.collect()
         elseif last and (string.find(entry, "^java%.") or string.find(entry, "KahluaThread", 1, true)) then
             if not last.sawJava then
                 last.sawJava = true
-                if not last.message then last.message = string.gsub(firstLine(entry), "^[%w%.]+Exception: ", "") end
+                if not last.message then last.message = plainMessage(firstLine(entry)) end
             end
         elseif not last or not (string.find(entry, "^java%.") or string.find(entry, "KahluaThread", 1, true)) then
-            -- An entry of another shape starts an error of its own.
-            add({ message = firstLine(entry) })
+            -- An entry of another shape starts an error of its own; a Java exception that starts one
+            -- (a pcall'd call into Java threw) reads as the same message its stack's error would.
+            if string.find(entry, "^java%.") then
+                add({ message = plainMessage(firstLine(entry)), sawJava = true, fromJava = true })
+            else
+                add({ message = firstLine(entry) })
+            end
         end
     end
     Errors.seen = n
@@ -284,6 +331,92 @@ function Errors.otherShows()
     return ok and on
 end
 
+-- ------------------------------------------------------------------ where the player left them
+-- The notice, its badge and the list of the session's errors each come back where the player last
+-- dragged them, in this game and the next ones: Zomboid/Lua/PZModStudio_LinkErrorPlaces.txt, one
+-- line per window and screen ("menu" or "game": their first spots differ), written when one moved:
+--   game.notice=1490,860     its top left
+--   game.badge=1910,950      its right edge and top (it grows to the left with the count)
+--   game.list=640,330        its top left
+-- One the player never moved keeps its first spot. A place off the screen (another resolution)
+-- is left for the first spot.
+
+local PLACES_FILE = "PZModStudio_LinkErrorPlaces.txt"
+local Places = { list = nil }
+Errors.Places = Places
+Errors.PLACES_FILE = PLACES_FILE
+
+local function placesRead()
+    Places.list = {}
+    local file = getFileReader(PLACES_FILE, false)
+    if not file then return end
+    local line = file:readLine()
+    while line ~= nil do
+        local key, x, y = string.match(line, "^([%a%.]+)=(%-?%d+),(%-?%d+)")
+        if key then Places.list[key] = { x = tonumber(x), y = tonumber(y) } end
+        line = file:readLine()
+    end
+    file:close()
+end
+
+local function placeKey(kind)
+    return (Link.inGame and "game." or "menu.") .. kind
+end
+
+--- The player's place for kind ("notice", "badge", "list") on this screen, or nil: none yet,
+--- or off the screen as it is now.
+function Places.get(kind)
+    if not Places.list then pcall(placesRead) end
+    local p = Places.list and Places.list[placeKey(kind)]
+    if not p then return nil end
+    local sw, sh = getCore():getScreenWidth(), getCore():getScreenHeight()
+    -- The badge's is its right edge.
+    local left = kind == "badge" and p.x - 40 or p.x
+    if left < 0 or p.y < 0 or left > sw - 40 or p.y > sh - 20 then return nil end
+    return { x = p.x, y = p.y }
+end
+
+--- Keeps the player's place for kind; the file is written only when it changed.
+function Places.set(kind, x, y)
+    if not Places.list then pcall(placesRead) end
+    if not Places.list then Places.list = {} end
+    x, y = math.floor(x + 0.5), math.floor(y + 0.5)
+    local key = placeKey(kind)
+    local p = Places.list[key]
+    if p and p.x == x and p.y == y then return end
+    Places.list[key] = { x = x, y = y }
+    local keys = {}
+    for k in pairs(Places.list) do table.insert(keys, k) end
+    table.sort(keys)
+    local w = getFileWriter(PLACES_FILE, true, false)
+    if not w then return end
+    for _, k in ipairs(keys) do
+        w:write(k .. "=" .. tostring(Places.list[k].x) .. "," .. tostring(Places.list[k].y) .. "\n")
+    end
+    w:close()
+end
+
+--- A press on a window: where it was, to tell a drag from a click on mouse-up.
+local function pressed(panel)
+    panel.pressedAt = { x = panel:getX(), y = panel:getY() }
+end
+
+--- Mouse-up on a window: when the press moved it, it was dragged there (panel.dragged).
+--- True when it moved.
+local function released(panel)
+    local at = panel.pressedAt
+    panel.pressedAt = nil
+    if not at or (at.x == panel:getX() and at.y == panel:getY()) then return false end
+    panel.dragged = true
+    return true
+end
+
+--- The notice's and the list's place kept when the player dragged them (on mouse-up, and again
+--- when they close, in case that mouse-up never came).
+local function keepPlace(panel, kind)
+    if panel and panel.dragged then pcall(Places.set, kind, panel:getX(), panel:getY()) end
+end
+
 -- ------------------------------------------------------------------ the notice
 
 local Notice = ISPanel:derive("StudioLinkErrorNotice")
@@ -294,6 +427,23 @@ function Notice:new(x, y, w, h)
     o.borderColor = { r = 0.97, g = 0.44, b = 0.44, a = 0.85 }
     o.moveWithMouse = true
     return o
+end
+
+function Notice:onMouseDown(x, y)
+    pressed(self)
+    return ISPanel.onMouseDown(self, x, y)
+end
+
+function Notice:onMouseUp(x, y)
+    local r = ISPanel.onMouseUp(self, x, y)
+    if released(self) then keepPlace(self, "notice") end
+    return r
+end
+
+function Notice:onMouseUpOutside(x, y)
+    local r = ISPanel.onMouseUpOutside(self, x, y)
+    if released(self) then keepPlace(self, "notice") end
+    return r
 end
 
 -- How many steps of the stack the notice lists when its details are open.
@@ -367,9 +517,10 @@ function Notice:createChildren()
         Errors.detailsOpen = not Errors.detailsOpen
         Errors.reopen()
     end)
-    -- Every kind of error of the session, when there is more than the one shown.
-    if #Errors.history > 1 then
-        self:addButton(text("errAll", #Errors.history), function() Errors.showList() end)
+    -- Every kind of error of the session (since its last Clear), when there is more than the one shown.
+    local all = #Errors.recent()
+    if all > 1 then
+        self:addButton(text("errAll", all), function() Errors.showList() end)
     end
     self:addButton(text("errClose"), function() Errors.close() end)
     -- Hide, top right: the notice becomes a small badge there, which brings it back.
@@ -440,7 +591,9 @@ end
 -- ------------------------------------------------------------------ every error of the session
 -- The session's errors, each kind once: the same mod, message and place count as one, with how
 -- many times it came. A row copies that error's report; "Copy all" copies them all, with the game's
--- version, the mode and how many mods are on at the top.
+-- version, the mode and how many mods are on at the top. "Clear" leaves the errors so far out of
+-- the list, the pause menu's button ("Lua errors since 14:05 (N)") and the live overlay until the
+-- next game; the error log on disk and the totals the app reads keep them.
 
 --- How the game runs now: "single player, Steam" and the like, in the player's language.
 function Errors.setting()
@@ -457,10 +610,11 @@ local function kindKey(err)
     return (err.mod or "") .. "\1" .. (err.message or "") .. "\1" .. (failedAt(err) or "")
 end
 
---- Each kind of error of the session once: { mod, count, last, at }, the most frequent first.
+--- Each kind of error of the session (since its last Clear) once: { mod, count, last, at }, the
+--- most frequent first.
 function Errors.kinds()
     local byKey, order = {}, {}
-    for _, err in ipairs(Errors.history) do
+    for _, err in ipairs(Errors.recent()) do
         local key = kindKey(err)
         local kind = byKey[key]
         if not kind then
@@ -878,6 +1032,23 @@ function ListWindow:new(x, y)
     return o
 end
 
+function ListWindow:onMouseDown(x, y)
+    pressed(self)
+    return ISPanel.onMouseDown(self, x, y)
+end
+
+function ListWindow:onMouseUp(x, y)
+    local r = ISPanel.onMouseUp(self, x, y)
+    if released(self) then keepPlace(self, "list") end
+    return r
+end
+
+function ListWindow:onMouseUpOutside(x, y)
+    local r = ISPanel.onMouseUpOutside(self, x, y)
+    if released(self) then keepPlace(self, "list") end
+    return r
+end
+
 local function drawKind(list, y, item, alt)
     local kind = item.item
     local small = UIFont.Small
@@ -939,6 +1110,9 @@ function ListWindow:createChildren()
         panel.saidAt = Link.now()
     end)
     logButton.tooltip = text("errLogTip")
+    -- The errors so far left out of the list, the pause menu button and the overlay; the log keeps them.
+    local clearButton = button(text("errClear"), function(panel) Errors.clear() end)
+    clearButton.tooltip = text("errClearTip")
     button(text("errClose"), function(panel) Errors.closeList() end)
     self.hintX = x + 6
 end
@@ -946,7 +1120,13 @@ end
 function ListWindow:prerender()
     ISPanel.prerender(self)
     local kinds = #self.list.items
-    self:drawText(text("errListTitle", #Errors.history, kinds), 10, 8, 0.97, 0.55, 0.55, 1, UIFont.Medium)
+    local title
+    if Errors.clearedClock then
+        title = text("errListTitleSince", Errors.clearedClock, #Errors.recent(), kinds)
+    else
+        title = text("errListTitle", #Errors.history, kinds)
+    end
+    self:drawText(title, 10, 8, 0.97, 0.55, 0.55, 1, UIFont.Medium)
     local said = self.said and self.saidAt and Link.now() - self.saidAt < 6 and self.said
     local hint = said or text("errListHint")
     local small = UIFont.Small
@@ -959,11 +1139,37 @@ end
 function Errors.closeList()
     local w = Errors.listWindow
     if not w then return end
-    Errors.listAt = { x = w:getX(), y = w:getY() }
+    keepPlace(w, "list")
     w:setVisible(false)
     if w.onMenu and MainScreen.instance then pcall(function() MainScreen.instance:removeChild(w) end) end
     w:removeFromUIManager()
     Errors.listWindow = nil
+end
+
+--- "14:05": the clock as the log writes it, without the seconds.
+local function shortClock()
+    local s = clock()
+    return string.match(s, "^(%d+:%d+)") or s
+end
+
+--- Clear: from now on the list, the pause menu button and the live overlay count only the errors
+--- that come after. Nothing is forgotten: the error log on disk keeps them all (a line there says
+--- when), and Lua/PZModStudio_LinkLive.txt keeps the session's totals for the app.
+function Errors.clear()
+    pcall(Errors.logMark, "the in-game list of errors cleared (" .. tostring(Errors.total) .. " so far)")
+    Errors.clearedN = Errors.total
+    Errors.clearedClock = shortClock()
+    Errors.clearedAt = Link.now()
+    -- The notice and its badge showed errors from before.
+    Errors.close()
+    -- The list made again where it is, empty until the next error.
+    if Errors.listWindow then
+        Errors.showList()
+        if Errors.listWindow then
+            Errors.listWindow.said = text("errCleared")
+            Errors.listWindow.saidAt = Link.now()
+        end
+    end
 end
 
 --- The list of every kind of error of the session, over everything (the pause menu too).
@@ -971,7 +1177,8 @@ function Errors.showList()
     Errors.closeList()
     if #Errors.history == 0 then return end
     local sw, sh = getCore():getScreenWidth(), getCore():getScreenHeight()
-    local at = Errors.listAt or { x = math.floor((sw - LIST_W) / 2), y = math.floor((sh - LIST_H) / 2) }
+    -- Where the player last left it, else the middle of the screen.
+    local at = Places.get("list") or { x = math.floor((sw - LIST_W) / 2), y = math.floor((sh - LIST_H) / 2) }
     local x = math.max(0, math.min(at.x, sw - LIST_W))
     local y = math.max(0, math.min(at.y, sh - LIST_H))
     local w = ListWindow:new(x, y)
@@ -1007,8 +1214,14 @@ end
 
 function Badge:onMouseDown(x, y)
     self.pressX, self.pressY = getMouseX(), getMouseY()
+    pressed(self)
     ISPanel.onMouseDown(self, x, y)
     return true
+end
+
+--- Dragged: its place kept, by its right edge (it grows to the left with the count).
+function Badge:keepPlace()
+    pcall(Places.set, "badge", self:getX() + self.width, self:getY())
 end
 
 function Badge:onMouseUp(x, y)
@@ -1016,13 +1229,19 @@ function Badge:onMouseUp(x, y)
     local still = wasPressed and math.abs(getMouseX() - self.pressX) + math.abs(getMouseY() - self.pressY) <= 4
     self.pressX, self.pressY = nil, nil
     ISPanel.onMouseUp(self, x, y)
-    if still then Errors.unhide() end
+    local moved = released(self)
+    if still then
+        Errors.unhide()
+    elseif moved then
+        self:keepPlace()
+    end
     return true
 end
 
 function Badge:onMouseUpOutside(x, y)
     self.pressX, self.pressY = nil, nil
     ISPanel.onMouseUpOutside(self, x, y)
+    if released(self) then self:keepPlace() end
 end
 
 function Badge:label()
@@ -1076,26 +1295,20 @@ local function onScreen(x, y, w, h)
 end
 
 --- Where the notice goes first. On the menu, under PZ Mod Studio's card (or its invitation).
---- In game, at the top, left of the clock and the speed controls: over them it took their clicks.
-local function firstSpot(w)
-    local sw = getCore():getScreenWidth()
+--- In game, at the bottom right, above the corner's debug lines: nothing of the game's sits there,
+--- and it is out of the way of the clock, the speed controls and the inventory at the top.
+local function firstSpot(w, h)
+    local sw, sh = getCore():getScreenWidth(), getCore():getScreenHeight()
     if not Link.inGame then return sw - w - 20, 150 end
-    local right = sw - 20
-    for _, get in ipairs({ UIManager.getSpeedControls, UIManager.getClock }) do
-        local ok, x = pcall(function()
-            local e = get and get()
-            return e and e:isVisible() and e:getX() or nil
-        end)
-        if ok and x and x - 20 < right then right = x - 20 end
-    end
-    return math.max(10, right - w), 10
+    return math.max(10, sw - w - 10), math.max(10, sh - (h or 130) - 90)
 end
 
 function Errors.close()
     Errors.batch = {}
     Errors.hidden = false
+    Errors.at = nil
     if Errors.panel then
-        Errors.at = { x = Errors.panel:getX(), y = Errors.panel:getY() }
+        keepPlace(Errors.panel, "notice")
         remove(Errors.panel)
         Errors.panel = nil
     end
@@ -1103,25 +1316,27 @@ function Errors.close()
     Errors.badge = nil
 end
 
---- The notice as a badge where its hide button was. New errors keep it a badge, counting them.
+--- The notice as a badge: where the player left the badge, else where its hide button was. New
+--- errors keep it a badge, counting them.
 function Errors.hide()
     local panel = Errors.panel
     if not panel then return end
     Errors.hidden = true
     Errors.hiddenWith = #Errors.batch
-    Errors.at = { x = panel:getX(), y = panel:getY() }
+    keepPlace(panel, "notice")
+    Errors.at = nil
     Errors.badgeAt = { right = panel:getX() + panel.width - 6, y = panel:getY() + 6 }
     remove(panel)
     Errors.panel = nil
     Errors.show()
 end
 
---- The notice again, its hide button where the badge was.
+--- The notice again: where the player left it, else its hide button where the badge was.
 function Errors.unhide()
     local badge = Errors.badge
     Errors.hidden = false
     if badge then
-        Errors.at = { x = badge:getX() + badge.width + 6 - NOTICE_W, y = badge:getY() - 6 }
+        if not Places.get("notice") then Errors.at = { x = badge:getX() + badge.width + 6 - NOTICE_W, y = badge:getY() - 6 } end
         remove(badge)
         Errors.badge = nil
     end
@@ -1132,8 +1347,10 @@ local function showBadge()
     if Errors.badge then return end
     local h = getTextManager():getFontHeight(UIFont.Small) + 8
     local at = Errors.badgeAt
-    local right = at and at.right or (getCore():getScreenWidth() - 20)
-    local x, y = onScreen(right - 60, at and at.y or 10, 60, h)
+    local kept = Places.get("badge")
+    if kept then at = { right = kept.x, y = kept.y } end
+    local right = at and at.right or (getCore():getScreenWidth() - 10)
+    local x, y = onScreen(right - 60, at and at.y or (getCore():getScreenHeight() - h - 90), 60, h)
     local badge = Badge:new(x, y, 60, h)
     badge:initialise()
     badge:instantiate()
@@ -1141,6 +1358,31 @@ local function showBadge()
     badge:setAlwaysOnTop(true)
     badge:fit()
     Errors.badge = badge
+end
+
+--- x moved left of the pause menu's button column when the notice (x, y, w, h) would cover it.
+local function clearOfColumn(screen, x, y, w, h)
+    local sw = getCore():getScreenWidth()
+    local left, top
+    for _, c in pairs(screen and screen.children or {}) do
+        if c.Type == "ISButton" and c:isVisible() and c:getX() > sw / 2 then
+            if not left or c:getX() < left then left = c:getX() end
+            if not top or c:getY() < top then top = c:getY() end
+        end
+    end
+    if left and x + w > left - 8 and y + h > top then x = math.max(10, left - w - 12) end
+    return x
+end
+
+--- y moved above the live overlay when the notice (x, y, w, h) would sit under it.
+local function clearOfOverlay(x, y, w, h)
+    local o = Link.Live and Link.Live.panel
+    if not o or not o:isVisible() then return y end
+    local ox, oy = o:getX(), o:getY()
+    if x < ox + o:getWidth() and x + w > ox and y < oy + o:getHeight() and y + h > oy then
+        return math.max(10, oy - h - 8)
+    end
+    return y
 end
 
 function Errors.show()
@@ -1155,9 +1397,16 @@ function Errors.show()
         local lines = 1 + (steps > 0 and 1 or 0) + math.min(steps, DETAIL_STEPS) + (steps > DETAIL_STEPS and 1 or 0)
         h = h + 8 + (getTextManager():getFontHeight(UIFont.Small) + 2) * lines
     end
+    -- Where it was (made again for what it shows), else where the player left it, else its first spot.
+    local at = Errors.at or Places.get("notice")
+    Errors.at = nil
     local x, y
-    if Errors.at then x, y = Errors.at.x, Errors.at.y else x, y = firstSpot(w) end
+    if at then x, y = at.x, at.y else x, y = firstSpot(w, h) end
     x, y = onScreen(x, y, w, h)
+    -- On the pause menu, never over its button column (the game's and the Link's, bottom right).
+    if pauseMenuUp() then x = clearOfColumn(MainScreen.instance, x, y, w, h) end
+    -- Nor under the live overlay, which is always on top.
+    y = clearOfOverlay(x, y, w, h)
     local panel = Notice:new(x, y, w, h)
     panel:initialise()
     panel:instantiate()
@@ -1174,9 +1423,10 @@ end
 
 --- The session's errors again, after a Close: from the pause menu's button.
 function Errors.showAll()
-    if #Errors.history == 0 then return end
+    local recent = Errors.recent()
+    if #recent == 0 then return end
     Errors.batch = {}
-    for _, err in ipairs(Errors.history) do table.insert(Errors.batch, err) end
+    for _, err in ipairs(recent) do table.insert(Errors.batch, err) end
     Errors.hidden = false
     if Errors.badge then
         remove(Errors.badge)
@@ -1202,19 +1452,14 @@ function Errors.menuButton(screen)
         button.screen = screen
         screen:addChild(button)
         Errors.menuBtn = button
+        Link.errorsMenuBtn = button
     end
-    local label = text("errMenuButton", n)
-    local w = getTextManager():MeasureStringX(UIFont.Small, label) + 18
-    local beside = screen.reportBug
-    local x = beside and (beside:getX() - w - 8) or (screen.width - w - 20)
-    local y = beside and beside:getY() or (screen.height - 60)
-    local h = beside and beside:getHeight() or 22
+    -- Short on purpose: after a Clear it counts only the errors since (the list's title says when).
+    local label = text("errMenuButton", Errors.clearedClock and #Errors.recent() or n)
+    -- In the game's column, right above its own buttons (Mods, Report Bug).
+    Link.stackAbove(screen, button, nil, getTextManager():MeasureStringX(UIFont.Small, label))
     button:setTitle(label)
     button.tooltip = text("errMenuButtonTip")
-    button:setWidth(w)
-    button:setHeight(h)
-    button:setX(x)
-    button:setY(y)
     button:setVisible(true)
 end
 
@@ -1222,6 +1467,7 @@ end
 function Errors.reopen()
     local panel = Errors.panel
     if panel then
+        keepPlace(panel, "notice")
         Errors.at = { x = panel:getX(), y = panel:getY() }
         remove(panel)
         Errors.panel = nil
@@ -1273,7 +1519,8 @@ end
 if Events.OnFETick then Events.OnFETick.Add(safeCheck) end
 if Events.OnTickEvenPaused then Events.OnTickEvenPaused.Add(safeCheck) elseif Events.OnTick then Events.OnTick.Add(safeCheck) end
 -- Entering a game or the menu rebuilds the screen: the notice is made again for what is new.
--- Its spots from the menu are not the game's (the game has its clock up there).
+-- Its spots from the menu are not the game's (the game has its clock up there); the places the
+-- player left them in are kept apart for each (Places).
 if Events.OnGameStart then
     Events.OnGameStart.Add(function()
         Errors.panel = nil
@@ -1281,6 +1528,10 @@ if Events.OnGameStart then
         Errors.at = nil
         Errors.badgeAt = nil
         Errors.logInGame = true
+        -- A Clear lasts for its game.
+        Errors.clearedN = 0
+        Errors.clearedClock = nil
+        Errors.clearedAt = nil
     end)
 end
 -- The log's markers: back to the main menu from a game, and a server that dropped the game.

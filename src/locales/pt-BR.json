@@ -938,7 +938,7 @@
       "unsubscribeNeededByOn_one": "\n\n{{count}} desses está ativado: o jogo deixa de carregá-lo quando o que ele precisa some.",
       "unsubscribeNeededByOn_many": "\n\n{{count}} desses estão ativados: o jogo deixa de carregá-los quando o que eles precisam some.",
       "unsubscribeNeededByOn_other": "\n\n{{count}} desses estão ativados: o jogo deixa de carregá-los quando o que eles precisam some.",
-      "unsubscribed": "Inscrição cancelada em {{count}} itens. A Steam apaga eles daqui a pouco.",
+      "unsubscribed": "Inscrição cancelada em {{count}} itens. Eles já saíram de todos os perfis; a Steam apaga os arquivos sozinha.",
       "unsubscribedPartly": "Inscrição cancelada em {{done}} de {{count}} itens. O primeiro que falhou: {{reason}}",
       "unsubscribeFailed": "Não foi possível cancelar a inscrição: {{reason}}",
       "groups": "Adicionar {{count}} mods a um grupo…"
@@ -1722,7 +1722,7 @@
       "subscribeTitle": "Inscreve com sua conta Steam; a Steam baixa os arquivos",
       "unsubscribeTitle": "Cancela a inscrição; a Steam remove os arquivos",
       "subscribed": "A Steam está baixando; aparece na sua Lista de Mods quando terminar.",
-      "unsubscribed": "Inscrição cancelada. A Steam apaga os arquivos na próxima arrumação, então ele pode continuar na sua Lista de Mods até você reiniciar a Steam.",
+      "unsubscribed": "Inscrição cancelada. Ele já saiu dos seus perfis e da Lista de Mods; a Steam apaga os arquivos sozinha.",
       "downloadNexus": "Baixar no Nexus",
       "downloadNexusTitle": "Abre a aba Files no Nexus: baixe lá e depois use Instalar .zip / .7z em Explorar Mods",
       "openNexus": "Abrir página do Nexus",
@@ -2630,8 +2630,8 @@
         "statusExample": "🟢 Coop está no ar. · ⚠️ Coop parou sem ninguém pedir.",
         "players": "Jogadores entrando e saindo",
         "playersExample": "➡️ Ana, Beto e Carl entraram (3 online).",
-        "restarts": "Reinícios",
-        "restartsExample": "🔄 Coop reiniciou e está no ar de novo.",
+        "restarts": "Reinícios: os próximos, cancelados, de volta",
+        "restartsExample": "🔄 Coop reinicia em 15 min (programado). · 🔄 Coop reiniciou e está online de novo.",
         "updates": "Mods da Oficina esperando um reinício",
         "updatesExample": "📦 2 mods da Oficina do Coop foram atualizados desde que ele iniciou."
       }
@@ -2705,6 +2705,10 @@
       "authNetwork": "Autenticação e rede",
       "steamEnabled": "Steam ativada",
       "noSteam": "Sem Steam (LAN)",
+      "runningNow": "Rodando agora: {{mode}}",
+      "runningNoSteam": "Steam desligado (NoSteam)",
+      "runningSteam": "com Steam",
+      "nextStart": "Para o próximo início (o servidor rodando não muda):",
       "publicName": "Nome público:",
       "port": "Porta:",
       "pvpMode": "Modo PVP:",
@@ -3643,7 +3647,7 @@
       "function_overridden_reset": "{{winner}} cria {{table}} de novo ({{place}}) depois que {{cut}} alterou {{function}} nela, o que apaga essa alteração. {{how}}{{checked}}",
       "function_seen_other": "No jogo rodando, a versão de {{function}} que roda é a de {{actual}} ({{place}}), não a de {{expected}} como os arquivos sugerem: um mod define ela mais tarde do que os arquivos mostram (por uma função ou um evento próprio). Nada a fazer, a não ser que algo de {{expected}} pareça faltar no jogo.",
       "function_overridden_mod_many": "{{winner}} substitui {{count}} funções de {{owner}} ({{examples}}...) depois que {{cut}} as alterou, então essas alterações nunca rodam. {{how}}",
-      "java_link_broken": "O Java de {{mod}} usa {{count}} coisa(s) que esta build do jogo não tem mais: {{examples}}{{more}}. Esse código falha quando roda, muitas vezes quando o jogo inicia ou um save carrega.{{patch}} Se o Monitor mostrar ele falhando, procure uma atualização de {{mod}} ou desative; se funciona, ele confere antes e não há nada a fazer.",
+      "java_link_broken": "O Java de {{mod}} usa {{count}} coisa(s) que esta build do jogo não tem mais: {{examples}}{{more}}. Esse código falha quando roda, muitas vezes quando o jogo inicia ou um save carrega.{{patch}} Se o Monitor mostrar ele falhando, procure uma atualização de {{mod}} ou desative. Se o jogo funciona bem com ele, essa parte não é usada (ou o mod confere antes de usar) e não há nada a fazer.",
       "game_folder_changed": "Enquanto o jogo rodava (sessão que terminou {{when}}), {{count}} arquivo(s) da pasta do próprio jogo mudaram: {{files}}. O jogo nunca grava ali sozinho: foi um mod Java, um programa auxiliar de um mod ou outra ferramenta. Se você mesmo não instalou nem atualizou nada ali, veja qual mod pode ter feito isso.",
       "kept_version_in_use": "{{mod}} roda da versão guardada em {{kept}} que você devolveu para Zomboid/mods; enquanto isso a versão da Oficina é ignorada. Vale quando o jogo é iniciado pelo Studio (pela Steam precisa da opção de inicialização -modfolders mods,workshop,steam). Nada a fazer enquanto a mais nova der problema; quando o autor corrigir, \"Voltar à versão da Oficina\" tira a cópia.",
       "kept_version_in_use_newer": "{{mod}} roda da versão guardada em {{kept}} que você devolveu para Zomboid/mods; enquanto isso a versão da Oficina (modversion {{workshop}}) é ignorada. Vale quando o jogo é iniciado pelo Studio (pela Steam precisa da opção de inicialização -modfolders mods,workshop,steam). Nada a fazer enquanto a mais nova der problema; quando o autor corrigir, \"Voltar à versão da Oficina\" tira a cópia.",
@@ -4190,7 +4194,9 @@
   },
   "notices": {
     "javaAgentsLater": "O Project Zomboid estava aberto quando o perfil mudou, então o arquivo de inicialização dele (agentes Java como o ZombieBuddy) ficou esperando. Agora que o jogo fechou, foi feito. Ativados: {{on}}. Desativados: {{off}}.",
-    "zbListHidden": "O Studio escondeu a lista de mods Java que o ZombieBuddy escreve sobre o menu do jogo. Para ver de novo: Configurações, com os recursos de desenvolvedor ligados."
+    "zbListHidden": "O Studio escondeu a lista de mods Java que o ZombieBuddy escreve sobre o menu do jogo. Para ver de novo: Configurações, com os recursos de desenvolvedor ligados.",
+    "modsUnsubscribed": "Você cancelou a inscrição nestes mods, então eles saíram de todos os perfis: {{mods}}",
+    "modsGone": "Estes mods não estão mais no disco, então eles saíram de todos os perfis: {{mods}}"
   },
   "preview": {
     "cancel": "Cancelar",

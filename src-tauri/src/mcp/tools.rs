@@ -2845,7 +2845,9 @@ fn handle_workshop_item(args: Value) -> ToolCallResult {
         return error_result("id: a Workshop id or its page link".to_string());
     };
     let paths = resolve_paths(&args);
-    let installed = crate::workshop::local_state(&paths.workshop_dir).and_then(|s| s.items.get(id).cloned());
+    // An item the player unsubscribed from is not installed for the app, though Steam keeps its folder a while.
+    let unsubscribed = crate::instance_manager::unsubscribed::pending_in(&paths.workshop_dir, &paths.user_zomboid_dir);
+    let installed = crate::workshop::local_state(&paths.workshop_dir).and_then(|s| s.items.get(id).cloned()).filter(|_| !unsubscribed.contains(id));
     json_result(crate::workshop::item_details(id).map(|d| json!({ "details": d, "installed": installed })))
 }
 

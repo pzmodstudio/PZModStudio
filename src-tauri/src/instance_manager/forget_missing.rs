@@ -14,6 +14,10 @@
 //! folder in Settings looks like that). Never the Studio's own mods, nor an id that still has a
 //! folder or link of its name in `Zomboid/mods` (a mod in development whose link points at a
 //! drive that is not there now), nor a mod that is on and whose author gave it another id.
+//!
+//! A Workshop item the player unsubscribed from counts as gone at once, though Steam keeps its
+//! folder for a while: the scan leaves it out (see `unsubscribed`). The Mod List's groups lose
+//! the ids too; the player's notes are kept.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -22,12 +26,27 @@ use crate::load_order::ini_parser::{read_mod_list_ini, write_file_with_backup, w
 use crate::load_order::mod_info::{match_installed_key, sanitize_mod_id, ModManifest};
 use crate::vfs::StudioPaths;
 
-/// The ids taken out by the last scan, for the app to say and to read the profiles again.
-static FORGOTTEN: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+/// The ids taken out by the last scans, for the app to say and to read the profiles again; true
+/// for a mod of a Workshop item the player unsubscribed from.
+static FORGOTTEN: std::sync::Mutex<Vec<(String, bool)>> = std::sync::Mutex::new(Vec::new());
+
+/// The ids forgotten since the app last asked.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct Forgotten {
+    /// Mods of Workshop items the player unsubscribed from.
+    pub unsubscribed: Vec<String>,
+    /// Mods whose folder is no longer on disk for another reason (deleted by hand, Steam removed it).
+    pub gone: Vec<String>,
+}
 
 /// What the app takes after a scan: the ids forgotten since it last asked.
-pub fn take_forgotten() -> Vec<String> {
-    FORGOTTEN.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default()
+pub fn take_forgotten() -> Forgotten {
+    let all = FORGOTTEN.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
+    let mut out = Forgotten::default();
+    for (id, unsubscribed) in all {
+        if unsubscribed { out.unsubscribed.push(id) } else { out.gone.push(id) }
+    }
+    out
 }
 
 /// The Studio's own mods: made, removed and switched by the Studio itself.
@@ -264,6 +283,8 @@ fn forget(paths: &StudioPaths, installed: &[ModManifest], write: bool) -> Vec<St
         prune_json(f, &PROFILE_KEYS, &gone, &backups);
     }
     prune_json(&master, &["load_order", "active_mod_ids"], &gone, &backups);
+    // The Mod List's groups (every profile's); the player's notes stay.
+    crate::mod_meta::take_out_of_groups(z, &gone, &backups);
     let kept: Vec<String> = game_list.iter().filter(|id| !gone.contains(&key(id))).cloned().collect();
     if kept.len() != game_list.len() {
         let _ = write_mod_list_ini(&paths.mod_list_ini_path, &kept);
@@ -304,10 +325,13 @@ fn forget(paths: &StudioPaths, installed: &[ModManifest], write: bool) -> Vec<St
         }
     }
 
+    // Which of them the player unsubscribed from (their folders still there, left out by the scan).
+    let pending = super::unsubscribed::pending(paths);
+    let unsubscribed = if pending.is_empty() { HashSet::new() } else { super::unsubscribed::mod_ids_of_items(paths, &pending) };
     if let Ok(mut f) = FORGOTTEN.lock() {
         for id in &missing {
-            if !f.contains(id) {
-                f.push(id.clone());
+            if !f.iter().any(|(x, _)| x == id) {
+                f.push((id.clone(), unsubscribed.contains(&id.to_lowercase())));
             }
         }
     }
