@@ -1,4 +1,14 @@
 {
+ "1.12.4": [
+  "Link 1.21.2: a Clear button in the session error list",
+  "Link: the error notice and windows stay where you left them, across games",
+  "Link: the live overlay shows on the pause menu every time",
+  "Link: an error caught by a mod counts once, on that mod",
+  "Link: saves made while the app was closed are no longer hidden",
+  "Unsubscribing a mod takes it out of every profile and screen",
+  "Servers: the network card says how the running server was started",
+  "Dedicated server: no more asking to download SteamCMD when it is there"
+ ],
  "1.12.3": [
   "Game time measuring: asks first, backs up the save and waits for the game to close",
   "Texts that say what the app really does, on Windows and Linux"
